@@ -81,15 +81,7 @@ Discord Embed 无法完全自定义背景，因此直接使用 Discord 深色主
 
 ### 2.3 Logo 资产
 
-图标版：
-
-```text
-assets/axis-icon.png
-```
-
-只包含 AXIS 图标，不包含文字，供 Discord Server Avatar 和 Bot Avatar 使用。
-
-完整品牌版：
+唯一正式 Logo：
 
 ```text
 assets/axis-brand-lockup.png
@@ -105,11 +97,13 @@ A X I S
 Signals without the noise.
 ```
 
-两种版本都保留非完全闭合圆环、中央 Axis 中轴结构、白色几何线条、少量绿色中轴或
-触发点、黑色背景，以及极简、高级、专业的核心视觉语言。不得显示旧品牌名称。
+Discord Server Avatar、Bot Avatar、服务器品牌页、欢迎页和订阅页都统一使用这张图片，
+不得使用自动生成的替代 Logo。
 
-首版不要在每张交易卡片中重复放 Logo，避免视觉噪音。完整品牌版主要用于服务器品牌页、
-欢迎页和订阅页。
+Logo 保留非完全闭合圆环、中央 Axis 中轴结构、白色几何线条、少量绿色中轴或触发点、
+黑色背景，以及极简、高级、专业的核心视觉语言。不得显示旧品牌名称。
+
+首版不要在每张交易卡片中重复放 Logo，避免视觉噪音。
 
 ---
 

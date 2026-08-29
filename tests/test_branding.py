@@ -35,7 +35,7 @@ def test_axis_brand_assets_and_blueprint_paths_are_stable() -> None:
     )
 
     assert blueprint["brand"]["server_name"] == "AXIS"
-    assert blueprint["brand"]["logo_path"] == "assets/axis-icon.png"
-    assert blueprint["brand"]["brand_lockup_path"] == "assets/axis-brand-lockup.png"
+    assert blueprint["brand"]["logo_path"] == "assets/axis-brand-lockup.png"
+    assert "brand_lockup_path" not in blueprint["brand"]
     assert (ROOT / blueprint["brand"]["logo_path"]).is_file()
-    assert (ROOT / blueprint["brand"]["brand_lockup_path"]).is_file()
+    assert not (ROOT / "assets" / "axis-icon.png").exists()

@@ -3,8 +3,7 @@ brand:
   server_name: "AXIS"
   tagline: "Signals without the noise."
   accent_hex: "#86F7A8"
-  logo_path: "assets/axis-icon.png"
-  brand_lockup_path: "assets/axis-brand-lockup.png"
+  logo_path: "assets/axis-brand-lockup.png"
 
 roles:
   - key: bot

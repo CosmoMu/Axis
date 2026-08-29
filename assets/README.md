@@ -1,12 +1,11 @@
 # AXIS 图片资源索引
 
-正式品牌资产：
+唯一正式 Logo 为 `assets/axis-brand-lockup.png`，依次显示 AXIS 图标、`A X I S` 和
+`Signals without the noise.`。Discord Server Avatar、Bot Avatar、欢迎页和其他品牌位
+都统一使用这张图片。
 
-- `assets/axis-icon.png`：只包含 AXIS 图标，供 Discord Server Avatar 和 Bot Avatar 使用。
-- `assets/axis-brand-lockup.png`：完整品牌版，依次显示 AXIS 图标、`A X I S` 和
-  `Signals without the noise.`。
-
-这两个路径必须保持稳定。任何正式资产都不得重新出现旧品牌名称。
+这个路径必须保持稳定。任何正式资产都不得重新出现旧品牌名称，也不得改用自动生成的
+替代 Logo。
 
 后续图片请按用途上传：
 
