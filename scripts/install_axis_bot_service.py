@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import plistlib
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+LABEL = "com.axis.bot"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_ROOT = Path.home() / "Library" / "Application Support" / "AXIS"
+
+
+def _deploy_runtime() -> None:
+    source_env = PROJECT_ROOT / ".env"
+    source_ids = PROJECT_ROOT / "config" / "discord_ids.json"
+    if not source_env.is_file() or not source_ids.is_file():
+        raise FileNotFoundError("runtime configuration is missing")
+
+    RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        PROJECT_ROOT / "app",
+        RUNTIME_ROOT / "app",
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    shutil.copytree(
+        PROJECT_ROOT / ".venv",
+        RUNTIME_ROOT / ".venv",
+        dirs_exist_ok=True,
+        symlinks=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    (RUNTIME_ROOT / "scripts").mkdir(parents=True, exist_ok=True)
+    (RUNTIME_ROOT / "config").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(PROJECT_ROOT / "scripts" / "run_bot.py", RUNTIME_ROOT / "scripts")
+    shutil.copy2(source_ids, RUNTIME_ROOT / "config" / "discord_ids.json")
+    shutil.copy2(source_env, RUNTIME_ROOT / ".env")
+    os.chmod(RUNTIME_ROOT / ".env", 0o600)
+
+
+def main() -> int:
+    source_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    source_runner = PROJECT_ROOT / "scripts" / "run_bot.py"
+    if not source_python.is_file() or not source_runner.is_file():
+        print("AXIS BOT service installation stopped: runtime files are missing.", file=sys.stderr)
+        return 2
+
+    try:
+        _deploy_runtime()
+    except OSError:
+        print(
+            "AXIS BOT runtime deployment failed; sensitive details were omitted.",
+            file=sys.stderr,
+        )
+        return 2
+
+    python = RUNTIME_ROOT / ".venv" / "bin" / "python"
+    runner = RUNTIME_ROOT / "scripts" / "run_bot.py"
+    log_directory = RUNTIME_ROOT / "var" / "log"
+    log_directory.mkdir(parents=True, exist_ok=True)
+    launch_agents = Path.home() / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    target = launch_agents / f"{LABEL}.plist"
+    temporary = launch_agents / f".{LABEL}.plist.tmp"
+
+    payload = {
+        "Label": LABEL,
+        "ProgramArguments": [str(python), str(runner)],
+        "WorkingDirectory": str(RUNTIME_ROOT),
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ThrottleInterval": 10,
+        "ProcessType": "Background",
+        "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
+        "StandardOutPath": str(log_directory / "axis-bot.stdout.log"),
+        "StandardErrorPath": str(log_directory / "axis-bot.stderr.log"),
+    }
+    try:
+        with temporary.open("wb") as output:
+            plistlib.dump(payload, output, sort_keys=True)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+    domain = f"gui/{os.getuid()}"
+    service = f"{domain}/{LABEL}"
+    subprocess.run(
+        ["launchctl", "bootout", service],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    try:
+        subprocess.run(["launchctl", "bootstrap", domain, str(target)], check=True)
+        subprocess.run(["launchctl", "enable", service], check=True)
+        subprocess.run(["launchctl", "kickstart", "-k", service], check=True)
+    except subprocess.CalledProcessError:
+        print(
+            "AXIS BOT service installation failed; runtime details were omitted.",
+            file=sys.stderr,
+        )
+        return 2
+
+    print("AXIS BOT background service is installed and started.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -53,6 +53,17 @@ MAX_ATTACHMENT_BYTES=10485760
 .venv/bin/python scripts/run_bot.py
 ```
 
+macOS 本机开发环境可以安装登录后自动启动的后台服务：
+
+```bash
+.venv/bin/python scripts/install_axis_bot_service.py
+```
+
+LaunchAgent 名称为 `com.axis.bot`，配置文件位于当前用户的 `Library/LaunchAgents`。为避免
+macOS 阻止后台进程读取 Desktop，安装脚本会把仅运行所需的文件部署到
+`~/Library/Application Support/AXIS`；运行日志和信号附件也保存在该运行目录的 `var/` 下。
+服务配置本身不包含 Token 或数据库连接，运行时仍只从权限为 `0600` 的 `.env` 读取。
+
 ## Discord Developer Portal
 
 AXIS BOT 需要以下 Intent：

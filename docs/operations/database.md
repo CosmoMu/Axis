@@ -13,6 +13,16 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 生产环境必须使用独立用户、强密码、TLS 和最小权限。示例中的 `<password>` 不是实际凭据。
 
+本机首次开发可以在 PostgreSQL 服务启动后执行：
+
+```bash
+.venv/bin/python scripts/setup_local_database.py
+```
+
+该脚本会幂等创建本机 `axis_user` 与 `axis` 数据库、生成强随机密码、验证实际连接，并只把
+编码后的 `DATABASE_URL` 写入 Git 忽略的 `.env`。脚本不会输出密码或连接字符串。它只适用于
+本机开发；生产环境应使用托管 Secret Manager 和单独的生产凭据。
+
 ## 初始化或升级
 
 ```bash
