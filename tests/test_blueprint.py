@@ -128,6 +128,26 @@ def test_axis_role_above_bot_blocks_apply_before_any_mutation() -> None:
     assert any(action.resource_type == "role_hierarchy" for action in plan.blockers)
 
 
+def test_equal_role_positions_use_discord_id_tiebreaker() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    guild = replace(
+        empty_guild(),
+        roles=(
+            RoleState(GUILD_ID, "@everyone", True, 0),
+            RoleState(201, "AXIS BOT", True, 1),
+            RoleState(301, "管理员", False, 1),
+            RoleState(302, "会员", False, 1),
+        ),
+    )
+    plan = build_plan(blueprint, guild, GUILD_ID)
+
+    assert not any(action.resource_type == "role_hierarchy" for action in plan.blockers)
+    assert not any(
+        action.status == "UPDATE" and action.resource_type == "role_hierarchy"
+        for action in plan.actions
+    )
+
+
 def test_discord_read_messages_alias_satisfies_view_channel_requirement() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
     guild = replace(

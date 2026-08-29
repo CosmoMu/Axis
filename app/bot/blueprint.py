@@ -67,6 +67,13 @@ class RoleState:
     permissions: tuple[str, ...] = ()
 
 
+def _role_is_below(role: RoleState, reference: RoleState) -> bool:
+    """Match Discord's hierarchy ordering when numeric positions are tied."""
+    return role.position < reference.position or (
+        role.position == reference.position and role.id > reference.id
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class CategoryState:
     id: int
@@ -508,7 +515,7 @@ def build_plan(
     member_role = roles_by_id.get(role_ids.get("member") or 0)
     if bot_role is not None:
         for role_key, role in (("manager", manager_role), ("member", member_role)):
-            if role is not None and role.position >= bot_role.position:
+            if role is not None and not _role_is_below(role, bot_role):
                 actions.append(
                     PlanAction(
                         "BLOCK",
@@ -522,7 +529,7 @@ def build_plan(
     if (
         manager_role is not None
         and member_role is not None
-        and manager_role.position <= member_role.position
+        and _role_is_below(manager_role, member_role)
     ):
         actions.append(
             PlanAction(

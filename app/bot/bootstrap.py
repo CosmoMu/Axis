@@ -69,7 +69,11 @@ def snapshot_guild(guild: discord.Guild) -> GuildState:
             position=role.position,
             permissions=tuple(sorted(name for name, allowed in role.permissions if allowed)),
         )
-        for role in sorted(guild.roles, key=lambda item: item.position, reverse=True)
+        for role in sorted(
+            guild.roles,
+            key=lambda item: (item.position, -item.id),
+            reverse=True,
+        )
     )
     categories = tuple(
         CategoryState(
@@ -260,14 +264,14 @@ async def _create_or_reuse_roles(
             )
         result[spec.key] = role
 
-    bot_position = result["bot"].position
+    bot_role = result["bot"]
     manager = result["manager"]
     member = result["member"]
-    if manager.position >= bot_position or member.position >= bot_position:
+    if manager >= bot_role or member >= bot_role:
         raise ConfigurationError(
             "管理员或会员 Role 高于 Bot Role，Bot 无法安全调整；请 Owner 手动处理。"
         )
-    if manager.position <= member.position:
+    if manager <= member:
         await manager.edit(position=max(member.position + 1, 1), reason="AXIS Role 顺序")
     return result
 
