@@ -6,6 +6,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 LABEL = "com.axis.bot"
@@ -26,13 +27,14 @@ def _deploy_runtime() -> None:
         dirs_exist_ok=True,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
-    shutil.copytree(
-        PROJECT_ROOT / ".venv",
-        RUNTIME_ROOT / ".venv",
-        dirs_exist_ok=True,
-        symlinks=True,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-    )
+    runtime_venv = RUNTIME_ROOT / ".venv"
+    if not runtime_venv.exists():
+        shutil.copytree(
+            PROJECT_ROOT / ".venv",
+            runtime_venv,
+            symlinks=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
     (RUNTIME_ROOT / "scripts").mkdir(parents=True, exist_ok=True)
     (RUNTIME_ROOT / "config").mkdir(parents=True, exist_ok=True)
     shutil.copy2(PROJECT_ROOT / "scripts" / "run_bot.py", RUNTIME_ROOT / "scripts")
@@ -90,16 +92,40 @@ def main() -> int:
 
     domain = f"gui/{os.getuid()}"
     service = f"{domain}/{LABEL}"
-    subprocess.run(
+    bootout = subprocess.run(
         ["launchctl", "bootout", service],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
     )
+    if bootout.returncode == 0:
+        time.sleep(0.5)
     try:
-        subprocess.run(["launchctl", "bootstrap", domain, str(target)], check=True)
-        subprocess.run(["launchctl", "enable", service], check=True)
-        subprocess.run(["launchctl", "kickstart", "-k", service], check=True)
+        for attempt in range(2):
+            bootstrap = subprocess.run(
+                ["launchctl", "bootstrap", domain, str(target)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            if bootstrap.returncode == 0:
+                break
+            if attempt == 0:
+                time.sleep(1)
+        else:
+            raise subprocess.CalledProcessError(bootstrap.returncode, bootstrap.args)
+        subprocess.run(
+            ["launchctl", "enable", service],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        subprocess.run(
+            ["launchctl", "kickstart", "-k", service],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
     except subprocess.CalledProcessError:
         print(
             "AXIS BOT service installation failed; runtime details were omitted.",

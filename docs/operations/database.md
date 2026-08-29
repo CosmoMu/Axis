@@ -20,8 +20,10 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 ```
 
 该脚本会幂等创建本机 `axis_user` 与 `axis` 数据库、生成强随机密码、验证实际连接，并只把
-编码后的 `DATABASE_URL` 写入 Git 忽略的 `.env`。脚本不会输出密码或连接字符串。它只适用于
-本机开发；生产环境应使用托管 Secret Manager 和单独的生产凭据。
+编码后的 `DATABASE_URL` 写入 Git 忽略的 `.env`。它还会把本机 Unix Socket 认证收紧为
+`peer`、TCP 回环认证收紧为 `SCRAM-SHA-256`，避免 Homebrew 初始 `trust` 配置绕过密码。
+脚本不会输出密码或连接字符串。它只适用于本机开发；生产环境应使用托管 Secret Manager
+和单独的生产凭据。
 
 ## 初始化或升级
 

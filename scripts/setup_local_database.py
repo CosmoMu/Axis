@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import getpass
 import os
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -17,6 +18,39 @@ import asyncpg  # noqa: E402
 
 DATABASE_NAME = "axis"
 DATABASE_ROLE = "axis_user"
+
+
+def _harden_local_auth(hba_path: Path) -> None:
+    original = hba_path.read_text(encoding="utf-8")
+    updated_lines: list[str] = []
+    for line in original.splitlines():
+        line = re.sub(
+            r"^(\s*local\s+all\s+all\s+)trust(\s*(?:#.*)?)$",
+            r"\1peer\2",
+            line,
+        )
+        line = re.sub(
+            r"^(\s*host\s+all\s+all\s+(?:127\.0\.0\.1/32|::1/128)\s+)"
+            r"trust(\s*(?:#.*)?)$",
+            r"\1scram-sha-256\2",
+            line,
+        )
+        updated_lines.append(line)
+    updated = "\n".join(updated_lines) + "\n"
+    if updated == original:
+        return
+
+    temporary = hba_path.with_name(f".{hba_path.name}.axis.tmp")
+    mode = hba_path.stat().st_mode & 0o777
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            output.write(updated)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, hba_path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _write_database_url(database_url: str) -> None:
@@ -62,6 +96,7 @@ async def _provision() -> None:
         host="/tmp",
     )
     try:
+        await admin.execute("SET password_encryption = 'scram-sha-256'")
         role_exists = await admin.fetchval(
             "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1)",
             DATABASE_ROLE,
@@ -82,6 +117,10 @@ async def _provision() -> None:
             await admin.execute('CREATE DATABASE "axis" OWNER "axis_user"')
         else:
             await admin.execute('ALTER DATABASE "axis" OWNER TO "axis_user"')
+
+        hba_path = Path(await admin.fetchval("SHOW hba_file"))
+        _harden_local_auth(hba_path)
+        await admin.fetchval("SELECT pg_reload_conf()")
     finally:
         await admin.close()
 
