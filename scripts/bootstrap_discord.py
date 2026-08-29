@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="apply 时必须再次提供与 DISCORD_GUILD_ID 相同的 Guild ID。",
     )
+    parser.add_argument(
+        "--allow-axis-renames",
+        action="store_true",
+        help="仅允许重命名 discord_ids.json 已登记的 AXIS Category 与 Channel。",
+    )
     return parser.parse_args()
 
 
@@ -49,6 +54,7 @@ def main() -> int:
                 settings,
                 apply=args.apply,
                 confirmed_guild_id=args.confirm_guild_id,
+                allow_axis_renames=args.allow_axis_renames,
             )
         )
     except discord.LoginFailure:

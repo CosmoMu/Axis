@@ -15,7 +15,8 @@
 
 - 主品牌、Discord Server 名称和所有面向用户的品牌文案统一使用 `AXIS`；私人模型模块
   保持 `AXIS LAB`，Bot 保持 `AXIS BOT`，不增加正式中文品牌名。
-- 所有 Discord 展示文字使用中文；代码、枚举、数据库字段使用英文。
+- Discord Category 与 Channel 名称使用英文 + Emoji；卡片、频道说明和用户交互使用中文；
+  代码、枚举、数据库字段使用英文。
 - 不得把 Bot Token、LLM Key、数据库密码或任何 Secret 写入源码、日志、测试快照或提交记录。
 - 只允许从环境变量或 Secret Manager 读取 Secret。
 - 首次连接 Discord 后，先执行只读盘点与 `dry-run`，输出将创建或复用的 Role、Category、Channel 和权限差异。

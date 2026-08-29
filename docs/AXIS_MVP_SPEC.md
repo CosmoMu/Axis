@@ -170,56 +170,56 @@ Bot Role 必须高于 `管理员` 和 `会员`。
 ### 4.1 最终名称
 
 ```text
-01｜⬛ 开始
-├─ 👋・欢迎
-├─ 💳・订阅
-├─ 📊・官方战绩
-├─ 💬・大厅
-└─ 🏆・会员晒单
+⬛・AXIS
+├─ 👋・welcome
+├─ 💳・membership
+├─ 📊・results
+├─ 💬・lounge
+└─ 🏆・member-wins
 
-02｜🟢 会员
-├─ ⚡・短线信号
-├─ 〽️・波段信号
-├─ ♾️・长期信号
-└─ 💬・会员交流
+🟢・SIGNALS
+├─ ⚡・short-term
+├─ 〽️・swing
+├─ ♾️・long-term
+└─ 💬・member-lounge
 
-90｜⚙️ 管理
-├─ 📥・信号输入
-├─ ✅・卡片审核
-├─ 🧭・导师管理
-└─ 👤・会员管理
+⚙️・OPERATIONS
+├─ 📥・signal-input
+├─ ✅・review-desk
+├─ 🧭・mentor-control
+└─ 👤・member-control
 
-99｜🧪 AXIS LAB
-├─ 🟢・模型信号
-└─ 🗂️・历史订单
+🧪・AXIS LAB
+├─ 🟢・model-signals
+└─ 🗂️・trade-history
 ```
 
 ### 4.2 频道权限
 
-#### 开始区
+#### ⬛・AXIS
 
 | 频道 | @everyone | 会员 | 管理员 | Bot |
 |---|---|---|---|---|
-| 欢迎 | 查看 | 查看 | 查看 | 发布 |
-| 订阅 | 查看 | 查看 | 查看 | 发布 |
-| 官方战绩 | 查看 | 查看 | 查看 | 发布 |
-| 大厅 | 查看/发言 | 查看/发言 | 查看/管理 | 发布/管理 |
-| 会员晒单 | 仅查看 | 查看/发言/上传 | 查看/管理 | 发布/管理 |
+| 👋・welcome | 查看 | 查看 | 查看 | 发布 |
+| 💳・membership | 查看 | 查看 | 查看 | 发布 |
+| 📊・results | 查看 | 查看 | 查看 | 发布 |
+| 💬・lounge | 查看/发言 | 查看/发言 | 查看/管理 | 发布/管理 |
+| 🏆・member-wins | 仅查看 | 查看/发言/上传 | 查看/管理 | 发布/管理 |
 
-#### 会员区
+#### 🟢・SIGNALS
 
 | 频道 | @everyone | 会员 | 管理员 | Bot |
 |---|---|---|---|---|
-| 短线信号 | 隐藏 | 只读 | 只读 | 发布/管理 |
-| 波段信号 | 隐藏 | 只读 | 只读 | 发布/管理 |
-| 长期信号 | 隐藏 | 只读 | 只读 | 发布/管理 |
-| 会员交流 | 隐藏 | 查看/发言 | 查看/管理 | 发布/管理 |
+| ⚡・short-term | 隐藏 | 只读 | 只读 | 发布/管理 |
+| 〽️・swing | 隐藏 | 只读 | 只读 | 发布/管理 |
+| ♾️・long-term | 隐藏 | 只读 | 只读 | 发布/管理 |
+| 💬・member-lounge | 隐藏 | 查看/发言 | 查看/管理 | 发布/管理 |
 
-#### 管理区
+#### ⚙️・OPERATIONS
 
 只有 `管理员`、Bot 和服务器 Owner 可见。管理员可以发言、上传附件并使用组件。
 
-#### AXIS LAB
+#### 🧪・AXIS LAB
 
 只有服务器 Owner 和 Bot 可见。管理员默认不可见。
 
@@ -238,9 +238,9 @@ LEAPS      → LP-0001
 会员频道映射：
 
 ```text
-SHORT_TERM → ⚡・短线信号
-SWING      → 〽️・波段信号
-LEAPS      → ♾️・长期信号
+SHORT_TERM → ⚡・short-term
+SWING      → 〽️・swing
+LEAPS      → ♾️・long-term
 ```
 
 LLM 可以建议分类，但管理员必须可以修改。
@@ -696,7 +696,7 @@ axis:active:leaps:v1
 
 ### 10.1 输入来源
 
-管理员可以在 `📥・信号输入` 中发送：
+管理员可以在 `📥・signal-input` 中发送：
 
 - 纯文字；
 - 一张或多张图片；
@@ -748,7 +748,7 @@ config/llm_trade_schema.json
 
 ## 11. 卡片审核
 
-LLM 解析后，Bot 在 `✅・卡片审核` 发布管理员专用 Draft：
+LLM 解析后，Bot 在 `✅・review-desk` 发布管理员专用 Draft：
 
 ```text
 待审核订单 · D-1042
@@ -846,7 +846,7 @@ updated_at
 
 ### 12.2 导师管理频道
 
-在 `🧭・导师管理` 放置一张长期控制面板：
+在 `🧭・mentor-control` 放置一张长期控制面板：
 
 ```text
 导师管理
@@ -890,7 +890,7 @@ GOOGL 10/16 400C
 
 只有一个 `会员` Role。
 
-在 `👤・会员管理` 放置长期控制面板：
+在 `👤・member-control` 放置长期控制面板：
 
 ```text
 会员管理
@@ -939,7 +939,7 @@ IMPORT
 
 首版只提供：
 
-- `💳・订阅` 中的外部支付链接；
+- `💳・membership` 中的外部支付链接；
 - `SUBSCRIPTION_URL` 配置；
 - 可插拔 `PaymentProvider` 接口。
 
@@ -949,7 +949,7 @@ IMPORT
 
 ## 14. 官方战绩
 
-完全关闭的订单自动进入 `📊・官方战绩`。
+完全关闭的订单自动进入 `📊・results`。
 
 ### 14.1 计算方式
 
@@ -1278,9 +1278,9 @@ Database Password → 只能放 Secret
 首版创建但默认禁用：
 
 ```text
-99｜🧪 AXIS LAB
-├─ 🟢・模型信号
-└─ 🗂️・历史订单
+🧪・AXIS LAB
+├─ 🟢・model-signals
+└─ 🗂️・trade-history
 ```
 
 环境变量：
@@ -1293,11 +1293,11 @@ FEATURE_MODEL_AB_ENABLED=false
 
 ### 20.1 后续模型信号
 
-以后由 Moomoo 行情接口提供数据，Model A 按不同 Mentor 的历史策略寻找候选，Model B 判断入场点。结果只发送到 `🟢・模型信号`。
+以后由 Moomoo 行情接口提供数据，Model A 按不同 Mentor 的历史策略寻找候选，Model B 判断入场点。结果只发送到 `🟢・model-signals`。
 
 ### 20.2 后续历史订单
 
-`🗂️・历史订单` 只放：
+`🗂️・trade-history` 只放：
 
 - 已结束模型订单；
 - 未触发或取消的观察信号；

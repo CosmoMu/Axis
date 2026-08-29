@@ -281,6 +281,8 @@ async def _create_or_reuse_categories(
     blueprint: Blueprint,
     roles: dict[str, discord.Role],
     saved_ids: dict[str, Any],
+    *,
+    allow_axis_renames: bool,
 ) -> dict[str, discord.CategoryChannel]:
     result: dict[str, discord.CategoryChannel] = {}
     for spec in blueprint.categories:
@@ -294,7 +296,14 @@ async def _create_or_reuse_categories(
         if matches:
             category = matches[0]
             if category.name != spec.name:
-                raise ConfigurationError(f"保存的 Category {spec.key} 已改名，拒绝自动改名或另建。")
+                if not allow_axis_renames or saved_category is None:
+                    raise ConfigurationError(
+                        f"保存的 Category {spec.key} 已改名，未授权 AXIS 重命名。"
+                    )
+                category = await category.edit(
+                    name=spec.name,
+                    reason="AXIS Bootstrap：更新已登记 Category 名称",
+                )
         else:
             overwrites = {
                 roles[subject]: discord.PermissionOverwrite(**values)
@@ -317,6 +326,8 @@ async def _create_or_reuse_channels(
     roles: dict[str, discord.Role],
     categories: dict[str, discord.CategoryChannel],
     saved_ids: dict[str, Any],
+    *,
+    allow_axis_renames: bool,
 ) -> dict[str, discord.TextChannel]:
     result: dict[str, discord.TextChannel] = {}
     for category_spec in blueprint.categories:
@@ -336,8 +347,13 @@ async def _create_or_reuse_channels(
                 if not isinstance(channel, discord.TextChannel):
                     raise ConfigurationError(f"频道 {spec.name} 同名但类型不是 text，拒绝写入。")
                 if channel.name != spec.name:
-                    raise ConfigurationError(
-                        f"保存的 Channel {spec.key} 已改名，拒绝自动改名或另建。"
+                    if not allow_axis_renames or saved_channel is None:
+                        raise ConfigurationError(
+                            f"保存的 Channel {spec.key} 已改名，未授权 AXIS 重命名。"
+                        )
+                    channel = await channel.edit(
+                        name=spec.name,
+                        reason="AXIS Bootstrap：更新已登记 Channel 名称",
                     )
                 if channel.category_id != category.id:
                     raise ConfigurationError(
@@ -414,15 +430,24 @@ async def apply_blueprint(
     blueprint: Blueprint,
     settings: Settings,
     saved_ids: dict[str, Any],
+    *,
+    allow_axis_renames: bool,
 ) -> None:
     roles = await _create_or_reuse_roles(guild, blueprint, saved_ids)
-    categories = await _create_or_reuse_categories(guild, blueprint, roles, saved_ids)
+    categories = await _create_or_reuse_categories(
+        guild,
+        blueprint,
+        roles,
+        saved_ids,
+        allow_axis_renames=allow_axis_renames,
+    )
     channels = await _create_or_reuse_channels(
         guild,
         blueprint,
         roles,
         categories,
         saved_ids,
+        allow_axis_renames=allow_axis_renames,
     )
     await _apply_permissions(blueprint, roles, channels)
     _write_ids(settings.ids_path, guild, roles, categories, channels)
@@ -433,6 +458,7 @@ async def run_bootstrap(
     *,
     apply: bool,
     confirmed_guild_id: int | None,
+    allow_axis_renames: bool = False,
 ) -> int:
     token = settings.require_token()
     blueprint = load_blueprint(settings.blueprint_path)
@@ -448,7 +474,13 @@ async def run_bootstrap(
         if settings.discord_owner_user_id and state.owner_id != settings.discord_owner_user_id:
             raise ConfigurationError("DISCORD_OWNER_USER_ID 与目标 Guild Owner 不一致。")
 
-        plan = build_plan(blueprint, state, settings.discord_guild_id, saved_ids)
+        plan = build_plan(
+            blueprint,
+            state,
+            settings.discord_guild_id,
+            saved_ids,
+            allow_axis_renames=allow_axis_renames,
+        )
         _print_inventory(state)
         _print_plan(plan)
         if not apply:
@@ -460,7 +492,13 @@ async def run_bootstrap(
         settings.assert_apply_gate(confirmed_guild_id)
         if plan.blockers:
             raise ConfigurationError("dry-run 存在 BLOCK 项，拒绝写入。")
-        await apply_blueprint(guild, blueprint, settings, saved_ids)
+        await apply_blueprint(
+            guild,
+            blueprint,
+            settings,
+            saved_ids,
+            allow_axis_renames=allow_axis_renames,
+        )
         print("\nAXIS 缺失资源与权限已应用。未删除、改名或移动非项目资源。")
         return 0
     finally:

@@ -323,6 +323,8 @@ def build_plan(
     state: GuildState,
     expected_guild_id: int,
     saved_ids: dict[str, Any] | None = None,
+    *,
+    allow_axis_renames: bool = False,
 ) -> BootstrapPlan:
     actions: list[PlanAction] = []
     warnings: list[str] = []
@@ -545,6 +547,7 @@ def build_plan(
     categories_by_id = {category.id: category for category in state.categories}
     channels_by_id = {channel.id: channel for channel in state.channels}
     for category_spec in blueprint.categories:
+        category: CategoryState | None = None
         saved_category_id = _saved_id(saved_ids, "categories", category_spec.key)
         saved_category = categories_by_id.get(saved_category_id) if saved_category_id else None
         matches = (
@@ -575,17 +578,33 @@ def build_plan(
                 )
             )
         elif saved_category and saved_category.name != category_spec.name:
-            category_ids[category_spec.key] = None
-            actions.append(
-                PlanAction(
-                    "BLOCK",
-                    "category",
-                    category_spec.key,
-                    category_spec.name,
-                    f"保存的 Category ID 当前名称为 {saved_category.name!r}；拒绝自动改名或另建。",
-                    saved_category.id,
+            if allow_axis_renames:
+                category = saved_category
+                category_ids[category_spec.key] = saved_category.id
+                actions.append(
+                    PlanAction(
+                        "UPDATE",
+                        "category_name",
+                        category_spec.key,
+                        category_spec.name,
+                        f"重命名已登记 AXIS Category：{saved_category.name!r} → "
+                        f"{category_spec.name!r}。",
+                        saved_category.id,
+                    )
                 )
-            )
+            else:
+                category_ids[category_spec.key] = None
+                actions.append(
+                    PlanAction(
+                        "BLOCK",
+                        "category",
+                        category_spec.key,
+                        category_spec.name,
+                        f"保存的 Category ID 当前名称为 {saved_category.name!r}；"
+                        "需要显式启用 AXIS 重命名。",
+                        saved_category.id,
+                    )
+                )
         else:
             category = matches[0]
             category_ids[category_spec.key] = category.id
@@ -599,6 +618,7 @@ def build_plan(
                     category.id,
                 )
             )
+        if category is not None:
             differences = _compare_permissions(
                 category.overwrites,
                 desired_category_permissions(category_spec),
@@ -655,18 +675,31 @@ def build_plan(
                 continue
             channel = matches[0]
             if saved_channel and saved_channel.name != channel_spec.name:
-                actions.append(
-                    PlanAction(
-                        "BLOCK",
-                        "channel",
-                        channel_spec.key,
-                        channel_spec.name,
-                        "保存的 Channel ID 当前名称为 "
-                        f"{saved_channel.name!r}；拒绝自动改名或另建。",
-                        saved_channel.id,
+                if allow_axis_renames:
+                    actions.append(
+                        PlanAction(
+                            "UPDATE",
+                            "channel_name",
+                            channel_spec.key,
+                            channel_spec.name,
+                            f"重命名已登记 AXIS Channel：{saved_channel.name!r} → "
+                            f"{channel_spec.name!r}。",
+                            saved_channel.id,
+                        )
                     )
-                )
-                continue
+                else:
+                    actions.append(
+                        PlanAction(
+                            "BLOCK",
+                            "channel",
+                            channel_spec.key,
+                            channel_spec.name,
+                            "保存的 Channel ID 当前名称为 "
+                            f"{saved_channel.name!r}；需要显式启用 AXIS 重命名。",
+                            saved_channel.id,
+                        )
+                    )
+                    continue
             if channel.type != channel_spec.type:
                 actions.append(
                     PlanAction(
@@ -691,16 +724,17 @@ def build_plan(
                     )
                 )
                 continue
-            actions.append(
-                PlanAction(
-                    "REUSE",
-                    "channel",
-                    channel_spec.key,
-                    channel_spec.name,
-                    "复用目标 Category 内完全同名文字频道。",
-                    channel.id,
+            if channel.name == channel_spec.name:
+                actions.append(
+                    PlanAction(
+                        "REUSE",
+                        "channel",
+                        channel_spec.key,
+                        channel_spec.name,
+                        "复用目标 Category 内完全同名文字频道。",
+                        channel.id,
+                    )
                 )
-            )
             if (channel.topic or "") != channel_spec.topic:
                 actions.append(
                     PlanAction(

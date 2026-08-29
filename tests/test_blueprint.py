@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.bot.blueprint import (
     CategoryState,
+    ChannelState,
     GuildState,
     RoleState,
     build_plan,
@@ -36,9 +37,33 @@ def empty_guild() -> GuildState:
 def test_blueprint_has_exact_mvp_shape() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
 
+    assert blueprint.version == 2
     assert blueprint.server_name == "AXIS"
     assert [role.name for role in blueprint.roles] == ["AXIS BOT", "管理员", "会员"]
     assert blueprint.role_order == ("bot", "manager", "member", "everyone")
+    assert [category.name for category in blueprint.categories] == [
+        "⬛・AXIS",
+        "🟢・SIGNALS",
+        "⚙️・OPERATIONS",
+        "🧪・AXIS LAB",
+    ]
+    assert [channel.name for category in blueprint.categories for channel in category.channels] == [
+        "👋・welcome",
+        "💳・membership",
+        "📊・results",
+        "💬・lounge",
+        "🏆・member-wins",
+        "⚡・short-term",
+        "〽️・swing",
+        "♾️・long-term",
+        "💬・member-lounge",
+        "📥・signal-input",
+        "✅・review-desk",
+        "🧭・mentor-control",
+        "👤・member-control",
+        "🟢・model-signals",
+        "🗂️・trade-history",
+    ]
     assert len(blueprint.categories) == 4
     assert blueprint.channel_count == 15
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
@@ -115,6 +140,51 @@ def test_saved_id_is_preferred_and_renames_block_duplicate_creation() -> None:
         action.status == "CREATE" and action.resource_type == "role" and action.key == "manager"
         for action in plan.actions
     )
+
+
+def test_saved_axis_category_and_channel_renames_require_explicit_opt_in() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    guild = replace(
+        empty_guild(),
+        categories=(CategoryState(401, "Old Start", 0),),
+        channels=(
+            ChannelState(
+                501,
+                "old-welcome",
+                "text",
+                401,
+                0,
+                "AXIS 欢迎与使用说明。",
+                {},
+            ),
+        ),
+    )
+    saved_ids = {
+        "guild_id": GUILD_ID,
+        "categories": {"start": 401},
+        "channels": {"welcome": 501},
+    }
+
+    blocked = build_plan(blueprint, guild, GUILD_ID, saved_ids)
+    allowed = build_plan(
+        blueprint,
+        guild,
+        GUILD_ID,
+        saved_ids,
+        allow_axis_renames=True,
+    )
+
+    assert any(action.key == "start" for action in blocked.blockers)
+    assert any(action.key == "welcome" for action in blocked.blockers)
+    assert any(
+        action.status == "UPDATE" and action.resource_type == "category_name"
+        for action in allowed.actions
+    )
+    assert any(
+        action.status == "UPDATE" and action.resource_type == "channel_name"
+        for action in allowed.actions
+    )
+    assert not any(action.key in {"start", "welcome"} for action in allowed.blockers)
 
 
 def test_axis_role_above_bot_blocks_apply_before_any_mutation() -> None:
