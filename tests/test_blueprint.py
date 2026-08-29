@@ -126,3 +126,22 @@ def test_axis_role_above_bot_blocks_apply_before_any_mutation() -> None:
     plan = build_plan(blueprint, guild, GUILD_ID)
 
     assert any(action.resource_type == "role_hierarchy" for action in plan.blockers)
+
+
+def test_discord_read_messages_alias_satisfies_view_channel_requirement() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    guild = replace(
+        empty_guild(),
+        bot_permissions=("manage_channels", "manage_roles", "read_messages"),
+    )
+    plan = build_plan(blueprint, guild, GUILD_ID)
+
+    assert not any(action.resource_type == "bot_permissions" for action in plan.blockers)
+
+
+def test_server_brand_case_mismatch_is_reported_without_planning_a_write() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    plan = build_plan(blueprint, replace(empty_guild(), name="Axis"), GUILD_ID)
+
+    assert any("品牌目标" in warning for warning in plan.warnings)
+    assert not any(action.resource_type == "guild_branding" for action in plan.changes)

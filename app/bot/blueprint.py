@@ -320,6 +320,11 @@ def build_plan(
     actions: list[PlanAction] = []
     warnings: list[str] = []
     saved_ids = saved_ids or {}
+    if state.name != blueprint.server_name:
+        warnings.append(
+            f"Guild 当前名称为 {state.name!r}，品牌目标为 {blueprint.server_name!r}；"
+            "Bootstrap 不会自动改名，请由 Owner 手动确认。"
+        )
     saved_guild_id = saved_ids.get("guild_id")
     if saved_guild_id is not None and saved_guild_id != state.id:
         actions.append(
@@ -481,8 +486,12 @@ def build_plan(
                     )
                 )
 
-    required_bot_permissions = {"manage_channels", "manage_roles", "view_channel"}
-    missing_bot_permissions = sorted(required_bot_permissions - set(state.bot_permissions))
+    bot_permissions = set(state.bot_permissions)
+    required_bot_permissions = {"manage_channels", "manage_roles"}
+    missing_bot_permissions = required_bot_permissions - bot_permissions
+    if not {"view_channel", "read_messages"} & bot_permissions:
+        missing_bot_permissions.add("view_channel")
+    missing_bot_permissions = sorted(missing_bot_permissions)
     if missing_bot_permissions:
         actions.append(
             PlanAction(
