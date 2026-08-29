@@ -11,6 +11,7 @@
 | `../CODEX_ACCEPTANCE_CHECKLIST.md` | 交付验收清单 | 验收条件发生变化时 |
 | `../README_FOR_CODEX.md` | Codex 开发入口和硬性约束 | 开发栈、执行规则或实施顺序变化时 |
 | `operations/discord-bootstrap.md` | Discord 只读盘点、dry-run 和安全 apply 手册 | Bootstrap 流程或权限变化时 |
+| `operations/database.md` | PostgreSQL、Alembic、初始化与回滚手册 | Schema、迁移或数据库环境变化时 |
 
 ## 后续开发文档放置规则
 

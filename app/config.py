@@ -43,6 +43,7 @@ class Settings:
     discord_guild_id: int
     discord_application_id: int | None
     discord_owner_user_id: int | None
+    database_url: str
     apply_changes: bool
     dry_run: bool
     blueprint_path: Path
@@ -66,6 +67,7 @@ class Settings:
             discord_guild_id=guild_id,
             discord_application_id=_parse_optional_int("DISCORD_APPLICATION_ID"),
             discord_owner_user_id=_parse_optional_int("DISCORD_OWNER_USER_ID"),
+            database_url=os.getenv("DATABASE_URL", "").strip(),
             apply_changes=_parse_bool("APPLY_CHANGES", False),
             dry_run=_parse_bool("DRY_RUN", True),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
@@ -79,6 +81,15 @@ class Settings:
                 "缺少 DISCORD_BOT_TOKEN。请只把 Token 填入本地 .env，勿发送到聊天或提交 Git。"
             )
         return self.discord_bot_token
+
+    def require_database_url(self) -> str:
+        if not self.database_url:
+            raise ConfigurationError(
+                "缺少 DATABASE_URL。请只在本地 .env 或 Secret Manager 中配置数据库连接。"
+            )
+        if not self.database_url.startswith("postgresql+asyncpg://"):
+            raise ConfigurationError("DATABASE_URL 必须使用 postgresql+asyncpg://。")
+        return self.database_url
 
     def assert_apply_gate(self, confirmed_guild_id: int | None) -> None:
         if not self.apply_changes:
