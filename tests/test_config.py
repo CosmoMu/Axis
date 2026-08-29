@@ -20,6 +20,8 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         blueprint_path=root / "blueprint.yaml",
         ids_path=root / "ids.json",
         report_path=root / "report.json",
+        attachment_storage_path=root / "attachments",
+        max_attachment_bytes=10 * 1024 * 1024,
     )
 
 

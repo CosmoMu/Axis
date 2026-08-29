@@ -12,6 +12,7 @@
 | `../README_FOR_CODEX.md` | Codex 开发入口和硬性约束 | 开发栈、执行规则或实施顺序变化时 |
 | `operations/discord-bootstrap.md` | Discord 只读盘点、dry-run 和安全 apply 手册 | Bootstrap 流程或权限变化时 |
 | `operations/database.md` | PostgreSQL、Alembic、初始化与回滚手册 | Schema、迁移或数据库环境变化时 |
+| `operations/signal-input.md` | 信号输入、附件安全、Bot 启动与验收手册 | 收件规则、Intent 或运行方式变化时 |
 
 ## 后续开发文档放置规则
 

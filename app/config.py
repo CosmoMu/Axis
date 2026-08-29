@@ -36,6 +36,17 @@ def _parse_optional_int(name: str) -> int | None:
     return value
 
 
+def _parse_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} 必须是正整数。") from exc
+    if value <= 0:
+        raise ConfigurationError(f"{name} 必须大于 0。")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     project_root: Path
@@ -49,6 +60,8 @@ class Settings:
     blueprint_path: Path
     ids_path: Path
     report_path: Path
+    attachment_storage_path: Path
+    max_attachment_bytes: int
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -61,6 +74,7 @@ class Settings:
 
         ids_value = os.getenv("DISCORD_IDS_PATH", "config/discord_ids.json")
         report_value = os.getenv("DISCORD_DRY_RUN_REPORT", "var/discord/dry-run.json")
+        attachment_value = os.getenv("ATTACHMENT_STORAGE_PATH", "var/attachments")
         return cls(
             project_root=root,
             discord_bot_token=os.getenv("DISCORD_BOT_TOKEN", "").strip(),
@@ -73,6 +87,10 @@ class Settings:
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),
+            attachment_storage_path=(root / attachment_value).resolve(),
+            max_attachment_bytes=_parse_positive_int(
+                "MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
+            ),
         )
 
     def require_token(self) -> str:
