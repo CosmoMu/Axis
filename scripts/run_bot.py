@@ -21,7 +21,13 @@ from app.bot.client import AxisBot  # noqa: E402
 from app.config import ConfigurationError, Settings  # noqa: E402
 from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
+from app.integrations.openai_trade_parser import (  # noqa: E402
+    OpenAITradeParser,
+    load_trade_prompt,
+    load_trade_schema,
+)
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
+from app.services.draft_generation import DraftGenerationService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
 
 
@@ -43,10 +49,26 @@ async def run() -> None:
             settings.attachment_storage_path,
             max_bytes=settings.max_attachment_bytes,
         )
+        draft_generation_service = None
+        if settings.llm_api_key:
+            parser = OpenAITradeParser(
+                api_key=settings.require_llm_api_key(),
+                model=settings.llm_model,
+                timeout_seconds=settings.llm_timeout_seconds,
+                max_retries=settings.llm_max_retries,
+                schema=load_trade_schema(settings.llm_schema_path),
+                prompt=load_trade_prompt(settings.llm_prompt_path),
+            )
+            draft_generation_service = DraftGenerationService(
+                database,
+                attachment_store,
+                parser,
+            )
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
             signal_input_service=SignalInputService(database, attachment_store),
+            draft_generation_service=draft_generation_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

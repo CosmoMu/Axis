@@ -169,6 +169,7 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "trade_drafts"
     __table_args__ = (
         UniqueConstraint("guild_id", "draft_code", name="draft_code_per_guild"),
+        UniqueConstraint("source_message_id", name="trade_draft_source_message"),
         CheckConstraint(enum_check("status", DraftStatus), name="draft_status"),
         CheckConstraint("position_delta_eighths BETWEEN -8 AND 8", name="draft_position_delta"),
         CheckConstraint("position_after_eighths BETWEEN 0 AND 8", name="draft_position_after"),

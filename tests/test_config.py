@@ -22,6 +22,13 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         report_path=root / "report.json",
         attachment_storage_path=root / "attachments",
         max_attachment_bytes=10 * 1024 * 1024,
+        llm_provider="openai",
+        llm_api_key="",
+        llm_model="gpt-5.6-terra",
+        llm_timeout_seconds=45,
+        llm_max_retries=2,
+        llm_schema_path=root / "llm_trade_schema.json",
+        llm_prompt_path=root / "llm_trade_prompt.txt",
     )
 
 
@@ -56,3 +63,12 @@ def test_database_url_is_required_and_must_use_asyncpg() -> None:
         database_url="postgresql+asyncpg://axis@localhost/axis",
     )
     assert configured.require_database_url().startswith("postgresql+asyncpg://")
+
+
+def test_llm_key_is_optional_at_startup_but_required_to_enable_parser() -> None:
+    unconfigured = settings(apply_changes=False, dry_run=True)
+    with pytest.raises(ConfigurationError):
+        unconfigured.require_llm_api_key()
+
+    configured = replace(unconfigured, llm_api_key="test-only-placeholder")
+    assert configured.require_llm_api_key() == "test-only-placeholder"

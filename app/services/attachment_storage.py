@@ -132,6 +132,22 @@ class LocalAttachmentStore:
             checksum_sha256=attachment.checksum_sha256,
         )
 
+    async def read_verified(self, storage_key: str, checksum_sha256: str) -> bytes:
+        if not storage_key or not checksum_sha256:
+            raise AttachmentStorageError("attachment metadata is incomplete")
+        candidate = (self.root / storage_key).resolve()
+        if candidate != self.root and self.root not in candidate.parents:
+            raise AttachmentStorageError("attachment path is invalid")
+        try:
+            data = await asyncio.to_thread(candidate.read_bytes)
+        except OSError as exc:
+            raise AttachmentStorageError("attachment read failed") from exc
+        if not data or len(data) > self.max_bytes:
+            raise AttachmentStorageError("attachment size is invalid")
+        if hashlib.sha256(data).hexdigest() != checksum_sha256:
+            raise AttachmentStorageError("attachment checksum differs")
+        return data
+
     def _write_atomic(self, path: Path, attachment: PreparedAttachment) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():

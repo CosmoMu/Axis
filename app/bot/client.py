@@ -4,9 +4,11 @@ from typing import Any
 
 from discord.ext import commands
 
+from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.signal_input import SignalInputCog
 from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
+from app.services.draft_generation import DraftGenerationService
 from app.services.signal_input import SignalInputService
 
 
@@ -24,6 +26,7 @@ class AxisBot(commands.Bot):
         settings: Settings,
         discord_ids: dict[str, Any],
         signal_input_service: SignalInputService,
+        draft_generation_service: DraftGenerationService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -41,7 +44,15 @@ class AxisBot(commands.Bot):
             channel_id=_required_snowflake(channels, "signal_input"),
             manager_role_id=_required_snowflake(roles, "manager"),
             owner_user_id=settings.discord_owner_user_id,
+            draft_processing_enabled=draft_generation_service is not None,
+        )
+        self._draft_worker_cog = (
+            DraftWorkerCog(self, service=draft_generation_service)
+            if draft_generation_service is not None
+            else None
         )
 
     async def setup_hook(self) -> None:
         await self.add_cog(self._signal_cog)
+        if self._draft_worker_cog is not None:
+            await self.add_cog(self._draft_worker_cog)

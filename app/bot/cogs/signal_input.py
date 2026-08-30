@@ -36,6 +36,7 @@ class SignalInputCog(commands.Cog):
         channel_id: int,
         manager_role_id: int,
         owner_user_id: int | None,
+        draft_processing_enabled: bool,
     ) -> None:
         self.bot = bot
         self.service = service
@@ -43,6 +44,7 @@ class SignalInputCog(commands.Cog):
         self.channel_id = channel_id
         self.manager_role_id = manager_role_id
         self.owner_user_id = owner_user_id
+        self.draft_processing_enabled = draft_processing_enabled
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -89,8 +91,13 @@ class SignalInputCog(commands.Cog):
             await self._safe_reply(message, "信号暂时无法保存，请稍后重试。")
             return
 
+        received_response = (
+            "已接收信号输入，正在等待解析。"
+            if self.draft_processing_enabled
+            else "已接收信号输入；LLM 尚未配置，已安全排队。"
+        )
         responses = {
-            IngestDisposition.RECEIVED: "已接收信号输入，正在等待解析。",
+            IngestDisposition.RECEIVED: received_response,
             IngestDisposition.DUPLICATE: "这条信号已经接收，无需重复提交。",
             IngestDisposition.REJECTED: (
                 "无法接收：请提供文字或 PNG/JPEG/WEBP 图片，单张图片不超过 10MB。"
