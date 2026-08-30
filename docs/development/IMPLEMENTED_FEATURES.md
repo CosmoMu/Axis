@@ -8,11 +8,13 @@
 - AXIS Role/Category/Channel 受控 rename；未知资源不修改。
 - macOS LaunchAgent `com.axis.bot`。
 - Manager-only `🤫・quiet-profits`。
-- Manager-only `🧪・card-testing`，用于测试卡片。
+- Owner-only `🚨・system-alerts` 与 `🧪・card-testing`；使用
+  `DISCORD_OWNER_USER_ID` 的 user-specific overwrite，不新增 Staff Role。
+- GENERAL 五条长期 Guide / Membership 消息按数据库 Message ID 幂等同步。
 
 ## Database
 
-- Alembic revisions `0001` 到 `0013`。
+- Alembic revisions `0001` 到 `0014`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
@@ -22,6 +24,10 @@
 - Analysis Market Intelligence context、Source evidence 与历史 media 兼容字段。
 - Model A 训练字段：`why_now_json`、Analysis Point / Key Level source provenance。
 - `input_code_counters` 事务分配 Signal / Analysis 独立的短顺序号。
+- Discord-user-bound `membership_sessions`、幂等 `payment_webhook_events` 与持久化
+  `system_alerts`。
+- Membership 保留 ORM `user_id` API，但物理列明确命名为 `discord_user_id`；另存 provider、
+  customer 与 subscription ID。
 
 ## Signal
 
@@ -62,6 +68,18 @@
 - 单一 Membership、赠送、延期、到期取消、立即移除和手工 Role 同步。
 - Scheduled Job 到期处理和持续 Member Role reconciliation。
 - Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
+- PaymentProvider 抽象、External Checkout URL metadata、HMAC webhook 与 provider event 去重。
+- ACTIVE / PAST_DUE / CANCEL_AT_PERIOD_END / EXPIRED / CANCELLED / REMOVED lifecycle；
+  period-end 之前保留 Role，到期 Job 自动移除。
+
+## GENERAL / Owner Operations
+
+- 中文极简 Welcome 与单一 `AXIS Membership` 卡片；价格和支付/Portal URL 来自环境配置。
+- Results 只保留官方统计；Lobby 为公开聊天；Member Wins 公开可见、仅会员上传，并与官方
+  Results 明确隔离。
+- 7 个 Owner-only Card Preview 命令使用内存 DTO，不创建假 Trade、不写 Results、不发会员频道。
+- ERROR / WARNING / RECOVERY System Alert；fingerprint、first/last seen、occurrence count、
+  resolved time 与通知状态持久化。
 
 ## Analysis（complete / live enabled）
 
@@ -84,6 +102,8 @@
 - PostgreSQL custom backup、list verification、SHA-256 与双确认 restore 工具。
 - Dockerfile / Compose 基础部署与 Secret-safe build context。
 - 后台 worker 只记录事件名与异常类型的脱敏结构化日志。
+- `verify_discord_runtime.py` 只读验收 Public / Member / Manager / Owner / Bot 权限、GENERAL
+  控制消息数量和 Owner 测试命令同步。
 - Moomoo SDK / OpenD 版本锁定、只读行情健康检查与登录启动 LaunchAgent。
 - `16:15 ET` 的 Short-term / Swing / Leaps Active + 当日 Closed 总结。
 - 交易日验证、Discord marker 恢复、数据库唯一键与失败重试。
@@ -93,4 +113,5 @@
 - Secret 不进入 Git 或日志。
 - Public DTO 排除 Mentor、Source 元数据、提交人和 Parser 信息；当前 Analysis 不发布图片。
 - Manager 无 Discord Administrator / Manage Roles。
+- 外部 Checkout URL 或 webhook secret 任一缺失时，JOIN 入口安全禁用。
 - AXIS LAB 功能关闭；Moomoo 仅用于 Core 只读行情，不访问账户或交易接口。

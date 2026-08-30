@@ -103,6 +103,8 @@ class PublicationStatus(StrEnum):
 
 class MembershipStatus(StrEnum):
     ACTIVE = "ACTIVE"
+    PAST_DUE = "PAST_DUE"
+    CANCEL_AT_PERIOD_END = "CANCEL_AT_PERIOD_END"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
     REMOVED = "REMOVED"

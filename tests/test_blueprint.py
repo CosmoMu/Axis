@@ -9,6 +9,7 @@ from app.bot.blueprint import (
     GuildState,
     RoleState,
     build_plan,
+    desired_category_permissions,
     desired_channel_permissions,
     load_blueprint,
 )
@@ -64,13 +65,14 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🧭・mentor-control",
         "👤・member-control",
         "🤫・quiet-profits",
+        "🚨・system-alerts",
         "🧪・card-testing",
         "🟢・lab-signals",
         "🧬・mentor-status",
         "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 20
+    assert blueprint.channel_count == 21
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
 
 
@@ -81,7 +83,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 2
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 20
+    assert sum(action.resource_type == "channel" for action in creates) == 21
     assert not plan.blockers
 
 
@@ -125,8 +127,10 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     lobby = desired_channel_permissions(channels["lobby"])
     manager_lounge = desired_channel_permissions(channels["manager_lounge"])
     card_testing = desired_channel_permissions(channels["card_testing"])
+    system_alerts = desired_channel_permissions(channels["system_alerts"])
     assert member_wins["member"]["attach_files"] is True
     assert member_wins["manager"]["manage_messages"] is True
+    assert member_wins["bot"]["pin_messages"] is True
     assert lobby["manager"]["manage_messages"] is True
     assert manager_lounge["manager"]["view_channel"] is True
     assert manager_lounge["manager"]["send_messages"] is True
@@ -134,9 +138,58 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     assert manager_lounge["member"]["view_channel"] is False
     assert card_testing["everyone"]["view_channel"] is False
     assert card_testing["member"]["view_channel"] is False
-    assert card_testing["manager"]["send_messages"] is True
-    assert card_testing["manager"]["attach_files"] is True
+    assert card_testing["manager"]["view_channel"] is False
+    assert card_testing["manager"]["send_messages"] is False
+    assert card_testing["owner"]["view_channel"] is True
+    assert card_testing["owner"]["send_messages"] is True
+    assert card_testing["owner"]["use_application_commands"] is True
+    assert card_testing["manager"]["use_application_commands"] is False
     assert card_testing["bot"]["send_messages"] is True
+    assert system_alerts["manager"]["view_channel"] is False
+    assert system_alerts["owner"]["view_channel"] is True
+    assert system_alerts["bot"]["manage_messages"] is True
+
+
+def test_blueprint_encodes_four_identity_visibility_matrix() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    categories = {category.key: category for category in blueprint.categories}
+    channels = {
+        channel.key: channel for category in blueprint.categories for channel in category.channels
+    }
+
+    general = desired_category_permissions(categories["start"])
+    members = desired_category_permissions(categories["members"])
+    manager = desired_category_permissions(categories["manager"])
+    deferred_lab = desired_category_permissions(categories["lab"])
+    assert {key: value["view_channel"] for key, value in general.items()} == {
+        "everyone": True,
+        "member": True,
+        "manager": True,
+        "bot": True,
+    }
+    assert {key: value["view_channel"] for key, value in members.items()} == {
+        "everyone": False,
+        "member": True,
+        "manager": True,
+        "bot": True,
+    }
+    assert {key: value["view_channel"] for key, value in manager.items()} == {
+        "everyone": False,
+        "member": False,
+        "manager": True,
+        "bot": True,
+    }
+    assert "owner" not in deferred_lab
+    assert deferred_lab["manager"]["view_channel"] is False
+
+    owner_only = desired_channel_permissions(channels["system_alerts"])
+    assert {subject: values["view_channel"] for subject, values in owner_only.items()} == {
+        "everyone": False,
+        "member": False,
+        "manager": False,
+        "bot": True,
+        "owner": True,
+    }
 
 
 def test_saved_axis_role_rename_requires_explicit_opt_in() -> None:

@@ -73,9 +73,7 @@ def _attachment(
 
 def test_attachment_accepts_discord_filename_mime_disagreement(tmp_path: Path) -> None:
     png = b"\x89PNG\r\n\x1a\n" + b"discord-converted-image"
-    prepared = LocalAttachmentStore(
-        tmp_path / "attachments", max_bytes=10 * 1024 * 1024
-    ).prepare(
+    prepared = LocalAttachmentStore(tmp_path / "attachments", max_bytes=10 * 1024 * 1024).prepare(
         discord_attachment_id=7000,
         filename="image.webp",
         declared_content_type="image/png",

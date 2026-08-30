@@ -14,6 +14,24 @@
 
 - `DATABASE_URL`：必须使用 `postgresql+asyncpg://`。
 
+## Membership / Payment
+
+- `MEMBERSHIP_PRICE_DISPLAY`：仅用于 Discord 展示，例如 `$XX / month`；不写死价格。
+- `SUBSCRIPTION_URL`：外部 Checkout 基础 URL。
+- `CUSTOMER_PORTAL_URL`：可选；设置后显示 `MANAGE MEMBERSHIP`。
+- `PAYMENT_PROVIDER`：provider-neutral adapter 名称，默认 `external`。
+- `PAYMENT_WEBHOOK_HOST` / `PAYMENT_WEBHOOK_PORT`：Webhook listener 绑定地址。
+- `PAYMENT_WEBHOOK_SECRET`：HMAC-SHA256 Secret；只放 `.env` / Secret Store。
+- `MEMBERSHIP_SESSION_TTL_MINUTES`：Discord User ID 绑定 session 的有效期。
+
+Checkout 由 Discord interaction 先创建 `membership_session`，再将
+`discord_user_id + membership_session_id` 写入 checkout metadata。Webhook 不使用 email、
+Discord username 或显示名推断会员身份。
+
+## Production Alerts
+
+- `SYSTEM_ALERT_CHECK_SECONDS`：Owner-only 健康检查周期；正常状态不发送消息。
+
 ## OpenAI / Workload Router
 
 - `OPENAI_API_KEY`：OpenAI Secret。

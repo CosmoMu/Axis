@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0013` 使用 25 张业务表：
+当前 revision `20260830_0014` 使用 28 张业务表：
 
 ```text
 guild_config
@@ -59,6 +59,9 @@ llm_invocations
 memberships
 membership_events
 subscriptions
+membership_sessions
+payment_webhook_events
+system_alerts
 audit_logs
 scheduled_jobs
 analysis_drafts
@@ -89,6 +92,8 @@ Model A 训练与评估。
 形式的 Manager-facing 顺序号；UUID 仍是内部主键。
 `market_quote_snapshots` 保存 Moomoo 只读盘后参考价；`daily_summary_publications` 以
 Guild、类别与交易日唯一，保存公开快照和 Discord 发布状态。
+`membership_sessions` 在进入 Checkout 前绑定 `discord_user_id`；`payment_webhook_events`
+按 provider event ID 防止重复履约；`system_alerts` 保存持续故障的去重、计数和恢复状态。
 
 ## 只读健康检查
 

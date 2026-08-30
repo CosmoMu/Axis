@@ -22,6 +22,9 @@ COUNTED_TABLES = (
     "trades",
     "mentors",
     "memberships",
+    "membership_sessions",
+    "payment_webhook_events",
+    "system_alerts",
     "trade_events",
     "trade_publications",
     "analysis_drafts",
@@ -69,8 +72,7 @@ async def verify() -> None:
         print(f"revision={revision}")
         print("counts=" + ",".join(f"{name}:{count}" for name, count in counts.items()))
         print(
-            "feature_flags="
-            + ",".join(f"{name}:{_safe_feature(name)}" for name in SAFE_FEATURES)
+            "feature_flags=" + ",".join(f"{name}:{_safe_feature(name)}" for name in SAFE_FEATURES)
         )
     finally:
         await database.dispose()

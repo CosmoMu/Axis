@@ -82,6 +82,7 @@ categories:
         manager_send: true
         manager_manage_messages: true
         bot_send: true
+        bot_pin_messages: true
 
   - key: members
     name: "🟢・MEMBERS"
@@ -204,22 +205,41 @@ categories:
         manager_attach: true
         manager_manage_messages: true
         bot_send: true
+      - key: system_alerts
+        name: "🚨・system-alerts"
+        type: text
+        topic: "AXIS 生产系统 ERROR、WARNING 与 RECOVERY；正常运行时保持安静。"
+        everyone_view: false
+        member_view: false
+        manager_view: false
+        owner_view: true
+        owner_send: true
+        owner_attach: true
+        owner_interact: true
+        owner_manage_messages: true
+        bot_send: true
       - key: card_testing
         name: "🧪・card-testing"
         type: text
-        topic: "AXIS Manager 测试卡片专用频道；不得在会员正式频道做开发测试。"
+        topic: "AXIS Owner 测试卡片专用频道；测试不得写入正式交易或会员频道。"
         everyone_view: false
         member_view: false
-        manager_view: true
-        manager_send: true
-        manager_attach: true
-        manager_manage_messages: true
+        manager_view: false
+        manager_send: false
+        manager_attach: false
+        manager_interact: false
+        manager_manage_messages: false
+        owner_view: true
+        owner_send: true
+        owner_attach: true
+        owner_interact: true
+        owner_manage_messages: true
         bot_send: true
 
   - key: lab
     name: "🧪・AXIS LAB"
     position: 99
-    default_visibility: owner_only
+    default_visibility: deferred
     feature_flag: FEATURE_LAB_ENABLED
     channels:
       - key: lab_signals
@@ -229,7 +249,6 @@ categories:
         everyone_view: false
         member_view: false
         manager_view: false
-        owner_view: true
         bot_send: true
       - key: mentor_status
         name: "🧬・mentor-status"
@@ -238,7 +257,6 @@ categories:
         everyone_view: false
         member_view: false
         manager_view: false
-        owner_view: true
         bot_send: true
       - key: lab_history
         name: "🗂️・lab-history"
@@ -247,7 +265,6 @@ categories:
         everyone_view: false
         member_view: false
         manager_view: false
-        owner_view: true
         bot_send: true
 
 persistent_panels:

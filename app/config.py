@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -75,6 +76,16 @@ def _parse_time_hhmm(name: str, default: str) -> str:
     return f"{hour:02d}:{minute:02d}"
 
 
+def _parse_optional_url(name: str) -> str | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ConfigurationError(f"{name} 必须是有效的 http/https URL。")
+    return raw
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     project_root: Path
@@ -109,6 +120,15 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    membership_price_display: str = "价格见支付页面"
+    subscription_url: str | None = None
+    customer_portal_url: str | None = None
+    payment_provider: str = "external"
+    payment_webhook_host: str = "127.0.0.1"
+    payment_webhook_port: int = 8787
+    payment_webhook_secret: str = ""
+    membership_session_ttl_minutes: int = 30
+    system_alert_check_seconds: int = 30
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -173,6 +193,23 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            membership_price_display=(
+                os.getenv("MEMBERSHIP_PRICE_DISPLAY", "价格见支付页面").strip() or "价格见支付页面"
+            ),
+            subscription_url=_parse_optional_url("SUBSCRIPTION_URL"),
+            customer_portal_url=_parse_optional_url("CUSTOMER_PORTAL_URL"),
+            payment_provider=(
+                os.getenv("PAYMENT_PROVIDER", "external").strip().lower() or "external"
+            ),
+            payment_webhook_host=(
+                os.getenv("PAYMENT_WEBHOOK_HOST", "127.0.0.1").strip() or "127.0.0.1"
+            ),
+            payment_webhook_port=_parse_positive_int("PAYMENT_WEBHOOK_PORT", 8787),
+            payment_webhook_secret=os.getenv("PAYMENT_WEBHOOK_SECRET", "").strip(),
+            membership_session_ttl_minutes=_parse_positive_int(
+                "MEMBERSHIP_SESSION_TTL_MINUTES", 30
+            ),
+            system_alert_check_seconds=_parse_positive_int("SYSTEM_ALERT_CHECK_SECONDS", 30),
         )
 
     def require_token(self) -> str:

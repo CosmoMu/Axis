@@ -93,8 +93,19 @@ class GuildConfig(TimestampMixin, Base):
     member_lounge_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_control_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     member_control_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    welcome_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    subscriptions_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    lobby_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    member_wins_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    system_alerts_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    card_testing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    subscription_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    results_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    lobby_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    member_wins_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class InputCodeCounter(Base):
@@ -668,7 +679,12 @@ class DailySummaryPublication(UuidPrimaryKeyMixin, TimestampMixin, Base):
 class Membership(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "memberships"
     __table_args__ = (
-        UniqueConstraint("guild_id", "user_id", name="membership_user_per_guild"),
+        UniqueConstraint("guild_id", "discord_user_id", name="membership_user_per_guild"),
+        UniqueConstraint(
+            "provider",
+            "provider_subscription_id",
+            name="membership_provider_subscription",
+        ),
         CheckConstraint(enum_check("status", MembershipStatus), name="membership_status"),
         CheckConstraint(enum_check("source", MembershipSource), name="membership_source"),
     )
@@ -676,11 +692,14 @@ class Membership(UuidPrimaryKeyMixin, TimestampMixin, Base):
     guild_id: Mapped[int] = mapped_column(
         ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
     )
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column("discord_user_id", BigInteger, nullable=False, index=True)
     status: Mapped[str] = mapped_column(
         String(16), default=MembershipStatus.ACTIVE.value, nullable=False
     )
     source: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(32))
+    provider_customer_id: Mapped[str | None] = mapped_column(String(255))
+    provider_subscription_id: Mapped[str | None] = mapped_column(String(255))
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -726,6 +745,77 @@ class Subscription(UuidPrimaryKeyMixin, TimestampMixin, Base):
     current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class MembershipSession(Base):
+    __tablename__ = "membership_sessions"
+    __table_args__ = (
+        Index("ix_membership_sessions_user_created", "discord_user_id", "created_at"),
+    )
+
+    session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PaymentWebhookEvent(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "payment_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_event_id", name="payment_provider_event"),
+        Index("ix_payment_webhooks_received", "received_at"),
+    )
+
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    membership_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("membership_sessions.session_id", ondelete="SET NULL"), index=True
+    )
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SystemAlert(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "system_alerts"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "fingerprint", name="system_alert_fingerprint"),
+        CheckConstraint(
+            "severity IN ('WARNING','ERROR')",
+            name="system_alert_severity",
+        ),
+        CheckConstraint("occurrence_count >= 1", name="system_alert_occurrence_positive"),
+        Index("ix_system_alerts_active", "guild_id", "resolved_at", "last_seen"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    service: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    affected: Mapped[str | None] = mapped_column(String(255))
+    detail: Mapped[str | None] = mapped_column(Text)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurrence_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuditLog(UuidPrimaryKeyMixin, Base):

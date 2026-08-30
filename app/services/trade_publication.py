@@ -111,8 +111,7 @@ class TradePublicationService:
                             or_(
                                 TradePublication.id.is_(None),
                                 and_(
-                                    TradePublication.status
-                                    == PublicationStatus.PENDING.value,
+                                    TradePublication.status == PublicationStatus.PENDING.value,
                                     or_(
                                         TradePublication.claimed_at.is_(None),
                                         TradePublication.claimed_at <= cutoff,
@@ -173,9 +172,7 @@ class TradePublicationService:
                 return self._existing_claim(publication, draft)
 
             config = await session.scalar(
-                select(GuildConfig)
-                .where(GuildConfig.guild_id == draft.guild_id)
-                .with_for_update()
+                select(GuildConfig).where(GuildConfig.guild_id == draft.guild_id).with_for_update()
             )
             if config is None:
                 raise PublicationValidationError("GUILD_CONFIG_NOT_FOUND")
@@ -267,9 +264,7 @@ class TradePublicationService:
             if publication.claim_token != claim_token:
                 raise PublicationConflictError("PUBLICATION_CLAIM_CONFLICT")
             draft = await session.scalar(
-                select(TradeDraft)
-                .where(TradeDraft.id == publication.draft_id)
-                .with_for_update()
+                select(TradeDraft).where(TradeDraft.id == publication.draft_id).with_for_update()
             )
             if draft is None:
                 raise PublicationValidationError("DRAFT_NOT_FOUND")
@@ -307,9 +302,7 @@ class TradePublicationService:
             if publication.claim_token != claim_token:
                 raise PublicationConflictError("PUBLICATION_CLAIM_CONFLICT")
             draft = await session.scalar(
-                select(TradeDraft)
-                .where(TradeDraft.id == publication.draft_id)
-                .with_for_update()
+                select(TradeDraft).where(TradeDraft.id == publication.draft_id).with_for_update()
             )
             trade = await session.scalar(
                 select(Trade).where(Trade.id == publication.trade_id).with_for_update()
@@ -385,9 +378,7 @@ class TradePublicationService:
                 public_trade_id=trade.public_trade_id,
             )
 
-    async def current_orders(
-        self, guild_id: int, category: str
-    ) -> list[ActivePublicTrade]:
+    async def current_orders(self, guild_id: int, category: str) -> list[ActivePublicTrade]:
         if category not in PUBLIC_ID_PREFIXES:
             raise PublicationValidationError("CATEGORY_INVALID")
         async with self.database.session() as session:
@@ -397,9 +388,7 @@ class TradePublicationService:
                     .where(
                         Trade.guild_id == guild_id,
                         Trade.category == category,
-                        Trade.state.in_(
-                            [TradeState.ACTIVE.value, TradeState.RUNNER.value]
-                        ),
+                        Trade.state.in_([TradeState.ACTIVE.value, TradeState.RUNNER.value]),
                         Trade.position_eighths > 0,
                     )
                     .order_by(Trade.opened_at, Trade.public_trade_id)
@@ -435,9 +424,7 @@ class TradePublicationService:
             if draft.matched_trade_id is None:
                 raise PublicationValidationError("MATCHED_TRADE_REQUIRED")
             trade = await session.scalar(
-                select(Trade)
-                .where(Trade.id == draft.matched_trade_id)
-                .with_for_update()
+                select(Trade).where(Trade.id == draft.matched_trade_id).with_for_update()
             )
             if (
                 trade is None
@@ -553,9 +540,7 @@ class TradePublicationService:
         return draft.entry_low if draft.entry_low is not None else draft.entry_high
 
     @staticmethod
-    def _apply_trade_update(
-        trade: Trade, draft: TradeDraft, after_position: int
-    ) -> None:
+    def _apply_trade_update(trade: Trade, draft: TradeDraft, after_position: int) -> None:
         now = utc_now()
         trade.last_public_action = (
             f"ADD_{draft.action_stage}"
@@ -599,17 +584,13 @@ class TradePublicationService:
         trade.version += 1
 
     @staticmethod
-    def _existing_claim(
-        publication: TradePublication, draft: TradeDraft
-    ) -> PublicationClaim:
+    def _existing_claim(publication: TradePublication, draft: TradeDraft) -> PublicationClaim:
         return PublicationClaim(
             publication_id=publication.id,
             draft_id=draft.id,
             claim_token=None,
             should_publish=False,
-            already_published=(
-                publication.status == PublicationStatus.PUBLISHED.value
-            ),
+            already_published=(publication.status == PublicationStatus.PUBLISHED.value),
             channel_id=publication.channel_id,
             public_ref=publication.public_ref or "",
             card=None,

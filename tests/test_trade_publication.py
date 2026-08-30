@@ -101,9 +101,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert claim.claim_token is not None
 
         public_text = str(
-            build_public_trade_embed(
-                claim.card, public_ref=claim.public_ref
-            ).to_dict()
+            build_public_trade_embed(claim.card, public_ref=claim.public_ref).to_dict()
         )
         for forbidden in (
             "Private Mentor",
@@ -264,9 +262,7 @@ async def test_update_event_changes_active_state_and_close_removes_order() -> No
         assert len(active) == 1
         assert active[0].last_public_action == "ADD_FIRST"
         assert active[0].position_eighths == 2
-        assert "第一次加仓" in str(
-            build_active_orders_embed("SHORT_TERM", active).to_dict()
-        )
+        assert "第一次加仓" in str(build_active_orders_embed("SHORT_TERM", active).to_dict())
 
         async with database.session() as session:
             mentor_id = await session.scalar(select(Mentor.id).limit(1))

@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from sqlalchemy import select
 
 from app.bot.cards import build_official_result_embed
+from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.views.management_views import MemberControlView, MentorControlView
 from app.db.models import GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
@@ -126,9 +127,7 @@ class ManagerControlCog(commands.Cog):
                             actor_user_id=self.bot.user.id,
                         )
                 self._member_import_complete = True
-            await self.membership_service.process_due(
-                self.guild_id, actor_user_id=self.bot.user.id
-            )
+            await self.membership_service.process_due(self.guild_id, actor_user_id=self.bot.user.id)
             active = await self.membership_service.active_user_ids(self.guild_id)
             for member in guild.members:
                 should_have = member.id in active
@@ -142,8 +141,22 @@ class ManagerControlCog(commands.Cog):
                     continue
                 if (role in member.roles) == expected:
                     self._role_expectations.pop(user_id, None)
+            await report_system_recovery(
+                self.bot,
+                service="Membership Expiry Job",
+                error_type="MEMBERSHIP_EXPIRY_FAILED",
+                affected="Membership Role Sync",
+            )
         except Exception as exc:
             logger.warning("event=membership_loop_failed error_type=%s", type(exc).__name__)
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Membership Expiry Job",
+                error_type="MEMBERSHIP_EXPIRY_FAILED",
+                affected="Membership Role Sync",
+                detail=type(exc).__name__,
+            )
             return
 
     @membership_loop.before_loop
@@ -213,9 +226,7 @@ class ManagerControlCog(commands.Cog):
             await member.remove_roles(role, reason="AXIS membership inactive")
 
     @commands.Cog.listener()
-    async def on_member_update(
-        self, before: discord.Member, after: discord.Member
-    ) -> None:
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         if before.guild.id != self.guild_id or self.bot.user is None:
             return
         before_has = self.member_role_id in {role.id for role in before.roles}
@@ -300,9 +311,7 @@ class ManagerControlCog(commands.Cog):
             await message.edit(embed=embed, view=view)
         async with database.session() as session:
             config = await session.scalar(
-                select(GuildConfig)
-                .where(GuildConfig.guild_id == self.guild_id)
-                .with_for_update()
+                select(GuildConfig).where(GuildConfig.guild_id == self.guild_id).with_for_update()
             )
             if config is not None and getattr(config, config_field) != message.id:
                 setattr(config, config_field, message.id)

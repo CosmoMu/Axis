@@ -26,9 +26,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.add_column(
-        "analysis_drafts", sa.Column("chart_source", sa.String(length=16), nullable=True)
-    )
+    op.add_column("analysis_drafts", sa.Column("chart_source", sa.String(length=16), nullable=True))
     op.add_column(
         "analysis_drafts",
         sa.Column("chart_source_attachment_id", sa.Uuid(), nullable=True),

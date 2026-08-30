@@ -17,9 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "trades", sa.Column("moomoo_option_code", sa.String(length=64), nullable=True)
-    )
+    op.add_column("trades", sa.Column("moomoo_option_code", sa.String(length=64), nullable=True))
     op.create_table(
         "market_quote_snapshots",
         sa.Column("guild_id", sa.BigInteger(), nullable=False),
@@ -45,12 +43,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("trade_id", "session_date", name="market_quote_trade_session"),
     )
-    op.create_index(
-        "ix_market_quote_snapshots_guild_id", "market_quote_snapshots", ["guild_id"]
-    )
-    op.create_index(
-        "ix_market_quote_snapshots_trade_id", "market_quote_snapshots", ["trade_id"]
-    )
+    op.create_index("ix_market_quote_snapshots_guild_id", "market_quote_snapshots", ["guild_id"])
+    op.create_index("ix_market_quote_snapshots_trade_id", "market_quote_snapshots", ["trade_id"])
     op.create_index(
         "ix_market_quote_snapshots_session_date",
         "market_quote_snapshots",

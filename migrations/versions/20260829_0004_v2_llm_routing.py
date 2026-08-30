@@ -42,8 +42,7 @@ def upgrade() -> None:
             name=op.f("ck_llm_invocations_llm_invocation_latency_nonnegative"),
         ),
         sa.CheckConstraint(
-            "workload IN ('SIGNAL_PARSE', 'SIGNAL_REPAIR', "
-            "'ANALYSIS_PARSE', 'ANALYSIS_REWRITE')",
+            "workload IN ('SIGNAL_PARSE', 'SIGNAL_REPAIR', 'ANALYSIS_PARSE', 'ANALYSIS_REWRITE')",
             name=op.f("ck_llm_invocations_llm_invocation_workload"),
         ),
         sa.ForeignKeyConstraint(
@@ -119,14 +118,8 @@ def upgrade() -> None:
         "RENAME CONSTRAINT fk_public_messages_trade_event_id_trade_events "
         "TO fk_trade_publications_trade_event_id_trade_events"
     )
-    op.execute(
-        "ALTER INDEX ix_public_messages_guild_id "
-        "RENAME TO ix_trade_publications_guild_id"
-    )
-    op.execute(
-        "ALTER INDEX ix_public_messages_trade_id "
-        "RENAME TO ix_trade_publications_trade_id"
-    )
+    op.execute("ALTER INDEX ix_public_messages_guild_id RENAME TO ix_trade_publications_guild_id")
+    op.execute("ALTER INDEX ix_public_messages_trade_id RENAME TO ix_trade_publications_trade_id")
     op.execute(
         "ALTER INDEX ix_public_messages_trade_event_id "
         "RENAME TO ix_trade_publications_trade_event_id"
@@ -157,14 +150,8 @@ def downgrade() -> None:
         "RENAME CONSTRAINT fk_trade_publications_trade_event_id_trade_events "
         "TO fk_public_messages_trade_event_id_trade_events"
     )
-    op.execute(
-        "ALTER INDEX ix_trade_publications_guild_id "
-        "RENAME TO ix_public_messages_guild_id"
-    )
-    op.execute(
-        "ALTER INDEX ix_trade_publications_trade_id "
-        "RENAME TO ix_public_messages_trade_id"
-    )
+    op.execute("ALTER INDEX ix_trade_publications_guild_id RENAME TO ix_public_messages_guild_id")
+    op.execute("ALTER INDEX ix_trade_publications_trade_id RENAME TO ix_public_messages_trade_id")
     op.execute(
         "ALTER INDEX ix_trade_publications_trade_event_id "
         "RENAME TO ix_public_messages_trade_event_id"

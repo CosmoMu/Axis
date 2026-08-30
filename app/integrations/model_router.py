@@ -125,9 +125,7 @@ class ModelRouter:
                 (path.parent / str(structured_name)).resolve() if structured_name else None
             )
             if structured_output is not None and not structured_output.is_file():
-                raise ModelRoutingError(
-                    f"{workload.value}.structured_output 文件不存在。"
-                )
+                raise ModelRoutingError(f"{workload.value}.structured_output 文件不存在。")
             routes[workload] = ModelRoute(
                 provider=provider,
                 api=api,

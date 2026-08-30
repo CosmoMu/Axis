@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 
 from app.bot.cards import build_analysis_review_embed, build_public_analysis_embed
 from app.bot.cogs.signal_input import is_signal_manager
+from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.message_input import extract_message_input
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.domain.enums import AnalysisDraftStatus, SourceKind
@@ -142,6 +143,12 @@ class AnalysisPipelineCog(commands.Cog):
                 else f"观点草稿 {result.draft_code} 已生成。",
                 mention_author=False,
             )
+            await report_system_recovery(
+                self.bot,
+                service="Analysis Processing",
+                error_type="ANALYSIS_PROCESSING_FAILED",
+                affected="analysis-input → analysis-review",
+            )
         except Exception as exc:
             driver_error = getattr(exc, "orig", None)
             database_error = getattr(driver_error, "orig", driver_error)
@@ -154,6 +161,14 @@ class AnalysisPipelineCog(commands.Cog):
                 getattr(database_error, "table_name", None),
                 getattr(database_error, "column_name", None),
                 getattr(database_error, "constraint_name", None),
+            )
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Analysis Processing",
+                error_type="ANALYSIS_PROCESSING_FAILED",
+                affected="analysis-input → analysis-review",
+                detail=type(exc).__name__,
             )
             return
 

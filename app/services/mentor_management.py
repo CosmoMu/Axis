@@ -54,8 +54,7 @@ def _clean_values(
     if not 1 <= len(cleaned_name) <= 100:
         raise MentorValidationError("MENTOR_NAME_INVALID")
     if not 1 <= len(cleaned_code) <= 24 or any(
-        character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-        for character in cleaned_code
+        character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for character in cleaned_code
     ):
         raise MentorValidationError("MENTOR_CODE_INVALID")
     cleaned_aliases: list[str] = []
@@ -102,9 +101,7 @@ class MentorManagementService:
         actor_user_id: int,
         interaction_id: int | None,
     ) -> MentorSnapshot:
-        cleaned_name, cleaned_code, cleaned_aliases = _clean_values(
-            name, short_code, aliases
-        )
+        cleaned_name, cleaned_code, cleaned_aliases = _clean_values(name, short_code, aliases)
         async with self.database.session() as session:
             mentor = Mentor(
                 guild_id=guild_id,
@@ -140,9 +137,7 @@ class MentorManagementService:
         actor_user_id: int,
         interaction_id: int | None,
     ) -> MentorSnapshot:
-        cleaned_name, cleaned_code, cleaned_aliases = _clean_values(
-            name, short_code, aliases
-        )
+        cleaned_name, cleaned_code, cleaned_aliases = _clean_values(name, short_code, aliases)
         async with self.database.session() as session:
             mentor = await session.scalar(
                 select(Mentor).where(Mentor.id == mentor_id).with_for_update()
@@ -193,9 +188,7 @@ class MentorManagementService:
                     mentor=mentor,
                     actor_user_id=actor_user_id,
                     interaction_id=interaction_id,
-                    action_type=(
-                        "MENTOR_REACTIVATED" if is_active else "MENTOR_DEACTIVATED"
-                    ),
+                    action_type=("MENTOR_REACTIVATED" if is_active else "MENTOR_DEACTIVATED"),
                     before=before,
                 )
                 await session.commit()
@@ -216,11 +209,7 @@ class MentorManagementService:
             mentor = await session.get(Mentor, mentor_id)
             if trade is None:
                 raise MentorValidationError("TRADE_NOT_FOUND")
-            if (
-                mentor is None
-                or mentor.guild_id != trade.guild_id
-                or not mentor.is_active
-            ):
+            if mentor is None or mentor.guild_id != trade.guild_id or not mentor.is_active:
                 raise MentorValidationError("MENTOR_NOT_FOUND")
             before_id = trade.mentor_id
             trade.mentor_id = mentor.id
@@ -241,9 +230,7 @@ class MentorManagementService:
             return await self._snapshot(session, mentor)
 
     @staticmethod
-    def _replace_aliases(
-        session: AsyncSession, mentor: Mentor, aliases: tuple[str, ...]
-    ) -> None:
+    def _replace_aliases(session: AsyncSession, mentor: Mentor, aliases: tuple[str, ...]) -> None:
         for alias in aliases:
             session.add(
                 MentorAlias(
@@ -287,9 +274,7 @@ class MentorManagementService:
         )
 
     @staticmethod
-    async def _snapshot(
-        session: AsyncSession, mentor: Mentor
-    ) -> MentorSnapshot:
+    async def _snapshot(session: AsyncSession, mentor: Mentor) -> MentorSnapshot:
         aliases = tuple(
             (
                 await session.scalars(

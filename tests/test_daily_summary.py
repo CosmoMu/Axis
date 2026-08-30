@@ -146,12 +146,10 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
         assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
         assert market.calls == 1
         async with database.session() as session:
-            assert await session.scalar(
-                select(func.count()).select_from(DailySummaryPublication)
-            ) == 3
-            assert await session.scalar(
-                select(func.count()).select_from(MarketQuoteSnapshot)
-            ) == 1
+            assert (
+                await session.scalar(select(func.count()).select_from(DailySummaryPublication)) == 3
+            )
+            assert await session.scalar(select(func.count()).select_from(MarketQuoteSnapshot)) == 1
             payloads = list(await session.scalars(select(DailySummaryPublication.snapshot_json)))
             public_text = str(payloads)
             assert "Internal Mentor" not in public_text
@@ -193,21 +191,15 @@ async def test_non_trading_day_does_not_create_summaries() -> None:
     try:
         assert await service.prepare_session(GUILD_ID, SESSION_DATE) is False
         async with database.session() as session:
-            count = await session.scalar(
-                select(func.count()).select_from(DailySummaryPublication)
-            )
+            count = await session.scalar(select(func.count()).select_from(DailySummaryPublication))
             assert count == 0
     finally:
         await database.dispose()
 
 
 def test_schedule_uses_eastern_time_and_skips_weekends() -> None:
-    assert scheduled_session_date(
-        datetime(2026, 8, 28, 20, 14, tzinfo=UTC), "16:15"
-    ) is None
-    assert scheduled_session_date(
-        datetime(2026, 8, 28, 20, 15, tzinfo=UTC), "16:15"
-    ) == SESSION_DATE
-    assert scheduled_session_date(
-        datetime(2026, 8, 29, 21, 0, tzinfo=UTC), "16:15"
-    ) is None
+    assert scheduled_session_date(datetime(2026, 8, 28, 20, 14, tzinfo=UTC), "16:15") is None
+    assert (
+        scheduled_session_date(datetime(2026, 8, 28, 20, 15, tzinfo=UTC), "16:15") == SESSION_DATE
+    )
+    assert scheduled_session_date(datetime(2026, 8, 29, 21, 0, tzinfo=UTC), "16:15") is None

@@ -133,8 +133,7 @@ class LocalAttachmentStore:
         attachment: PreparedAttachment,
     ) -> StoredAttachment:
         storage_key = (
-            f"{guild_id}/{message_id}/"
-            f"{attachment.discord_attachment_id}{attachment.extension}"
+            f"{guild_id}/{message_id}/{attachment.discord_attachment_id}{attachment.extension}"
         )
         path = self.root / storage_key
         await asyncio.to_thread(self._write_atomic, path, attachment)

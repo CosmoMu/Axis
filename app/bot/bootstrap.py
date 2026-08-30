@@ -29,6 +29,8 @@ CONTROLLED_PERMISSION_NAMES = (
     "attach_files",
     "embed_links",
     "manage_messages",
+    "pin_messages",
+    "use_application_commands",
 )
 
 
@@ -244,9 +246,7 @@ async def _create_or_reuse_roles(
                 raise ConfigurationError(f"Role {spec.name} 是 managed Role，拒绝复用。")
             if role.name != spec.name:
                 if not allow_axis_renames or saved_role is None:
-                    raise ConfigurationError(
-                        f"保存的 Role {spec.key} 已改名，未授权 AXIS 重命名。"
-                    )
+                    raise ConfigurationError(f"保存的 Role {spec.key} 已改名，未授权 AXIS 重命名。")
                 role = await role.edit(
                     name=spec.name,
                     reason="AXIS Bootstrap：更新已登记 Role 名称",
@@ -288,7 +288,7 @@ async def _create_or_reuse_roles(
 async def _create_or_reuse_categories(
     guild: discord.Guild,
     blueprint: Blueprint,
-    roles: dict[str, discord.Role],
+    subjects: dict[str, discord.Role | discord.Member],
     saved_ids: dict[str, Any],
     *,
     allow_axis_renames: bool,
@@ -315,7 +315,7 @@ async def _create_or_reuse_categories(
                 )
         else:
             overwrites = {
-                roles[subject]: discord.PermissionOverwrite(**values)
+                subjects[subject]: discord.PermissionOverwrite(**values)
                 for subject, values in desired_category_permissions(spec).items()
             }
             category = await guild.create_category(
@@ -324,7 +324,7 @@ async def _create_or_reuse_categories(
                 reason="AXIS Bootstrap：创建缺失 Category",
             )
         for subject, values in desired_category_permissions(spec).items():
-            await _merge_permissions(category, roles[subject], values)
+            await _merge_permissions(category, subjects[subject], values)
         result[spec.key] = category
     return result
 
@@ -332,7 +332,7 @@ async def _create_or_reuse_categories(
 async def _create_or_reuse_channels(
     guild: discord.Guild,
     blueprint: Blueprint,
-    roles: dict[str, discord.Role],
+    subjects: dict[str, discord.Role | discord.Member],
     categories: dict[str, discord.CategoryChannel],
     saved_ids: dict[str, Any],
     *,
@@ -372,7 +372,7 @@ async def _create_or_reuse_channels(
                     await channel.edit(topic=spec.topic, reason="AXIS Bootstrap：同步频道主题")
             else:
                 overwrites = {
-                    roles[subject]: discord.PermissionOverwrite(**values)
+                    subjects[subject]: discord.PermissionOverwrite(**values)
                     for subject, values in desired_channel_permissions(spec).items()
                 }
                 channel = await guild.create_text_channel(
@@ -388,10 +388,10 @@ async def _create_or_reuse_channels(
 
 async def _merge_permissions(
     target: discord.abc.GuildChannel,
-    role: discord.Role,
+    subject: discord.Role | discord.Member,
     values: dict[str, bool],
 ) -> None:
-    overwrite = target.overwrites_for(role)
+    overwrite = target.overwrites_for(subject)
     changed = False
     for name, desired in values.items():
         if getattr(overwrite, name) is not desired:
@@ -399,7 +399,7 @@ async def _merge_permissions(
             changed = True
     if changed:
         await target.set_permissions(
-            role,
+            subject,
             overwrite=overwrite,
             reason="AXIS Bootstrap：同步蓝图权限",
         )
@@ -407,14 +407,14 @@ async def _merge_permissions(
 
 async def _apply_permissions(
     blueprint: Blueprint,
-    roles: dict[str, discord.Role],
+    subjects: dict[str, discord.Role | discord.Member],
     channels: dict[str, discord.TextChannel],
 ) -> None:
     for category_spec in blueprint.categories:
         for channel_spec in category_spec.channels:
             channel = channels[channel_spec.key]
             for subject, values in desired_channel_permissions(channel_spec).items():
-                await _merge_permissions(channel, roles[subject], values)
+                await _merge_permissions(channel, subjects[subject], values)
 
 
 def _write_ids(
@@ -448,22 +448,26 @@ async def apply_blueprint(
         saved_ids,
         allow_axis_renames=allow_axis_renames,
     )
+    owner = guild.owner
+    if owner is None:
+        owner = await guild.fetch_member(guild.owner_id)
+    subjects: dict[str, discord.Role | discord.Member] = {**roles, "owner": owner}
     categories = await _create_or_reuse_categories(
         guild,
         blueprint,
-        roles,
+        subjects,
         saved_ids,
         allow_axis_renames=allow_axis_renames,
     )
     channels = await _create_or_reuse_channels(
         guild,
         blueprint,
-        roles,
+        subjects,
         categories,
         saved_ids,
         allow_axis_renames=allow_axis_renames,
     )
-    await _apply_permissions(blueprint, roles, channels)
+    await _apply_permissions(blueprint, subjects, channels)
     _write_ids(settings.ids_path, guild, roles, categories, channels)
 
 

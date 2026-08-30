@@ -17,9 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "trade_event_per_draft", "trade_events", ["draft_id"]
-    )
+    op.create_unique_constraint("trade_event_per_draft", "trade_events", ["draft_id"])
 
     op.add_column("trade_publications", sa.Column("draft_id", sa.Uuid(), nullable=True))
     op.add_column(
@@ -73,9 +71,7 @@ def upgrade() -> None:
         ["draft_id"],
         unique=False,
     )
-    op.create_unique_constraint(
-        "trade_publication_per_draft", "trade_publications", ["draft_id"]
-    )
+    op.create_unique_constraint("trade_publication_per_draft", "trade_publications", ["draft_id"])
     op.create_unique_constraint(
         "trade_public_ref_per_guild",
         "trade_publications",
@@ -104,15 +100,9 @@ def downgrade() -> None:
         "trade_publications",
         type_="check",
     )
-    op.drop_constraint(
-        "trade_public_ref_per_guild", "trade_publications", type_="unique"
-    )
-    op.drop_constraint(
-        "trade_publication_per_draft", "trade_publications", type_="unique"
-    )
-    op.drop_index(
-        op.f("ix_trade_publications_draft_id"), table_name="trade_publications"
-    )
+    op.drop_constraint("trade_public_ref_per_guild", "trade_publications", type_="unique")
+    op.drop_constraint("trade_publication_per_draft", "trade_publications", type_="unique")
+    op.drop_index(op.f("ix_trade_publications_draft_id"), table_name="trade_publications")
     op.drop_constraint(
         op.f("fk_trade_publications_draft_id_trade_drafts"),
         "trade_publications",

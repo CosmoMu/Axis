@@ -95,9 +95,7 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
             membership.ends_at = utc_now() - timedelta(seconds=1)
             job = await session.scalar(
                 select(ScheduledJob).where(
-                    ScheduledJob.dedupe_key.like(
-                        f"membership-expiry:{expiring.id}:%"
-                    ),
+                    ScheduledJob.dedupe_key.like(f"membership-expiry:{expiring.id}:%"),
                     ScheduledJob.status == JobStatus.PENDING.value,
                 )
             )
@@ -110,9 +108,7 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
         assert expired is not None and expired.status == MembershipStatus.EXPIRED.value
 
         async with database.session() as session:
-            event_count = await session.scalar(
-                select(func.count()).select_from(MembershipEvent)
-            )
+            event_count = await session.scalar(select(func.count()).select_from(MembershipEvent))
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))
             succeeded = await session.scalar(
                 select(func.count())

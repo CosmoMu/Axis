@@ -5,6 +5,7 @@ import logging
 import discord
 from discord.ext import commands, tasks
 
+from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.services.draft_generation import (
     DraftGenerationDisposition,
     DraftGenerationService,
@@ -28,7 +29,21 @@ class DraftWorkerCog(commands.Cog):
             result = await self.service.process_next()
         except Exception as exc:
             logger.warning("event=signal_worker_failed error_type=%s", type(exc).__name__)
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Signal Processing",
+                error_type="SIGNAL_PROCESSING_FAILED",
+                affected="signal-input → signal-review",
+                detail=type(exc).__name__,
+            )
             return
+        await report_system_recovery(
+            self.bot,
+            service="Signal Processing",
+            error_type="SIGNAL_PROCESSING_FAILED",
+            affected="signal-input → signal-review",
+        )
         if result is None or result.disposition is DraftGenerationDisposition.EXISTING:
             return
         if result.disposition is DraftGenerationDisposition.CREATED:

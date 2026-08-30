@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands, tasks
 
 from app.bot.cards import build_daily_summary_embeds
+from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.services.daily_summary import (
     DailySummaryError,
     DailySummaryService,
@@ -43,13 +44,35 @@ class DailySummaryCog(commands.Cog):
             ready = await self.service.prepare_session(self.guild_id, session_date)
         except DailySummaryError as exc:
             logger.warning("event=daily_summary_prepare_failed code=%s", exc.code)
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Scheduled Jobs",
+                error_type="DAILY_SUMMARY_FAILED",
+                affected="Post-close summaries",
+                detail=exc.code,
+            )
             return
         except Exception as exc:
             logger.warning(
                 "event=daily_summary_prepare_failed code=UNEXPECTED error_type=%s",
                 type(exc).__name__,
             )
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Scheduled Jobs",
+                error_type="DAILY_SUMMARY_FAILED",
+                affected="Post-close summaries",
+                detail=type(exc).__name__,
+            )
             return
+        await report_system_recovery(
+            self.bot,
+            service="Scheduled Jobs",
+            error_type="DAILY_SUMMARY_FAILED",
+            affected="Post-close summaries",
+        )
         if not ready:
             return
 

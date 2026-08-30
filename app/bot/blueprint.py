@@ -200,7 +200,16 @@ def load_blueprint(path: Path) -> Blueprint:
             permission_values = {
                 str(key): bool(value)
                 for key, value in channel.items()
-                if key.endswith(("_view", "_send", "_attach", "_manage_messages"))
+                if key.endswith(
+                    (
+                        "_view",
+                        "_send",
+                        "_attach",
+                        "_interact",
+                        "_manage_messages",
+                        "_pin_messages",
+                    )
+                )
             }
             channel_spec = ChannelSpec(
                 key=str(channel["key"]),
@@ -251,6 +260,16 @@ def desired_category_permissions(category: CategorySpec) -> dict[str, dict[str, 
     elif category.default_visibility == "manager":
         visibility = {"everyone": False, "member": False, "manager": True, "bot": True}
     elif category.default_visibility == "owner_only":
+        visibility = {
+            "everyone": False,
+            "member": False,
+            "manager": False,
+            "owner": True,
+            "bot": True,
+        }
+    elif category.default_visibility == "deferred":
+        # Deferred areas keep their existing role-level isolation without adding
+        # new user-specific overwrites while the feature is out of scope.
         visibility = {"everyone": False, "member": False, "manager": False, "bot": True}
     else:
         visibility = {"everyone": True, "member": True, "manager": True, "bot": True}
@@ -281,13 +300,34 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
         }
         attach_key = f"{subject}_attach"
         values["attach_files"] = channel.permissions.get(attach_key, subject == "bot" and can_send)
+        interact_key = f"{subject}_interact"
+        if interact_key in channel.permissions:
+            values["use_application_commands"] = channel.permissions[interact_key]
         manage_messages_key = f"{subject}_manage_messages"
         if manage_messages_key in channel.permissions:
             values["manage_messages"] = channel.permissions[manage_messages_key]
+        pin_messages_key = f"{subject}_pin_messages"
+        if pin_messages_key in channel.permissions:
+            values["pin_messages"] = channel.permissions[pin_messages_key]
         if subject == "bot":
             values["embed_links"] = can_send
             values["manage_messages"] = can_send
         result[subject] = values
+    if any(name.startswith("owner_") for name in channel.permissions):
+        can_view = channel.permissions.get("owner_view", True)
+        can_send = channel.permissions.get("owner_send", can_view)
+        owner_values = {
+            "view_channel": can_view,
+            "send_messages": can_send,
+            "read_message_history": can_view,
+            "attach_files": channel.permissions.get("owner_attach", can_send),
+            "use_application_commands": channel.permissions.get("owner_interact", can_view),
+            "embed_links": can_send,
+            "manage_messages": channel.permissions.get("owner_manage_messages", False),
+        }
+        if "owner_pin_messages" in channel.permissions:
+            owner_values["pin_messages"] = channel.permissions["owner_pin_messages"]
+        result["owner"] = owner_values
     return result
 
 
@@ -359,7 +399,11 @@ def build_plan(
         )
 
     roles_by_id = {role.id: role for role in state.roles}
-    role_ids: dict[str, int | None] = {"everyone": state.id, "bot": state.bot_role_id}
+    role_ids: dict[str, int | None] = {
+        "everyone": state.id,
+        "owner": state.owner_id,
+        "bot": state.bot_role_id,
+    }
     bot_spec = blueprint.role_by_key["bot"]
     bot_role = roles_by_id.get(state.bot_role_id) if state.bot_role_id else None
     saved_bot_id = _saved_id(saved_ids, "roles", "bot")
@@ -801,8 +845,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 20:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 20 个。")
+    if blueprint.channel_count != 21:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 21 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

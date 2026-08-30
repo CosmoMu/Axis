@@ -54,8 +54,10 @@ DRY_RUN=false
 完成后立即把 `.env` 恢复为 `APPLY_CHANGES=false`、`DRY_RUN=true`，并再次运行 dry-run。
 重复运行不应出现 `CREATE`；非项目资源不得出现在 `UPDATE` 或 `BLOCK` 的目标中。
 
-当前蓝图为 4 个 Category、20 个 Channel。`🧪・card-testing` 只对 Manager 可见并允许
-Manager/Bot 发言，用于测试卡片，不得把开发测试发送到会员正式频道。
+当前蓝图为 4 个 Category、21 个 Channel。`🚨・system-alerts` 与
+`🧪・card-testing` 只对 Owner 与 AXIS BOT 可见；Owner 权限通过
+`DISCORD_OWNER_USER_ID` 的 user-specific overwrite 实现，Manager 明确 DENY VIEW。
+AXIS LAB 仍为 deferred，Bootstrap 不会因本轮功能改动它的现有权限。
 
 ## 品牌命名更新
 
@@ -80,7 +82,8 @@ Manager/Bot 发言，用于测试卡片，不得把开发测试发送到会员�
 
 Bootstrap 至少需要 `View Channels`、`Manage Channels`、`Manage Roles`。完整 MVP 还需要
 `Send Messages`、`Manage Messages`、`Read Message History`、`Embed Links`、`Attach Files`
-和 `Use Application Commands`。Bot 的 managed Role 必须位于 `Manager` 和 `Member` 上方。
+和 `Use Application Commands`。若 Bot 要固定 Member Wins 顶部说明，还需要 Discord 新拆分的
+`Pin Messages`。Bot 的 managed Role 必须位于 `Manager` 和 `Member` 上方。
 
 `Manager` Role 不得拥有服务器级 `Administrator` 或 `Manage Roles`；Bootstrap 会在
 已匹配的 AXIS `Manager` Role 上移除这两个权限，但不会更改任何非项目 Role。

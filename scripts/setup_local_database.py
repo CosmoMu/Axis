@@ -138,8 +138,7 @@ async def _provision() -> None:
 
     encoded_password = quote(password, safe="")
     _write_database_url(
-        f"postgresql+asyncpg://{DATABASE_ROLE}:{encoded_password}"
-        f"@127.0.0.1:5432/{DATABASE_NAME}"
+        f"postgresql+asyncpg://{DATABASE_ROLE}:{encoded_password}@127.0.0.1:5432/{DATABASE_NAME}"
     )
 
 

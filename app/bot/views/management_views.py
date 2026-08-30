@@ -57,9 +57,7 @@ def mentor_embed(mentor: MentorSnapshot) -> discord.Embed:
         description="Active" if mentor.is_active else "Inactive",
         color=0x86F7A8 if mentor.is_active else 0x9A9F9B,
     )
-    embed.add_field(
-        name="Aliases", value=", ".join(mentor.aliases) or "—", inline=False
-    )
+    embed.add_field(name="Aliases", value=", ".join(mentor.aliases) or "—", inline=False)
     embed.add_field(
         name="当前订单",
         value=(
@@ -109,9 +107,7 @@ def membership_embed(snapshot: MembershipSnapshot | None, user_id: int) -> disco
 
 
 class MentorModal(discord.ui.Modal):
-    def __init__(
-        self, controller: ManagerControlCog, mentor: MentorSnapshot | None = None
-    ) -> None:
+    def __init__(self, controller: ManagerControlCog, mentor: MentorSnapshot | None = None) -> None:
         super().__init__(
             title=("编辑 Mentor" if mentor else "新增 Mentor"),
             timeout=300,
@@ -230,16 +226,10 @@ class MentorDetailView(discord.ui.View):
         edit.callback = self.edit
         toggle = discord.ui.Button(
             label="停用" if mentor.is_active else "恢复",
-            style=(
-                discord.ButtonStyle.danger
-                if mentor.is_active
-                else discord.ButtonStyle.success
-            ),
+            style=(discord.ButtonStyle.danger if mentor.is_active else discord.ButtonStyle.success),
         )
         toggle.callback = self.toggle
-        reassign = discord.ui.Button(
-            label="修改订单 Mentor", style=discord.ButtonStyle.secondary
-        )
+        reassign = discord.ui.Button(label="修改订单 Mentor", style=discord.ButtonStyle.secondary)
         reassign.callback = self.reassign
         self.add_item(edit)
         self.add_item(toggle)
@@ -300,28 +290,20 @@ class TradeReassignSelect(discord.ui.Select):
             return
         mentors = [
             mentor
-            for mentor in await self.controller.mentor_service.list(
-                self.controller.guild_id
-            )
+            for mentor in await self.controller.mentor_service.list(self.controller.guild_id)
             if mentor.is_active
         ]
         if not mentors:
-            await interaction.response.send_message(
-                "当前没有 Active Mentor。", ephemeral=True
-            )
+            await interaction.response.send_message("当前没有 Active Mentor。", ephemeral=True)
             return
         await interaction.response.edit_message(
             content="请选择新的 Mentor：",
-            view=MentorTargetView(
-                self.controller, uuid.UUID(self.values[0]), mentors
-            ),
+            view=MentorTargetView(self.controller, uuid.UUID(self.values[0]), mentors),
         )
 
 
 class TradeReassignView(discord.ui.View):
-    def __init__(
-        self, controller: ManagerControlCog, trades: list[MentorTrade]
-    ) -> None:
+    def __init__(self, controller: ManagerControlCog, trades: list[MentorTrade]) -> None:
         super().__init__(timeout=180)
         self.add_item(TradeReassignSelect(controller, trades))
 
@@ -395,9 +377,7 @@ class MentorControlView(discord.ui.View):
             return
         mentors = await self.controller.mentor_service.list(self.controller.guild_id)
         if not mentors:
-            await interaction.response.send_message(
-                "当前没有 Mentor，请先新增。", ephemeral=True
-            )
+            await interaction.response.send_message("当前没有 Mentor，请先新增。", ephemeral=True)
             return
         await interaction.response.send_message(
             "请选择 Mentor：",
@@ -571,14 +551,10 @@ class MemberControlView(discord.ui.View):
         await interaction.response.send_modal(MemberLookupModal(self.controller))
 
     async def gift(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(
-            MemberDurationModal(self.controller, action="gift")
-        )
+        await interaction.response.send_modal(MemberDurationModal(self.controller, action="gift"))
 
     async def extend(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(
-            MemberDurationModal(self.controller, action="extend")
-        )
+        await interaction.response.send_modal(MemberDurationModal(self.controller, action="extend"))
 
     async def cancel(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(MemberCancelModal(self.controller))

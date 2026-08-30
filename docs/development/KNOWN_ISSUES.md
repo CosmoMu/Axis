@@ -31,3 +31,6 @@
   未被 AXIS 移除；若系统下次启动显示官方 OpenD 确认提示，需要由 Owner 确认一次。
 - 每日总结在当天 `16:15 ET` 后持续重试到午夜；若整段时间 Bot/OpenD 均离线，当前版本
   不会用非当日快照补造历史总结。
+- Payment 基础流程已实现，但生产环境尚未提供 `SUBSCRIPTION_URL`、公开 TLS webhook 路由
+  和 `PAYMENT_WEBHOOK_SECRET`。JOIN 因此安全禁用；真实收款上线前必须完成 provider sandbox
+  的付款、重复 webhook、period-end cancel 与即时撤销验收。

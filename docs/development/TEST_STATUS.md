@@ -2,7 +2,7 @@
 
 **日期：** 2026-08-30
 
-**结果：** 99 passed
+**结果：** 107 passed
 
 **Lint：** Ruff passed
 
@@ -26,6 +26,11 @@
 - 三种固定 `查看当前订单` custom_id 和 persistent View。
 - Mentor create/edit/toggle/reassign 与审计。
 - Membership gift/extend/cancel/remove/manual Role sync/Scheduled expiry。
+- Checkout metadata、HMAC signature、Discord User ID 绑定、payment event dedup、period-end
+  cancel 与即时失效 Role decision。
+- GENERAL 单一 Membership 文案与测试 Preview DTO 无数据库依赖。
+- System Alert 持久化 dedup、occurrence count、Recovery 与再次告警。
+- Public / Member / Manager / Owner / Bot Discord 权限矩阵。
 - 加权 Results 计算、Public DTO 防泄漏和幂等 Message ID。
 - Mentor / Member 控制面板固定 persistent custom_id。
 - Database metadata、constraints 和 guild seed 幂等。
@@ -56,22 +61,32 @@
 
 Live validation：
 
-- PostgreSQL revision `20260830_0013`。
+- PostgreSQL revision `20260830_0014`。
+- 0014 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T062414Z.dump`
+  已通过 `pg_restore --list`，SHA-256
+  `c76aae4d8606a8b33b795611d1f9c04165b7e1cff9f3e6edc83fb644b6674e03`。
 - 0012 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T055203Z.dump`
   已通过 `pg_restore --list`，SHA-256 `0083ce7aaffa4dd33155f1d413b999071bd7547922c306704ecb12eff69d99c1`。
 - 0011 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T054225Z.dump`
   已通过 `pg_restore --list`，SHA-256 `e320f1a8a6cdde3e116765b01fb7184545c30ce5fc671540766ea644f6892aaf`。
 - 迁移后 Signal Draft=2、Analysis Draft=2；编号为 `S-00001..2` / `A-00001..2`，两个
   counter 的 next value 均为 3。
-- Discord final dry-run：`REUSE=27 / CREATE=0 / UPDATE=0 / BLOCK=0`。
+- Discord Owner-only Bootstrap 创建 `🚨・system-alerts` 并收紧现有
+  `🧪・card-testing`；首次正式应用没有删除、改名或移动其他资源。
+- 最终 Discord dry-run：`REUSE=28 / CREATE=0 / UPDATE=0 / BLOCK=0`。
 - LaunchAgent `com.axis.bot` 已重新部署。
 - Bot `manage_roles / send_messages / read_message_history` 权限均为 true。
 - Mentor Panel ID `1543434235761791018`，重启前后不变，频道 marker count=1。
 - Member Panel ID `1543434237733241001`，重启前后不变，频道 marker count=1。
 - Owner 已独立授权 `analysis-input` → OpenAI；0007 代码已在
   `FEATURE_ANALYSIS_ENABLED=true` 状态部署，LaunchAgent 稳定。
-- `🧪・card-testing` 已创建，ID `1543495201425723442`；Manager/Bot 可发言，Member 不可见。
-- 启用后 Discord dry-run：`REUSE=27 / CREATE=0 / UPDATE=0 / BLOCK=0`，修改为 0。
+- `🧪・card-testing` ID `1543495201425723442`、`🚨・system-alerts` ID
+  `1543506758692114463`；Manager 明确不可见，Owner 与 AXIS BOT 可见。
+- 五条 GENERAL Guide marker 各只有一条，数据库 Message ID 全部已 live 验证；Member Wins
+  的独立 `Pin Messages` 权限和固定说明均已通过。
+- 7 个 Owner-only test command 已同步到目标 Guild；Preview 不写正式数据库。
+- `scripts/verify_discord_runtime.py` live acceptance：`discord_runtime=PASS`；Public / Member /
+  Manager / Owner / Bot 权限、GENERAL 幂等消息与 Owner test commands 全部通过。
 - 第一条真实 Manager Analysis 已保留原 Source 和 Draft ID 完成重试：Source=`PARSED`、
   Draft=`PENDING_REVIEW`、revision=2、最新 `ANALYSIS_REWRITE` invocation 成功；Discord 原审核
   Message ID `1543473587753844822` 原地刷新到 r2，没有重复卡片。

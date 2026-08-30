@@ -36,6 +36,7 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
     load_trade_prompt,
     load_trade_schema,
 )
+from app.integrations.payment_provider import ExternalCheckoutProvider  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
@@ -43,9 +44,11 @@ from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.daily_summary import DailySummaryService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
 from app.services.membership_management import MembershipManagementService  # noqa: E402
+from app.services.membership_payments import MembershipPaymentService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
 from app.services.official_results import OfficialResultsService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
+from app.services.system_alerts import SystemAlertService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
 
 
@@ -157,6 +160,15 @@ async def run() -> None:
                 database,
                 MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port),
             )
+        payment_provider = ExternalCheckoutProvider(settings.payment_provider)
+        membership_payment_service = MembershipPaymentService(
+            database,
+            payment_provider,
+            subscription_url=(
+                settings.subscription_url if settings.payment_webhook_secret else None
+            ),
+            session_ttl_minutes=settings.membership_session_ttl_minutes,
+        )
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -166,6 +178,9 @@ async def run() -> None:
             trade_publication_service=TradePublicationService(database),
             mentor_service=MentorManagementService(database),
             membership_service=MembershipManagementService(database),
+            membership_payment_service=membership_payment_service,
+            payment_provider=payment_provider,
+            system_alert_service=SystemAlertService(database),
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,
             daily_summary_service=daily_summary_service,

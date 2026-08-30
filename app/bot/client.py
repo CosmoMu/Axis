@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+import discord
 from discord.ext import commands
 
 from app.bot.cogs.analysis_pipeline import AnalysisPipelineCog
 from app.bot.cogs.card_review import CardReviewCog
+from app.bot.cogs.card_testing import CardTestingCog
 from app.bot.cogs.daily_summary import DailySummaryCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
+from app.bot.cogs.general_control import GeneralControlCog
 from app.bot.cogs.manager_control import ManagerControlCog
+from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.signal_input import SignalInputCog
+from app.bot.cogs.system_alerts import SystemAlertsCog
 from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
 from app.services.analysis_pipeline import AnalysisPipelineService
@@ -17,10 +23,14 @@ from app.services.card_review import CardReviewService
 from app.services.daily_summary import DailySummaryService
 from app.services.draft_generation import DraftGenerationService
 from app.services.membership_management import MembershipManagementService
+from app.services.membership_payments import MembershipPaymentService
 from app.services.mentor_management import MentorManagementService
 from app.services.official_results import OfficialResultsService
 from app.services.signal_input import SignalInputService
+from app.services.system_alerts import SystemAlertService
 from app.services.trade_publication import TradePublicationService
+
+logger = logging.getLogger(__name__)
 
 
 def _required_snowflake(section: dict[str, Any], key: str) -> int:
@@ -42,6 +52,9 @@ class AxisBot(commands.Bot):
         trade_publication_service: TradePublicationService,
         mentor_service: MentorManagementService,
         membership_service: MembershipManagementService,
+        membership_payment_service: MembershipPaymentService,
+        payment_provider: Any,
+        system_alert_service: SystemAlertService,
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
         daily_summary_service: DailySummaryService | None,
@@ -91,6 +104,46 @@ class AxisBot(commands.Bot):
             membership_service=membership_service,
             results_service=results_service,
         )
+        results_channel_id = _required_snowflake(channels, "official_results")
+        self._general_control_cog = GeneralControlCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            welcome_channel_id=_required_snowflake(channels, "welcome"),
+            subscriptions_channel_id=_required_snowflake(channels, "subscriptions"),
+            results_channel_id=results_channel_id,
+            lobby_channel_id=_required_snowflake(channels, "lobby"),
+            member_wins_channel_id=_required_snowflake(channels, "member_wins"),
+            results_mention=f"<#{results_channel_id}>",
+            membership_price_display=settings.membership_price_display,
+            customer_portal_url=settings.customer_portal_url,
+            payment_service=membership_payment_service,
+        )
+        self._system_alerts_cog = SystemAlertsCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            channel_id=_required_snowflake(channels, "system_alerts"),
+            service=system_alert_service,
+            check_seconds=settings.system_alert_check_seconds,
+            moomoo_enabled=settings.moomoo_enabled,
+            moomoo_host=settings.moomoo_host,
+            moomoo_port=settings.moomoo_port,
+        )
+        self._payment_webhook_cog = PaymentWebhookCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            host=settings.payment_webhook_host,
+            port=settings.payment_webhook_port,
+            secret=settings.payment_webhook_secret,
+            provider=payment_provider,
+            payment_service=membership_payment_service,
+            sync_role=self._manager_control_cog.sync_member_role,
+        )
+        self._card_testing_cog = CardTestingCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            owner_user_id=settings.discord_owner_user_id,
+            channel_id=_required_snowflake(channels, "card_testing"),
+        )
         self._analysis_cog = (
             AnalysisPipelineCog(
                 self,
@@ -115,6 +168,8 @@ class AxisBot(commands.Bot):
             if daily_summary_service is not None
             else None
         )
+        self._guild_command_target = discord.Object(id=settings.discord_guild_id)
+        self._guild_commands_synced = False
 
     async def setup_hook(self) -> None:
         await self.add_cog(self._signal_cog)
@@ -122,7 +177,29 @@ class AxisBot(commands.Bot):
             await self.add_cog(self._draft_worker_cog)
         await self.add_cog(self._card_review_cog)
         await self.add_cog(self._manager_control_cog)
+        await self.add_cog(self._system_alerts_cog)
+        await self.add_cog(self._general_control_cog)
+        await self.add_cog(self._payment_webhook_cog)
+        await self.add_cog(self._card_testing_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:
             await self.add_cog(self._daily_summary_cog)
+        self.tree.copy_global_to(guild=self._guild_command_target)
+        await self._sync_guild_commands()
+
+    async def on_ready(self) -> None:
+        if not self._guild_commands_synced:
+            await self._sync_guild_commands()
+
+    async def _sync_guild_commands(self) -> None:
+        try:
+            await self.tree.sync(guild=self._guild_command_target)
+        except discord.HTTPException as exc:
+            logger.warning(
+                "event=guild_command_sync_failed status=%s error_type=%s",
+                exc.status,
+                type(exc).__name__,
+            )
+            return
+        self._guild_commands_synced = True

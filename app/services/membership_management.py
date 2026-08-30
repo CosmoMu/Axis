@@ -35,6 +35,9 @@ class MembershipSnapshot:
     user_id: int
     status: str
     source: str
+    provider: str | None
+    provider_customer_id: str | None
+    provider_subscription_id: str | None
     starts_at: datetime
     ends_at: datetime | None
     cancel_at_period_end: bool
@@ -46,13 +49,20 @@ class MembershipSnapshot:
         end = self.ends_at
         if end is not None and end.tzinfo is None:
             end = end.replace(tzinfo=UTC)
-        return self.status == MembershipStatus.ACTIVE.value and (
-            end is None or end > now
-        )
+        return self.status in {
+            MembershipStatus.ACTIVE.value,
+            MembershipStatus.CANCEL_AT_PERIOD_END.value,
+        } and (end is None or end > now)
 
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+ACTIVE_MEMBERSHIP_STATUSES = {
+    MembershipStatus.ACTIVE.value,
+    MembershipStatus.CANCEL_AT_PERIOD_END.value,
+}
 
 
 class MembershipManagementService:
@@ -97,7 +107,7 @@ class MembershipManagementService:
             else:
                 base = now
                 if (
-                    membership.status == MembershipStatus.ACTIVE.value
+                    membership.status in ACTIVE_MEMBERSHIP_STATUSES
                     and membership.ends_at is not None
                     and _aware(membership.ends_at) > now
                 ):
@@ -138,7 +148,7 @@ class MembershipManagementService:
         now = utc_now()
         async with self.database.session() as session:
             membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status != MembershipStatus.ACTIVE.value:
+            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
                 raise MembershipValidationError("ACTIVE_MEMBERSHIP_NOT_FOUND")
             before = self._payload(membership)
             if days is None:
@@ -146,9 +156,7 @@ class MembershipManagementService:
             elif membership.ends_at is None:
                 raise MembershipValidationError("LIFETIME_MEMBERSHIP")
             else:
-                membership.ends_at = max(now, _aware(membership.ends_at)) + timedelta(
-                    days=days
-                )
+                membership.ends_at = max(now, _aware(membership.ends_at)) + timedelta(days=days)
             membership.cancel_at_period_end = False
             membership.version += 1
             await self._record_change(
@@ -176,7 +184,7 @@ class MembershipManagementService:
         now = utc_now()
         async with self.database.session() as session:
             membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status != MembershipStatus.ACTIVE.value:
+            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
                 raise MembershipValidationError("ACTIVE_MEMBERSHIP_NOT_FOUND")
             before = self._payload(membership)
             if ends_at is not None:
@@ -186,6 +194,7 @@ class MembershipManagementService:
                 membership.ends_at = normalized_end
             if membership.ends_at is None:
                 raise MembershipValidationError("EXPIRY_REQUIRED_FOR_LIFETIME")
+            membership.status = MembershipStatus.CANCEL_AT_PERIOD_END.value
             membership.cancel_at_period_end = True
             membership.version += 1
             await self._record_change(
@@ -247,7 +256,7 @@ class MembershipManagementService:
             return await self._manual_add(guild_id, user_id, actor_user_id)
         async with self.database.session() as session:
             membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status != MembershipStatus.ACTIVE.value:
+            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
                 return self._snapshot(membership) if membership is not None else None
             before = self._payload(membership)
             membership.status = MembershipStatus.REMOVED.value
@@ -283,7 +292,7 @@ class MembershipManagementService:
                 await session.scalars(
                     select(Membership.user_id).where(
                         Membership.guild_id == guild_id,
-                        Membership.status == MembershipStatus.ACTIVE.value,
+                        Membership.status.in_(ACTIVE_MEMBERSHIP_STATUSES),
                         (Membership.ends_at.is_(None) | (Membership.ends_at > now)),
                     )
                 )
@@ -320,14 +329,12 @@ class MembershipManagementService:
                     job.last_error = "INVALID_MEMBERSHIP_ID"
                     continue
                 membership = await session.scalar(
-                    select(Membership)
-                    .where(Membership.id == membership_id)
-                    .with_for_update()
+                    select(Membership).where(Membership.id == membership_id).with_for_update()
                 )
                 if (
                     membership is None
                     or membership.guild_id != guild_id
-                    or membership.status != MembershipStatus.ACTIVE.value
+                    or membership.status not in ACTIVE_MEMBERSHIP_STATUSES
                     or membership.ends_at is None
                     or _aware(membership.ends_at) > now
                 ):
@@ -391,9 +398,7 @@ class MembershipManagementService:
             return self._snapshot(membership)
 
     @staticmethod
-    async def _locked(
-        session: AsyncSession, guild_id: int, user_id: int
-    ) -> Membership | None:
+    async def _locked(session: AsyncSession, guild_id: int, user_id: int) -> Membership | None:
         return await session.scalar(
             select(Membership)
             .where(Membership.guild_id == guild_id, Membership.user_id == user_id)
@@ -414,6 +419,9 @@ class MembershipManagementService:
         return {
             "status": membership.status,
             "source": membership.source,
+            "provider": membership.provider,
+            "provider_customer_id": membership.provider_customer_id,
+            "provider_subscription_id": membership.provider_subscription_id,
             "starts_at": membership.starts_at.isoformat(),
             "ends_at": membership.ends_at.isoformat() if membership.ends_at else None,
             "cancel_at_period_end": membership.cancel_at_period_end,
@@ -463,9 +471,7 @@ class MembershipManagementService:
             await session.scalars(
                 select(ScheduledJob).where(
                     ScheduledJob.dedupe_key.like(f"membership-expiry:{membership_id}:%"),
-                    ScheduledJob.status.in_(
-                        [JobStatus.PENDING.value, JobStatus.RUNNING.value]
-                    ),
+                    ScheduledJob.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
                 )
             )
         ).all()
@@ -473,9 +479,7 @@ class MembershipManagementService:
             job.status = JobStatus.CANCELLED.value
 
     @classmethod
-    async def _reschedule(
-        cls, session: AsyncSession, membership: Membership
-    ) -> None:
+    async def _reschedule(cls, session: AsyncSession, membership: Membership) -> None:
         await cls._cancel_jobs(session, membership.id)
         if membership.ends_at is None:
             return
@@ -503,6 +507,9 @@ class MembershipManagementService:
             user_id=membership.user_id,
             status=membership.status,
             source=membership.source,
+            provider=membership.provider,
+            provider_customer_id=membership.provider_customer_id,
+            provider_subscription_id=membership.provider_subscription_id,
             starts_at=membership.starts_at,
             ends_at=membership.ends_at,
             cancel_at_period_end=membership.cancel_at_period_end,

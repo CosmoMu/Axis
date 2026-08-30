@@ -103,12 +103,10 @@ def _serialize_summary(summary: DailyCategorySummary) -> dict[str, Any]:
         "category": summary.category,
         "session_date": summary.session_date.isoformat(),
         "active": [
-            {key: clean(value) for key, value in asdict(item).items()}
-            for item in summary.active
+            {key: clean(value) for key, value in asdict(item).items()} for item in summary.active
         ],
         "closed": [
-            {key: clean(value) for key, value in asdict(item).items()}
-            for item in summary.closed
+            {key: clean(value) for key, value in asdict(item).items()} for item in summary.closed
         ],
     }
 
@@ -196,9 +194,7 @@ class DailySummaryService:
                     select(Trade)
                     .where(
                         Trade.guild_id == guild_id,
-                        Trade.state.in_(
-                            (TradeState.ACTIVE.value, TradeState.RUNNER.value)
-                        ),
+                        Trade.state.in_((TradeState.ACTIVE.value, TradeState.RUNNER.value)),
                     )
                     .order_by(Trade.category, Trade.public_trade_id)
                 )
@@ -241,9 +237,7 @@ class DailySummaryService:
             for trade in active_trades
         )
         try:
-            batch = await self.market_data.fetch_post_close(
-                requests, session_date=session_date
-            )
+            batch = await self.market_data.fetch_post_close(requests, session_date=session_date)
         except MarketDataError as exc:
             raise DailySummaryError(exc.code) from exc
         if not batch.is_trading_session:
@@ -361,9 +355,7 @@ class DailySummaryService:
                 await session.rollback()
         return True
 
-    async def next_publishable(
-        self, guild_id: int, session_date: date
-    ) -> DailySummaryClaim | None:
+    async def next_publishable(self, guild_id: int, session_date: date) -> DailySummaryClaim | None:
         async with self.database.session() as session:
             publication = await session.scalar(
                 select(DailySummaryPublication)

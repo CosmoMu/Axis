@@ -10,7 +10,7 @@ docs/
 ├─ migration/               v1 → v2 审计与实施计划
 ├─ archive/v1/              旧版规格，只用于历史参考
 ├─ development/             当前进度、功能、问题与测试状态
-└─ operations/              Bootstrap、数据库和运行手册
+└─ operations/              Bootstrap、数据库、会员与生产运行手册
 ```
 
 更新规则：

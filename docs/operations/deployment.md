@@ -12,6 +12,15 @@
 部署顺序：backup → tests/lint → `init_database.py` → feature flag disabled 部署 → health
 check → 授权后的 feature enable → live acceptance。
 
+部署后执行只读 Discord 验收：
+
+```bash
+.venv/bin/python scripts/verify_discord_runtime.py
+```
+
+该脚本验证四种用户身份加 Bot 的权限、五条 GENERAL Guide Message ID 与 7 个 Owner-only
+测试命令，不发送消息或修改服务器。
+
 启用 Core Moomoo 总结时，另外安装 OpenD 登录 LaunchAgent：
 
 ```bash

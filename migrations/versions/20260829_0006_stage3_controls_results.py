@@ -18,9 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column("trades", sa.Column("result_message_id", sa.BigInteger(), nullable=True))
-    op.add_column(
-        "trades", sa.Column("final_return_pct", sa.Numeric(12, 4), nullable=True)
-    )
+    op.add_column("trades", sa.Column("final_return_pct", sa.Numeric(12, 4), nullable=True))
     op.add_column(
         "trades",
         sa.Column("result_published_at", sa.DateTime(timezone=True), nullable=True),
@@ -33,9 +31,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "trade_result_message_per_guild", "trades", type_="unique"
-    )
+    op.drop_constraint("trade_result_message_per_guild", "trades", type_="unique")
     op.drop_column("trades", "result_published_at")
     op.drop_column("trades", "final_return_pct")
     op.drop_column("trades", "result_message_id")

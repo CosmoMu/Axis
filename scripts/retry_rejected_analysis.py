@@ -54,9 +54,7 @@ async def retry(message_id: int, settings_root: Path) -> int:
             print("Analysis retry stopped: rejected source was not found.", file=sys.stderr)
             return 2
 
-        api_url = (
-            f"https://discord.com/api/v10/channels/{source.channel_id}/messages/{message_id}"
-        )
+        api_url = f"https://discord.com/api/v10/channels/{source.channel_id}/messages/{message_id}"
         ssl_context = ssl.create_default_context(cafile=certifi.where())
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         async with aiohttp.ClientSession(connector=connector) as client:
