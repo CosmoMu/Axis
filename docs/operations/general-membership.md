@@ -34,6 +34,14 @@ present. The webhook endpoint is `POST /webhooks/stripe` and validates the raw b
 `Stripe-Signature` header. Do not route the listener publicly without TLS and a restricted
 reverse proxy.
 
+The local Test deployment uses the official Stripe CLI through
+`scripts/run_stripe_test_listener.py`. Its LaunchAgent is installed with
+`scripts/install_axis_stripe_test_listener_service.py`, filters the five membership events, and
+forwards them only to `127.0.0.1:8787`. The runner reads the Test API key from `.env`, compares the
+CLI signing secret to `STRIPE_WEBHOOK_SECRET`, and redacts both API and webhook secrets from logs.
+Use `scripts/verify_stripe_test_setup.py` for a read-only Product/Price/listener check. This local
+listener is for Test Mode only and is not a substitute for a restricted public TLS endpoint.
+
 `membership_prices` is the source for displayed and charged prices. The initial V1 catalog is
 stored in migration `20260830_0015`; Stripe Product/Price IDs are bound from `.env`. Never edit
 an existing purchased price version or migrate an active subscription automatically. Create a

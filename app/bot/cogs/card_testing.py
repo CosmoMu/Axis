@@ -176,7 +176,22 @@ class CardTestingCog(commands.Cog):
         if not await self._authorize(interaction):
             return
         await interaction.response.send_message(
-            embeds=[welcome_embed(), subscription_embed(_preview_offers())],
+            embeds=[
+                welcome_embed(
+                    self.guild_id,
+                    {
+                        "subscriptions": 100000000000000001,
+                        "official_results": 100000000000000002,
+                        "lobby": 100000000000000003,
+                        "member_wins": 100000000000000004,
+                        "short_term_alerts": 100000000000000005,
+                        "swing_alerts": 100000000000000006,
+                        "leaps_alerts": 100000000000000007,
+                        "member_chat": 100000000000000008,
+                    },
+                ),
+                subscription_embed(_preview_offers()),
+            ],
             view=PreviewComponentView(),
         )
 

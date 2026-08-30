@@ -10,18 +10,63 @@ AXIS_GREEN = 0x86F7A8
 QUIET_BLACK = 0x111411
 
 
-def welcome_embed() -> discord.Embed:
-    return discord.Embed(
-        title="AXIS",
+def _channel_link(
+    guild_id: int | None,
+    channel_ids: Mapping[str, int] | None,
+    key: str,
+    label: str,
+) -> str:
+    channel_id = channel_ids.get(key) if channel_ids is not None else None
+    if guild_id is None or channel_id is None:
+        return f"**{label}**"
+    return f"[{label}](https://discord.com/channels/{guild_id}/{channel_id})"
+
+
+def welcome_embed(
+    guild_id: int | None = None,
+    channel_ids: Mapping[str, int] | None = None,
+) -> discord.Embed:
+    def link(key: str, label: str) -> str:
+        return _channel_link(guild_id, channel_ids, key, label)
+
+    embed = discord.Embed(
+        title="WELCOME TO AXIS",
         description=(
             "**Signals without the noise.**\n\n"
-            "清晰的交易信号。\n"
-            "统一的仓位管理。\n"
-            "没有多余噪音。\n\n"
-            "**SHORT-TERM · SWING · LEAPS**"
+            "欢迎来到 AXIS。这里是服务器快速导航；点击频道名称即可前往。"
         ),
         color=AXIS_GREEN,
     )
+    embed.add_field(
+        name="1️⃣ START HERE",
+        value=(
+            f"{link('subscriptions', '💳・subscriptions')} — Free Trial、Day Pass 与 Monthly\n"
+            f"{link('official_results', '📊・results')} — AXIS 官方系统战绩\n"
+            f"{link('lobby', '💬・lobby')} — 市场交流与一般问题\n"
+            f"{link('member_wins', '🏆・member-wins')} — 会员投稿与社区战绩"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="2️⃣ MEMBER ACCESS",
+        value=(
+            f"{link('short_term_alerts', '⚡・short-term')} — 短线信号\n"
+            f"{link('swing_alerts', '〽️・swing')} — 波段信号\n"
+            f"{link('leaps_alerts', '♾️・leaps')} — 长期与 LEAPS 信号\n"
+            f"{link('member_chat', '🛋️・member-lounge')} — 会员分析与交流"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="🔒 NO ACCESS?",
+        value=(
+            "如果会员频道显示 **No Access**，请先前往 "
+            f"{link('subscriptions', '💳・subscriptions')} 开通访问。\n"
+            "Free Trial、Day Pass 与 Monthly 获得相同的 Member 频道权限。"
+        ),
+        inline=False,
+    )
+    return embed
 
 
 def subscription_embed(offers: Mapping[str, PriceSnapshot]) -> discord.Embed:
@@ -46,7 +91,7 @@ def subscription_embed(offers: Mapping[str, PriceSnapshot]) -> discord.Embed:
     )
     embed.add_field(
         name="MONTHLY",
-        value=f"{monthly_price} / month\n\nRecurring monthly.\nCancel anytime.",
+        value=(f"{monthly_price} / month\n\nAuto-renews monthly until canceled.\nCancel anytime."),
         inline=True,
     )
     embed.add_field(

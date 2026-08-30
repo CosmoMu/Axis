@@ -190,6 +190,7 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
         checkout = await stripe_service.create_checkout(
             GUILD_ID, USER_ID, MembershipPlanType.MONTHLY.value
         )
+        assert gateway.checkout_calls[0]["monthly"] is True
         complete = checkout_event(
             "evt_monthly_checkout",
             gateway.checkout_calls[0],

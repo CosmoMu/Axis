@@ -31,6 +31,6 @@
   未被 AXIS 移除；若系统下次启动显示官方 OpenD 确认提示，需要由 Owner 确认一次。
 - 每日总结在当天 `16:15 ET` 后持续重试到午夜；若整段时间 Bot/OpenD 均离线，当前版本
   不会用非当日快照补造历史总结。
-- Stripe Membership 已实现，但 Test/Live Secret、Price IDs、公开 TLS webhook 路由和人工
-  Stripe 页面隐私检查尚未完成。Paid Checkout 因此安全禁用；不得把单元测试冒充 Stripe
-  Test Mode E2E。
+- Stripe Test Product/Prices、Secret、动态 Checkout 和本地五事件 CLI webhook 已启用。
+  公开 TLS webhook、完整付款/续费/失败/取消 E2E、`axis-brand-lockup.png` 上传、法律商家资料
+  和人工 Stripe 页面隐私检查仍未完成；Live Mode 必须保持关闭。

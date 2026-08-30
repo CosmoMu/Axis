@@ -3,7 +3,7 @@
 Complete manually in Stripe Test Mode before any Live Mode activation. Record screenshots or
 review notes in a private operations system; do not commit customer or owner personal data.
 
-- [ ] Checkout shows `AXIS` / `AXIS Membership`, neutral product copy, and no private identity.
+- [x] Checkout shows `AXIS` / `AXIS Membership`, neutral product copy, and no private identity.
 - [ ] Payment confirmation shows no private name, email, address, Discord profile, or biography.
 - [ ] Receipt uses AXIS brand support information and no personal support email.
 - [ ] Invoice product, memo, footer, and support fields contain no private identity.

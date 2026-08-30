@@ -1,7 +1,8 @@
 # AXIS Membership Live Mode Checklist
 
-Current status: **STOP — Test Mode Secret, Price IDs, public TLS webhook, and manual Stripe UI
-review are not configured in this repository. Paid Checkout remains safely disabled.**
+Current status: **STOP FOR LIVE — local Stripe Test Checkout is enabled, but public TLS webhook,
+completed payment/cancellation E2E, brand asset upload, legal business information, and the
+manual privacy review are incomplete.**
 
 ## Code and database
 
@@ -18,10 +19,10 @@ review are not configured in this repository. Paid Checkout remains safely disab
 
 ## Stripe Test Mode
 
-- [ ] Create AXIS Membership Product and current Day Pass/Monthly Prices in Stripe Test Mode.
-- [ ] Put Test Secret, webhook signing secret, Product IDs, Price IDs, and return URLs in `.env`.
+- [x] Create AXIS Membership Product and current Day Pass/Monthly Prices in Stripe Test Mode.
+- [x] Put Test Secret, webhook signing secret, Product IDs, Price IDs, and return URLs in `.env`.
 - [ ] Expose `POST /webhooks/stripe` through a restricted HTTPS reverse proxy.
-- [ ] Register all five required events in the Stripe webhook endpoint.
+- [x] Run the local Stripe CLI Test listener with all five required membership events.
 - [ ] Run Test Mode: Day Pass success, Monthly signup/renewal/failure/cancel, duplicate event.
 - [ ] Run dynamic Customer Portal and payment-method update/cancellation tests.
 - [ ] Verify grandfathering by creating a new Price without changing an existing subscription.

@@ -103,7 +103,7 @@ class MembershipView(discord.ui.View):
                 self.monthly,
             ),
             (
-                "MANAGE MEMBERSHIP",
+                "CANCEL MONTHLY",
                 "manage",
                 discord.ButtonStyle.secondary,
                 self.manage,
@@ -142,6 +142,10 @@ class GeneralControlCog(commands.Cog):
         results_channel_id: int,
         lobby_channel_id: int,
         member_wins_channel_id: int,
+        short_term_channel_id: int,
+        swing_channel_id: int,
+        leaps_channel_id: int,
+        member_chat_channel_id: int,
         access_service: MembershipAccessService,
         acknowledgements: MembershipAcknowledgementService,
         price_catalog: MembershipPriceCatalog,
@@ -156,6 +160,10 @@ class GeneralControlCog(commands.Cog):
         self.results_channel_id = results_channel_id
         self.lobby_channel_id = lobby_channel_id
         self.member_wins_channel_id = member_wins_channel_id
+        self.short_term_channel_id = short_term_channel_id
+        self.swing_channel_id = swing_channel_id
+        self.leaps_channel_id = leaps_channel_id
+        self.member_chat_channel_id = member_chat_channel_id
         self.access_service = access_service
         self.acknowledgements = acknowledgements
         self.price_catalog = price_catalog
@@ -237,8 +245,11 @@ class GeneralControlCog(commands.Cog):
                 self.guild_id, interaction.user.id
             )
             await interaction.followup.send(
-                "使用 Stripe Customer Portal 管理 Monthly Membership。",
-                view=LinkView("OPEN CUSTOMER PORTAL", url),
+                (
+                    "Monthly 会自动续费，直到你在 Stripe Customer Portal 确认取消。"
+                    "你也可以在 Portal 查看账单或更新付款方式。"
+                ),
+                view=LinkView("CANCEL / MANAGE MONTHLY", url),
                 ephemeral=True,
             )
         except MembershipStripeError as exc:
@@ -260,7 +271,19 @@ class GeneralControlCog(commands.Cog):
                 self.subscriptions_channel_id,
             )
             cards = (
-                welcome_embed(),
+                welcome_embed(
+                    self.guild_id,
+                    {
+                        "subscriptions": self.subscriptions_channel_id,
+                        "official_results": self.results_channel_id,
+                        "lobby": self.lobby_channel_id,
+                        "member_wins": self.member_wins_channel_id,
+                        "short_term_alerts": self.short_term_channel_id,
+                        "swing_alerts": self.swing_channel_id,
+                        "leaps_alerts": self.leaps_channel_id,
+                        "member_chat": self.member_chat_channel_id,
+                    },
+                ),
                 subscription_embed(offers),
                 results_guide_embed(),
                 member_wins_guide_embed(),

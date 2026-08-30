@@ -82,7 +82,7 @@ Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到
 `FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_AXIS_STOCK_ANALYST_ENABLED=true`。Source 原图仅作为
 内部解析证据；审核和发布只发文字卡。Analysis 既有频道和处理逻辑在本轮保持不变。
 
-## Stage 5 — GENERAL / Membership / Monitoring: IMPLEMENTED, STRIPE LIVE GATED
+## Stage 5 — GENERAL / Membership / Monitoring: TEST ACTIVE, STRIPE LIVE GATED
 
 Implemented:
 
@@ -96,7 +96,10 @@ Implemented:
 
 Activation boundary:
 
-- Stripe Test Secret、Price IDs 与公开 TLS webhook 尚未配置，因此 paid Checkout 安全禁用。
+- Stripe Test Product、Day Pass/Monthly Price、Test Secret、Price IDs 与本地五事件 CLI webhook
+  已配置；Test Checkout 已启用，Live Mode 仍关闭。
+- 公开 TLS webhook、完整付款/续费/失败/取消 E2E、Stripe 品牌图上传、商家法律资料和人工隐私
+  检查尚未完成，不得进入 Live Mode。
 - 完成 `LIVE_MODE_CHECKLIST.md` 和 `STRIPE_PUBLIC_PRIVACY_CHECKLIST.md` 后才可启用。
 
 ## Stage 6 — Stabilization: PARTIAL

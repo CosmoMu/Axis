@@ -23,7 +23,7 @@ from app.db.models import GuildConfig  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
 GUIDE_TITLES = {
-    "welcome": ("welcome_message_id", "AXIS"),
+    "welcome": ("welcome_message_id", "WELCOME TO AXIS"),
     "subscriptions": ("subscription_message_id", "AXIS MEMBERSHIP"),
     "official_results": ("results_guide_message_id", "AXIS RESULTS"),
     "member_wins": ("member_wins_guide_message_id", "COMMUNITY WINS"),
@@ -151,6 +151,40 @@ async def verify() -> list[str]:
                 _check(len(matching) == 1, f"{channel_key}_guide_count", failures)
                 if matching and saved_id is not None:
                     _check(matching[0].id == saved_id, f"{field_name}_mismatch", failures)
+                if channel_key == "welcome" and matching:
+                    payload = str(matching[0].embeds[0].to_dict())
+                    _check("NO ACCESS" in payload, "welcome_no_access_missing", failures)
+                    for linked_key in (
+                        "subscriptions",
+                        "official_results",
+                        "lobby",
+                        "member_wins",
+                        "short_term_alerts",
+                        "swing_alerts",
+                        "leaps_alerts",
+                        "member_chat",
+                    ):
+                        expected_url = (
+                            f"https://discord.com/channels/{guild.id}/{channel_ids[linked_key]}"
+                        )
+                        _check(
+                            expected_url in payload,
+                            f"welcome_{linked_key}_link_missing",
+                            failures,
+                        )
+                if channel_key == "subscriptions" and matching:
+                    payload = str(matching[0].embeds[0].to_dict())
+                    labels = {
+                        getattr(component, "label", None)
+                        for row in matching[0].components
+                        for component in getattr(row, "children", ())
+                    }
+                    _check(
+                        "Auto-renews monthly until canceled" in payload,
+                        "monthly_auto_renew_copy_missing",
+                        failures,
+                    )
+                    _check("CANCEL MONTHLY" in labels, "cancel_monthly_button_missing", failures)
                 if channel_key == "member_wins" and matching:
                     _check(matching[0].pinned, "member_wins_guide_not_pinned", failures)
             lobby = channel("lobby")
