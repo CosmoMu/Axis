@@ -193,6 +193,17 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
+      - key: manager_lounge
+        name: "🤫・quiet-profits"
+        type: text
+        topic: "AXIS Manager 私人交流频道。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        manager_manage_messages: true
+        bot_send: true
 
   - key: lab
     name: "🧪・AXIS LAB"

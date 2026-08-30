@@ -63,12 +63,13 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "📝・analysis-review",
         "🧭・mentor-control",
         "👤・member-control",
+        "🤫・quiet-profits",
         "🟢・lab-signals",
         "🧬・mentor-status",
         "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 18
+    assert blueprint.channel_count == 19
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
 
 
@@ -79,7 +80,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 2
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 18
+    assert sum(action.resource_type == "channel" for action in creates) == 19
     assert not plan.blockers
 
 
@@ -121,9 +122,14 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
 
     member_wins = desired_channel_permissions(channels["member_wins"])
     lobby = desired_channel_permissions(channels["lobby"])
+    manager_lounge = desired_channel_permissions(channels["manager_lounge"])
     assert member_wins["member"]["attach_files"] is True
     assert member_wins["manager"]["manage_messages"] is True
     assert lobby["manager"]["manage_messages"] is True
+    assert manager_lounge["manager"]["view_channel"] is True
+    assert manager_lounge["manager"]["send_messages"] is True
+    assert manager_lounge["manager"]["attach_files"] is True
+    assert manager_lounge["member"]["view_channel"] is False
 
 
 def test_saved_axis_role_rename_requires_explicit_opt_in() -> None:

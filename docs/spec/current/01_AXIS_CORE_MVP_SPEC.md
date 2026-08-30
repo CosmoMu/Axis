@@ -86,7 +86,8 @@ Member
 ├─ 💭・analysis-input
 ├─ 📝・analysis-review
 ├─ 🧭・mentor-control
-└─ 👤・member-control
+├─ 👤・member-control
+└─ 🤫・quiet-profits
 
 🧪・AXIS LAB
 ├─ 🟢・lab-signals
@@ -118,6 +119,8 @@ Member
 ## MANAGER
 
 只有 `Manager`、Owner、Bot 可见。
+
+`🤫・quiet-profits` 是 Manager 私人交流频道，Manager 可以发言和上传附件。
 
 ## AXIS LAB
 

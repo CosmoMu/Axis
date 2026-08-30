@@ -3,10 +3,11 @@
 ## Discord 结构
 
 - [ ] Role 顺序为 AXIS BOT → Manager → Member → @everyone。
-- [ ] 四个 Category 和十八个 Channel 名称完全匹配 Blueprint。
+- [ ] 四个 Category 和十九个 Channel 名称完全匹配 Blueprint。
 - [ ] 普通用户看不到会员区、管理区和 AXIS LAB。
 - [ ] 会员只能在会员交流发言，三个信号频道只读。
 - [ ] 管理员能在信号输入上传文字和图片。
+- [ ] Manager 可以在 🤫・quiet-profits 私人交流，Member 无法查看。
 - [ ] AXIS LAB 只有 Owner 和 Bot 可见，三个频道的功能均保持关闭。
 
 ## 信号工作流
