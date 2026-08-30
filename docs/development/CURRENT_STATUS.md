@@ -98,8 +98,10 @@ Activation boundary:
 
 - Stripe Test Product、Day Pass/Monthly Price、Test Secret、Price IDs 与本地五事件 CLI webhook
   已配置；Test Checkout 已启用，Live Mode 仍关闭。
-- 公开 TLS webhook、完整付款/续费/失败/取消 E2E、Stripe 品牌图上传、商家法律资料和人工隐私
-  检查尚未完成，不得进入 Live Mode。
+- Day Pass 与 Monthly Test 付款、乱序 invoice replay、Entitlement 和 Member Role E2E 已通过；
+  `axis-brand-lockup.png` 已上传到 Test Product。
+- 公开 TLS webhook、续费/失败/取消完整 E2E、商家法律资料和人工隐私检查尚未完成，不得进入
+  Live Mode。
 - 完成 `LIVE_MODE_CHECKLIST.md` 和 `STRIPE_PUBLIC_PRIVACY_CHECKLIST.md` 后才可启用。
 
 ## Stage 6 — Stabilization: PARTIAL

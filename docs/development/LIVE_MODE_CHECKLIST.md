@@ -23,7 +23,9 @@ manual privacy review are incomplete.**
 - [x] Put Test Secret, webhook signing secret, Product IDs, Price IDs, and return URLs in `.env`.
 - [ ] Expose `POST /webhooks/stripe` through a restricted HTTPS reverse proxy.
 - [x] Run the local Stripe CLI Test listener with all five required membership events.
-- [ ] Run Test Mode: Day Pass success, Monthly signup/renewal/failure/cancel, duplicate event.
+- [x] Run Test Mode Day Pass success and Monthly signup with active auto-renewal.
+- [x] Verify out-of-order `invoice.paid` replay and idempotent event recovery.
+- [ ] Run Monthly renewal/failure/cancel and duplicate-delivery scenarios.
 - [ ] Run dynamic Customer Portal and payment-method update/cancellation tests.
 - [ ] Verify grandfathering by creating a new Price without changing an existing subscription.
 - [ ] Complete `STRIPE_PUBLIC_PRIVACY_CHECKLIST.md`.

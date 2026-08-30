@@ -32,5 +32,6 @@
 - 每日总结在当天 `16:15 ET` 后持续重试到午夜；若整段时间 Bot/OpenD 均离线，当前版本
   不会用非当日快照补造历史总结。
 - Stripe Test Product/Prices、Secret、动态 Checkout 和本地五事件 CLI webhook 已启用。
-  公开 TLS webhook、完整付款/续费/失败/取消 E2E、`axis-brand-lockup.png` 上传、法律商家资料
-  和人工 Stripe 页面隐私检查仍未完成；Live Mode 必须保持关闭。
+  Day Pass 与 Monthly signup E2E 已通过，Test Product 使用 `axis-brand-lockup.png`。公开 TLS
+  webhook、续费/失败/取消完整 E2E、法律商家资料和人工 Stripe 页面隐私检查仍未完成；
+  Live Mode 必须保持关闭。

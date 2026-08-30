@@ -41,6 +41,14 @@ forwards them only to `127.0.0.1:8787`. The runner reads the Test API key from `
 CLI signing secret to `STRIPE_WEBHOOK_SECRET`, and redacts both API and webhook secrets from logs.
 Use `scripts/verify_stripe_test_setup.py` for a read-only Product/Price/listener check. This local
 listener is for Test Mode only and is not a substitute for a restricted public TLS endpoint.
+Stripe can deliver the first `invoice.paid` before `checkout.session.completed`; the first
+attempt is rejected until the signed Checkout links the subscription. Stripe retries non-2xx
+deliveries in hosted environments. For the local CLI Test listener, replay that Test event with
+`scripts/replay_stripe_test_event.py evt_...` after Checkout is processed. The replay tool refuses
+Live keys and non-local destinations and never prints the event payload or signing secret.
+After Test Checkout and any required replay, run `scripts/verify_stripe_test_e2e.py` to verify
+both paid Entitlements, the processed Monthly invoice, and the Discord Member Role without
+printing customer, subscription, Checkout, or Discord user identifiers.
 
 `membership_prices` is the source for displayed and charged prices. The initial V1 catalog is
 stored in migration `20260830_0015`; Stripe Product/Price IDs are bound from `.env`. Never edit

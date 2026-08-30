@@ -292,6 +292,60 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
 
 
 @pytest.mark.asyncio
+async def test_monthly_invoice_before_checkout_is_safe_to_replay() -> None:
+    database, gateway, access, stripe_service = await setup()
+    now = int(time.time())
+    try:
+        checkout = await stripe_service.create_checkout(
+            GUILD_ID, USER_ID, MembershipPlanType.MONTHLY.value
+        )
+        invoice = {
+            "id": "evt_invoice_before_checkout",
+            "type": "invoice.paid",
+            "created": now,
+            "data": {
+                "object": {
+                    "id": "in_before_checkout",
+                    "object": "invoice",
+                    "subscription": "sub_out_of_order",
+                    "customer": "cus_axis_test",
+                    "lines": {"data": [{"period": {"end": now + 2_592_000}}]},
+                }
+            },
+        }
+        with pytest.raises(MembershipStripeError, match="STRIPE_SUBSCRIPTION_NOT_LINKED"):
+            await stripe_service.process_webhook(GUILD_ID, invoice, actor_user_id=999)
+
+        complete = checkout_event(
+            "evt_checkout_after_invoice",
+            gateway.checkout_calls[0],
+            checkout.id,
+            plan_type=MembershipPlanType.MONTHLY.value,
+            subscription_id="sub_out_of_order",
+        )
+        checkout_result = await stripe_service.process_webhook(
+            GUILD_ID, complete, actor_user_id=999
+        )
+        replayed = await stripe_service.process_webhook(GUILD_ID, invoice, actor_user_id=999)
+
+        assert checkout_result.should_have_role is True
+        assert replayed.duplicate is True
+        assert replayed.membership_status == EntitlementStatus.ACTIVE.value
+        assert await access.count_active(GUILD_ID, USER_ID) == 1
+        async with database.session() as session:
+            stored = await session.scalar(
+                select(PaymentEvent).where(
+                    PaymentEvent.provider_event_id == "evt_invoice_before_checkout"
+                )
+            )
+        assert stored is not None
+        assert stored.processing_status == "PROCESSED"
+        assert stored.error_type is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_price_grandfathering_keeps_signup_snapshot() -> None:
     database, gateway, _, stripe_service = await setup()
     try:
