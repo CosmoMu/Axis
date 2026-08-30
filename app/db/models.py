@@ -30,6 +30,7 @@ from app.domain.enums import (
     ActionStage,
     DraftStatus,
     JobStatus,
+    LlmWorkload,
     MembershipSource,
     MembershipStatus,
     OptionSide,
@@ -165,6 +166,34 @@ class SourceAttachment(UuidPrimaryKeyMixin, Base):
     )
 
 
+class LlmInvocation(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "llm_invocations"
+    __table_args__ = (
+        CheckConstraint(enum_check("workload", LlmWorkload), name="llm_invocation_workload"),
+        CheckConstraint("latency_ms >= 0", name="llm_invocation_latency_nonnegative"),
+        Index("ix_llm_invocations_guild_created", "guild_id", "created_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("source_messages.id", ondelete="SET NULL"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    workload: Mapped[str] = mapped_column(String(32), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(64))
+    provider_response_id: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "trade_drafts"
     __table_args__ = (
@@ -185,6 +214,9 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     draft_code: Mapped[str] = mapped_column(String(32), nullable=False)
     source_message_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("source_messages.id", ondelete="RESTRICT"), index=True
+    )
+    llm_invocation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("llm_invocations.id", ondelete="SET NULL"), index=True
     )
     matched_trade_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("trades.id", ondelete="SET NULL"), index=True
@@ -308,9 +340,15 @@ class TradeEvent(UuidPrimaryKeyMixin, Base):
     )
 
 
-class PublicMessage(UuidPrimaryKeyMixin, Base):
-    __tablename__ = "public_messages"
-    __table_args__ = (UniqueConstraint("guild_id", "message_id", name="public_message_per_guild"),)
+class TradePublication(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "trade_publications"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "message_id",
+            name="trade_publication_per_guild",
+        ),
+    )
 
     guild_id: Mapped[int] = mapped_column(
         ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
@@ -330,6 +368,10 @@ class PublicMessage(UuidPrimaryKeyMixin, Base):
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )
     corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# One release-cycle import compatibility. The database and new code use TradePublication.
+PublicMessage = TradePublication
 
 
 class Membership(UuidPrimaryKeyMixin, TimestampMixin, Base):

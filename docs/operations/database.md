@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-初版迁移创建 14 张表：
+当前 revision `20260829_0004` 创建 15 张业务表：
 
 ```text
 guild_config
@@ -53,7 +53,8 @@ source_attachments
 trade_drafts
 trades
 trade_events
-public_messages
+trade_publications
+llm_invocations
 memberships
 membership_events
 subscriptions
@@ -63,6 +64,8 @@ scheduled_jobs
 
 交易持仓以 `position_eighths` 保存，数据库约束范围为 `0..8`；事件增减范围为 `-8..8`。
 管理员写操作所需的 actor、before/after JSON 与 Discord Interaction ID 由 `audit_logs` 保存。
+`llm_invocations` 保存实际 provider、model、workload、Prompt/Schema version、latency、
+success 与 error_type；旧调用无法证明的字段不会伪造回填。
 
 ## 查看版本
 

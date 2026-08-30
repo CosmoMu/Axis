@@ -5,16 +5,14 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 from openai import AsyncOpenAI
 
-
-class TradeParseError(RuntimeError):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+from app.domain.enums import LlmWorkload
+from app.integrations.model_router import ModelRoute
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +22,37 @@ class ParserAttachment:
 
 
 @dataclass(frozen=True, slots=True)
+class LlmInvocationTrace:
+    provider: str
+    model: str
+    workload: LlmWorkload
+    prompt_version: str
+    schema_version: str
+    latency_ms: int
+    success: bool
+    error_type: str | None
+    response_id: str | None
+
+
+class TradeParseError(RuntimeError):
+    def __init__(self, code: str, *, trace: LlmInvocationTrace | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.trace = trace
+
+
+@dataclass(frozen=True, slots=True)
 class TradeParseResult:
     payload: dict[str, Any]
-    response_id: str | None
-    model: str
+    trace: LlmInvocationTrace
+
+    @property
+    def response_id(self) -> str | None:
+        return self.trace.response_id
+
+    @property
+    def model(self) -> str:
+        return self.trace.model
 
 
 def load_trade_schema(path: Path) -> dict[str, Any]:
@@ -87,22 +112,65 @@ class OpenAITradeParser:
         self,
         *,
         api_key: str,
-        model: str,
-        timeout_seconds: int,
-        max_retries: int,
+        route: ModelRoute,
         schema: dict[str, Any],
         prompt: str,
         client: Any | None = None,
     ) -> None:
-        self.model = model
+        if route.workload is not LlmWorkload.SIGNAL_PARSE:
+            raise TradeParseError("LLM_WORKLOAD_INVALID")
+        self.route = route
         self.schema = copy.deepcopy(schema)
         self.api_schema = _openai_schema(schema)
         self.prompt = prompt
         self.validator = Draft202012Validator(schema, format_checker=FormatChecker())
         self.client = client or AsyncOpenAI(
             api_key=api_key,
-            timeout=timeout_seconds,
-            max_retries=max_retries,
+            timeout=route.timeout_seconds,
+            max_retries=route.max_retries,
+        )
+
+    def _trace(
+        self,
+        *,
+        started_at: float,
+        success: bool,
+        error_type: str | None,
+        response: Any | None,
+    ) -> LlmInvocationTrace:
+        response_model = getattr(response, "model", None) if response is not None else None
+        response_id = getattr(response, "id", None) if response is not None else None
+        return LlmInvocationTrace(
+            provider=self.route.provider,
+            model=(
+                response_model
+                if isinstance(response_model, str) and response_model
+                else self.route.model
+            ),
+            workload=self.route.workload,
+            prompt_version=self.route.prompt_version,
+            schema_version=self.route.schema_version,
+            latency_ms=max(0, round((perf_counter() - started_at) * 1000)),
+            success=success,
+            error_type=error_type,
+            response_id=response_id if isinstance(response_id, str) else None,
+        )
+
+    def _parse_error(
+        self,
+        code: str,
+        *,
+        started_at: float,
+        response: Any | None,
+    ) -> TradeParseError:
+        return TradeParseError(
+            code,
+            trace=self._trace(
+                started_at=started_at,
+                success=False,
+                error_type=code,
+                response=response,
+            ),
         )
 
     async def parse(
@@ -127,9 +195,10 @@ class OpenAITradeParser:
                 }
             )
 
+        started_at = perf_counter()
         try:
             response = await self.client.responses.create(
-                model=self.model,
+                model=self.route.model,
                 input=[
                     {"role": "system", "content": self.prompt},
                     {"role": "user", "content": content},
@@ -142,28 +211,52 @@ class OpenAITradeParser:
                         "schema": self.api_schema,
                     }
                 },
+                reasoning={"effort": self.route.reasoning},
                 max_output_tokens=2500,
                 store=False,
             )
         except Exception as exc:
-            raise TradeParseError("LLM_REQUEST_FAILED") from exc
+            raise self._parse_error(
+                "LLM_REQUEST_FAILED",
+                started_at=started_at,
+                response=None,
+            ) from exc
 
         output_text = getattr(response, "output_text", None)
         if not isinstance(output_text, str) or not output_text.strip():
-            raise TradeParseError("LLM_OUTPUT_EMPTY")
+            raise self._parse_error(
+                "LLM_OUTPUT_EMPTY",
+                started_at=started_at,
+                response=response,
+            )
         try:
             payload = json.loads(output_text)
         except json.JSONDecodeError as exc:
-            raise TradeParseError("LLM_OUTPUT_NOT_JSON") from exc
+            raise self._parse_error(
+                "LLM_OUTPUT_NOT_JSON",
+                started_at=started_at,
+                response=response,
+            ) from exc
         if not isinstance(payload, dict):
-            raise TradeParseError("LLM_OUTPUT_NOT_OBJECT")
+            raise self._parse_error(
+                "LLM_OUTPUT_NOT_OBJECT",
+                started_at=started_at,
+                response=response,
+            )
         errors = list(self.validator.iter_errors(payload))
         if errors:
-            raise TradeParseError("LLM_OUTPUT_SCHEMA_INVALID")
+            raise self._parse_error(
+                "LLM_OUTPUT_SCHEMA_INVALID",
+                started_at=started_at,
+                response=response,
+            )
 
-        response_id = getattr(response, "id", None)
         return TradeParseResult(
             payload=payload,
-            response_id=response_id if isinstance(response_id, str) else None,
-            model=self.model,
+            trace=self._trace(
+                started_at=started_at,
+                success=True,
+                error_type=None,
+                response=response,
+            ),
         )

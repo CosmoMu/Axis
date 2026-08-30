@@ -52,14 +52,16 @@ def _deploy_runtime() -> None:
     (RUNTIME_ROOT / "config").mkdir(parents=True, exist_ok=True)
     shutil.copy2(PROJECT_ROOT / "scripts" / "run_bot.py", RUNTIME_ROOT / "scripts")
     shutil.copy2(source_ids, RUNTIME_ROOT / "config" / "discord_ids.json")
-    shutil.copy2(
-        PROJECT_ROOT / "config" / "llm_trade_schema.json",
-        RUNTIME_ROOT / "config" / "llm_trade_schema.json",
-    )
-    shutil.copy2(
-        PROJECT_ROOT / "config" / "llm_trade_prompt.txt",
-        RUNTIME_ROOT / "config" / "llm_trade_prompt.txt",
-    )
+    for filename in (
+        "model_routing.yaml",
+        "llm_trade_schema.json",
+        "llm_analysis_schema.json",
+        "llm_trade_prompt.txt",
+    ):
+        shutil.copy2(
+            PROJECT_ROOT / "config" / filename,
+            RUNTIME_ROOT / "config" / filename,
+        )
     shutil.copy2(source_env, RUNTIME_ROOT / ".env")
     os.chmod(RUNTIME_ROOT / ".env", 0o600)
 

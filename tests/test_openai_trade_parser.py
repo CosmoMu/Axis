@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.domain.enums import LlmWorkload
+from app.integrations.model_router import ModelRouter
 from app.integrations.openai_trade_parser import (
     OpenAITradeParser,
     ParserAttachment,
@@ -57,6 +59,7 @@ class FakeResponses:
             raise self.error
         return SimpleNamespace(
             id="resp_test",
+            model="gpt-5.6-terra",
             output_text=json.dumps(self.payload),
         )
 
@@ -67,11 +70,12 @@ class FakeClient:
 
 
 def parser(responses: FakeResponses) -> OpenAITradeParser:
+    route = ModelRouter.load(ROOT / "config" / "model_routing.yaml").resolve(
+        LlmWorkload.SIGNAL_PARSE
+    )
     return OpenAITradeParser(
         api_key="test-only-placeholder",
-        model="gpt-5.6-terra",
-        timeout_seconds=45,
-        max_retries=2,
+        route=route,
         schema=load_trade_schema(ROOT / "config" / "llm_trade_schema.json"),
         prompt=load_trade_prompt(ROOT / "config" / "llm_trade_prompt.txt"),
         client=FakeClient(responses),
@@ -88,8 +92,13 @@ async def test_parser_uses_strict_responses_schema_and_multimodal_input() -> Non
 
     assert result.payload["ticker"] == "SPY"
     assert result.response_id == "resp_test"
+    assert result.trace.workload is LlmWorkload.SIGNAL_PARSE
+    assert result.trace.prompt_version == "axis-trade-parse-v1"
+    assert result.trace.schema_version == "axis-trade-v1"
+    assert result.trace.success is True
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False
+    assert responses.kwargs["reasoning"] == {"effort": "low"}
     text_format = responses.kwargs["text"]["format"]  # type: ignore[index]
     assert text_format["strict"] is True
     assert text_format["type"] == "json_schema"

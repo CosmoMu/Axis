@@ -10,10 +10,17 @@ from typing import Any, Protocol
 from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import AuditLog, SourceAttachment, SourceMessage, TradeDraft
+from app.db.models import (
+    AuditLog,
+    LlmInvocation,
+    SourceAttachment,
+    SourceMessage,
+    TradeDraft,
+)
 from app.db.session import Database
 from app.domain.enums import DraftStatus, SourceStatus
 from app.integrations.openai_trade_parser import (
+    LlmInvocationTrace,
     ParserAttachment,
     TradeParseError,
     TradeParseResult,
@@ -172,12 +179,14 @@ class DraftGenerationService:
                 source.discord_message_id,
             )
 
+        parse_trace: LlmInvocationTrace | None = None
         try:
             attachments = await self._load_attachments(source_message_id)
             parse_result = await self.parser.parse(
                 raw_text=source_snapshot[1],
                 attachments=attachments,
             )
+            parse_trace = parse_result.trace
             payload = dict(parse_result.payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)
@@ -191,16 +200,21 @@ class DraftGenerationService:
             reason_code = (
                 exc.code if isinstance(exc, TradeParseError) else "ATTACHMENT_READ_FAILED"
             )
+            failure_trace = (
+                (exc.trace or parse_trace) if isinstance(exc, TradeParseError) else None
+            )
             return await self._persist_failure(
                 source_message_id=source_message_id,
                 source_snapshot=source_snapshot,
                 reason_code=reason_code,
+                trace=failure_trace,
             )
         except Exception:
             return await self._persist_failure(
                 source_message_id=source_message_id,
                 source_snapshot=source_snapshot,
                 reason_code="DRAFT_GENERATION_FAILED",
+                trace=parse_trace,
             )
 
     async def _load_attachments(self, source_message_id: uuid.UUID) -> list[ParserAttachment]:
@@ -241,16 +255,28 @@ class DraftGenerationService:
         draft.parse_payload = {
             **payload,
             "_parser": {
-                "provider": "openai",
-                "model": parse_result.model,
-                "response_id": parse_result.response_id,
+                "provider": parse_result.trace.provider,
+                "model": parse_result.trace.model,
+                "workload": parse_result.trace.workload.value,
+                "prompt_version": parse_result.trace.prompt_version,
+                "schema_version": parse_result.trace.schema_version,
+                "latency_ms": parse_result.trace.latency_ms,
+                "success": parse_result.trace.success,
+                "response_id": parse_result.trace.response_id,
             },
         }
+        invocation = self._invocation_from_trace(
+            guild_id=guild_id,
+            source_message_id=source_message_id,
+            trace=parse_result.trace,
+        )
+        draft.llm_invocation_id = invocation.id
         async with self.database.session() as session:
             source = await session.get(SourceMessage, source_message_id)
             if source is None:
                 raise LookupError("source message does not exist")
             source.status = SourceStatus.PARSED.value
+            session.add(invocation)
             session.add(draft)
             session.add(
                 AuditLog(
@@ -289,6 +315,7 @@ class DraftGenerationService:
         source_message_id: uuid.UUID,
         source_snapshot: tuple[int, str | None, int, int, int],
         reason_code: str,
+        trace: LlmInvocationTrace | None,
     ) -> DraftGenerationResult:
         guild_id, _, actor_user_id, channel_id, discord_message_id = source_snapshot
         payload = {
@@ -308,11 +335,24 @@ class DraftGenerationService:
             payload=payload,
             status=DraftStatus.PARSE_FAILED.value,
         )
+        invocation = (
+            self._invocation_from_trace(
+                guild_id=guild_id,
+                source_message_id=source_message_id,
+                trace=trace,
+            )
+            if trace is not None
+            else None
+        )
+        if invocation is not None:
+            draft.llm_invocation_id = invocation.id
         async with self.database.session() as session:
             source = await session.get(SourceMessage, source_message_id)
             if source is None:
                 raise LookupError("source message does not exist")
             source.status = SourceStatus.FAILED.value
+            if invocation is not None:
+                session.add(invocation)
             session.add(draft)
             session.add(
                 AuditLog(
@@ -343,6 +383,28 @@ class DraftGenerationService:
             draft.draft_code,
             channel_id,
             discord_message_id,
+        )
+
+    @staticmethod
+    def _invocation_from_trace(
+        *,
+        guild_id: int,
+        source_message_id: uuid.UUID,
+        trace: LlmInvocationTrace,
+    ) -> LlmInvocation:
+        return LlmInvocation(
+            id=uuid.uuid4(),
+            guild_id=guild_id,
+            source_message_id=source_message_id,
+            provider=trace.provider,
+            model=trace.model,
+            workload=trace.workload.value,
+            prompt_version=trace.prompt_version,
+            schema_version=trace.schema_version,
+            latency_ms=trace.latency_ms,
+            success=trace.success,
+            error_type=trace.error_type,
+            provider_response_id=trace.response_id,
         )
 
     async def _existing_result(

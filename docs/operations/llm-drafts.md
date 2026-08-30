@@ -3,7 +3,7 @@
 这一阶段把 `signal-input` 收到的文字和图片解析为 `trade_drafts`，但不会自动审核、
 发布会员卡片或分配 Mentor。
 
-## 配置目标与当前过渡状态
+## 配置
 
 v2.1 的目标配置由 `config/model_routing.yaml` 和环境变量共同解析：
 
@@ -19,9 +19,9 @@ LLM_SCHEMA_PATH=config/llm_trade_schema.json
 LLM_PROMPT_PATH=config/llm_trade_prompt.txt
 ```
 
-Stage 0 盘点时，已部署的旧 Parser 仍读取本地 `LLM_API_KEY` / `LLM_MODEL`。这是
-Stage 1 必须消除的兼容差异，不是后续业务代码可继续依赖的接口。路由迁移完成前不要
-删除本地旧变量；迁移后只保留 `OPENAI_API_KEY` 与 workload overrides。
+业务 Service 只提交 `SIGNAL_PARSE` workload。Router 按 workload override、YAML route、
+YAML default 的顺序解析实际模型。迁移窗口仍兼容读取本地 `LLM_API_KEY` /
+`LLM_MODEL`，但新部署应改用 `OPENAI_API_KEY` 和 workload overrides。
 
 Secret 不得写入源码、文档、日志、测试快照或 Git。更换 Key 时只修改本地 `.env`。
 
@@ -34,7 +34,7 @@ Secret 不得写入源码、文档、日志、测试快照或 Git。更换 Key �
 4. 返回结果再用本地 `config/llm_trade_schema.json` 完整校验。
 5. 成功时写入一条 `PENDING_REVIEW` 草稿；失败时写入一条 `PARSE_FAILED` 草稿。
 6. 每个 `source_message_id` 只允许一条草稿，重启和重复运行不会生成重复数据。
-7. 每次调用写入 `llm_invocations`，保存 provider、实际 model、workload、
+7. 每次实际 API 调用写入 `llm_invocations`，保存 provider、实际 model、workload、
    Prompt/Schema 版本、延迟和成功/失败状态。
 
 ## 业务规则

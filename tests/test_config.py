@@ -23,11 +23,15 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         attachment_storage_path=root / "attachments",
         max_attachment_bytes=10 * 1024 * 1024,
         llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-5.6-terra",
+        openai_api_key="",
+        llm_routing_path=root / "model_routing.yaml",
+        llm_default_model_override=None,
+        llm_signal_model_override=None,
+        llm_signal_repair_model_override=None,
+        llm_analysis_model_override=None,
+        llm_analysis_rewrite_model_override=None,
         llm_timeout_seconds=45,
         llm_max_retries=2,
-        llm_schema_path=root / "llm_trade_schema.json",
         llm_prompt_path=root / "llm_trade_prompt.txt",
     )
 
@@ -68,7 +72,7 @@ def test_database_url_is_required_and_must_use_asyncpg() -> None:
 def test_llm_key_is_optional_at_startup_but_required_to_enable_parser() -> None:
     unconfigured = settings(apply_changes=False, dry_run=True)
     with pytest.raises(ConfigurationError):
-        unconfigured.require_llm_api_key()
+        unconfigured.require_openai_api_key()
 
-    configured = replace(unconfigured, llm_api_key="test-only-placeholder")
-    assert configured.require_llm_api_key() == "test-only-placeholder"
+    configured = replace(unconfigured, openai_api_key="test-only-placeholder")
+    assert configured.require_openai_api_key() == "test-only-placeholder"

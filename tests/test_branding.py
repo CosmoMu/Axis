@@ -19,6 +19,8 @@ def project_text() -> str:
             continue
         if any(part in {".git", ".venv", ".pytest_cache", ".ruff_cache"} for part in path.parts):
             continue
+        if "archive" in path.parts or path.name == "V1_TO_V2_AUDIT.md":
+            continue
         parts.append(path.read_text(encoding="utf-8"))
     return "\n".join(parts)
 

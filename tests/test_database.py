@@ -19,7 +19,8 @@ EXPECTED_TABLES = {
     "trade_drafts",
     "trades",
     "trade_events",
-    "public_messages",
+    "trade_publications",
+    "llm_invocations",
     "memberships",
     "membership_events",
     "subscriptions",
@@ -51,6 +52,18 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     assert "mentor_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
+    assert "llm_invocation_id" in drafts.columns
+    invocations = Base.metadata.tables["llm_invocations"]
+    assert {
+        "provider",
+        "model",
+        "workload",
+        "prompt_version",
+        "schema_version",
+        "latency_ms",
+        "success",
+        "error_type",
+    } <= set(invocations.columns.keys())
 
 
 @pytest.mark.asyncio

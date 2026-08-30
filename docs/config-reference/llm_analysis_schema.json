@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AxisAnalysisParse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analysis_type",
+    "symbols",
+    "sector",
+    "stance",
+    "time_horizon",
+    "title",
+    "summary",
+    "core_thesis",
+    "supporting_points",
+    "key_levels",
+    "invalidation",
+    "catalysts",
+    "risks",
+    "market_conditions",
+    "related_symbols",
+    "confidence",
+    "missing_fields",
+    "warnings"
+  ],
+  "properties": {
+    "analysis_type": {
+      "type": "string",
+      "enum": [
+        "MARKET",
+        "TICKER",
+        "SECTOR",
+        "MACRO",
+        "UNKNOWN"
+      ]
+    },
+    "symbols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9.\\-]{1,12}$"
+      },
+      "uniqueItems": true
+    },
+    "sector": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 120
+    },
+    "stance": {
+      "type": "string",
+      "enum": [
+        "BULLISH",
+        "BEARISH",
+        "NEUTRAL",
+        "WATCH"
+      ]
+    },
+    "time_horizon": {
+      "type": "string",
+      "enum": [
+        "INTRADAY",
+        "SHORT_TERM",
+        "SWING",
+        "LONG_TERM",
+        "UNSPECIFIED"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 160
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1200
+    },
+    "core_thesis": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 3000
+    },
+    "supporting_points": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "key_levels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "symbol",
+          "level_type",
+          "price",
+          "note"
+        ],
+        "properties": {
+          "symbol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level_type": {
+            "type": "string",
+            "enum": [
+              "WATCH",
+              "SUPPORT",
+              "RESISTANCE",
+              "INVALIDATION",
+              "OTHER"
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "invalidation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1500
+    },
+    "catalysts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "market_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "related_symbols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9.\\-]{1,12}$"
+      },
+      "uniqueItems": true
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

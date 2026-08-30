@@ -21,8 +21,11 @@ from app.bot.client import AxisBot  # noqa: E402
 from app.config import ConfigurationError, Settings  # noqa: E402
 from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
+from app.domain.enums import LlmWorkload  # noqa: E402
+from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
 from app.integrations.openai_trade_parser import (  # noqa: E402
     OpenAITradeParser,
+    TradeParseError,
     load_trade_prompt,
     load_trade_schema,
 )
@@ -51,13 +54,28 @@ async def run() -> None:
             max_bytes=settings.max_attachment_bytes,
         )
         draft_generation_service = None
-        if settings.llm_api_key:
+        if settings.openai_api_key:
+            router = ModelRouter.load(
+                settings.llm_routing_path,
+                model_overrides={
+                    LlmWorkload.SIGNAL_PARSE: settings.llm_signal_model_override,
+                    LlmWorkload.SIGNAL_REPAIR: settings.llm_signal_repair_model_override,
+                    LlmWorkload.ANALYSIS_PARSE: settings.llm_analysis_model_override,
+                    LlmWorkload.ANALYSIS_REWRITE: (
+                        settings.llm_analysis_rewrite_model_override
+                    ),
+                },
+                default_model_override=settings.llm_default_model_override,
+                timeout_seconds_override=settings.llm_timeout_seconds,
+                max_retries_override=settings.llm_max_retries,
+            )
+            signal_route = router.resolve(LlmWorkload.SIGNAL_PARSE)
+            if signal_route.structured_output is None:
+                raise ModelRoutingError("SIGNAL_PARSE 缺少 structured_output。")
             parser = OpenAITradeParser(
-                api_key=settings.require_llm_api_key(),
-                model=settings.llm_model,
-                timeout_seconds=settings.llm_timeout_seconds,
-                max_retries=settings.llm_max_retries,
-                schema=load_trade_schema(settings.llm_schema_path),
+                api_key=settings.require_openai_api_key(),
+                route=signal_route,
+                schema=load_trade_schema(signal_route.structured_output),
                 prompt=load_trade_prompt(settings.llm_prompt_path),
             )
             draft_generation_service = DraftGenerationService(
@@ -81,7 +99,7 @@ async def run() -> None:
 def main() -> int:
     try:
         asyncio.run(run())
-    except ConfigurationError as exc:
+    except (ConfigurationError, ModelRoutingError, TradeParseError) as exc:
         print(f"AXIS BOT 未启动：{exc}", file=sys.stderr)
         return 2
     except discord.LoginFailure:

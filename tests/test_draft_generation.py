@@ -7,10 +7,21 @@ import pytest
 from sqlalchemy import func, select
 
 from app.db.base import Base
-from app.db.models import AuditLog, GuildConfig, SourceAttachment, SourceMessage, TradeDraft
+from app.db.models import (
+    AuditLog,
+    GuildConfig,
+    LlmInvocation,
+    SourceAttachment,
+    SourceMessage,
+    TradeDraft,
+)
 from app.db.session import Database
-from app.domain.enums import DraftStatus, SourceStatus
-from app.integrations.openai_trade_parser import TradeParseError, TradeParseResult
+from app.domain.enums import DraftStatus, LlmWorkload, SourceStatus
+from app.integrations.openai_trade_parser import (
+    LlmInvocationTrace,
+    TradeParseError,
+    TradeParseResult,
+)
 from app.services.attachment_storage import LocalAttachmentStore
 from app.services.draft_generation import (
     DraftGenerationDisposition,
@@ -36,11 +47,22 @@ class FakeParser:
 
     async def parse(self, *, raw_text: str | None, attachments: list[object]) -> TradeParseResult:
         self.calls += 1
+        trace = LlmInvocationTrace(
+            provider="openai",
+            model="gpt-5.6-terra",
+            workload=LlmWorkload.SIGNAL_PARSE,
+            prompt_version="axis-trade-parse-v1",
+            schema_version="axis-trade-v1",
+            latency_ms=12,
+            success=not self.fail,
+            error_type="LLM_REQUEST_FAILED" if self.fail else None,
+            response_id=None if self.fail else "resp_test",
+        )
         if self.fail:
-            raise TradeParseError("LLM_REQUEST_FAILED")
+            raise TradeParseError("LLM_REQUEST_FAILED", trace=trace)
         assert raw_text == "SPY 700C entry"
         assert len(attachments) == self.expected_attachment_count
-        return TradeParseResult(self.payload, "resp_test", "gpt-5.6-terra")
+        return TradeParseResult(self.payload, trace)
 
 
 async def database_with_source(
@@ -117,6 +139,7 @@ async def test_generation_is_idempotent_and_applies_default_position(tmp_path: P
             draft = await session.scalar(select(TradeDraft))
             saved_source = await session.get(SourceMessage, source.id)
             draft_count = await session.scalar(select(func.count()).select_from(TradeDraft))
+            invocation = await session.scalar(select(LlmInvocation))
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))
         assert draft is not None
         assert draft.status == DraftStatus.PENDING_REVIEW.value
@@ -124,6 +147,10 @@ async def test_generation_is_idempotent_and_applies_default_position(tmp_path: P
         assert draft.position_after_eighths == 1
         assert "DEFAULT_POSITION_APPLIED" in draft.warnings
         assert draft.mentor_id is None
+        assert invocation is not None
+        assert invocation.workload == LlmWorkload.SIGNAL_PARSE.value
+        assert invocation.success is True
+        assert draft.llm_invocation_id == invocation.id
         assert saved_source is not None and saved_source.status == SourceStatus.PARSED.value
         assert draft_count == 1
         assert audit_count == 1
@@ -150,10 +177,15 @@ async def test_parse_failure_creates_one_safe_failed_draft(tmp_path: Path) -> No
             draft = await session.scalar(select(TradeDraft))
             saved_source = await session.get(SourceMessage, source.id)
             audit = await session.scalar(select(AuditLog))
+            invocation = await session.scalar(select(LlmInvocation))
         assert draft is not None and draft.status == DraftStatus.PARSE_FAILED.value
         assert draft.warnings == ["LLM_REQUEST_FAILED"]
         assert saved_source is not None and saved_source.status == SourceStatus.FAILED.value
         assert audit is not None and audit.after_json["reason_code"] == "LLM_REQUEST_FAILED"
+        assert invocation is not None
+        assert invocation.success is False
+        assert invocation.error_type == "LLM_REQUEST_FAILED"
+        assert draft.llm_invocation_id == invocation.id
         assert "SPY" not in str(audit.after_json)
     finally:
         await database.dispose()

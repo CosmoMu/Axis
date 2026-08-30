@@ -3,7 +3,7 @@
 **日期：** 2026-08-29  
 **目标 Guild：** `AXIS (1543309921066684567)`  
 **状态：** Stage 0 只读盘点完成；Discord 服务器修改数为 **0**。  
-**Source of Truth：** `docs/spec/current/`
+**Source of Truth：** `docs/current/`（v1 → v2 reconciliation 后的正式位置）
 
 ## 1. 安全结论
 
@@ -36,10 +36,10 @@ config/
 └─ .env.example
 
 docs/
-├─ spec/current/           v2.1 唯一正式规格
+├─ current/                v2.1 唯一正式规格
 ├─ development/            阶段盘点与实施记录
 ├─ operations/             运维手册
-└─ AXIS_MVP_SPEC.md        已标记为历史文档
+└─ archive/v1/             已归档的历史规格
 
 migrations/versions/
 ├─ 20260829_0001_initial_axis_schema.py

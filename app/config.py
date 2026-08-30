@@ -74,11 +74,15 @@ class Settings:
     attachment_storage_path: Path
     max_attachment_bytes: int
     llm_provider: str
-    llm_api_key: str
-    llm_model: str
+    openai_api_key: str
+    llm_routing_path: Path
+    llm_default_model_override: str | None
+    llm_signal_model_override: str | None
+    llm_signal_repair_model_override: str | None
+    llm_analysis_model_override: str | None
+    llm_analysis_rewrite_model_override: str | None
     llm_timeout_seconds: int
     llm_max_retries: int
-    llm_schema_path: Path
     llm_prompt_path: Path
 
     @classmethod
@@ -93,8 +97,15 @@ class Settings:
         ids_value = os.getenv("DISCORD_IDS_PATH", "config/discord_ids.json")
         report_value = os.getenv("DISCORD_DRY_RUN_REPORT", "var/discord/dry-run.json")
         attachment_value = os.getenv("ATTACHMENT_STORAGE_PATH", "var/attachments")
-        llm_schema_value = os.getenv("LLM_SCHEMA_PATH", "config/llm_trade_schema.json")
+        llm_routing_value = os.getenv(
+            "LLM_ROUTING_CONFIG", "config/model_routing.yaml"
+        )
         llm_prompt_value = os.getenv("LLM_PROMPT_PATH", "config/llm_trade_prompt.txt")
+        preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+        legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
+        default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
+        if not default_model_override:
+            default_model_override = os.getenv("LLM_MODEL", "").strip()
         return cls(
             project_root=root,
             discord_bot_token=os.getenv("DISCORD_BOT_TOKEN", "").strip(),
@@ -112,12 +123,21 @@ class Settings:
                 "MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
             ),
             llm_provider=os.getenv("LLM_PROVIDER", "openai").strip().lower(),
-            llm_api_key=os.getenv("LLM_API_KEY", "").strip(),
-            llm_model=os.getenv("LLM_MODEL", "gpt-5.6-terra").strip()
-            or "gpt-5.6-terra",
+            openai_api_key=preferred_openai_key or legacy_openai_key,
+            llm_routing_path=(root / llm_routing_value).resolve(),
+            llm_default_model_override=default_model_override or None,
+            llm_signal_model_override=os.getenv("LLM_SIGNAL_MODEL", "").strip() or None,
+            llm_signal_repair_model_override=(
+                os.getenv("LLM_SIGNAL_REPAIR_MODEL", "").strip() or None
+            ),
+            llm_analysis_model_override=(
+                os.getenv("LLM_ANALYSIS_MODEL", "").strip() or None
+            ),
+            llm_analysis_rewrite_model_override=(
+                os.getenv("LLM_ANALYSIS_REWRITE_MODEL", "").strip() or None
+            ),
             llm_timeout_seconds=_parse_positive_int("LLM_TIMEOUT_SECONDS", 45),
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
-            llm_schema_path=(root / llm_schema_value).resolve(),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
         )
 
@@ -137,14 +157,14 @@ class Settings:
             raise ConfigurationError("DATABASE_URL 必须使用 postgresql+asyncpg://。")
         return self.database_url
 
-    def require_llm_api_key(self) -> str:
+    def require_openai_api_key(self) -> str:
         if self.llm_provider != "openai":
             raise ConfigurationError("LLM_PROVIDER 目前只支持 openai。")
-        if not self.llm_api_key:
+        if not self.openai_api_key:
             raise ConfigurationError(
-                "缺少 LLM_API_KEY。请只在本地 .env 或 Secret Manager 中配置。"
+                "缺少 OPENAI_API_KEY。请只在本地 .env 或 Secret Manager 中配置。"
             )
-        return self.llm_api_key
+        return self.openai_api_key
 
     def assert_apply_gate(self, confirmed_guild_id: int | None) -> None:
         if not self.apply_changes:

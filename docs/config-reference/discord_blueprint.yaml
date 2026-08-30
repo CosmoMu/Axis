@@ -1,0 +1,251 @@
+version: 2
+# AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
+brand:
+  server_name: "AXIS"
+  tagline: "Signals without the noise."
+  accent_hex: "#86F7A8"
+  logo_path: "assets/axis-logo.png"
+
+roles:
+  - key: bot
+    name: "AXIS BOT"
+    managed_by_discord: true
+    hoist: false
+    mentionable: false
+  - key: manager
+    name: "Manager"
+    color_hex: "#F2F4EF"
+    hoist: false
+    mentionable: false
+  - key: member
+    name: "Member"
+    color_hex: "#86F7A8"
+    hoist: false
+    mentionable: false
+
+role_order:
+  - bot
+  - manager
+  - member
+  - everyone
+
+categories:
+  - key: start
+    name: "⬛・GENERAL"
+    position: 10
+    channels:
+      - key: welcome
+        name: "👋・welcome"
+        type: text
+        topic: "AXIS 欢迎与使用说明。"
+        everyone_view: true
+        everyone_send: false
+        member_send: false
+        manager_send: false
+        bot_send: true
+      - key: subscriptions
+        name: "💳・subscriptions"
+        type: text
+        topic: "会员权益、订阅链接与订阅管理。"
+        everyone_view: true
+        everyone_send: false
+        member_send: false
+        manager_send: false
+        bot_send: true
+      - key: official_results
+        name: "📊・results"
+        type: text
+        topic: "系统追踪的关闭订单和官方统计。"
+        everyone_view: true
+        everyone_send: false
+        member_send: false
+        manager_send: false
+        bot_send: true
+      - key: lobby
+        name: "💬・lobby"
+        type: text
+        topic: "公开交流与产品问题。"
+        everyone_view: true
+        everyone_send: true
+        member_send: true
+        manager_send: true
+        manager_manage_messages: true
+        bot_send: true
+      - key: member_wins
+        name: "🏆・member-wins"
+        type: text
+        topic: "会员自行分享的交易记录，不计入官方战绩。"
+        everyone_view: true
+        everyone_send: false
+        member_send: true
+        member_attach: true
+        manager_send: true
+        manager_manage_messages: true
+        bot_send: true
+
+  - key: members
+    name: "🟢・MEMBERS"
+    position: 20
+    default_visibility: member
+    channels:
+      - key: short_term_alerts
+        name: "⚡・short-term"
+        type: text
+        topic: "短线交易信号。仅 Bot 发布。"
+        everyone_view: false
+        member_view: true
+        member_send: false
+        manager_view: true
+        manager_send: false
+        bot_send: true
+      - key: swing_alerts
+        name: "〽️・swing"
+        type: text
+        topic: "波段交易信号。仅 Bot 发布。"
+        everyone_view: false
+        member_view: true
+        member_send: false
+        manager_view: true
+        manager_send: false
+        bot_send: true
+      - key: leaps_alerts
+        name: "♾️・leaps"
+        type: text
+        topic: "长期和 LEAPS 交易信号。仅 Bot 发布。"
+        everyone_view: false
+        member_view: true
+        member_send: false
+        manager_view: true
+        manager_send: false
+        bot_send: true
+      - key: member_chat
+        name: "🛋️・member-lounge"
+        type: text
+        topic: "会员专属交流。"
+        everyone_view: false
+        member_view: true
+        member_send: true
+        manager_view: true
+        manager_send: true
+        manager_manage_messages: true
+        bot_send: true
+
+  - key: manager
+    name: "⚙️・MANAGER"
+    position: 90
+    default_visibility: manager
+    channels:
+      - key: signal_input
+        name: "📥・signal-input"
+        type: text
+        topic: "管理员提交原始文字、截图和交易更新。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: card_review
+        name: "✅・card-review"
+        type: text
+        topic: "LLM 草稿、Mentor 选择、编辑、预览和确认发布。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: analysis_input
+        name: "💭・analysis-input"
+        type: text
+        topic: "Mentor 市场观点的文字与图片输入。Analysis 功能在 Gate A 前保持关闭。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: analysis_review
+        name: "📝・analysis-review"
+        type: text
+        topic: "Analysis 草稿审核、归档与发布。Analysis 功能在 Gate A 前保持关闭。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: mentor_control
+        name: "🧭・mentor-control"
+        type: text
+        topic: "动态 Mentor Registry 和每位 Mentor 的订单状态。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: false
+        bot_send: true
+      - key: member_control
+        name: "👤・member-control"
+        type: text
+        topic: "会员赠送、延期、到期取消和立即移除。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: false
+        bot_send: true
+      - key: manager_lounge
+        name: "🤫・quiet-profits"
+        type: text
+        topic: "AXIS Manager 私人交流频道。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        manager_manage_messages: true
+        bot_send: true
+
+  - key: lab
+    name: "🧪・AXIS LAB"
+    position: 99
+    default_visibility: owner_only
+    feature_flag: FEATURE_LAB_ENABLED
+    channels:
+      - key: lab_signals
+        name: "🟢・lab-signals"
+        type: text
+        topic: "Model A/B 和 Moomoo 后续生成的私人模型信号。"
+        everyone_view: false
+        member_view: false
+        manager_view: false
+        owner_view: true
+        bot_send: true
+      - key: mentor_status
+        name: "🧬・mentor-status"
+        type: text
+        topic: "未来 Mentor 模型状态预留。当前功能禁用。"
+        everyone_view: false
+        member_view: false
+        manager_view: false
+        owner_view: true
+        bot_send: true
+      - key: lab_history
+        name: "🗂️・lab-history"
+        type: text
+        topic: "模型历史订单、未触发信号和每日收盘总结。"
+        everyone_view: false
+        member_view: false
+        manager_view: false
+        owner_view: true
+        bot_send: true
+
+persistent_panels:
+  - key: mentor_control_panel
+    channel_key: mentor_control
+  - key: member_control_panel
+    channel_key: member_control
+
+active_button_custom_ids:
+  short_term: "axis:active:short_term:v1"
+  swing: "axis:active:swing:v1"
+  leaps: "axis:active:leaps:v1"
