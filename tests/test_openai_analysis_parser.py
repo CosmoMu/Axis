@@ -100,6 +100,9 @@ async def test_analysis_parser_uses_strict_schema_and_multiple_images() -> None:
     text_format = responses.kwargs["text"]["format"]  # type: ignore[index]
     assert text_format["strict"] is True
     assert text_format["type"] == "json_schema"
+    api_schema = text_format["schema"]
+    assert "title" in api_schema["properties"]
+    assert set(api_schema["required"]) == set(api_schema["properties"])
     content = responses.kwargs["input"][1]["content"]  # type: ignore[index]
     assert [item["type"] for item in content] == [
         "input_text",

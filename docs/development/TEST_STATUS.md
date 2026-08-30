@@ -1,8 +1,8 @@
 # AXIS Test Status
 
-**日期：** 2026-08-29
+**日期：** 2026-08-30
 
-**结果：** 78 passed
+**结果：** 84 passed
 
 **Lint：** Ruff passed
 
@@ -33,6 +33,10 @@
 - `docs/config-reference/` 与 `config/` byte equality。
 - Signal / Analysis source queue 严格隔离。
 - Analysis text / image / multi-image Structured Output 与安全错误码。
+- Discord Forward snapshot 正文/附件合并、附件 ID 去重与 forwarded-only 输入。
+- Discord `.webp` 文件名 / PNG MIME 转换兼容、真实签名归一化与伪装拒绝。
+- 被拒绝 Source 的保留审计重试，不删除原始拒绝记录。
+- Strict Schema 清洗保留名为 `title` 的业务字段，Required 与 Properties 完全一致。
 - MARKET / TICKER / SECTOR / MACRO、missing data 与禁止臆造价格。
 - Analysis Raw / Normalized / Public Snapshot 与 LLM revision trace。
 - Archive-only、Archive + Publish、failure / retry / finalize 幂等。
@@ -56,7 +60,12 @@ Live validation：
 - Owner 已独立授权 `analysis-input` → OpenAI；0007 代码已在
   `FEATURE_ANALYSIS_ENABLED=true` 状态部署，LaunchAgent 稳定。
 - 启用后 Discord dry-run：`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`，修改为 0。
-- 未制造虚假市场观点；第一条真实 Manager 输入将作为生产链路观察样本。
+- 第一条真实 Manager Analysis 已保留原 Source 和 Draft ID 完成重试：Source=`PARSED`、
+  Draft=`PENDING_REVIEW`、revision=2、最新 `ANALYSIS_REWRITE` invocation 成功；Discord 原审核
+  Message ID `1543473587753844822` 原地刷新到 r2，没有重复卡片。
+- PostgreSQL Invocation → Draft 显式 Flush 顺序已 live 验证，外键 `23503` 不再复现。
+- 修复后的 Analysis Strict Schema 已由 OpenAI 真实最小请求验证通过，模型仍为
+  `gpt-5.6-terra`。
 - Moomoo SDK / OpenD 均为 `10.10.7008`，`127.0.0.1:11111` quote login 可用。
 - SPY 公开测试期权的 option chain 解析与只读盘后 snapshot 均 PASS；未写数据库、未下单。
 - 周六 live acceptance 返回 `trading_session=false`，三类频道未误发。

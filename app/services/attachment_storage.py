@@ -50,6 +50,7 @@ _EXTENSION_ALIASES = {
     ".jpeg": ".jpg",
     ".webp": ".webp",
 }
+_EXTENSION_TO_MIME = {extension: mime for mime, extension in _MIME_TO_EXTENSION.items()}
 
 
 def _detected_extension(data: bytes) -> str | None:
@@ -95,15 +96,20 @@ class LocalAttachmentStore:
         declared_extension = _MIME_TO_EXTENSION.get(mime)
         filename_extension = _EXTENSION_ALIASES.get(Path(filename).suffix.lower())
         detected_extension = _detected_extension(data)
-        if not declared_extension or not filename_extension or not detected_extension:
+        if detected_extension is None:
             raise AttachmentValidationError("ATTACHMENT_TYPE_UNSUPPORTED")
-        if len({declared_extension, filename_extension, detected_extension}) != 1:
+        metadata_extensions = tuple(
+            value for value in (declared_extension, filename_extension) if value is not None
+        )
+        if not metadata_extensions:
+            raise AttachmentValidationError("ATTACHMENT_TYPE_UNSUPPORTED")
+        if detected_extension not in metadata_extensions:
             raise AttachmentValidationError("ATTACHMENT_TYPE_MISMATCH")
 
         return PreparedAttachment(
             discord_attachment_id=discord_attachment_id,
             display_filename=_display_filename(filename),
-            content_type=mime,
+            content_type=_EXTENSION_TO_MIME[detected_extension],
             size_bytes=len(data),
             extension=detected_extension,
             checksum_sha256=hashlib.sha256(data).hexdigest(),

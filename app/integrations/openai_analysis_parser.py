@@ -64,7 +64,18 @@ def _api_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
     def sanitize(value: Any) -> Any:
         if isinstance(value, dict):
-            return {key: sanitize(child) for key, child in value.items() if key not in unsupported}
+            output = {}
+            for key, child in value.items():
+                if key in unsupported:
+                    continue
+                if key == "properties" and isinstance(child, dict):
+                    output[key] = {
+                        property_name: sanitize(property_schema)
+                        for property_name, property_schema in child.items()
+                    }
+                else:
+                    output[key] = sanitize(child)
+            return output
         if isinstance(value, list):
             return [sanitize(child) for child in value]
         return value

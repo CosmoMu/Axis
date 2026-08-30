@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 
 from app.bot.cards import build_analysis_review_embed, build_public_analysis_embed
 from app.bot.cogs.signal_input import is_signal_manager
+from app.bot.message_input import extract_message_input
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.domain.enums import AnalysisDraftStatus, SourceKind
 from app.services.analysis_pipeline import (
@@ -16,7 +17,6 @@ from app.services.analysis_pipeline import (
     AnalysisPipelineService,
 )
 from app.services.signal_input import (
-    IncomingAttachment,
     IncomingSignal,
     IngestDisposition,
     SignalInputService,
@@ -103,26 +103,27 @@ class AnalysisPipelineCog(commands.Cog):
         ):
             await message.reply("你没有提交 Analysis 的权限。", mention_author=False)
             return
+        message_input = extract_message_input(message)
         result = await self.input_service.ingest(
             IncomingSignal(
                 guild_id=message.guild.id,
                 message_id=message.id,
                 channel_id=message.channel.id,
                 submitted_by=message.author.id,
-                content=message.content,
+                content=message_input.content,
                 received_at=message.created_at,
-                attachments=tuple(
-                    IncomingAttachment(a.id, a.filename, a.content_type, a.size, a.read)
-                    for a in message.attachments
-                ),
+                attachments=message_input.attachments,
                 source_kind=SourceKind.ANALYSIS,
             )
         )
-        text = (
-            "已接收观点，正在结构化。"
-            if result.disposition is IngestDisposition.RECEIVED
-            else "该观点已接收或无法保存。"
-        )
+        text = {
+            IngestDisposition.RECEIVED: "已接收观点，正在结构化。",
+            IngestDisposition.DUPLICATE: "该观点已经接收，无需重复提交。",
+            IngestDisposition.REJECTED: (
+                "无法接收：请提供文字或真实的 PNG/JPEG/WEBP 图片，单张不超过 10MB。"
+            ),
+            IngestDisposition.FAILED: "观点暂时无法保存，请稍后重试。",
+        }[result.disposition]
         await message.reply(text, mention_author=False)
 
     @tasks.loop(seconds=5)
@@ -142,7 +143,18 @@ class AnalysisPipelineCog(commands.Cog):
                 mention_author=False,
             )
         except Exception as exc:
-            logger.warning("event=analysis_worker_failed error_type=%s", type(exc).__name__)
+            driver_error = getattr(exc, "orig", None)
+            database_error = getattr(driver_error, "orig", driver_error)
+            logger.warning(
+                "event=analysis_worker_failed error_type=%s db_error=%s "
+                "sqlstate=%s db_table=%s db_column=%s db_constraint=%s",
+                type(exc).__name__,
+                type(database_error).__name__,
+                getattr(database_error, "sqlstate", None),
+                getattr(database_error, "table_name", None),
+                getattr(database_error, "column_name", None),
+                getattr(database_error, "constraint_name", None),
+            )
             return
 
     @worker.before_loop
@@ -157,6 +169,13 @@ class AnalysisPipelineCog(commands.Cog):
                     view = self._view(draft)
                     if view and draft.review_message_id:
                         self.bot.add_view(view, message_id=draft.review_message_id)
+                        try:
+                            await self.refresh(draft)
+                        except discord.HTTPException:
+                            logger.warning(
+                                "event=analysis_review_refresh_failed "
+                                "error_type=HTTPException"
+                            )
                 self._registered = True
             draft = await self.service.next_unposted(self.guild_id)
             if draft:

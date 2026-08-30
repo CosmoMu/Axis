@@ -16,6 +16,9 @@ Analysis Pipeline 用于保存 Mentor / Manager 对市场、独立标的、板�
 
 Manager 可以输入文字 / 图片，LLM 读取、理解并转换成标准化 Analysis Record 与 AXIS 风格中文卡片。内部审核后，Manager 选择 Mentor，可编辑、重新整理，然后选择“仅归档”或“归档并发布”。
 
+输入也支持 Discord Forward。转发消息的 snapshot 正文与图片附件必须并入新的 Raw Source；
+权限以执行转发的 Manager 为准，不自动信任原消息作者。
+
 发布位置：
 
 ```text

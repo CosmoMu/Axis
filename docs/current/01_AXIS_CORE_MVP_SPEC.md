@@ -429,7 +429,11 @@ Bot 重启后仍必须可用。
 - PNG/JPG/JPEG/WEBP
 - text + image
 - multiple images
+- Discord forwarded message snapshot text + images
 - ENTRY / ADD / UPDATE / TP / SL / RUNNER / CLOSE / ROLL
+
+Discord 可能把转发/粘贴图片标为 `.webp` 文件名但返回 PNG MIME。附件格式以真实文件签名
+为最终依据；只有元数据互相冲突时允许安全归一化，明确伪装仍拒绝。
 
 流程：
 

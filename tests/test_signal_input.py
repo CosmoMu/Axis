@@ -12,7 +12,7 @@ from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, SourceAttachment, SourceMessage
 from app.db.session import Database
 from app.domain.enums import SourceStatus
-from app.services.attachment_storage import LocalAttachmentStore
+from app.services.attachment_storage import AttachmentValidationError, LocalAttachmentStore
 from app.services.signal_input import (
     IncomingAttachment,
     IncomingSignal,
@@ -69,6 +69,52 @@ def _attachment(
         size_bytes=len(data),
         read=read,
     )
+
+
+def test_attachment_accepts_discord_filename_mime_disagreement(tmp_path: Path) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"discord-converted-image"
+    prepared = LocalAttachmentStore(
+        tmp_path / "attachments", max_bytes=10 * 1024 * 1024
+    ).prepare(
+        discord_attachment_id=7000,
+        filename="image.webp",
+        declared_content_type="image/png",
+        declared_size=len(png),
+        data=png,
+    )
+    assert prepared.extension == ".png"
+    assert prepared.content_type == "image/png"
+    assert prepared.display_filename == "image.webp"
+
+
+def test_attachment_rejects_when_matching_metadata_disagrees_with_magic(
+    tmp_path: Path,
+) -> None:
+    jpeg = b"\xff\xd8\xff" + b"actual-jpeg"
+    store = LocalAttachmentStore(tmp_path / "attachments", max_bytes=10 * 1024 * 1024)
+    with pytest.raises(AttachmentValidationError, match="ATTACHMENT_TYPE_MISMATCH"):
+        store.prepare(
+            discord_attachment_id=7000,
+            filename="image.png",
+            declared_content_type="image/png",
+            declared_size=len(jpeg),
+            data=jpeg,
+        )
+
+
+def test_attachment_rejects_when_conflicting_metadata_both_disagree_with_magic(
+    tmp_path: Path,
+) -> None:
+    jpeg = b"\xff\xd8\xff" + b"actual-jpeg"
+    store = LocalAttachmentStore(tmp_path / "attachments", max_bytes=10 * 1024 * 1024)
+    with pytest.raises(AttachmentValidationError, match="ATTACHMENT_TYPE_MISMATCH"):
+        store.prepare(
+            discord_attachment_id=7000,
+            filename="image.webp",
+            declared_content_type="image/png",
+            declared_size=len(jpeg),
+            data=jpeg,
+        )
 
 
 @pytest.mark.asyncio
@@ -170,6 +216,39 @@ async def test_empty_signal_is_rejected_without_calling_attachment_storage(tmp_p
         result = await service.ingest(_signal(message_id=9003, content="   "))
         assert result.disposition is IngestDisposition.REJECTED
         assert result.reason_code == "EMPTY_SIGNAL"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_rejected_source_can_be_revalidated_without_deleting_audit(
+    tmp_path: Path,
+) -> None:
+    database = await _database()
+    service = SignalInputService(
+        database,
+        LocalAttachmentStore(tmp_path / "attachments", max_bytes=10 * 1024 * 1024),
+    )
+    try:
+        rejected = await service.ingest(_signal(message_id=9004, content=""))
+        retried = await service.retry_rejected(
+            _signal(message_id=9004, content="forwarded analysis text")
+        )
+        duplicate = await service.retry_rejected(
+            _signal(message_id=9004, content="forwarded analysis text")
+        )
+        assert rejected.disposition is IngestDisposition.REJECTED
+        assert retried.disposition is IngestDisposition.RECEIVED
+        assert duplicate.disposition is IngestDisposition.DUPLICATE
+        async with database.session() as session:
+            source = await session.scalar(select(SourceMessage))
+            actions = list(
+                await session.scalars(
+                    select(AuditLog.action_type).order_by(AuditLog.created_at, AuditLog.id)
+                )
+            )
+        assert source is not None and source.status == SourceStatus.RECEIVED.value
+        assert actions == ["SOURCE_MESSAGE_REJECTED", "SOURCE_MESSAGE_RETRIED"]
     finally:
         await database.dispose()
 

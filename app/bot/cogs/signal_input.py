@@ -6,8 +6,8 @@ from collections.abc import Iterable
 import discord
 from discord.ext import commands
 
+from app.bot.message_input import extract_message_input
 from app.services.signal_input import (
-    IncomingAttachment,
     IncomingSignal,
     IngestDisposition,
     SignalInputService,
@@ -69,6 +69,7 @@ class SignalInputCog(commands.Cog):
             await self._safe_reply(message, "你没有提交信号的权限。")
             return
 
+        message_input = extract_message_input(message)
         try:
             result = await self.service.ingest(
                 IncomingSignal(
@@ -76,18 +77,9 @@ class SignalInputCog(commands.Cog):
                     message_id=message.id,
                     channel_id=message.channel.id,
                     submitted_by=message.author.id,
-                    content=message.content,
+                    content=message_input.content,
                     received_at=message.created_at,
-                    attachments=tuple(
-                        IncomingAttachment(
-                            discord_attachment_id=attachment.id,
-                            filename=attachment.filename,
-                            content_type=attachment.content_type,
-                            size_bytes=attachment.size,
-                            read=attachment.read,
-                        )
-                        for attachment in message.attachments
-                    ),
+                    attachments=message_input.attachments,
                 )
             )
         except Exception as exc:

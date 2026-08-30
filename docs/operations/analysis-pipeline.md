@@ -17,6 +17,14 @@ analysis-input
 
 新 Source 永远创建新的 `analysis_id`。即使 Mentor 和 symbol 相同，也不会更新旧 Analysis。
 
+`analysis-input` 支持直接文字/图片，也支持 Discord Forward。Forward 的 message snapshot
+正文与附件会合并为本次不可变 Raw Source；转发人仍必须是 Owner 或 Manager。Discord 图片
+发生 `.webp` 文件名与 PNG MIME 不一致时，以真实图片签名归一化，非真实图片仍拒绝。
+
+如果外部 API 曾失败并生成 `PARSE_FAILED` 草稿，修复原因后可对原 Discord Message ID
+运行 `scripts/retry_failed_analysis.py`。它保留原 Source、失败 invocation、审计记录和 Draft ID，
+新增一次带追踪的 revision，并将成功结果恢复为 `PENDING_REVIEW`。
+
 ## 审核规则
 
 - 必须选择 Active Mentor 才能归档。

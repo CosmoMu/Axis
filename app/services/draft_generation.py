@@ -278,6 +278,8 @@ class DraftGenerationService:
                 raise LookupError("source message does not exist")
             source.status = SourceStatus.PARSED.value
             session.add(invocation)
+            # Flush the referenced row before inserting the draft that points to it.
+            await session.flush()
             session.add(draft)
             session.add(
                 AuditLog(
@@ -354,6 +356,7 @@ class DraftGenerationService:
             source.status = SourceStatus.FAILED.value
             if invocation is not None:
                 session.add(invocation)
+                await session.flush()
             session.add(draft)
             session.add(
                 AuditLog(

@@ -132,6 +132,122 @@ class SignalInputService:
             reason_code=None,
         )
 
+    async def retry_rejected(self, signal: IncomingSignal) -> IngestResult:
+        """Revalidate an existing rejected Discord message without deleting its audit history."""
+
+        existing = await self._find_existing(signal.guild_id, signal.message_id)
+        if existing is None:
+            return await self.ingest(signal)
+        if existing.status != SourceStatus.REJECTED.value:
+            return IngestResult(IngestDisposition.DUPLICATE, str(existing.id))
+        if (
+            existing.channel_id != signal.channel_id
+            or existing.submitted_by != signal.submitted_by
+            or existing.source_kind != signal.source_kind.value
+        ):
+            return IngestResult(
+                IngestDisposition.FAILED,
+                str(existing.id),
+                "RETRY_SOURCE_MISMATCH",
+            )
+
+        raw_text = signal.content.strip() or None
+        if raw_text is None and not signal.attachments:
+            return IngestResult(
+                IngestDisposition.REJECTED,
+                str(existing.id),
+                "EMPTY_SIGNAL",
+            )
+        try:
+            prepared = []
+            for attachment in signal.attachments:
+                if attachment.size_bytes > self.attachment_store.max_bytes:
+                    raise AttachmentValidationError("ATTACHMENT_TOO_LARGE")
+                try:
+                    data = await attachment.read()
+                except Exception:
+                    return IngestResult(
+                        IngestDisposition.FAILED,
+                        str(existing.id),
+                        "ATTACHMENT_READ_FAILED",
+                    )
+                prepared.append(
+                    self.attachment_store.prepare(
+                        discord_attachment_id=attachment.discord_attachment_id,
+                        filename=attachment.filename,
+                        declared_content_type=attachment.content_type,
+                        declared_size=attachment.size_bytes,
+                        data=data,
+                    )
+                )
+            stored = [
+                await self.attachment_store.write(
+                    guild_id=signal.guild_id,
+                    message_id=signal.message_id,
+                    attachment=attachment,
+                )
+                for attachment in prepared
+            ]
+        except AttachmentValidationError as exc:
+            return IngestResult(IngestDisposition.REJECTED, str(existing.id), exc.code)
+        except (AttachmentStorageError, OSError):
+            return IngestResult(
+                IngestDisposition.FAILED,
+                str(existing.id),
+                "ATTACHMENT_STORAGE_FAILED",
+            )
+
+        async with self.database.session() as session:
+            source = await session.scalar(
+                select(SourceMessage)
+                .where(
+                    SourceMessage.guild_id == signal.guild_id,
+                    SourceMessage.discord_message_id == signal.message_id,
+                )
+                .with_for_update()
+            )
+            if source is None:
+                return IngestResult(
+                    IngestDisposition.FAILED,
+                    str(existing.id),
+                    "RETRY_SOURCE_NOT_FOUND",
+                )
+            if source.status != SourceStatus.REJECTED.value:
+                return IngestResult(IngestDisposition.DUPLICATE, str(source.id))
+            source.raw_text = raw_text
+            source.status = SourceStatus.RECEIVED.value
+            for attachment in stored:
+                session.add(
+                    SourceAttachment(
+                        source_message_id=source.id,
+                        discord_attachment_id=attachment.discord_attachment_id,
+                        filename=attachment.display_filename,
+                        content_type=attachment.content_type,
+                        size_bytes=attachment.size_bytes,
+                        source_url=None,
+                        storage_key=attachment.storage_key,
+                        checksum_sha256=attachment.checksum_sha256,
+                    )
+                )
+            session.add(
+                AuditLog(
+                    guild_id=signal.guild_id,
+                    actor_user_id=signal.submitted_by,
+                    action_type="SOURCE_MESSAGE_RETRIED",
+                    entity_type="source_message",
+                    entity_id=str(source.id),
+                    before_json={"status": SourceStatus.REJECTED.value},
+                    after_json={
+                        "status": SourceStatus.RECEIVED.value,
+                        "attachment_count": len(stored),
+                        "reason_code": None,
+                    },
+                    discord_interaction_id=None,
+                )
+            )
+            await session.commit()
+            return IngestResult(IngestDisposition.RECEIVED, str(source.id))
+
     async def _find_existing(self, guild_id: int, message_id: int) -> SourceMessage | None:
         async with self.database.session() as session:
             return await session.scalar(

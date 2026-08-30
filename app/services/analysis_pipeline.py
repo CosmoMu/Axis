@@ -310,7 +310,7 @@ class AnalysisPipelineService:
         instruction: str,
         *,
         actor_user_id: int,
-        interaction_id: int,
+        interaction_id: int | None,
     ) -> AnalysisDraftSnapshot:
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
@@ -328,13 +328,21 @@ class AnalysisPipelineService:
         )
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
+            source = await session.get(SourceMessage, draft.source_message_id)
+            if source is None:
+                raise AnalysisValidationError("SOURCE_NOT_FOUND")
             invocation = self._invocation(draft.guild_id, draft.source_message_id, result.trace)
             session.add(invocation)
+            # These models intentionally have no ORM relationship. PostgreSQL therefore
+            # needs the referenced invocation row flushed before dependent FK updates.
+            await session.flush()
             draft.llm_invocation_id = invocation.id
             draft.normalized_json = result.payload
             draft.missing_fields = list(result.payload.get("missing_fields", []))
             draft.warnings = list(result.payload.get("warnings", []))
             draft.reviewed_by = actor_user_id
+            draft.status = AnalysisDraftStatus.PENDING_REVIEW.value
+            source.status = SourceStatus.PARSED.value
             draft.revision += 1
             draft.version += 1
             session.add(
@@ -543,6 +551,8 @@ class AnalysisPipelineService:
                 raise AnalysisValidationError("SOURCE_NOT_FOUND")
             source.status = SourceStatus.FAILED.value if failed else SourceStatus.PARSED.value
             session.add(invocation)
+            # Flush the referenced row before inserting the draft that points to it.
+            await session.flush()
             session.add(draft)
             self._audit(session, draft, actor, None, "ANALYSIS_DRAFT_CREATED")
             try:

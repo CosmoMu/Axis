@@ -429,8 +429,14 @@ async def test_rewrite_creates_traced_revision_without_changing_raw_source(
     try:
         await service.generate(source_id)
         async with database.session() as session:
-            draft_id = await session.scalar(select(AnalysisDraft.id))
-        assert draft_id is not None
+            draft = await session.scalar(select(AnalysisDraft))
+            assert draft is not None
+            draft.status = AnalysisDraftStatus.PARSE_FAILED.value
+            source = await session.get(SourceMessage, source_id)
+            assert source is not None
+            source.status = SourceStatus.FAILED.value
+            await session.commit()
+            draft_id = draft.id
         updated = await service.rewrite(
             draft_id,
             "更简洁",
@@ -439,6 +445,7 @@ async def test_rewrite_creates_traced_revision_without_changing_raw_source(
         )
 
         assert updated.revision == 2
+        assert updated.status == AnalysisDraftStatus.PENDING_REVIEW.value
         assert updated.normalized["summary"] == "Concise revision"
         assert rewrite_parser.calls[0]["current_payload"] == original
         assert rewrite_parser.calls[0]["rewrite_instruction"] == "更简洁"
@@ -449,6 +456,7 @@ async def test_rewrite_creates_traced_revision_without_changing_raw_source(
                 await session.scalars(select(LlmInvocation).order_by(LlmInvocation.created_at))
             ).all()
         assert source is not None and source.raw_text == raw
+        assert source.status == SourceStatus.PARSED.value
         assert revision is not None
         assert revision.normalized_json == rewritten
         assert revision.instruction == "更简洁"

@@ -22,7 +22,9 @@
 ## Signal
 
 - Text / image / multiple-image intake。
+- Discord forwarded message snapshot text / image intake。
 - MIME、扩展名、大小、checksum 和安全路径验证。
+- Discord 图片元数据冲突时按真实签名归一化，明确伪装继续拒绝。
 - Source / Draft 幂等。
 - Workload Router：Signal / Repair / Analysis Parse / Rewrite。
 - OpenAI Responses Structured Output。
@@ -59,6 +61,7 @@
 
 - Signal / Analysis Source queue 隔离。
 - Text / image / multi-image `ANALYSIS_PARSE` 与 `ANALYSIS_REWRITE`。
+- Strict Schema 字段名安全清洗、PostgreSQL Invocation → Draft 顺序写入和失败草稿保留审计重试。
 - Mentor select、edit、rewrite revision、archive-only、archive + publish、delete。
 - MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
 - Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。

@@ -104,6 +104,7 @@ async def test_parser_uses_strict_responses_schema_and_multimodal_input() -> Non
     assert text_format["type"] == "json_schema"
     schema = text_format["schema"]
     assert "$schema" not in schema
+    assert set(schema["required"]) == set(schema["properties"])
     assert "uniqueItems" not in schema["properties"]["missing_fields"]
     user_content = responses.kwargs["input"][1]["content"]  # type: ignore[index]
     assert user_content[1]["type"] == "input_image"
