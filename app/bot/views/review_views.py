@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING
 import discord
 
 from app.bot.cards import build_active_orders_embed, build_public_preview_embed
+from app.bot.ephemeral import (
+    PREVIEW_DELETE_AFTER,
+    SUCCESS_DELETE_AFTER,
+    send_temporary_ephemeral,
+)
 from app.domain.enums import TradeCategory
 from app.services.card_review import (
     DraftEdit,
@@ -196,7 +201,11 @@ class DraftEditModal(discord.ui.Modal):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("草稿已更新。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "草稿已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -259,7 +268,11 @@ class ReviewChoiceSelect(discord.ui.Select):
                     self.draft.id, trade_id=selected_id, **common
                 )
             await self.controller.refresh(updated)
-            await interaction.followup.send("选择已保存。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "选择已保存。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -283,7 +296,11 @@ class ConfirmDeleteView(discord.ui.View):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("草稿已标记为删除。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "草稿已标记为删除。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -328,7 +345,11 @@ class CategorySelect(discord.ui.Select):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("Category 已更新。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "Category 已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -375,7 +396,9 @@ class ReviewDraftView(discord.ui.View):
     async def preview(self, interaction: discord.Interaction) -> None:
         current = await self.controller.service.get(self.draft.id)
         await interaction.response.send_message(
-            embed=build_public_preview_embed(public_preview_payload(current)), ephemeral=True
+            embed=build_public_preview_embed(public_preview_payload(current)),
+            ephemeral=True,
+            delete_after=PREVIEW_DELETE_AFTER,
         )
 
     async def approve(self, interaction: discord.Interaction) -> None:
@@ -393,13 +416,14 @@ class ReviewDraftView(discord.ui.View):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send(
+            await send_temporary_ephemeral(
+                interaction,
                 (
                     "会员卡片已发布。"
                     if updated.status == "PUBLISHED"
                     else "已确认，会员卡片正在发布。"
                 ),
-                ephemeral=True,
+                delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
@@ -409,6 +433,7 @@ class ReviewDraftView(discord.ui.View):
             "删除后该草稿不会进入发布队列。是否继续？",
             view=ConfirmDeleteView(self.controller, self.draft),
             ephemeral=True,
+            delete_after=120,
         )
 
 
@@ -437,9 +462,10 @@ class PublicationRetryView(discord.ui.View):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send(
+            await send_temporary_ephemeral(
+                interaction,
                 ("会员卡片已发布。" if updated.status == "PUBLISHED" else "重新发布已进入队列。"),
-                ephemeral=True,
+                delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)

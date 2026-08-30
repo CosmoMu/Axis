@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands, tasks
 
 from app.bot.cards import build_public_trade_embed, build_review_embed
+from app.bot.ephemeral import ERROR_DELETE_AFTER, send_temporary_ephemeral
 from app.bot.views.review_views import (
     ActiveOrdersView,
     PublicationRetryView,
@@ -77,10 +78,11 @@ class CardReviewCog(commands.Cog):
         )
         if allowed:
             return True
-        if not interaction.response.is_done():
-            await interaction.response.send_message("你没有操作审核草稿的权限。", ephemeral=True)
-        else:
-            await interaction.followup.send("你没有操作审核草稿的权限。", ephemeral=True)
+        await send_temporary_ephemeral(
+            interaction,
+            "你没有操作审核草稿的权限。",
+            delete_after=ERROR_DELETE_AFTER,
+        )
         return False
 
     async def authorize_member(self, interaction: discord.Interaction) -> bool:
@@ -100,7 +102,11 @@ class CardReviewCog(commands.Cog):
         )
         if allowed:
             return True
-        await interaction.response.send_message("该功能仅对 AXIS 会员开放。", ephemeral=True)
+        await send_temporary_ephemeral(
+            interaction,
+            "该功能仅对 AXIS 会员开放。",
+            delete_after=ERROR_DELETE_AFTER,
+        )
         return False
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
@@ -122,10 +128,11 @@ class CardReviewCog(commands.Cog):
             message = f"审核操作失败：{exc.code}"
         else:
             message = "审核操作暂时失败，请重新打开最新草稿。"
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
+        await send_temporary_ephemeral(
+            interaction,
+            message,
+            delete_after=ERROR_DELETE_AFTER,
+        )
 
     @staticmethod
     def _draft_id_from_interaction(interaction: discord.Interaction) -> uuid.UUID:

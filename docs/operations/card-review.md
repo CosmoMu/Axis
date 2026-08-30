@@ -21,6 +21,10 @@ LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・signal-review` 发布一�
 和关联订单三个下拉框与操作按钮都在同一张 persistent message 上；Bot 重启或草稿更新
 时原地刷新，不会额外发送一组控制面板。
 
+操作成功回执会在约 4 秒后自动删除，错误提示约 12 秒后删除，会员预览最多保留 60 秒。
+Discord 不允许新的 Interaction 批量删除此前已经发送的 ephemeral 消息，因此升级前残留的
+旧提示需要管理员点一次 `Dismiss message`；升级后的操作不会继续堆积。
+
 ## 编辑表单
 
 Discord Modal 最多支持 5 个输入框，因此使用 `|` 分隔组合字段。空值写为 `-`。
