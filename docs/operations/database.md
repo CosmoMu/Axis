@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260829_0007` 使用 22 张业务表：
+当前 revision `20260829_0008` 使用 24 张业务表：
 
 ```text
 guild_config
@@ -67,6 +67,8 @@ analysis_symbols
 analysis_key_levels
 analysis_points
 analysis_publications
+market_quote_snapshots
+daily_summary_publications
 ```
 
 交易持仓以 `position_eighths` 保存，数据库约束范围为 `0..8`；事件增减范围为 `-8..8`。
@@ -77,6 +79,8 @@ success 与 error_type；旧调用无法证明的字段不会伪造回填。
 和加权最终收益，避免重复发布。
 Analysis 使用独立的 Draft、Revision、不可变 Mentor Analysis、child records 与 Publication，
 不会复用或更新 Trade Domain；`source_messages.source_kind` 隔离两个处理队列。
+`market_quote_snapshots` 保存 Moomoo 只读盘后参考价；`daily_summary_publications` 以
+Guild、类别与交易日唯一，保存公开快照和 Discord 发布状态。
 
 ## 只读健康检查
 

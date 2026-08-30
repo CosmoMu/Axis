@@ -635,6 +635,34 @@ final_return = (exit_value - entry_cost) / entry_cost
 
 ---
 
+# 16A. Daily Post-Close Category Summaries
+
+`⚡・short-term`、`〽️・swing`、`♾️・leaps` 每个美股交易日 `16:15 ET` 各发布一条总结：
+
+```text
+Active 收盘总结
+今日 Closed 总结
+```
+
+Core 只允许通过本地 Moomoo OpenD 获取只读美股期权快照：
+
+```text
+期权代码必须由 underlying + expiry + strike + Call/Put 在 option chain 精确解析
+不得手工拼接期权代码
+不得读取账户、资金、持仓或订单
+不得 unlock trade、下单、改单或撤单
+```
+
+会员只显示 `当前/收盘参考价`、行情时间与基于 `avg_cost` 的浮动收益；不显示
+`Market / Bid / Ask`。行情不可用时显示不可用，不得猜测或沿用无时间信息的价格。
+
+每日发布以 `guild + category + session_date` 唯一，Discord marker 与数据库状态共同防止
+重启或重试时重复发送。周末、假日以及无法确认交易日时不发布。
+
+此功能属于 AXIS Core 运维，不启用 AXIS LAB、Model A / B 或自动交易。
+
+---
+
 # 17. Data Domain
 
 核心表：
@@ -655,6 +683,8 @@ subscriptions
 audit_logs
 scheduled_jobs
 llm_invocations
+market_quote_snapshots
+daily_summary_publications
 ```
 
 `trades` 至少：
@@ -680,6 +710,7 @@ closed_at
 created_at
 updated_at
 version
+moomoo_option_code
 ```
 
 `trade_events` 至少：
@@ -724,6 +755,9 @@ internal_notes
 ```
 
 必须有自动化测试保证 Mentor / Source 不可能泄漏。
+
+每日总结 Public DTO 同样不得包含 Mentor、Source、Parser、LLM、账户、Bid、Ask 或内部
+Moomoo 合约代码。
 
 ---
 

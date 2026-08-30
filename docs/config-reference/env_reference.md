@@ -38,7 +38,17 @@
   `.env` 同步到文档或 Git。
 - `FEATURE_LAB_ENABLED=false`
 - `FEATURE_MODEL_AB_ENABLED=false`
-- `FEATURE_MOOMOO_ENABLED=false`
+- `FEATURE_MOOMOO_ENABLED=true`：当前本机仅启用 Core 只读期权快照。
+- `FEATURE_DAILY_SUMMARY_ENABLED=true`：三个会员频道的每日收盘总结。
+
+## Moomoo Core Read-only Market Data
+
+- `MOOMOO_OPEND_HOST=127.0.0.1`
+- `MOOMOO_OPEND_PORT=11111`
+- `DAILY_SUMMARY_TIME_ET=16:15`
+
+以上配置不包含 Moomoo 账户 Secret。OpenD 必须保持行情登录；AXIS 不调用账户、持仓、
+订单、交易解锁或下单接口。
 
 ## Local Storage / Runtime
 

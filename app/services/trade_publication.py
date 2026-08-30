@@ -581,6 +581,7 @@ class TradePublicationService:
             trade.expiry = draft.expiry or trade.expiry
             trade.strike = draft.strike or trade.strike
             trade.option_side = draft.option_side or trade.option_side
+            trade.moomoo_option_code = None
         if trade.opened_at is None:
             trade.opened_at = now
         if draft.action == TradeAction.CANCEL.value:

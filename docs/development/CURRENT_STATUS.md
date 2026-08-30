@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-29
 
-**Database:** `20260829_0007`
+**Database:** `20260829_0008`
 
 **Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -78,7 +78,12 @@ Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到
 ## Stage 5 — Stabilization: PARTIAL
 
 Implemented: LaunchAgent、错误信息脱敏、基础重试、测试、Secret scan、只读 DB health check、
-verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署。
+verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署、Moomoo
+OpenD 只读期权快照，以及三个会员频道 `16:15 ET` 的 Active / 当日 Closed 幂等总结。
+
+Live activation: `FEATURE_MOOMOO_ENABLED=true`、`FEATURE_DAILY_SUMMARY_ENABLED=true`；
+0008 已部署。周末/假日由 SPY session anchor 验证后跳过；当前 2026-08-29 为周六，所以没有
+制造 Discord 测试总结。
 
 Missing: 第一条真实 Manager Analysis 的生产链路观察、off-host backup target、生产监控告警、
 非生产环境完整 restore / rollback rehearsal。
@@ -88,6 +93,6 @@ Missing: 第一条真实 Manager Analysis 的生产链路观察、off-host backu
 频道已创建且 Owner-only。以下功能保持关闭且未实现：
 
 - Model A / B
-- Moomoo
+- Moomoo 模型扫描、账户/持仓/订单与交易接口
 - Generate / Shadow / Champion / Challenger
 - 自动交易

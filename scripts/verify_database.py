@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.config import ConfigurationError, Settings  # noqa: E402
+from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
 COUNTED_TABLES = (
@@ -26,9 +26,12 @@ COUNTED_TABLES = (
     "analysis_drafts",
     "mentor_analyses",
     "analysis_publications",
+    "market_quote_snapshots",
+    "daily_summary_publications",
 )
 SAFE_FEATURES = (
     "FEATURE_ANALYSIS_ENABLED",
+    "FEATURE_DAILY_SUMMARY_ENABLED",
     "FEATURE_LAB_ENABLED",
     "FEATURE_MODEL_AB_ENABLED",
     "FEATURE_MOOMOO_ENABLED",
@@ -50,6 +53,15 @@ async def verify() -> None:
             ).scalar_one()
             counts = {}
             for table in COUNTED_TABLES:
+                exists = (
+                    await session.execute(
+                        text("SELECT to_regclass(:table_name)"),
+                        {"table_name": table},
+                    )
+                ).scalar_one()
+                if exists is None:
+                    counts[table] = "NOT_MIGRATED"
+                    continue
                 result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
                 counts[table] = result.scalar_one()
         print(f"revision={revision}")
@@ -65,7 +77,7 @@ async def verify() -> None:
 def main() -> int:
     try:
         asyncio.run(verify())
-    except (ConfigurationError, OSError, RuntimeError):
+    except Exception:
         print(
             "AXIS database verification failed; connection details were omitted.",
             file=sys.stderr,

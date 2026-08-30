@@ -17,6 +17,7 @@ EXPECTED_TABLES = {
     "analysis_points",
     "analysis_publications",
     "analysis_symbols",
+    "daily_summary_publications",
     "guild_config",
     "mentors",
     "mentor_aliases",
@@ -28,6 +29,7 @@ EXPECTED_TABLES = {
     "trade_publications",
     "llm_invocations",
     "memberships",
+    "market_quote_snapshots",
     "mentor_analyses",
     "membership_events",
     "subscriptions",
@@ -65,6 +67,7 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert "member_lounge_channel_id" in Base.metadata.tables["guild_config"].columns
     assert "source_kind" in Base.metadata.tables["source_messages"].columns
+    assert "moomoo_option_code" in Base.metadata.tables["trades"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
     assert "llm_invocation_id" in drafts.columns
     events = Base.metadata.tables["trade_events"]

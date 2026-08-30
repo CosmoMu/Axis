@@ -23,8 +23,10 @@
 ```text
 FEATURE_LAB_ENABLED=false
 FEATURE_MODEL_AB_ENABLED=false
-FEATURE_MOOMOO_ENABLED=false
 ```
+
+`FEATURE_MOOMOO_ENABLED` 目前可以只为 Core 每日收盘总结启用；该开关不授权本文中的
+Moomoo 扫描、账户读取或交易能力。
 
 ---
 

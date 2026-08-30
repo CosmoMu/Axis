@@ -103,4 +103,11 @@ Migration 到此停止，不会借此开始 Analysis 或 AXIS LAB。下一开发
 - PostgreSQL revision `20260829_0007` 增加 Analysis Draft / Revision / Archive / Publication。
 - 69 项自动化测试通过，0007 代码已以 Analysis disabled 状态部署。
 - Owner 已单独授权 `analysis-input` → OpenAI，Analysis 已 live enabled。
-- AXIS LAB 未开始，三个相关 feature flag 继续为 false。
+- AXIS LAB 未开始，`FEATURE_LAB_ENABLED` 与 `FEATURE_MODEL_AB_ENABLED` 继续为 false。
+
+## Core Daily Summary Continuation Record
+
+- Owner 单独要求 Short-term / Swing / Leaps 每个交易日收盘后的 Active + Closed 总结。
+- PostgreSQL revision `20260829_0008` 增加只读行情 snapshot 与幂等 publication。
+- `FEATURE_MOOMOO_ENABLED=true` 只用于 Core snapshot，不代表启动 AXIS LAB。
+- 78 项自动化测试、Moomoo 只读 live acceptance 与周末不误发检查均通过。

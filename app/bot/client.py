@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from app.bot.cogs.analysis_pipeline import AnalysisPipelineCog
 from app.bot.cogs.card_review import CardReviewCog
+from app.bot.cogs.daily_summary import DailySummaryCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.manager_control import ManagerControlCog
 from app.bot.cogs.signal_input import SignalInputCog
@@ -13,6 +14,7 @@ from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
 from app.services.analysis_pipeline import AnalysisPipelineService
 from app.services.card_review import CardReviewService
+from app.services.daily_summary import DailySummaryService
 from app.services.draft_generation import DraftGenerationService
 from app.services.membership_management import MembershipManagementService
 from app.services.mentor_management import MentorManagementService
@@ -42,6 +44,7 @@ class AxisBot(commands.Bot):
         membership_service: MembershipManagementService,
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
+        daily_summary_service: DailySummaryService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -102,6 +105,16 @@ class AxisBot(commands.Bot):
             if analysis_service is not None
             else None
         )
+        self._daily_summary_cog = (
+            DailySummaryCog(
+                self,
+                service=daily_summary_service,
+                guild_id=settings.discord_guild_id,
+                schedule_hhmm=settings.daily_summary_time_et,
+            )
+            if daily_summary_service is not None
+            else None
+        )
 
     async def setup_hook(self) -> None:
         await self.add_cog(self._signal_cog)
@@ -111,3 +124,5 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._manager_control_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
+        if self._daily_summary_cog is not None:
+            await self.add_cog(self._daily_summary_cog)

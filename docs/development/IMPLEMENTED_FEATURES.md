@@ -11,12 +11,13 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0007`。
+- Alembic revisions `0001` 到 `0008`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
 - Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
 - Analysis Draft / Revision / immutable Archive / children / Publication 独立表。
+- Trade Moomoo option code cache、只读 quote snapshot 与 daily summary publication 表。
 
 ## Signal
 
@@ -69,10 +70,13 @@
 - PostgreSQL custom backup、list verification、SHA-256 与双确认 restore 工具。
 - Dockerfile / Compose 基础部署与 Secret-safe build context。
 - 后台 worker 只记录事件名与异常类型的脱敏结构化日志。
+- Moomoo SDK / OpenD 版本锁定、只读行情健康检查与登录启动 LaunchAgent。
+- `16:15 ET` 的 Short-term / Swing / Leaps Active + 当日 Closed 总结。
+- 交易日验证、Discord marker 恢复、数据库唯一键与失败重试。
 
 ## Security
 
 - Secret 不进入 Git 或日志。
 - Public DTO 排除 Mentor、Source、原图、提交人和 Parser 信息。
 - Manager 无 Discord Administrator / Manage Roles。
-- AXIS LAB 功能关闭。
+- AXIS LAB 功能关闭；Moomoo 仅用于 Core 只读行情，不访问账户或交易接口。

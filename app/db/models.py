@@ -296,6 +296,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
     strike: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     option_side: Mapped[str] = mapped_column(String(16), nullable=False)
+    moomoo_option_code: Mapped[str | None] = mapped_column(String(64))
     state: Mapped[str] = mapped_column(String(16), default=TradeState.DRAFT.value, nullable=False)
     last_public_action: Mapped[str | None] = mapped_column(String(32))
     position_eighths: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
@@ -567,6 +568,63 @@ class AnalysisPublication(UuidPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MarketQuoteSnapshot(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "market_quote_snapshots"
+    __table_args__ = (
+        UniqueConstraint("trade_id", "session_date", name="market_quote_trade_session"),
+        CheckConstraint("last_price > 0", name="market_quote_price_positive"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    instrument_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    last_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    market_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    quote_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class DailySummaryPublication(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "daily_summary_publications"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "category",
+            "session_date",
+            name="daily_summary_guild_category_session",
+        ),
+        UniqueConstraint("guild_id", "message_id", name="daily_summary_message"),
+        UniqueConstraint("guild_id", "public_ref", name="daily_summary_public_ref"),
+        CheckConstraint(enum_check("category", TradeCategory), name="daily_summary_category"),
+        CheckConstraint(
+            enum_check("status", PublicationStatus), name="daily_summary_status"
+        ),
+        CheckConstraint("attempt_count >= 0", name="daily_summary_attempt_nonnegative"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    public_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

@@ -36,10 +36,13 @@
 当前**不做**：
 
 - Model A / Model B 正式训练
-- Moomoo 扫描
+- Moomoo 模型扫描、账户读取、交易或自动下单
 - AXIS LAB Generate / Shadow / Champion / Challenger
 - 用户自己的自动交易
 - 任何会员自动交易
+
+Owner 已在 2026-08-29 单独授权 Core 使用 Moomoo OpenD 只读期权快照，为
+`short-term` / `swing` / `leaps` 生成每日收盘总结。这不代表启动 AXIS LAB。
 
 `🧪・AXIS LAB` 的三个频道可以创建，但功能保持关闭。
 

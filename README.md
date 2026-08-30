@@ -5,7 +5,7 @@
 **Current Source of Truth:** `docs/current/`
 
 **Current Development Stage:** Core Stage 1–3 complete；Gate A PASS；Analysis + automated
-Gate B complete and live enabled
+Gate B complete and live enabled；Core Moomoo read-only daily summaries live enabled
 
 **AXIS LAB:** Deferred
 

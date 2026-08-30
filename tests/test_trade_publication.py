@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -336,3 +337,32 @@ async def test_active_order_buttons_use_fixed_persistent_custom_ids() -> None:
         assert len(view.children) == 1
         assert view.children[0].custom_id == custom_id
         assert view.children[0].label == "查看当前订单"
+
+
+def test_roll_clears_cached_moomoo_contract_code() -> None:
+    trade = Trade(
+        guild_id=GUILD_ID,
+        public_trade_id="SW-0001",
+        category="SWING",
+        mentor_id=uuid.uuid4(),
+        ticker="SPY",
+        expiry=date(2026, 9, 4),
+        strike=Decimal("770"),
+        option_side="CALL",
+        moomoo_option_code="US.OLD-CONTRACT",
+        state="ACTIVE",
+        position_eighths=2,
+        max_position_eighths=2,
+        version=1,
+    )
+    draft = TradeDraft(
+        action="ROLL",
+        action_stage="NONE",
+        ticker="SPY",
+        expiry=date(2026, 9, 11),
+        strike=Decimal("775"),
+        option_side="CALL",
+    )
+    TradePublicationService._apply_trade_update(trade, draft, after_position=2)
+    assert trade.moomoo_option_code is None
+    assert trade.expiry == date(2026, 9, 11)

@@ -43,6 +43,42 @@ class ActivePublicTrade:
 
 
 @dataclass(frozen=True, slots=True)
+class DailyActiveTrade:
+    """Member-safe Active row in a post-close category summary."""
+
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    position_eighths: int
+    avg_cost: Decimal | None
+    reference_price: Decimal | None
+    unrealized_pnl_pct: Decimal | None
+    quote_time: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class DailyClosedTrade:
+    """Member-safe Closed row in a post-close category summary."""
+
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    final_return_pct: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class DailyCategorySummary:
+    category: str
+    session_date: date
+    active: tuple[DailyActiveTrade, ...]
+    closed: tuple[DailyClosedTrade, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class PublicAnalysisCard:
     analysis_code: str
     analysis_type: str

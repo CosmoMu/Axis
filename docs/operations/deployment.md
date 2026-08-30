@@ -12,6 +12,16 @@
 部署顺序：backup → tests/lint → `init_database.py` → feature flag disabled 部署 → health
 check → 授权后的 feature enable → live acceptance。
 
+启用 Core Moomoo 总结时，另外安装 OpenD 登录 LaunchAgent：
+
+```bash
+.venv/bin/python scripts/install_moomoo_opend_launch_agent.py
+```
+
+该脚本只登记 `/Applications/moomoo_OpenD.app` 在下次 macOS 登录时启动，不读取任何账户
+Secret，也不会启动 AXIS LAB 或交易功能。行情与每日总结操作见
+`docs/operations/daily-market-summaries.md`。
+
 ## Docker 基础镜像
 
 项目提供 `Dockerfile` 与 `compose.yaml`。`.dockerignore` 排除 `.env`、`var/`、Git 和手工

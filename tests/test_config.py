@@ -18,6 +18,11 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         apply_changes=apply_changes,
         dry_run=dry_run,
         analysis_enabled=False,
+        moomoo_enabled=False,
+        daily_summary_enabled=True,
+        moomoo_host="127.0.0.1",
+        moomoo_port=11111,
+        daily_summary_time_et="16:15",
         blueprint_path=root / "blueprint.yaml",
         ids_path=root / "ids.json",
         report_path=root / "report.json",
@@ -78,3 +83,13 @@ def test_llm_key_is_optional_at_startup_but_required_to_enable_parser() -> None:
 
     configured = replace(unconfigured, openai_api_key="test-only-placeholder")
     assert configured.require_openai_api_key() == "test-only-placeholder"
+
+
+def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
+    monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "25:00")
+    with pytest.raises(ConfigurationError, match="DAILY_SUMMARY_TIME_ET"):
+        Settings.load(Path("/tmp/axis-test"))
+
+    monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "9:05")
+    assert Settings.load(Path("/tmp/axis-test")).daily_summary_time_et == "09:05"

@@ -24,6 +24,7 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
+from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
     load_analysis_prompt,
@@ -38,6 +39,7 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
+from app.services.daily_summary import DailySummaryService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
 from app.services.membership_management import MembershipManagementService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
@@ -57,9 +59,14 @@ async def run() -> None:
     for noisy_logger in ("discord", "httpx", "openai", "sqlalchemy"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
     logging.getLogger(__name__).info(
-        "event=bot_start guild_id=%s analysis_enabled=%s",
+        (
+            "event=bot_start guild_id=%s analysis_enabled=%s "
+            "moomoo_enabled=%s daily_summary_enabled=%s"
+        ),
         settings.discord_guild_id,
         settings.analysis_enabled,
+        settings.moomoo_enabled,
+        settings.daily_summary_enabled,
     )
     token = settings.require_token()
     database = Database(settings.require_database_url())
@@ -135,6 +142,12 @@ async def run() -> None:
                 )
         elif settings.analysis_enabled:
             raise ConfigurationError("Analysis 已启用但缺少 OPENAI_API_KEY。")
+        daily_summary_service = None
+        if settings.moomoo_enabled and settings.daily_summary_enabled:
+            daily_summary_service = DailySummaryService(
+                database,
+                MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port),
+            )
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -146,6 +159,7 @@ async def run() -> None:
             membership_service=MembershipManagementService(database),
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,
+            daily_summary_service=daily_summary_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

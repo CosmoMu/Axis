@@ -5,7 +5,14 @@ from zoneinfo import ZoneInfo
 
 import discord
 
-from app.domain.public_cards import ActivePublicTrade, PublicAnalysisCard, PublicTradeCard
+from app.domain.public_cards import (
+    ActivePublicTrade,
+    DailyActiveTrade,
+    DailyCategorySummary,
+    DailyClosedTrade,
+    PublicAnalysisCard,
+    PublicTradeCard,
+)
 from app.services.analysis_pipeline import AnalysisDraftSnapshot
 from app.services.card_review import ReviewDraft, publication_missing_fields
 from app.services.official_results import OfficialResult
@@ -251,6 +258,69 @@ def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     embed.add_field(name="加权最终收益", value=rendered_return, inline=False)
     embed.set_footer(text=f"AXIS Result · {result.public_trade_id}")
     return embed
+
+
+def _daily_contract(item: DailyActiveTrade | DailyClosedTrade) -> str:
+    expiry = item.expiry.strftime("%m/%d/%Y")
+    side = {"CALL": "C", "PUT": "P"}.get(item.option_side, "?")
+    return f"{item.ticker} · {expiry} · {_number(item.strike)}{side}"
+
+
+def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Embed]:
+    category = CATEGORY_LABELS.get(summary.category, summary.category)
+    date_label = summary.session_date.strftime("%Y/%m/%d")
+    active = discord.Embed(
+        title=f"{category} · Active 收盘总结",
+        color=ACCENT_GREEN,
+    )
+    if not summary.active:
+        active.description = "当前没有进行中的订单。"
+    else:
+        lines = []
+        for trade in summary.active[:15]:
+            if trade.reference_price is None:
+                quote = "行情暂不可用"
+            else:
+                quote = f"当前/收盘参考价 {_money(trade.reference_price)}"
+                if trade.unrealized_pnl_pct is not None:
+                    quote += f" · 浮动 {trade.unrealized_pnl_pct:+.2f}%"
+                if trade.quote_time is not None:
+                    et_time = trade.quote_time.astimezone(ZoneInfo("America/New_York"))
+                    quote += f" · {et_time:%m/%d %H:%M} ET"
+            lines.append(
+                f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n"
+                f"{_position(trade.position_eighths)} · 成本 {_money(trade.avg_cost)} · {quote}"
+            )
+        if len(summary.active) > 15:
+            remaining = len(summary.active) - 15
+            lines.append(f"另有 {remaining} 个 Active 订单，请使用「查看当前订单」。")
+        active.description = "\n\n".join(lines)
+
+    closed = discord.Embed(
+        title=f"{category} · 今日 Closed 总结",
+        color=MUTED,
+    )
+    if not summary.closed:
+        closed.description = "今日没有已完成订单。"
+    else:
+        lines = []
+        for trade in summary.closed[:15]:
+            result = (
+                "加权最终收益待确认"
+                if trade.final_return_pct is None
+                else f"加权最终收益 {trade.final_return_pct:+.2f}%"
+            )
+            lines.append(
+                f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n{result}"
+            )
+        if len(summary.closed) > 15:
+            lines.append(f"另有 {len(summary.closed) - 15} 个今日 Closed 订单。")
+        closed.description = "\n\n".join(lines)
+
+    footer = f"AXIS · {date_label} ET · 只读行情参考"
+    active.set_footer(text=footer)
+    closed.set_footer(text=footer)
+    return [active, closed]
 
 
 def build_analysis_review_embed(draft: AnalysisDraftSnapshot) -> discord.Embed:

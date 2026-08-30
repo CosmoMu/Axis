@@ -216,6 +216,8 @@ backup / restore
 migration rollback
 docker / deploy docs
 final acceptance test
+Moomoo OpenD read-only Core quote health
+16:15 ET category summaries + holiday/idempotency safety
 ```
 
 完成后停止。
@@ -238,7 +240,7 @@ final acceptance test
 ```text
 FEATURE_LAB_ENABLED=false
 FEATURE_MODEL_AB_ENABLED=false
-FEATURE_MOOMOO_ENABLED=false
 ```
 
-只保留频道与未来 Spec。
+Core 的 `FEATURE_MOOMOO_ENABLED=true` 只授权每日收盘总结所需的只读期权快照，不授权
+AXIS LAB 扫描、账户访问或交易。AXIS LAB 仍只保留频道与未来 Spec。

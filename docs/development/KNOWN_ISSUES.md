@@ -23,3 +23,7 @@
 - Analysis 已启用；AXIS LAB 频道只预留且业务未开始。
 - Active View 当前单次最多展示 25 个进行中订单，符合 Discord Embed field 上限。
 - Mentor / Trade 动态 Select 当前单次最多展示 25 项；超出后需要后续分页。
+- OpenD 当前已运行，`com.axis.moomoo-opend` 会在下次登录加载。macOS quarantine 安全标记
+  未被 AXIS 移除；若系统下次启动显示官方 OpenD 确认提示，需要由 Owner 确认一次。
+- 每日总结在当天 `16:15 ET` 后持续重试到午夜；若整段时间 Bot/OpenD 均离线，当前版本
+  不会用非当日快照补造历史总结。

@@ -58,6 +58,17 @@ def _parse_nonnegative_int(name: str, default: int) -> int:
     return value
 
 
+def _parse_time_hhmm(name: str, default: str) -> str:
+    raw = os.getenv(name, default).strip()
+    parts = raw.split(":")
+    if len(parts) != 2 or any(not part.isdigit() for part in parts):
+        raise ConfigurationError(f"{name} 必须使用 HH:MM 格式。")
+    hour, minute = (int(part) for part in parts)
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        raise ConfigurationError(f"{name} 必须是有效的 24 小时时间。")
+    return f"{hour:02d}:{minute:02d}"
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     project_root: Path
@@ -69,6 +80,11 @@ class Settings:
     apply_changes: bool
     dry_run: bool
     analysis_enabled: bool
+    moomoo_enabled: bool
+    daily_summary_enabled: bool
+    moomoo_host: str
+    moomoo_port: int
+    daily_summary_time_et: str
     blueprint_path: Path
     ids_path: Path
     report_path: Path
@@ -121,6 +137,12 @@ class Settings:
             apply_changes=_parse_bool("APPLY_CHANGES", False),
             dry_run=_parse_bool("DRY_RUN", True),
             analysis_enabled=_parse_bool("FEATURE_ANALYSIS_ENABLED", False),
+            moomoo_enabled=_parse_bool("FEATURE_MOOMOO_ENABLED", False),
+            daily_summary_enabled=_parse_bool("FEATURE_DAILY_SUMMARY_ENABLED", True),
+            moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip()
+            or "127.0.0.1",
+            moomoo_port=_parse_positive_int("MOOMOO_OPEND_PORT", 11111),
+            daily_summary_time_et=_parse_time_hhmm("DAILY_SUMMARY_TIME_ET", "16:15"),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),
