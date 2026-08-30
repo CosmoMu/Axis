@@ -45,6 +45,10 @@ Analysis 与 Public Card Snapshot。点位、指标分别标记 `MENTOR_INPUT` /
 
 ## 审核规则
 
+- Review 主卡第一行直接显示 Mentor 下拉菜单；第二行是编辑、重新生成文本、重新生成图片；
+  第三行是仅归档、归档并发布、删除。发布后的主卡保留在 `analysis-review` 并移除操作组件。
+- 操作产生的 ephemeral 成功提示 4 秒后删除，错误提示 12 秒后删除；编辑与文本重写的
+  ephemeral 选择菜单 180 秒后删除。
 - 必须选择 Active Mentor 才能归档。
 - Type 只允许 MARKET / TICKER / SECTOR / MACRO。
 - Stance 只允许 BULLISH / BEARISH / NEUTRAL / WATCH。
@@ -63,10 +67,6 @@ Manager-facing 输入编号独立递增：Signal 使用 `S-00001`，Analysis 使
 
 Discord 发送失败时，Mentor Analysis 和 Public Snapshot 已安全归档，Draft 转为
 `PUBLISH_FAILED`。管理员使用 persistent `重试发布`；marker 扫描和唯一约束避免重复卡片。
-
-归档、发布或删除后的 Analysis Review 卡片保留 5 分钟，再由定时任务按精确 Message ID
-清理。待审核、解析失败和发布失败卡片始终保留；任务同时校验消息作者必须为 AXIS BOT，
-不会删除 Manager 或其他用户消息。
 
 ## Feature Gate
 

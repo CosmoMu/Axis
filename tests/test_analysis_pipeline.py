@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
+import discord
 import pytest
 from sqlalchemy import func, select
 
@@ -756,6 +757,7 @@ async def test_publish_uses_public_whitelist_and_failure_retry_preserves_archive
     service, _, _ = analysis_service(database, store, [payload])
     try:
         draft = await generate_and_select_mentor(service, source_id, mentor.id)
+        await service.attach_review_message(draft.id, channel_id=710, message_id=810)
         archived = await service.archive(
             draft.id,
             publish=True,
@@ -790,10 +792,14 @@ async def test_publish_uses_public_whitelist_and_failure_retry_preserves_archive
         assert published.status == AnalysisDraftStatus.PUBLISHED.value
 
         async with database.session() as session:
+            stored_draft = await session.get(AnalysisDraft, draft.id)
+            assert stored_draft is not None
+            stored_draft.review_message_id = None
             analysis = await session.get(MentorAnalysis, archived.analysis_id)
             publication = await session.get(AnalysisPublication, archived.publication_id)
             level = await session.scalar(select(AnalysisKeyLevel))
             count = await session.scalar(select(func.count()).select_from(MentorAnalysis))
+            await session.commit()
         assert analysis is not None and analysis.public_snapshot is not None
         assert forbidden.isdisjoint(analysis.public_snapshot)
         assert publication is not None
@@ -801,6 +807,10 @@ async def test_publish_uses_public_whitelist_and_failure_retry_preserves_archive
         assert publication.message_id == 888
         assert level is not None and level.price is None
         assert count == 1
+        missing = await service.published_without_review_message(GUILD_ID)
+        assert [item.id for item in missing] == [draft.id]
+        restored = await service.attach_review_message(draft.id, channel_id=710, message_id=812)
+        assert restored.review_message_id == 812
     finally:
         await database.dispose()
 
@@ -1223,46 +1233,6 @@ def test_public_analysis_is_neutral_and_image_independent() -> None:
         assert forbidden not in public_text
 
 
-@pytest.mark.asyncio
-async def test_terminal_analysis_review_message_is_cleanup_candidate_and_released(
-    tmp_path: Path,
-) -> None:
-    database, store, mentor = await setup_database(tmp_path)
-    source_id = await add_source(
-        database,
-        message_id=1731,
-        kind=SourceKind.ANALYSIS,
-        raw_text="NVDA analysis for cleanup",
-    )
-    service, _, _ = analysis_service(database, store, [valid_analysis_payload()])
-    try:
-        draft = await generate_and_select_mentor(service, source_id, mentor.id)
-        await service.attach_review_message(draft.id, channel_id=710, message_id=810)
-        archived = await service.archive(
-            draft.id,
-            publish=False,
-            actor_user_id=901,
-            interaction_id=1732,
-        )
-        old = datetime.now(UTC) - timedelta(minutes=10)
-        async with database.session() as session:
-            stored = await session.get(AnalysisDraft, archived.draft.id)
-            assert stored is not None
-            stored.updated_at = old
-            await session.commit()
-
-        refs = await service.review_cleanup_candidates(
-            GUILD_ID,
-            updated_before=datetime.now(UTC) - timedelta(minutes=5),
-        )
-        assert [(ref.channel_id, ref.message_id) for ref in refs] == [(710, 810)]
-        assert await service.release_review_message(refs[0]) is True
-        assert await service.release_review_message(refs[0]) is False
-        assert (await service.get(draft.id)).review_message_id is None
-    finally:
-        await database.dispose()
-
-
 def test_prediction_chart_is_deterministic_structural_png() -> None:
     payload = {
         "symbols": ["NVDA"],
@@ -1296,7 +1266,7 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         draft_code="AN-D-TEST",
         status=AnalysisDraftStatus.PENDING_REVIEW.value,
         normalized=valid_analysis_payload(),
-        mentor_name=None,
+        mentor_name="Mentor Zero",
         missing_fields=(),
         warnings=(),
         confidence=Decimal("0.82"),
@@ -1311,12 +1281,33 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         chart_render_error=None,
     )
     controller = SimpleNamespace()
-
-    review_ids = {item.custom_id for item in AnalysisReviewView(controller, draft).children}
+    mentor_id = uuid.uuid4()
+    review_view = AnalysisReviewView(
+        controller,
+        draft,
+        mentor_choices=[(mentor_id, "Mentor Zero")],
+    )
+    review_ids = {item.custom_id for item in review_view.children}
     retry_ids = {item.custom_id for item in AnalysisRetryView(controller, draft).children}
 
     assert review_ids == {
+        f"axis:analysis:mentor:select:{draft_id.hex}:v3"
+    } | {
         f"axis:analysis:{action}:{draft_id.hex}:v3"
-        for action in ("mentor", "edit", "rewrite", "chart", "archive", "publish", "delete")
+        for action in ("edit", "rewrite", "chart", "archive", "publish", "delete")
     }
+    mentor_select = next(
+        item for item in review_view.children if isinstance(item, discord.ui.Select)
+    )
+    buttons = [item for item in review_view.children if isinstance(item, discord.ui.Button)]
+    assert mentor_select.row == 0
+    assert [option.value for option in mentor_select.options if option.default] == [str(mentor_id)]
+    assert [(button.label, button.row) for button in buttons] == [
+        ("编辑", 1),
+        ("重新生成文本", 1),
+        ("重新生成图片", 1),
+        ("仅归档", 2),
+        ("归档并发布", 2),
+        ("删除", 2),
+    ]
     assert retry_ids == {f"axis:analysis:retry:{draft_id.hex}:v3"}

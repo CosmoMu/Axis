@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -58,7 +57,6 @@ from app.market_intelligence.stock_analyst import (
 )
 from app.services.attachment_storage import AttachmentStorageError, LocalAttachmentStore
 from app.services.input_codes import next_input_code
-from app.services.review_cleanup import ReviewMessageRef
 
 
 class AnalysisError(RuntimeError):
@@ -133,11 +131,6 @@ class AnalysisEnrichment:
 EDITABLE = {
     AnalysisDraftStatus.PENDING_REVIEW.value,
     AnalysisDraftStatus.PARSE_FAILED.value,
-}
-ANALYSIS_CLEANUP_REVIEW_STATUSES = {
-    AnalysisDraftStatus.ARCHIVED.value,
-    AnalysisDraftStatus.PUBLISHED.value,
-    AnalysisDraftStatus.DELETED.value,
 }
 
 
@@ -274,55 +267,25 @@ class AnalysisPipelineService:
             ).all()
             return [await self._snapshot(session, row) for row in rows]
 
-    async def review_cleanup_candidates(
-        self,
-        guild_id: int,
-        *,
-        updated_before: datetime,
-        limit: int = 25,
-    ) -> list[ReviewMessageRef]:
+    async def published_without_review_message(
+        self, guild_id: int
+    ) -> list[AnalysisDraftSnapshot]:
+        """Repair terminal cards whose Discord reference was accidentally cleared."""
+
         async with self.database.session() as session:
             rows = (
-                await session.execute(
-                    select(
-                        AnalysisDraft.id,
-                        AnalysisDraft.review_channel_id,
-                        AnalysisDraft.review_message_id,
-                    )
+                await session.scalars(
+                    select(AnalysisDraft)
                     .where(
                         AnalysisDraft.guild_id == guild_id,
-                        AnalysisDraft.status.in_(ANALYSIS_CLEANUP_REVIEW_STATUSES),
+                        AnalysisDraft.status == AnalysisDraftStatus.PUBLISHED.value,
                         AnalysisDraft.review_channel_id.is_not(None),
-                        AnalysisDraft.review_message_id.is_not(None),
-                        AnalysisDraft.updated_at <= updated_before,
+                        AnalysisDraft.review_message_id.is_(None),
                     )
                     .order_by(AnalysisDraft.updated_at, AnalysisDraft.id)
-                    .limit(limit)
                 )
             ).all()
-        return [
-            ReviewMessageRef(draft_id, channel_id, message_id)
-            for draft_id, channel_id, message_id in rows
-            if channel_id is not None and message_id is not None
-        ]
-
-    async def release_review_message(self, ref: ReviewMessageRef) -> bool:
-        async with self.database.session() as session:
-            draft = await session.scalar(
-                select(AnalysisDraft)
-                .where(
-                    AnalysisDraft.id == ref.draft_id,
-                    AnalysisDraft.status.in_(ANALYSIS_CLEANUP_REVIEW_STATUSES),
-                    AnalysisDraft.review_channel_id == ref.channel_id,
-                    AnalysisDraft.review_message_id == ref.message_id,
-                )
-                .with_for_update()
-            )
-            if draft is None:
-                return False
-            draft.review_message_id = None
-            await session.commit()
-            return True
+            return [await self._snapshot(session, row) for row in rows]
 
     async def get(self, draft_id: uuid.UUID) -> AnalysisDraftSnapshot:
         async with self.database.session() as session:

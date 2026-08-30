@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import discord
@@ -10,8 +9,12 @@ from discord.ext import commands, tasks
 from app.bot.cards import build_analysis_review_embed, build_public_analysis_embed
 from app.bot.cogs.signal_input import is_signal_manager
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
+from app.bot.ephemeral import (
+    ERROR_DELETE_AFTER,
+    SUCCESS_DELETE_AFTER,
+    send_temporary_ephemeral,
+)
 from app.bot.message_input import extract_message_input
-from app.bot.review_cleanup import delete_owned_bot_message
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.domain.enums import AnalysisDraftStatus, SourceKind
 from app.services.analysis_pipeline import (
@@ -41,8 +44,6 @@ class AnalysisPipelineCog(commands.Cog):
         owner_user_id: int | None,
         input_service: SignalInputService,
         service: AnalysisPipelineService,
-        cleanup_interval_seconds: int,
-        cleanup_retention_minutes: int,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -52,17 +53,13 @@ class AnalysisPipelineCog(commands.Cog):
         self.owner_user_id = owner_user_id
         self.input_service = input_service
         self.service = service
-        self.cleanup_retention_minutes = cleanup_retention_minutes
         self._registered = False
-        self.review_cleanup.change_interval(seconds=cleanup_interval_seconds)
         self.worker.start()
         self.review_queue.start()
-        self.review_cleanup.start()
 
     def cog_unload(self) -> None:
         self.worker.cancel()
         self.review_queue.cancel()
-        self.review_cleanup.cancel()
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
         user = interaction.user
@@ -81,7 +78,11 @@ class AnalysisPipelineCog(commands.Cog):
         )
         if allowed:
             return True
-        await interaction.response.send_message("你没有 Analysis 管理权限。", ephemeral=True)
+        await send_temporary_ephemeral(
+            interaction,
+            "你没有 Analysis 管理权限。",
+            delete_after=ERROR_DELETE_AFTER,
+        )
         return False
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
@@ -90,10 +91,11 @@ class AnalysisPipelineCog(commands.Cog):
             if isinstance(exc, AnalysisError)
             else "Analysis 操作暂时失败。"
         )
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
+        await send_temporary_ephemeral(
+            interaction,
+            message,
+            delete_after=ERROR_DELETE_AFTER,
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -190,7 +192,7 @@ class AnalysisPipelineCog(commands.Cog):
         try:
             if not self._registered:
                 for draft in await self.service.registered(self.guild_id):
-                    view = self._view(draft)
+                    view = await self._view(draft)
                     if view and draft.review_message_id:
                         self.bot.add_view(view, message_id=draft.review_message_id)
                         try:
@@ -199,6 +201,8 @@ class AnalysisPipelineCog(commands.Cog):
                             logger.warning(
                                 "event=analysis_review_refresh_failed error_type=HTTPException"
                             )
+                for draft in await self.service.published_without_review_message(self.guild_id):
+                    await self._post_review(draft)
                 self._registered = True
             draft = await self.service.next_unposted(self.guild_id)
             if draft:
@@ -211,37 +215,16 @@ class AnalysisPipelineCog(commands.Cog):
     async def before_review(self) -> None:
         await self.bot.wait_until_ready()
 
-    @tasks.loop(seconds=60)
-    async def review_cleanup(self) -> None:
-        cutoff = datetime.now(UTC) - timedelta(minutes=self.cleanup_retention_minutes)
-        try:
-            refs = await self.service.review_cleanup_candidates(
-                self.guild_id,
-                updated_before=cutoff,
-            )
-            for ref in refs:
-                if await delete_owned_bot_message(
-                    self.bot,
-                    channel_id=ref.channel_id,
-                    message_id=ref.message_id,
-                ):
-                    await self.service.release_review_message(ref)
-        except Exception as exc:
-            logger.warning(
-                "event=analysis_review_cleanup_failed error_type=%s",
-                type(exc).__name__,
-            )
-
-    @review_cleanup.before_loop
-    async def before_review_cleanup(self) -> None:
-        await self.bot.wait_until_ready()
-
-    def _view(self, draft: AnalysisDraftSnapshot) -> discord.ui.View | None:
+    async def _view(self, draft: AnalysisDraftSnapshot) -> discord.ui.View | None:
         if draft.status in {
             AnalysisDraftStatus.PENDING_REVIEW.value,
             AnalysisDraftStatus.PARSE_FAILED.value,
         }:
-            return AnalysisReviewView(self, draft)
+            return AnalysisReviewView(
+                self,
+                draft,
+                mentor_choices=await self.service.mentor_choices(draft.guild_id),
+            )
         if draft.status == AnalysisDraftStatus.PUBLISH_FAILED.value:
             return AnalysisRetryView(self, draft)
         return None
@@ -260,7 +243,7 @@ class AnalysisPipelineCog(commands.Cog):
             ):
                 message = candidate
                 break
-        view = AnalysisReviewView(self, draft)
+        view = await self._view(draft)
         media = await self.service.media_for_draft(draft.id)
         file = discord.File(BytesIO(media.data), filename=media.filename) if media else None
         embed = build_analysis_review_embed(
@@ -277,7 +260,9 @@ class AnalysisPipelineCog(commands.Cog):
         saved = await self.service.attach_review_message(
             draft.id, channel_id=self.review_channel_id, message_id=message.id
         )
-        self.bot.add_view(AnalysisReviewView(self, saved), message_id=message.id)
+        saved_view = await self._view(saved)
+        if saved_view is not None:
+            self.bot.add_view(saved_view, message_id=message.id)
 
     async def refresh(self, draft: AnalysisDraftSnapshot) -> None:
         if not draft.review_message_id:
@@ -292,7 +277,7 @@ class AnalysisPipelineCog(commands.Cog):
             embed=build_analysis_review_embed(
                 draft, image_filename=media.filename if media else None
             ),
-            view=self._view(draft),
+            view=await self._view(draft),
             attachments=[file] if file else [],
         )
 
@@ -305,7 +290,11 @@ class AnalysisPipelineCog(commands.Cog):
         try:
             updated = await self.service.retry_prediction_chart(draft.id)
             await self.refresh(updated)
-            await interaction.followup.send("Prediction Chart 已重新生成。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "图片已重新生成。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.handle_error(interaction, exc)
 
@@ -324,8 +313,10 @@ class AnalysisPipelineCog(commands.Cog):
             )
             updated = await self.publish_result(result) if publish else result.draft
             await self.refresh(updated)
-            await interaction.followup.send(
-                "观点已归档并发布。" if publish else "观点已仅归档。", ephemeral=True
+            await send_temporary_ephemeral(
+                interaction,
+                "观点已归档并发布。" if publish else "观点已仅归档。",
+                delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
             await self.handle_error(interaction, exc)

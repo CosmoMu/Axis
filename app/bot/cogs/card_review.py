@@ -4,7 +4,6 @@ import asyncio
 import logging
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime, timedelta
 
 import discord
 from discord.ext import commands, tasks
@@ -15,7 +14,6 @@ from app.bot.cards import (
     build_short_term_entry_embed,
 )
 from app.bot.ephemeral import ERROR_DELETE_AFTER, send_temporary_ephemeral
-from app.bot.review_cleanup import delete_owned_bot_message
 from app.bot.views.review_views import (
     ActiveOrdersView,
     PublicationRetryView,
@@ -55,8 +53,6 @@ class CardReviewCog(commands.Cog):
         manager_role_id: int,
         member_role_id: int,
         owner_user_id: int | None,
-        cleanup_interval_seconds: int,
-        cleanup_retention_minutes: int,
     ) -> None:
         self.bot = bot
         self.service = service
@@ -67,17 +63,13 @@ class CardReviewCog(commands.Cog):
         self.manager_role_id = manager_role_id
         self.member_role_id = member_role_id
         self.owner_user_id = owner_user_id
-        self.cleanup_retention_minutes = cleanup_retention_minutes
         self._views_registered = False
-        self.review_cleanup.change_interval(seconds=cleanup_interval_seconds)
         self.review_queue.start()
         self.publication_queue.start()
-        self.review_cleanup.start()
 
     def cog_unload(self) -> None:
         self.review_queue.cancel()
         self.publication_queue.cancel()
-        self.review_cleanup.cancel()
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
         guild = interaction.guild
@@ -212,28 +204,6 @@ class CardReviewCog(commands.Cog):
     async def before_publication_queue(self) -> None:
         await self.bot.wait_until_ready()
 
-    @tasks.loop(seconds=60)
-    async def review_cleanup(self) -> None:
-        cutoff = datetime.now(UTC) - timedelta(minutes=self.cleanup_retention_minutes)
-        try:
-            refs = await self.service.review_cleanup_candidates(
-                self.guild_id,
-                updated_before=cutoff,
-            )
-            for ref in refs:
-                if await delete_owned_bot_message(
-                    self.bot,
-                    channel_id=ref.channel_id,
-                    message_id=ref.message_id,
-                ):
-                    await self.service.release_review_message(ref)
-        except Exception as exc:
-            logger.warning("event=signal_review_cleanup_failed error_type=%s", type(exc).__name__)
-
-    @review_cleanup.before_loop
-    async def before_review_cleanup(self) -> None:
-        await self.bot.wait_until_ready()
-
     async def _register_views(self) -> None:
         for category in TradeCategory:
             self.bot.add_view(ActiveOrdersView(self, category.value))
@@ -242,6 +212,8 @@ class CardReviewCog(commands.Cog):
             if draft.review_message_id is not None and view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)
                 await self.refresh(draft)
+        for draft in await self.service.published_without_review_message(self.guild_id):
+            await self._ensure_review_message(draft)
 
     async def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
         if draft.status in ACTIVE_REVIEW_STATUSES:

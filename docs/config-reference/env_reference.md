@@ -35,13 +35,6 @@ pricing_version + membership_session_id`。Monthly 同步写入 Subscription met
 ## Production Alerts
 
 - `SYSTEM_ALERT_CHECK_SECONDS`：Owner-only 健康检查周期；正常状态不发送消息。
-- `REVIEW_CLEANUP_INTERVAL_SECONDS=60`：两个 Review 频道检查已结束草稿的周期。
-- `REVIEW_CLEANUP_RETENTION_MINUTES=5`：终态 Review 卡片保留时间；设为 `0` 表示下一次
-  检查即清理。
-
-Review 清理只按数据库保存的精确 Message ID 删除 AXIS BOT 自己发送的消息。Signal 的
-`PUBLISHED / DELETED` 与 Analysis 的 `ARCHIVED / PUBLISHED / DELETED` 属于可清理终态；
-待审核、解析失败和发布失败卡片始终保留，管理员或其他用户消息永不清理。
 
 ## OpenAI / Workload Router
 

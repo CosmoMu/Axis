@@ -106,8 +106,6 @@ class AxisBot(commands.Bot):
             manager_role_id=_required_snowflake(roles, "manager"),
             member_role_id=_required_snowflake(roles, "member"),
             owner_user_id=settings.discord_owner_user_id,
-            cleanup_interval_seconds=settings.review_cleanup_interval_seconds,
-            cleanup_retention_minutes=settings.review_cleanup_retention_minutes,
         )
         self._manager_control_cog = ManagerControlCog(
             self,
@@ -176,8 +174,6 @@ class AxisBot(commands.Bot):
                 owner_user_id=settings.discord_owner_user_id,
                 input_service=signal_input_service,
                 service=analysis_service,
-                cleanup_interval_seconds=settings.review_cleanup_interval_seconds,
-                cleanup_retention_minutes=settings.review_cleanup_retention_minutes,
             )
             if analysis_service is not None
             else None

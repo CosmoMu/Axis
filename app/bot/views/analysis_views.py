@@ -5,6 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
+from app.bot.ephemeral import (
+    SUCCESS_DELETE_AFTER,
+    send_temporary_ephemeral,
+)
 from app.services.analysis_pipeline import AnalysisDraftSnapshot
 
 if TYPE_CHECKING:
@@ -83,7 +87,11 @@ class AnalysisEditModal(discord.ui.Modal):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("观点草稿已更新。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "观点草稿已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -271,7 +279,11 @@ class AnalysisStructureEditModal(discord.ui.Modal):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("最终结构已更新。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "最终结构已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -309,9 +321,26 @@ class AnalysisMentorSelect(discord.ui.Select):
     ) -> None:
         self.controller = controller
         self.draft = draft
+        if choices:
+            options = [
+                discord.SelectOption(
+                    label=name[:100],
+                    value=str(mid),
+                    default=name == draft.mentor_name,
+                )
+                for mid, name in choices
+            ]
+        else:
+            options = [discord.SelectOption(label="No active Mentor", value="none-mentor")]
         super().__init__(
-            placeholder="选择 Mentor",
-            options=[discord.SelectOption(label=name, value=str(mid)) for mid, name in choices],
+            placeholder=(
+                f"MENTOR · {draft.mentor_name}" if draft.mentor_name else "SELECT MENTOR"
+            )[:150],
+            min_values=1,
+            max_values=1,
+            options=options,
+            disabled=not choices,
+            row=0,
             custom_id=f"axis:analysis:mentor:select:{draft.id.hex}:v{draft.version}",
         )
 
@@ -327,7 +356,11 @@ class AnalysisMentorSelect(discord.ui.Select):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("Mentor 已保存。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "Mentor 已保存。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -362,46 +395,44 @@ class RewriteSelect(discord.ui.Select):
                 interaction_id=interaction.id,
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("已生成新的 Draft Revision。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "文本已重新生成。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
 
 class AnalysisReviewView(discord.ui.View):
-    def __init__(self, controller: AnalysisPipelineCog, draft: AnalysisDraftSnapshot) -> None:
+    def __init__(
+        self,
+        controller: AnalysisPipelineCog,
+        draft: AnalysisDraftSnapshot,
+        *,
+        mentor_choices: list[tuple[uuid.UUID, str]],
+    ) -> None:
         super().__init__(timeout=None)
         self.controller = controller
         self.draft = draft
+        self.add_item(AnalysisMentorSelect(controller, draft, mentor_choices))
         definitions = (
-            ("选择 Mentor", "mentor", discord.ButtonStyle.secondary, self.mentor),
-            ("编辑", "edit", discord.ButtonStyle.primary, self.edit),
-            ("重新整理", "rewrite", discord.ButtonStyle.secondary, self.rewrite),
-            ("重试图表", "chart", discord.ButtonStyle.secondary, self.chart),
-            ("仅归档", "archive", discord.ButtonStyle.secondary, self.archive),
-            ("归档并发布", "publish", discord.ButtonStyle.success, self.publish),
-            ("删除草稿", "delete", discord.ButtonStyle.danger, self.delete),
+            ("编辑", "edit", discord.ButtonStyle.primary, 1, self.edit),
+            ("重新生成文本", "rewrite", discord.ButtonStyle.secondary, 1, self.rewrite),
+            ("重新生成图片", "chart", discord.ButtonStyle.secondary, 1, self.chart),
+            ("仅归档", "archive", discord.ButtonStyle.secondary, 2, self.archive),
+            ("归档并发布", "publish", discord.ButtonStyle.success, 2, self.publish),
+            ("删除", "delete", discord.ButtonStyle.danger, 2, self.delete),
         )
-        for label, action, style, callback in definitions:
+        for label, action, style, row, callback in definitions:
             button = discord.ui.Button(
                 label=label,
                 style=style,
+                row=row,
                 custom_id=f"axis:analysis:{action}:{draft.id.hex}:v{draft.version}",
             )
             button.callback = callback
             self.add_item(button)
-
-    async def mentor(self, interaction: discord.Interaction) -> None:
-        if not await self.controller.authorize(interaction):
-            return
-        choices = await self.controller.service.mentor_choices(self.draft.guild_id)
-        if not choices:
-            await interaction.response.send_message("当前没有 Active Mentor。", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            "请选择 Mentor：",
-            view=OneSelectView(AnalysisMentorSelect(self.controller, self.draft, choices)),
-            ephemeral=True,
-        )
 
     async def edit(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize(interaction):
@@ -410,15 +441,17 @@ class AnalysisReviewView(discord.ui.View):
             "请选择要编辑的 Final Analysis 部分：",
             view=OneSelectView(AnalysisEditSelect(self.controller, self.draft)),
             ephemeral=True,
+            delete_after=180,
         )
 
     async def rewrite(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize(interaction):
             return
         await interaction.response.send_message(
-            "请选择整理方式：",
+            "请选择文本重新生成方式：",
             view=OneSelectView(RewriteSelect(self.controller, self.draft)),
             ephemeral=True,
+            delete_after=180,
         )
 
     async def chart(self, interaction: discord.Interaction) -> None:
@@ -439,7 +472,11 @@ class AnalysisReviewView(discord.ui.View):
                 self.draft.id, actor_user_id=interaction.user.id, interaction_id=interaction.id
             )
             await self.controller.refresh(updated)
-            await interaction.followup.send("观点草稿已删除。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "观点草稿已删除。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -465,6 +502,10 @@ class AnalysisRetryView(discord.ui.View):
             result = await self.controller.service.retry_publication(self.draft.id)
             updated = await self.controller.publish_result(result)
             await self.controller.refresh(updated)
-            await interaction.followup.send("观点已发布。", ephemeral=True)
+            await send_temporary_ephemeral(
+                interaction,
+                "观点已发布。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
