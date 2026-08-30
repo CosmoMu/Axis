@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -9,6 +10,7 @@ from typing import Any, Protocol
 from urllib.parse import quote
 
 import aiohttp
+import certifi
 
 
 class MarketDataProviderError(RuntimeError):
@@ -39,6 +41,12 @@ class MarketDataProvider(Protocol):
     async def fetch_prices(
         self, requests: Sequence[MarketPriceRequest]
     ) -> tuple[MarketPrice, ...]: ...
+
+
+def verified_ssl_context() -> ssl.SSLContext:
+    """Use the bundled CA store when macOS Python has no default CA path."""
+
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def massive_option_ticker(
@@ -93,6 +101,7 @@ class MassiveMarketDataProvider:
         session = self.session or aiohttp.ClientSession(
             headers={"Authorization": f"Bearer {self.api_key}"},
             timeout=self.timeout,
+            connector=aiohttp.TCPConnector(ssl=verified_ssl_context()),
         )
         try:
             results = await asyncio.gather(

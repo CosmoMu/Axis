@@ -1,3 +1,4 @@
+import ssl
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -8,6 +9,7 @@ from app.integrations.massive_market_data import (
     MarketPriceRequest,
     MassiveMarketDataProvider,
     massive_option_ticker,
+    verified_ssl_context,
 )
 
 
@@ -55,3 +57,11 @@ def test_outlier_last_print_cannot_pollute_tracking_price() -> None:
     request = MarketPriceRequest("key", "NVDA", "O:NVDA260831C00500000")
     with pytest.raises(MarketDataProviderError, match="LAST_TRADE_OUTLIER"):
         provider("LAST")._normalize(request, payload(last="5.00"))
+
+
+def test_massive_uses_a_verified_bundled_ca_store() -> None:
+    context = verified_ssl_context()
+
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    assert context.cert_store_stats()["x509_ca"] > 0
