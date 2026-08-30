@@ -4,7 +4,7 @@
 
 **Current stage:** Core feature-complete / Production live validation
 
-**Database revision:** 20260830_0019
+**Database revision:** 20260830_0020
 
 **AXIS LAB:** DEFERRED
 
@@ -19,8 +19,9 @@
 
 Core Gate A 和 Analysis Gate B 已通过。Discord Core、Signal、Analysis、会员、结果与管理工具
 均已实现；Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。当前最高优先级是
-Short-Term / Massive 真实端到端：数据库已有已发布 ST-0001 和有效 Entry Price，但
-short_term_tracking 仍无注册记录，所以不能宣称自动跟踪已经投入生产。
+Short-Term / Massive 真实端到端：已清除 ST-0001 的旧 Mentor 关联，Bot 已幂等补注册
+short_term_tracking 与 Entry event。真实 Massive quote、TP/Protection 触发和下一交易日
+Discord E2E 仍未验收，所以不能宣称自动跟踪已经完整投入生产。
 
 ## Discord Core — COMPLETE
 
@@ -87,15 +88,16 @@ Implemented:
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」。
 - Results。
 
-Remaining: 修复或确认已发布订单自动注册 tracking 的运行路径；完成真实 Massive quote、
-TP、reversal/protection、Discord 事件、重启恢复和 Daily Results E2E。
+Remaining: 完成真实 Massive quote、TP、reversal/protection、Discord 事件、重启恢复和
+Daily Results E2E。
 
 Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、watermark、momentum
 reversal、tracking protection、overnight、tracking stop、restart recovery、无 Short-Term Daily
 Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 
-Production status: **真实 Massive E2E 尚未验收。** ST-0001 已 Published 且 Entry Price 有效，
-但 short_term_tracking=0、short_term_events=0，因此不能标记 Live Complete。
+Production status: **真实 Massive E2E 尚未验收。** ST-0001 已 Published，并已有
+short_term_tracking=1、short_term_events=1（Entry）；尚无真实行情触发事件，因此不能标记
+Live Complete。
 
 ## Mentor Management — COMPLETE
 

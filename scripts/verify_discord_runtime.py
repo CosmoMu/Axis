@@ -230,7 +230,7 @@ def main() -> int:
     print("discord_runtime=PASS")
     print("permissions=public,member,manager,owner,bot")
     print("general_guides=idempotent")
-    print("owner_test_commands=14")
+    print(f"owner_test_commands={len(TEST_COMMANDS)}")
     return 0
 
 

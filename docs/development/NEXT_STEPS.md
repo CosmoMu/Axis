@@ -9,7 +9,7 @@
 
 Work:
 
-- 找出 Published ST-0001 未进入 short_term_tracking 的原因。
+- 在下一个美股交易时段验证已注册 ST-0001 的真实 Massive quote。
 - 验证 Massive MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
 - 验证 High / Low Watermark 与固定 TP1–TP10；确认每一级只发送一次且没有 Runner。
 - 验证 Fast Momentum Reversal、Tracking Protection、Overnight Tracking 和 Tracking Stop。

@@ -6,17 +6,17 @@
 
 ## P0 — Short-Term tracking 尚未完成 Live E2E
 
-数据库已有 ST-0001、状态 ACTIVE / ENTRY、有效 entry_price，并且 Publication=PUBLISHED；
-但 short_term_tracking、short_term_events 和 short_term_daily_snapshots 均为空。
+ST-0001 的旧 Mentor 关联已由 revision 0020 清理，Bot 已成功补注册
+short_term_tracking=1、short_term_events=1（Entry）。当前仍没有真实 Massive quote 触发记录。
 
 影响：
 
-- 不能证明已发布 Short-Term 订单会自动注册跟踪。
-- 不能证明 Massive 真实报价会驱动 milestone、reversal、protection 或 stop。
-- 不能证明 Discord 自动事件、每日 Active/Closed 总结和重启恢复在真实订单上工作。
+- 已证明已发布 Short-Term 订单能够幂等补注册跟踪。
+- 仍不能证明 Massive 真实报价会驱动固定 TP、Momentum TP、protection 或 stop。
+- 仍不能证明 Discord 自动事件、Daily Results 和重启恢复在真实行情路径上工作。
 
-下一步先诊断 register_missing 的运行路径和日志，再做一笔可控的真实端到端验收。本次文档同步
-不修改该产品逻辑。
+下一步在美股交易时段做一笔可控的真实端到端验收，并记录 quote timestamp、event、Discord
+message 与重启幂等证据。
 
 ## P1 — Stripe 仍是 Test Mode
 

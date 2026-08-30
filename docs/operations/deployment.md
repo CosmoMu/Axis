@@ -19,7 +19,7 @@ check → 授权后的 feature enable → live acceptance。
 ```
 
 该脚本验证四种用户身份加 Bot 的权限、四条 GENERAL Guide Message（Lobby 为 topic-only）
-与 9 个 Owner-only 测试命令，不发送消息或修改服务器。
+与 12 个 Owner-only 测试命令，不发送消息或修改服务器。
 
 启用 Core Moomoo 总结时，另外安装 OpenD 登录 LaunchAgent：
 

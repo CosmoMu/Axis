@@ -214,6 +214,7 @@ class CardReviewCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _register_views(self) -> None:
+        await self._remove_legacy_short_term_buttons()
         for category in (TradeCategory.SWING, TradeCategory.LEAPS):
             self.bot.add_view(ActiveOrdersView(self, category.value))
         for draft in await self.service.registered(self.guild_id):
@@ -223,6 +224,27 @@ class CardReviewCog(commands.Cog):
                 await self.refresh(draft)
         for draft in await self.service.published_without_review_message(self.guild_id):
             await self._ensure_review_message(draft)
+
+    async def _remove_legacy_short_term_buttons(self) -> None:
+        targets = await self.publication_service.legacy_short_term_components(self.guild_id)
+        for target in targets:
+            try:
+                channel = self.bot.get_channel(target.channel_id)
+                if channel is None:
+                    channel = await self.bot.fetch_channel(target.channel_id)
+                fetch_message = getattr(channel, "fetch_message", None)
+                if fetch_message is None:
+                    continue
+                message = await fetch_message(target.message_id)
+                await message.edit(view=None)
+                await self.publication_service.mark_legacy_component_removed(
+                    target.publication_id
+                )
+            except discord.HTTPException as exc:
+                logger.warning(
+                    "event=short_term_legacy_button_cleanup_failed status=%s",
+                    exc.status,
+                )
 
     async def _review_view(
         self,

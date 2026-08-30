@@ -42,8 +42,9 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0019` 使用 40 张业务表。0019 增加持久化 `is_lotto`，把
-Short-Term tracking 迁移为 TP1–TP10 与 tracking protection 命名，并保留完整历史：
+当前 revision `20260830_0020` 使用 40 张业务表。0019 增加持久化 `is_lotto`，把
+Short-Term tracking 迁移为 TP1–TP10 与 tracking protection 命名；0020 清除旧
+Short-Term Mentor 关联并保留完整历史：
 
 ```text
 guild_config

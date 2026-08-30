@@ -81,6 +81,13 @@ class PublicationResult:
     public_trade_id: str
 
 
+@dataclass(frozen=True, slots=True)
+class LegacyComponentTarget:
+    publication_id: uuid.UUID
+    channel_id: int
+    message_id: int
+
+
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
@@ -449,6 +456,50 @@ class TradePublicationService:
                     )
                 )
         return output
+
+    async def legacy_short_term_components(
+        self, guild_id: int
+    ) -> list[LegacyComponentTarget]:
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        TradePublication.id,
+                        TradePublication.channel_id,
+                        TradePublication.message_id,
+                    )
+                    .join(Trade, Trade.id == TradePublication.trade_id)
+                    .where(
+                        Trade.guild_id == guild_id,
+                        Trade.category == TradeCategory.SHORT_TERM.value,
+                        TradePublication.status == PublicationStatus.PUBLISHED.value,
+                        TradePublication.custom_id == "axis:active:short_term:v1",
+                        TradePublication.message_id.is_not(None),
+                    )
+                )
+            ).all()
+        return [
+            LegacyComponentTarget(
+                publication_id=publication_id,
+                channel_id=channel_id,
+                message_id=message_id,
+            )
+            for publication_id, channel_id, message_id in rows
+            if message_id is not None
+        ]
+
+    async def mark_legacy_component_removed(self, publication_id: uuid.UUID) -> None:
+        async with self.database.session() as session:
+            publication = await session.scalar(
+                select(TradePublication)
+                .where(TradePublication.id == publication_id)
+                .with_for_update()
+            )
+            if publication is None:
+                raise PublicationValidationError("PUBLICATION_NOT_FOUND")
+            if publication.custom_id == "axis:active:short_term:v1":
+                publication.custom_id = None
+                await session.commit()
 
     async def _resolve_trade(
         self,

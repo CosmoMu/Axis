@@ -48,5 +48,5 @@ launchctl print gui/$(id -u)/com.axis.bot
 lsof -nP -iTCP:11111 -sTCP:LISTEN
 ```
 
-正常数据库 revision 为 `20260830_0019`。`market_quote_snapshots` 与
+正常数据库 revision 为 `20260830_0020`。`market_quote_snapshots` 与
 `daily_summary_publications` 在第一个真实交易日、且存在相关 Trade 后才会出现行数。

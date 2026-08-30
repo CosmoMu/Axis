@@ -17,7 +17,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0019。
+- Alembic revisions 0001–0020；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -81,7 +81,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-说明：以上为实现清单；真实数据库当前未给 ST-0001 注册 tracking，Live 验收未通过。
+说明：ST-0001 已通过补注册写入 tracking 与 Entry event；真实 Massive quote / TP / Protection
+触发尚未验收，Live Gate 仍未通过。
 
 ## Mentor / Member
 

@@ -88,18 +88,18 @@ Operations / Security:
 
 Database:
 
-- revision=20260830_0018
-- source_messages=15
-- trade_drafts=6
-- trades=1
-- trade_events=1
-- trade_publications=1
+- revision=20260830_0020
+- source_messages=19
+- trade_drafts=10
+- trades=3
+- trade_events=3
+- trade_publications=3
 - analysis_drafts=8
 - mentor_analyses=4
 - analysis_publications=4
 - membership_entitlements=3
 - payment_events=3
-- system_alerts=2
+- system_alerts=3
 
 Feature flags:
 
@@ -116,7 +116,7 @@ Discord:
 - discord_runtime=PASS
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=14
+- owner test commands=12
 
 Analysis Fusion:
 
@@ -141,17 +141,17 @@ Stripe Test:
 
 Short-Term verifier evidence:
 
-- short_term_tracking=0
-- short_term_tracking_events=0
+- short_term_tracking=1
+- short_term_tracking_events=1（Entry）
 - short_term_daily_snapshots=0
 - daily_results_publications=0
 - market_quote_snapshots=0
 
-数据库另有 ST-0001 Published Active Entry 和有效 Entry Price，因此上述 0 不能用“没有订单”
-解释。真实 Massive quote、tracking 注册、trigger、Discord event、summary 和 restart recovery
-必须完成后，Short-Term Live E2E 才能标记 PASS。
+ST-0001 Published Active Entry 已完成幂等 tracking 补注册。真实 Massive quote、TP / Protection
+trigger、Discord event、Daily Results 和 restart recovery 必须完成后，Short-Term Live E2E
+才能标记 PASS。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 165 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 169 项测试结果。

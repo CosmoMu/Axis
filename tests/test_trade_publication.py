@@ -467,6 +467,17 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
             claim_token=claim.claim_token,
             message_id=9999,
         )
+        async with database.session() as session:
+            saved_publication = await session.get(TradePublication, claim.publication_id)
+            assert saved_publication is not None and saved_publication.custom_id is None
+            saved_publication.custom_id = "axis:active:short_term:v1"
+            await session.commit()
+
+        legacy_targets = await publication.legacy_short_term_components(GUILD_ID)
+        assert len(legacy_targets) == 1
+        assert legacy_targets[0].message_id == 9999
+        await publication.mark_legacy_component_removed(claim.publication_id)
+        assert await publication.legacy_short_term_components(GUILD_ID) == []
 
         tracker = MarketTrackingService(
             database,
