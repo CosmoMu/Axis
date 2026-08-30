@@ -1,119 +1,138 @@
 # AXIS Implemented Features
 
+**Updated:** 2026-08-30
+
+本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
+LIVE_MODE_CHECKLIST.md 为准。
+
 ## Discord / Runtime
 
-- Guild ID 锁定和 Owner / Application 校验。
-- 幂等 Role、Category、Channel、权限 reconciliation。
-- 保存 Snowflake ID 后优先按 ID 复用。
-- AXIS Role/Category/Channel 受控 rename；未知资源不修改。
-- macOS LaunchAgent `com.axis.bot`。
-- Manager-only `🤫・quiet-profits`。
-- Owner-only `🚨・system-alerts` 与 `🧪・card-testing`；使用
-  `DISCORD_OWNER_USER_ID` 的 user-specific overwrite，不新增 Staff Role。
-- GENERAL 五条长期 Guide / Membership 消息按数据库 Message ID 幂等同步。
+- Guild ID、Application ID 与 Owner ID 校验。
+- Role、Category、Channel、Topic、Position 和 Permission 幂等 reconciliation。
+- 保存 Snowflake ID 后优先按 ID 复用；只对 AXIS-owned 资源执行受控更新。
+- Persistent View、Review Card 和 Manager 控制面板重启恢复。
+- Manager-only Operations、Owner-only System Alerts 与 Card Testing。
+- GENERAL Guide 依据数据库 Message ID 幂等同步。
+- macOS LaunchAgent、Dockerfile 与 Compose 基础部署。
 
 ## Database
 
-- Alembic revisions `0001` 到 `0014`。
-- Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
-- `trade_publications` 命名迁移保留原表数据。
-- `llm_invocations` 和 Trade Draft invocation 关联。
-- Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
-- Analysis Draft / Revision / immutable Archive / children / Publication 独立表。
-- Trade Moomoo option code cache、只读 quote snapshot 与 daily summary publication 表。
-- Analysis Market Intelligence context、Source evidence 与历史 media 兼容字段。
-- Model A 训练字段：`why_now_json`、Analysis Point / Key Level source provenance。
-- `input_code_counters` 事务分配 Signal / Analysis 独立的短顺序号。
-- Discord-user-bound `membership_sessions`、幂等 `payment_webhook_events` 与持久化
-  `system_alerts`。
-- Membership 保留 ORM `user_id` API，但物理列明确命名为 `discord_user_id`；另存 provider、
-  customer 与 subscription ID。
+- Alembic revisions 0001–0018。
+- Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
+- Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
+- LLM invocation provider/model/workload/prompt/schema/latency/result trace。
+- Input code counters：Signal S-00001、Analysis A-00001、Public Trade ST/SW/LP。
+- Membership Price Catalog、Acknowledgement、Entitlement、Payment Event 和 System Alert。
+- Short-Term Tracking、Event、Daily Snapshot 与 Results 数据结构。
+- Publication claim / retry / finalize 和必要的唯一约束。
 
-## Signal
+## Signal intake and parsing
 
-- Text / image / multiple-image intake。
-- Discord forwarded message snapshot text / image intake。
-- MIME、扩展名、大小、checksum 和安全路径验证。
-- Discord 图片元数据冲突时按真实签名归一化，明确伪装继续拒绝。
-- Source / Draft 幂等。
-- Workload Router：Signal / Repair / Analysis Parse / Rewrite。
-- OpenAI Responses Structured Output。
-- 默认八分之一仓位阶梯。
-- 成功/失败 invocation trace。
+- Discord 原文、转发 snapshot、图片、多图和附件说明合并。
+- PNG / JPEG / WEBP 检测、真实文件签名归一化、大小和安全路径验证。
+- Source message checksum 与幂等。
+- OpenAI Responses Structured Output 与 SIGNAL_PARSE / SIGNAL_REPAIR 路由。
+- 失败草稿、missing fields 和安全错误信息。
+- 默认仓位阶梯：1/8、1/4、1/2、3/4。
 
-## Signal Review
+## Signal review and publication
 
-- Internal Embed 与 Public DTO Preview。
-- LLM 默认 Category；低置信或解析失败时安全回退为 Swing，Manager 可在卡片顶部下拉修正。
-- 紧凑审核布局，Category 与常用操作集中在同一张 persistent message。
-- Mentor / Trade 选择。
-- Modal 编辑。
-- 乐观并发版本控制。
-- Soft delete、审核 Ready、审计日志。
-- Review Message ID 持久化与 Footer 恢复。
+- AI Category 默认识别，Manager 可通过下拉修改。
+- Mentor 和关联订单下拉。
+- Modal 编辑、Public Preview、删除和幂等发布。
+- 乐观并发版本、审核状态和审计记录。
+- Public DTO 白名单，不显示 Mentor、来源、Market、Bid、Ask 或 Parser 信息。
+- Entry / Add / Update / TP / SL / Runner / Close。
+- 固定 persistent「查看当前订单」按钮和 ephemeral Active View。
+- 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
-## Member Signal Publication
+## Short-Term Automated Tracking
 
-- 审核确认后自动创建或更新 Trade 与 Trade Event。
-- `ST / SW / LP` Public Trade ID 在 Guild 锁内分配。
-- 重复确认、并发确认和 Bot 重启恢复不会重复发卡。
-- Entry / Add / Update / TP / SL / Runner / Close 状态流转。
-- 每张会员卡片附带固定 persistent `查看当前订单`。
-- Active View 使用 ephemeral response，只返回公开订单字段。
+- ST-XXXX 独立编号和无 Mentor 的简化审核。
+- Massive market-data provider 接口、受控 fallback 和错误分类。
+- entry_price、current_price、high/low watermark 与 policy version。
+- TP1 20%、TP2 50%、Runner 100%–1000%。
+- Reference Protection、Fast Momentum Reversal、Overnight、Tracking Stop。
+- milestone 幂等、Active View、category close summary 和 official daily results。
+- 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-## Mentor / Membership / Results
+说明：以上为实现清单；真实数据库当前未给 ST-0001 注册 tracking，Live 验收未通过。
 
-- Persistent Mentor Control 与 Member Control 面板。
-- Mentor Registry、Aliases、启停、订单查看和 Trade Mentor 修改。
-- 单一 Member Role；Free Trial、Day Pass、Monthly、赠送、独立延期、到期取消、立即撤销和
-  手工 Role 同步通过多 Entitlement 合并访问。
-- Scheduled Job 到期处理和持续 Member Role reconciliation。
-- Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
-- Stripe 动态 Checkout / Portal、签名 Webhook、不可变价格快照和 provider event 幂等。
-- ACTIVE / PAST_DUE / CANCEL_AT_PERIOD_END / EXPIRED / CANCELLED / REVOKED lifecycle；任一
-  Entitlement 有效时保留 Role，PAST_DUE 重试期间不立即撤权。
+## Mentor / Member
 
-## GENERAL / Owner Operations
+- Mentor create、rename、alias、deactivate/reactivate、Trade reassign。
+- Member lookup、gift、manual extension、cancel-at-expiry、immediate revoke。
+- 单一 Member Role 与多 Entitlement 合并访问。
+- Scheduled expiry 和持续 Role reconciliation。
+- 完整 Membership Event 与 Audit。
 
-- 中文极简 Welcome 与单一 `AXIS Membership` 卡片；展示价格来自数据库 Price Catalog，
-  Checkout / Portal 按 Discord User ID 动态创建。
-- Results 只保留官方统计；Lobby 仅保留英文 Topic；Member Wins 公开可见、仅会员上传，并与
-  官方 Results 明确隔离。
-- 9 个 Owner-only Card Preview 命令使用内存 DTO，不创建假 Trade、不写 Results、不发会员频道。
-- ERROR / WARNING / RECOVERY System Alert；fingerprint、first/last seen、occurrence count、
-  resolved time 与通知状态持久化。
+## Free Trial / Day Pass / Monthly
 
-## Analysis（complete / live enabled）
+- 版本化风险确认与 Trial 终身一次。
+- XNYS 正式交易日历：Free Trial 三个交易日、Day Pass 一个交易日。
+- Monthly 自动续费、PAST_DUE、cancel-at-period-end 和 EXPIRED/CANCELLED/REVOKED lifecycle。
+- 多个有效 entitlement 任一有效即保留 Member Role。
+- Manager extension 创建独立 MANUAL_EXTENSION，不覆盖原 entitlement。
 
-- Signal / Analysis Source queue 隔离。
-- Text / image / multi-image `ANALYSIS_PARSE` 与 `ANALYSIS_REWRITE`。
-- Strict Schema 字段名安全清洗、PostgreSQL Invocation → Draft 顺序写入和失败草稿保留审计重试。
-- Mentor select、edit、rewrite revision、archive-only、archive + publish、delete。
-- MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
-- 中性 AXIS 编辑口吻；公开层不出现第一人称、作者归因或图片引用。
-- Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
-- 无 Thread 的 Member Lounge Public Card 和失败重试。
-- 单 ticker 采用 Mentor-first / AXIS-fill-missing 融合，并保存点位、指标来源和冲突。
-- 后台 2–3 个 Scenario；Public 只显示有明确优势的 Top Scenario。单一结构路径由确定性
-  renderer 生成 PNG，不画未来 K 线；失败时文字 Analysis 继续归档并支持重试。
-- `AXIS GEX Explorer` 纯计算引擎已内置，保留未来 Moomoo option chain / Discord 频道接点。
+## Stripe
 
-## Operations
+- 数据库驱动的 Product / Price Catalog。
+- 动态 Checkout Session 和 Customer Portal。
+- Stripe 签名 Webhook 和 provider event 幂等。
+- 最小事件存储，不保留完整支付 payload。
+- Checkout metadata 绑定 Discord User ID。
+- 不可变价格快照和 Price Grandfathering。
+- Day Pass 与 Monthly Stripe Test Mode E2E 工具。
 
-- 只读数据库 revision / row count / feature health check。
-- PostgreSQL custom backup、list verification、SHA-256 与双确认 restore 工具。
-- Dockerfile / Compose 基础部署与 Secret-safe build context。
-- 后台 worker 只记录事件名与异常类型的脱敏结构化日志。
-- `verify_discord_runtime.py` 只读验收 Public / Member / Manager / Owner / Bot 权限、GENERAL
-  控制消息数量和 Owner 测试命令同步。
-- Moomoo SDK / OpenD 版本锁定、只读行情健康检查与登录启动 LaunchAgent。
-- `16:15 ET` 的 Short-term / Swing / Leaps Active + 当日 Closed 总结。
-- 交易日验证、Discord marker 恢复、数据库唯一键与失败重试。
+## GENERAL
 
-## Security
+- Welcome、Membership、Results、Member Wins 和 Lobby Topic。
+- AXIS / AXIS BOT / VALE 的 Public Identity Policy。
+- 公开 Membership 卡片使用数据库 Price Catalog。
+- Member Wins 与官方 Results 隔离。
 
-- Secret 不进入 Git 或日志。
-- Public DTO 排除 Mentor、Source 元数据、提交人和 Parser 信息；当前 Analysis 不发布图片。
-- Manager 无 Discord Administrator / Manage Roles。
-- 外部 Checkout URL 或 webhook secret 任一缺失时，JOIN 入口安全禁用。
-- AXIS LAB 功能关闭；Moomoo 仅用于 Core 只读行情，不访问账户或交易接口。
+## Analysis intake and review
+
+- 与 Signal 完全隔离的 Source queue。
+- Text / image / multi-image ANALYSIS_PARSE 和 ANALYSIS_REWRITE。
+- MARKET / TICKER / SECTOR / MACRO、stance、horizon 和 missing-data safeguards。
+- Mentor 下拉、编辑、重写文本、重新生成图片、仅归档、归档并发布、删除。
+- A-00001 独立编号、Revision、Archive 和失败重试。
+- 公开层使用中性 AXIS 口吻，不暴露第一人称、作者、Mentor、Source 或模型信息。
+
+## Analysis Fusion / Market Intelligence
+
+- Mentor-first / AXIS-fill-missing 字段融合。
+- Raw、Mentor、Stock Analyst、Final Fused 与 Public Snapshot 分层归档。
+- Key Level、Indicator、why-now 和 conflict provenance。
+- 2–3 个内部 Scenario；公开只显示通过 confidence / advantage gate 的 Top Scenario。
+- Stock Analyst provider injection、有限历史模式和安全 fallback。
+- GEX Explorer 的 Gamma / IV fallback、Walls、Zero Gamma 与 regime 纯计算引擎。
+- GEX 当前不连接 Discord 频道、账户或交易接口。
+
+## Prediction Chart
+
+- 确定性单一路径 renderer。
+- 输入明确点位优先；缺失时只使用融合层可追溯点位。
+- 不生成未来 K 线，不使用图片生成模型。
+- Source 图片不转发到 Review 或会员频道。
+- renderer 失败不阻塞文字 Analysis 归档，支持独立重试。
+
+## Results / Testing / Operations
+
+- Trade Event 加权收益和幂等官方 Results。
+- Owner-only preview commands 不创建假 Trade、不写 Results。
+- ERROR / WARNING / RECOVERY 持久化告警和 fingerprint 去重。
+- 数据库只读 verifier、Discord runtime verifier、Analysis Fusion verifier 和 Stripe Test verifier。
+- PostgreSQL custom backup、pg_restore list、SHA-256 与双确认 restore 工具。
+- Secret-safe build context、错误信息脱敏和结构化日志。
+
+## Security boundaries
+
+- Secret 仅从 .env 或部署 Secret Store 读取。
+- .env、运行附件、备份和本地日志被 Git 忽略。
+- Manager 无 Administrator / Manage Roles。
+- 所有 Public DTO 使用白名单。
+- Stripe 外部配置不完整时，Live activation 保持阻止。
+- FEATURE_LAB_ENABLED=false、FEATURE_MODEL_AB_ENABLED=false。
+- 不实现自动下单，不读取 Moomoo 账户、持仓或订单。

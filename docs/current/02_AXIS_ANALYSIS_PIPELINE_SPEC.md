@@ -1,3 +1,26 @@
+# AXIS — Analysis Fusion Pipeline Specification
+
+**版本：** 2026-08-30 Fusion Lock
+
+**状态：** 当前有效 Analysis 规格
+
+本规格定义 Mentor-first、AXIS-fill-missing 的单一最终 Analysis。与旧 Analysis Card、Mentor
+Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path 或 Chart 设计冲突时，
+以本文件为准。
+
+## Current Market Intelligence Boundary
+
+- `AXIS Market Intelligence` 是 AXIS 自有分析层，不依赖其他本地仓库运行。
+- `AXIS Stock Analyst` 提供只读日 K、EMA / RSI / MACD、结构位、成交分布代理、板块相对
+  强度和 Scenario，当前只在单 Ticker Analysis 中补 Mentor 缺失字段。
+- `AXIS GEX Explorer` 当前只有 Provider-independent 纯计算引擎，不建频道、不抓取、不发布。
+- Stock Analyst 当前行情适配器只读本机 Moomoo OpenD；失败时保留 LLM 对输入的忠实整理。
+- 预测图只来自 Final Fused `prediction_path` 的确定性 renderer，不使用生成图片模型，不画
+  未来 K 线；失败不阻止文字归档。
+- Dealer sign、资金流与筹码峰均是公开假设或代理，Scenario weight 不是胜率。
+
+---
+
 请基于当前 AXIS repo 修改 Analysis Pipeline。
 
 这是一份新的 Analysis Fusion Specification。

@@ -1,121 +1,149 @@
 # AXIS Test Status
 
-**日期：** 2026-08-30
+**Date:** 2026-08-30
 
-**结果：** 122 passed
+## Summary
 
-**Lint：** Ruff passed
+- Full pytest suite: PASS — 151 tests
+- Ruff: PASS
+- Python compileall: PASS
+- Static type checker: NOT CONFIGURED
+- Core Gate A automated checks: PASS
+- Analysis Gate B automated checks: PASS
+- Database verifier: PASS
+- Discord runtime verifier: PASS
+- Analysis Fusion verifier: PASS
+- Stripe Test setup verifier: PASS
+- Stripe Test external E2E verifier: PASS
+- Short-Term / Massive real E2E: NOT PASSED
 
-**Config validation：** YAML / JSON Schema load passed
+## Commands executed
 
-**Core Gate A：** PASS
+- .venv/bin/ruff check app tests scripts
+- .venv/bin/python -m compileall -q app scripts
+- .venv/bin/pytest -q
+- .venv/bin/python scripts/verify_database.py
+- .venv/bin/python scripts/verify_analysis_fusion.py
+- .venv/bin/python scripts/verify_discord_runtime.py
+- .venv/bin/python scripts/verify_stripe_test_setup.py
+- .venv/bin/python scripts/verify_stripe_test_e2e.py
 
-**Analysis Gate B（automated）：** PASS
+没有在 pyproject.toml 或 CI 配置中发现 mypy / pyright，因此没有把未运行的 type check 标记为 PASS。
 
-覆盖：
+## Automated coverage
 
-- Discord Blueprint 精确结构、权限、unknown-resource safety 和 rename opt-in。
-- Workload Router、Analysis-only override、无效 workload。
-- OpenAI Structured Output、图片输入、reasoning effort 和安全错误。
-- Source / Attachment / Draft 幂等。
-- 默认仓位阶梯和 fourth-add safety。
-- 成功/失败 `llm_invocations`。
-- Signal Review Category 默认值/下拉修正、紧凑卡片、Public DTO、防泄漏、并发和审核条件。
-- Publication claim / retry / finalize 幂等和单 Draft 单 Event 约束。
-- Entry / Add / Close 状态流转与关闭订单 Active View 排除。
-- 三种固定 `查看当前订单` custom_id 和 persistent View。
-- Mentor create/edit/toggle/reassign 与审计。
-- Membership gift/extend/cancel/remove/manual Role sync/Scheduled expiry。
-- XNYS Free Trial / Day Pass、正式休市日、带版本风险确认、终身一次 Trial 和多 Entitlement。
-- Stripe 动态 Checkout/Portal、Monthly 续费/失败/取消、重复点击、Webhook 幂等、价格快照与
-  Grandfathering；Test Mode 外部 E2E 仍由 Live Checklist 阻止上线。
-- Checkout metadata、HMAC signature、Discord User ID 绑定、payment event dedup、period-end
-  cancel 与即时失效 Role decision。
-- GENERAL 单一 Membership 文案与测试 Preview DTO 无数据库依赖。
-- System Alert 持久化 dedup、occurrence count、Recovery 与再次告警。
-- Public / Member / Manager / Owner / Bot Discord 权限矩阵。
-- 加权 Results 计算、Public DTO 防泄漏和幂等 Message ID。
-- Mentor / Member 控制面板固定 persistent custom_id。
-- Database metadata、constraints 和 guild seed 幂等。
-- 品牌锁与正式 Logo。
-- `docs/config-reference/` 与 `config/` byte equality。
-- Signal / Analysis source queue 严格隔离。
-- Analysis text / image / multi-image Structured Output 与安全错误码。
-- Discord Forward snapshot 正文/附件合并、附件 ID 去重与 forwarded-only 输入。
-- Discord `.webp` 文件名 / PNG MIME 转换兼容、真实签名归一化与伪装拒绝。
-- 被拒绝 Source 的保留审计重试，不删除原始拒绝记录。
-- Strict Schema 清洗保留名为 `title` 的业务字段，Required 与 Properties 完全一致。
-- MARKET / TICKER / SECTOR / MACRO、missing data 与禁止臆造价格。
-- Analysis Raw / Normalized / Public Snapshot 与 LLM revision trace。
-- Archive-only、Archive + Publish、failure / retry / finalize 幂等。
-- 同 Mentor / symbol 的新 Source 创建独立 Analysis，旧归档不变。
-- Analysis Public DTO 不包含 Mentor、Source、AI、LLM 或 confidence。
-- 输入图路径与文字有序点位转换成“预测路径（文字）”，LLM 不补数字。
-- Analysis 只发布确定性单一路径 PNG；Source 图片不转发，renderer 失败不阻塞归档且可重试。
-- Stock Analyst 失败时保留 LLM input 卡片并加入安全 warning。
-- Signal `S-00001` / Analysis `A-00001` 分别递增且不在页脚暴露 UUID。
-- Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot 分层归档；Key Level 与 Indicator
-  使用 MENTOR_INPUT / STOCK_ANALYST provenance。
-- Mentor 点位和指标优先、AXIS 只补缺；冲突、Top Scenario 50% / 10% 门槛、Public 来源隐藏、
-  图片引用清理和 Card/Chart 同源路径均有回归测试。
-- AXIS Stock Analyst 结构位、情景权重、provider injection 与新股有限历史模式。
-- AXIS GEX Explorer Gamma/IV fallback、Walls、Zero Gamma 与 regime。
-- 数据库备份命令不在 argv 暴露密码，Docker context 排除 `.env`。
-- Moomoo option chain 精确合约解析，不手工构造期权代码。
-- 交易日/周末判定、三类每日总结、Active/Closed 加权收益与数据库幂等。
-- 每日总结 Public DTO 不包含 Mentor、Source、Market、Bid 或 Ask。
+Core / Discord:
 
-Live validation：
+- Blueprint 精确结构、权限矩阵、unknown-resource safety、受控 rename 和 Bootstrap 幂等。
+- Persistent View、Manager 控制面板、Message ID marker 和 Bot restart recovery。
+- Public / Member / Manager / Owner / Bot persona。
+- GENERAL Guide、Owner test commands 和 Public Identity Policy。
 
-- PostgreSQL revision `20260830_0018`。
-- 0015 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T071335Z.dump`
-  已通过 `pg_restore --list`，SHA-256
-  `c1dc2521caba1e3c44adfaf05fa4f7f09ac6ea91019cc0cac7db0841186b0e8b`。
-- 0014 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T062414Z.dump`
-  已通过 `pg_restore --list`，SHA-256
-  `c76aae4d8606a8b33b795611d1f9c04165b7e1cff9f3e6edc83fb644b6674e03`。
-- 0012 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T055203Z.dump`
-  已通过 `pg_restore --list`，SHA-256 `0083ce7aaffa4dd33155f1d413b999071bd7547922c306704ecb12eff69d99c1`。
-- 0011 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T054225Z.dump`
-  已通过 `pg_restore --list`，SHA-256 `e320f1a8a6cdde3e116765b01fb7184545c30ce5fc671540766ea644f6892aaf`。
-- 迁移后 Signal Draft=2、Analysis Draft=2；编号为 `S-00001..2` / `A-00001..2`，两个
-  counter 的 next value 均为 3。
-- Discord Owner-only Bootstrap 创建 `🚨・system-alerts` 并收紧现有
-  `🧪・card-testing`；首次正式应用没有删除、改名或移动其他资源。
-- 最终 Discord dry-run：`REUSE=28 / CREATE=0 / UPDATE=0 / BLOCK=0`。
-- LaunchAgent `com.axis.bot` 已重新部署。
-- Bot `manage_roles / send_messages / read_message_history` 权限均为 true。
-- Mentor Panel ID `1543434235761791018`，重启前后不变，频道 marker count=1。
-- Member Panel ID `1543434237733241001`，重启前后不变，频道 marker count=1。
-- Owner 已独立授权 `analysis-input` → OpenAI；0007 代码已在
-  `FEATURE_ANALYSIS_ENABLED=true` 状态部署，LaunchAgent 稳定。
-- `🧪・card-testing` ID `1543495201425723442`、`🚨・system-alerts` ID
-  `1543506758692114463`；Manager 明确不可见，Owner 与 AXIS BOT 可见。
-- Welcome、Subscriptions、Results 与 Member Wins Guide 各只有一条；Lobby 已删除精确追踪的
-  Bot Guide 并只保留英文 Topic。数据库 Message ID、Member Wins Pin 与权限均已验证。
-- 9 个 Owner-only test command 已同步到目标 Guild；Preview 不写正式数据库。
-- `scripts/verify_discord_runtime.py` live acceptance：`discord_runtime=PASS`；Public / Member /
-  Manager / Owner / Bot 权限、GENERAL 幂等消息与 Owner test commands 全部通过。
-- 第一条真实 Manager Analysis 已保留原 Source 和 Draft ID 完成重试：Source=`PARSED`、
-  Draft=`PENDING_REVIEW`、revision=2、最新 `ANALYSIS_REWRITE` invocation 成功；Discord 原审核
-  Message ID `1543473587753844822` 原地刷新到 r2，没有重复卡片。
-- PostgreSQL Invocation → Draft 显式 Flush 顺序已 live 验证，外键 `23503` 不再复现。
-- 修复后的 Analysis Strict Schema 已由 OpenAI 真实最小请求验证通过，模型仍为
-  `gpt-5.6-terra`。
-- 旧 Cosmos bridge 验证仅作为迁移前记录；0010 后不再调用该 runtime。
-- AXIS Stock Analyst 真实 Moomoo 只读验证：NVDA 标准历史模式通过；SPCX 54 个交易日进入
-  LIMITED HISTORY。Analysis Pipeline 使用独立确定性 renderer，不调用图片生成模型。
-- `✅・signal-review` 沿用频道 ID `1543397043043700767`；两条现有消息已原地刷新为
-  `S-00001` / `S-00002`，各有一个 Category 下拉、3–4 个紧凑字段、附件数均为 0，
-  旧草稿已获得可人工修正的默认分类。
-- 两条现有 Analysis Review 与两条已发布会员 Analysis 均已原地重渲染；目标第三人称
-  词组计数为 0。
-- Moomoo SDK / OpenD 均为 `10.10.7008`，`127.0.0.1:11111` quote login 可用。
-- SPY 公开测试期权的 option chain 解析与只读盘后 snapshot 均 PASS；未写数据库、未下单。
-- 周六 live acceptance 返回 `trading_session=false`，三类频道未误发。
-- 最新范围已将 `FEATURE_MOOMOO_ENABLED=false`；以上行情验证属于保留实现的历史验收，当前
-  Bot 不启动每日总结任务。
-- LaunchAgent `com.axis.moomoo-opend` 已安装，将在下次 macOS 登录加载；当前 OpenD 进程
-  已运行并监听本机端口。
+Signal / Trade:
 
-已知唯一 warning：discord.py 间接依赖 `audioop`，与 AXIS 业务测试无关。
+- Text、image、multi-image、Discord forward、真实文件签名和拒绝输入审计。
+- Structured Output、router、invocation trace、missing fields 和 failure draft。
+- S-00001 / A-00001 counter、Category/Mentor/Trade select、modal edit 和并发版本。
+- Publication claim / retry / finalize、单 Draft 单 Event 和 Public DTO 防泄漏。
+- Entry / Add / TP / SL / Runner / Close、Active View 和 weighted Results。
+
+Short-Term:
+
+- 简化 Review、无 Mentor/position、ST 编号和 Massive provider abstraction。
+- 固定 TP、Runner milestones、watermark、Reference Protection、Fast Momentum Reversal、
+  Overnight、Tracking Stop 和 policy version。
+- Active/Closed summary、daily results、holiday/idempotency 和 restart recovery。
+
+Membership / Stripe:
+
+- Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role reconciliation。
+- XNYS 交易日、风险确认、终身一次 Trial 和 scheduled expiry。
+- Checkout / Portal、webhook signature、dedup、Price snapshot / Grandfathering。
+- renewal、failure、cancel-at-period-end、PAST_DUE 与 provider event ordering。
+
+Analysis:
+
+- Signal / Analysis queue 隔离、四类 Analysis、text/image/multi-image 和 strict schema。
+- Mentor select、edit、rewrite、archive-only、archive+publish、delete 和 publication retry。
+- Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot traceability。
+- Mentor-first / fill-missing、provenance、conflict、scenario gate 和 safe fallback。
+- 确定性 Prediction Chart、无未来 K 线、source image 不转发和 renderer failure isolation。
+- GEX 纯计算 Gamma/IV fallback、Walls、Zero Gamma 与 regime。
+
+Operations / Security:
+
+- Backup 命令不在 argv 泄露密码、Docker context 排除 .env。
+- System Alert dedup、occurrence count、RECOVERY 和再次告警。
+- Config-reference 与 config 一致、Secret-safe error/log boundaries。
+
+## Live verifier evidence
+
+Database:
+
+- revision=20260830_0018
+- source_messages=15
+- trade_drafts=6
+- trades=1
+- trade_events=1
+- trade_publications=1
+- analysis_drafts=8
+- mentor_analyses=4
+- analysis_publications=4
+- membership_entitlements=3
+- payment_events=3
+- system_alerts=2
+
+Feature flags:
+
+- FEATURE_ANALYSIS_ENABLED=true
+- FEATURE_AXIS_STOCK_ANALYST_ENABLED=true
+- FEATURE_DAILY_SUMMARY_ENABLED=true
+- FEATURE_SHORT_TERM_TRACKING_ENABLED=true
+- FEATURE_LAB_ENABLED=false
+- FEATURE_MODEL_AB_ENABLED=false
+- FEATURE_MOOMOO_ENABLED=false
+
+Discord:
+
+- discord_runtime=PASS
+- personas=public, member, manager, owner, bot
+- GENERAL guides=idempotent
+- owner test commands=14
+
+Analysis Fusion:
+
+- draft_layers=8/8
+- archive_layers=4/4
+- 当前历史归档 indicators/scenarios/path_points 均为 0；结构与回归测试 PASS，但仍需新的真实
+  Mentor Fusion / Chart UX 验收。
+
+Stripe Test:
+
+- setup=PASS
+- Product=AXIS Membership
+- Day Pass=USD 9.99 one-time
+- Monthly=USD 99.99 monthly auto-renew
+- local webhook=LISTENING
+- external E2E=PASS
+- Day Pass entitlement=ACTIVE
+- Monthly entitlement=ACTIVE，auto-renew=ENABLED，invoice.paid=PROCESSED
+- Discord Member Role=PRESENT
+
+## Explicit failed / pending Live gate
+
+Short-Term verifier evidence:
+
+- short_term_tracking=0
+- short_term_tracking_events=0
+- short_term_daily_snapshots=0
+- daily_results_publications=0
+- market_quote_snapshots=0
+
+数据库另有 ST-0001 Published Active Entry 和有效 Entry Price，因此上述 0 不能用“没有订单”
+解释。真实 Massive quote、tracking 注册、trigger、Discord event、summary 和 restart recovery
+必须完成后，Short-Term Live E2E 才能标记 PASS。
+
+## Warnings
+
+- discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 151 项测试结果。

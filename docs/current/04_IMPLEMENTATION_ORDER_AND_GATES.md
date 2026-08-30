@@ -1,5 +1,12 @@
 # AXIS — Codex Implementation Order & Release Gates
 
+## Current execution state — 2026-08-30
+
+Core Stage 1–4 implementation is complete, automated Gate A and Gate B are PASS, and the project is
+now in Stage 5 production live validation. The current blocking priority is the real Short-Term /
+Massive end-to-end path. Stripe remains in Test Mode until every Live checklist item is complete.
+AXIS LAB remains deferred and is not part of Stage 5.
+
 ## 0. 先读文档
 
 按顺序：
@@ -218,6 +225,9 @@ docker / deploy docs
 final acceptance test
 Moomoo OpenD read-only Core quote health
 16:15 ET category summaries + holiday/idempotency safety
+Massive real Short-Term quote / trigger / restart-recovery E2E
+Stripe Live webhook / renewal / failure / cancellation E2E
+off-host backup and non-production restore rehearsal
 ```
 
 完成后停止。

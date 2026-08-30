@@ -1,4 +1,7 @@
-# AXIS Market Intelligence
+# Archived Supplement — AXIS Market Intelligence
+
+> 2026-08-30：有效边界已并入
+> `docs/current/02_AXIS_ANALYSIS_PIPELINE_SPEC.md`。本文件保留为历史补充说明。
 
 这是 AXIS 自己拥有的市场分析层，不依赖其他本地仓库运行。
 

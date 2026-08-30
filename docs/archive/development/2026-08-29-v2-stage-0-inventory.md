@@ -1,4 +1,6 @@
-# AXIS v2.1 — Stage 0 Inventory / Diff / Implementation Plan
+# Archived — AXIS v2.1 Stage 0 Inventory / Diff / Implementation Plan
+
+> 这是 2026-08-29 的时间点盘点。当前状态以 `docs/development/CURRENT_STATUS.md` 为准。
 
 **日期：** 2026-08-29  
 **目标 Guild：** `AXIS (1543309921066684567)`  

@@ -1,9 +1,10 @@
-# AXIS General / Membership / Stripe Lock
+# Archived Supplement — AXIS General / Membership / Stripe Lock
+
+> 2026-08-30：有效要求已并入 `docs/current/01_AXIS_CORE_MVP_SPEC.md`。本文件保留为历史补充。
 
 **版本：** 2026-08-30
 
-**状态：** 当前 Source of Truth；与旧 Membership、Stripe、General UI 或公开身份要求冲突时，
-以本文件为准。
+**归档状态：** 已被当前 Core Spec 取代；不得再作为 Source of Truth。
 
 ## 范围边界
 

@@ -808,3 +808,56 @@ Core + Signal 必须全部通过后才能开始 Analysis Pipeline：
 ```
 
 通过后才进入 `02_AXIS_ANALYSIS_PIPELINE_SPEC.md`。
+
+---
+
+# 21. Short-Term Automated Tracking Lock
+
+Short-Term 是 Signal Core 的独立交易路径：
+
+- `SHORT_TERM` 可以由结构化 Signal 自动建议，Manager 仍可在 Review 修正 Category。
+- Review 使用精简表单，只保留 Ticker、Expiry、Strike、Call/Put 与 Entry Price。
+- Short-Term 不选择 Mentor、不关联 Mentor Trade、不使用八分之一仓位字段。
+- 发布编号使用 `ST-XXXX`，并创建独立 `short_term_tracking` 生命周期。
+- 行情 Provider 当前为 Massive，Provider 边界不得写进 Review、Trade 或 Public DTO。
+- 每笔 Tracking 固定保存 `price_source` 与 `tracking_policy_version`，同一订单不得混用来源。
+- High / Low Watermark、固定 TP、RUNNER Milestone、Fast Momentum Reversal、Reference
+  Protection、Overnight 与 Tracking Stop 必须幂等落库。
+- `查看当前订单`、收盘后 Active / Closed Summary 与 Daily Results 只使用 Public DTO。
+
+代码完成不等于 Live Complete；真实期权报价、自动注册、触发卡片和重启恢复必须通过
+`docs/development/LIVE_MODE_CHECKLIST.md` 才能解除 Live Gate。
+
+---
+
+# 22. General / Membership / Stripe Lock
+
+## Public Identity
+
+- 对外品牌只有 `AXIS`，Bot 为 `AXIS BOT`，匿名运营人格默认 `VALE`。
+- Public Card、DTO、GENERAL 和 Stripe customer-facing copy 统一通过
+  `PublicIdentityPolicy`；不得公开 Owner ID、私人联系方式、内部备注或来源。
+- Stripe 法定/KYC 要求不得绕过或伪造。
+
+## Membership Products
+
+- 只有一个 `Member` Role，所有有效 Entitlement 获得相同频道权限。
+- Free Trial：3 个 XNYS Trading Days、每个 Discord User 终身一次、需版本化风险确认。
+- Day Pass：一次性付款、1 个 XNYS Trading Day。
+- Monthly：Stripe 月度自动续费，不换算为交易日或固定日历天数。
+- Gift、Manual、Manual Extension 与 Stripe Entitlement 可以并存；任一有效即保留 Role。
+- Manager Extend 必须创建独立 `MANUAL_EXTENSION`，不得改写原 Entitlement。
+
+## Stripe and Pricing
+
+- `membership_prices` 是展示与收费的唯一价格目录。
+- Checkout、Portal 与 Webhook 以 Discord User ID metadata 绑定身份。
+- Webhook signature 和 Provider Event ID 幂等是付款 Source of Truth。
+- 每次购买保存 pricing version、Stripe Price ID 与 signup amount；新价格不得自动迁移既有
+  Monthly Subscription，以保证 Grandfathering。
+- Live Mode 前必须完成 Test E2E、公开 HTTPS Webhook、续费/失败/取消 E2E 和人工隐私检查。
+
+## Owner-only Operations
+
+`system-alerts` 与 `card-testing` 只允许 Owner + AXIS BOT。Preview 不能创建正式 Trade、
+Analysis、Results 或 Active Order 数据。

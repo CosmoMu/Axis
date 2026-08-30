@@ -1,4 +1,6 @@
-# Stripe Public Privacy Checklist
+# Archived — Stripe Public Privacy Checklist
+
+> 未完成项目已合并到 `docs/development/LIVE_MODE_CHECKLIST.md`；本文件保留原始检查历史。
 
 Complete manually in Stripe Test Mode before any Live Mode activation. Record screenshots or
 review notes in a private operations system; do not commit customer or owner personal data.

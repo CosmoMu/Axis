@@ -75,5 +75,5 @@ cards.
 
 Complete both checklists before Live Mode:
 
-- `docs/development/STRIPE_PUBLIC_PRIVACY_CHECKLIST.md`
+- `docs/development/LIVE_MODE_CHECKLIST.md`
 - `docs/development/LIVE_MODE_CHECKLIST.md`

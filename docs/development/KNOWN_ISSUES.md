@@ -1,37 +1,64 @@
 # AXIS Known Issues
 
-## Blocking for Gate A
+**Updated:** 2026-08-30
 
-- 无。Core Gate A 已通过。
+这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
-## Live Analysis
+## P0 — Short-Term tracking 尚未完成 Live E2E
 
-- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。当前链路只发布文字卡；
-  Source 图片仍可发送给 OpenAI 作为 input 证据，但不会转发到审核或会员频道。
-- 已归档/发布的历史 Analysis snapshot 保持不可变；旧 Draft 的 `SOURCE` / `COSMOS` 图片枚举
-  继续只读兼容。Massive API 图片 provider/renderer 尚未接入。
-- AXIS GEX Explorer 当前只有引擎和单元测试，尚未连接 Moomoo option chain、数据库、频道或
-  定时任务；这是有意的默认关闭状态。
+数据库已有 ST-0001、状态 ACTIVE / ENTRY、有效 entry_price，并且 Publication=PUBLISHED；
+但 short_term_tracking、short_term_events 和 short_term_daily_snapshots 均为空。
 
-## Migration Compatibility
+影响：
 
-- 本地部署仍允许 `LLM_API_KEY` / `LLM_MODEL` fallback。完成环境迁移后应移除。
-- 根目录 `README_FOR_CODEX.md` 和 `assets/axis-brand-lockup.png` 是有意保留的兼容项。
-- 迁移前创建的那条 Draft 没有 `llm_invocation_id`；不会伪造历史 latency。
+- 不能证明已发布 Short-Term 订单会自动注册跟踪。
+- 不能证明 Massive 真实报价会驱动 milestone、reversal、protection 或 stop。
+- 不能证明 Discord 自动事件、每日 Active/Closed 总结和重启恢复在真实订单上工作。
 
-## Non-blocking
+下一步先诊断 register_missing 的运行路径和日志，再做一笔可控的真实端到端验收。本次文档同步
+不修改该产品逻辑。
 
-- Python 3.12 下 discord.py 依赖会产生 `audioop` Python 3.13 removal warning。
-- 当前生产形态仍是 macOS 本地 LaunchAgent；Dockerfile / Compose 是部署基础，不含集中
-  监控、托管 Secret 或 off-host backup。
-- Analysis 已启用；AXIS LAB 频道只预留且业务未开始。
-- Active View 当前单次最多展示 25 个进行中订单，符合 Discord Embed field 上限。
-- Mentor / Trade 动态 Select 当前单次最多展示 25 项；超出后需要后续分页。
-- OpenD 当前已运行，`com.axis.moomoo-opend` 会在下次登录加载。macOS quarantine 安全标记
-  未被 AXIS 移除；若系统下次启动显示官方 OpenD 确认提示，需要由 Owner 确认一次。
-- 每日总结在当天 `16:15 ET` 后持续重试到午夜；若整段时间 Bot/OpenD 均离线，当前版本
-  不会用非当日快照补造历史总结。
-- Stripe Test Product/Prices、Secret、动态 Checkout 和本地五事件 CLI webhook 已启用。
-  Day Pass 与 Monthly signup E2E 已通过，Test Product 使用 `axis-brand-lockup.png`。公开 TLS
-  webhook、续费/失败/取消完整 E2E、法律商家资料和人工 Stripe 页面隐私检查仍未完成；
-  Live Mode 必须保持关闭。
+## P1 — Stripe 仍是 Test Mode
+
+Day Pass 与 Monthly Test payment 已成功，但以下 Live 条件未完成：
+
+- 公开 TLS webhook 与 Live signing secret。
+- Live Product / Price / Key 和真实付款。
+- renewal、payment failure、payment-method update、cancel、duplicate delivery。
+- Price Grandfathering 的真实价格变更演练。
+- Stripe 商家法律资料、退款/取消文案和人工隐私检查。
+
+在 Live Checklist 全部签字前不得切换为 Live billing。
+
+## P1 — Production backup / restore 不完整
+
+本地已有经过 pg_restore --list 验证的 custom-format backup，但没有 off-host 备份证明，
+也没有在非生产环境完成一次完整 restore、数据核对和 rollback rehearsal。
+
+## P1 — Production monitoring 尚未完成故障演练
+
+System Alerts、结构化日志和 verifier 已实现；尚未对 Database、OpenAI、Discord、Jobs、
+Membership expiry、Massive 和 Stripe 逐项做真实故障/恢复演练，也没有集中式外部健康监控。
+
+## P2 — Analysis / Prediction Chart 仍需真实 UX 复核
+
+Analysis Fusion 已有真实 Published 数据，确定性 chart renderer 也已实现，但尚未完成一套记录化
+的 Mentor-first 点位、warnings、公开卡片和移动端图片体验验收。此项不阻止文字 Analysis 使用，
+但阻止把视觉体验标记为最终完成。
+
+## P2 — Select 菜单容量
+
+Mentor、Trade 和 Active View 受 Discord 单个 Select / Embed 25 项限制。当前规模可用；
+超过 25 项时需要分页或搜索，不应通过丢弃数据规避。
+
+## Non-blocking dependency warning
+
+Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warning。当前不影响
+业务测试；升级 Python / discord.py 时需要重新验证音频兼容。
+
+## Deliberately deferred, not bugs
+
+- AXIS LAB、Model A / B、Generate / Shadow / Champion / Challenger。
+- GEX Discord 频道、自动发布和交易接口。
+- Moomoo 账户、持仓、订单、交易和任何自动下单。
+- 图片生成模型；当前 Prediction Chart 使用确定性 renderer。

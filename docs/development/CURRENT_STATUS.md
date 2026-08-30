@@ -1,125 +1,266 @@
 # AXIS Current Development Status
 
-**更新：** 2026-08-30
+**Updated:** 2026-08-30
 
-**Database:** `20260830_0018`
+**Current stage:** Core feature-complete / Production live validation
 
-**Discord Bootstrap:** `REUSE=28 / CREATE=0 / UPDATE=0 / BLOCK=0`
+**Database revision:** 20260830_0018
 
 **AXIS LAB:** DEFERRED
 
-**Core Gate A:** PASS
+状态定义：
 
-## Stage 1 — Infrastructure: COMPLETE FOR CURRENT LOCAL DEPLOYMENT
+- COMPLETE — 规格范围内的实现和自动化测试完成；Production status 仍会单独说明外部验收。
+- PARTIAL — 已有可用实现，但仍缺真实端到端、运营准备或重要稳定性验收。
+- NOT STARTED — 尚未实现。
+- DEFERRED — 明确不在当前开发范围。
 
-Implemented:
+## Executive summary
 
-- Python 3.12 / discord.py / SQLAlchemy / Alembic / PostgreSQL。
-- Secret-only configuration、safe LaunchAgent deployment。
-- Discord inventory、dry-run、三重 Apply Gate、saved-ID reconciliation。
-- 21 个 v2 Channel、Manager / Member Role 与权限。
-- `🚨・system-alerts` 与 `🧪・card-testing` 使用 Owner user-specific overwrite；Manager 不可见。
-- Workload Model Router 和 LLM invocation trace schema。
-- Persistent Signal Review Views。
+Core Gate A 和 Analysis Gate B 已通过。Discord Core、Signal、Analysis、会员、结果与管理工具
+均已实现；Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。当前最高优先级是
+Short-Term / Massive 真实端到端：数据库已有已发布 ST-0001 和有效 Entry Price，但
+short_term_tracking 仍无注册记录，所以不能宣称自动跟踪已经投入生产。
 
-Deferred operations: 托管生产目标、off-host backup 与 restore rehearsal。
+## Discord Core — COMPLETE
 
-Tests: Router、Bootstrap、DB metadata 和安全约束已覆盖。
+Implemented: Guild 锁定、幂等 Bootstrap、Role / Category / Channel / Permission reconciliation、
+持久化 View、控制面板 Message ID 恢复、Owner-only 测试与告警频道。
 
-## Stage 2 — Signal Pipeline: COMPLETE
+Remaining: 生产故障演练与长期运行观测。
 
-Implemented:
+Tests: Blueprint、权限矩阵、unknown-resource safety、重启恢复和只读 runtime verifier。
 
-- Text / PNG / JPEG / WEBP / multi-image intake。
-- 安全附件落盘、checksum 与幂等 Source Message。
-- OpenAI Responses API、Structured Output、`SIGNAL_PARSE` routing。
-- Draft、默认仓位阶梯、missing fields、failure Draft。
-- Signal Review、AI Category 默认值/Manager 下拉修正、Mentor/Trade 选择、编辑、
-  Public Preview、并发版本与审计。
-- LLM provider/model/workload/Prompt/Schema/latency/result trace。
-- 确认后创建或更新 Trade，并写入不可重复的 Trade Event。
-- 数据库预约、Discord marker 恢复和事务 finalize 组成的幂等会员卡片发布。
-- Public DTO 白名单边界与固定 `axis:active:*:v1` persistent button。
-- `查看当前订单` ephemeral Active View；关闭、清仓和 Cancel 订单自动排除。
+Production status: Bot 正在目标 Guild 运行；最近盘点未发现结构漂移。
 
-Needs migration: none after `20260830_0018`。
+## Signal Pipeline — COMPLETE
 
-## Stage 3 — Mentor / Member / Results: COMPLETE
+Implemented: signal-input 文字、图片、多图和转发输入；Structured Output；S-00001 编号；
+Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication。
 
-Implemented:
+Remaining: 持续真实使用观察，不需要架构重做。
 
-- Mentor create / rename / aliases / deactivate / reactivate / Trade reassign。
-- Mentor 与 Member 长期控制面板，Message ID 入库并重启复用。
-- Member lookup / gift / extend / cancel-at-expiry / immediate remove。
-- 7 / 30 / 90 / Lifetime / Custom duration。
-- Owner 手工 Member Role add/remove 与数据库双向同步。
-- Scheduled Job 到期、Role reconciliation 和完整 Membership Event/Audit。
-- 基于全部 position event 的 weighted Results 与幂等官方发布。
+Tests: 解析、附件安全、幂等、并发、审核、发布重试、Public leakage 与 persistent Active View。
 
-## Stage 4 — Analysis Pipeline: COMPLETE / LIVE ENABLED
+Production status: 已投入使用，数据库有 Published Signal。
 
-Implemented:
+## Swing Pipeline — COMPLETE
 
-- `analysis-input` 与 Signal 完全隔离的 Source queue。
-- `ANALYSIS_PARSE` / `ANALYSIS_REWRITE`，支持 text / image / multi-image。
-- MARKET / TICKER / SECTOR / MACRO、stance、horizon 与 no-invention prompt。
-- Analysis 使用中性 AXIS 编辑口吻，公开层清理第一人称、作者归因与图片引用。
-- 独立 Draft / Revision / Mentor Analysis / children / Publication 表。
-- Mentor selection、edit、rewrite、archive-only、archive + publish、delete。
-- Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。
-- Member Lounge 无 Thread 的 Public Card 白名单。
-- Discord send failure 保留归档并支持 persistent retry。
-- 单 ticker 使用 Mentor-first / AXIS-fill-missing 字段级融合；点位与指标保存来源和冲突。
-  后台保留 2–3 个 Scenario，公开只显示通过 50% / 10% 优势门槛的 Top Scenario。
-- 单一路径使用确定性 renderer 生成 PNG；不画未来 K 线，失败不阻塞归档并可重试。
-- Manager-facing 草稿编号改为 Signal `S-00001` / Analysis `A-00001` 独立顺序号。
-- Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot 与字段级 provenance 单独归档，
-  供未来 Model A 训练。
-- AXIS GEX Explorer 纯计算引擎已内置，默认不建频道、不自动发布。
-- Automated Gate B：PASS。
+Implemented: 独立 SW 编号、订单事件、Active View、加仓阶梯、TP / SL / Runner / Close 和公开卡片。
 
-Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到 OpenAI；
-`FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_AXIS_STOCK_ANALYST_ENABLED=true`。Source 原图仅作为
-内部解析证据；审核和发布只发文字卡。Analysis 既有频道和处理逻辑在本轮保持不变。
+Remaining: 用更多真实订单观察运营体验。
 
-## Stage 5 — GENERAL / Membership / Monitoring: TEST ACTIVE, STRIPE LIVE GATED
+Tests: 状态流转、仓位、发布幂等、关闭订单排除和 Results。
 
-Implemented:
+Production status: 可用；当前盘点没有新的 Swing live tracking 结论。
 
-- 极简 Welcome、三方案 Membership、Results 与 Member Wins；Lobby 只保留英文 Topic。
-- Free Trial、Day Pass、Monthly、Gift、Manual 与 Manual Extension 独立 Entitlement。
-- XNYS 正式交易日历、风险声明版本、Trial 终身一次和多 Entitlement Role Sync。
-- Stripe 动态 Checkout、签名 Webhook、动态 Portal、event dedup 与价格快照/Grandfathering。
-- 9 个 Owner-only Preview Command；新增 General 与 Payment UI Preview。
-- Database / OpenAI / Jobs / Membership Expiry / Signal / Analysis / Discord / Moomoo 监控。
-- System Alert 持久化去重，只发送首个 ERROR/WARNING 与一次 RECOVERY。
+## LEAPS Pipeline — COMPLETE
 
-Activation boundary:
+Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界。
 
-- Stripe Test Product、Day Pass/Monthly Price、Test Secret、Price IDs 与本地五事件 CLI webhook
-  已配置；Test Checkout 已启用，Live Mode 仍关闭。
-- Day Pass 与 Monthly Test 付款、乱序 invoice replay、Entitlement 和 Member Role E2E 已通过；
-  `axis-brand-lockup.png` 已上传到 Test Product。
-- 公开 TLS webhook、续费/失败/取消完整 E2E、商家法律资料和人工隐私检查尚未完成，不得进入
-  Live Mode。
-- 完成 `LIVE_MODE_CHECKLIST.md` 和 `STRIPE_PUBLIC_PRIVACY_CHECKLIST.md` 后才可启用。
+Remaining: 用真实 LEAPS 订单验证长期运营流程。
 
-## Stage 6 — Stabilization: PARTIAL
+Tests: 与 Signal / Trade 公共状态机和 Public DTO 测试共同覆盖。
 
-Implemented: LaunchAgent、错误信息脱敏、基础重试、测试、Secret scan、只读 DB health check、
-verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署、Moomoo
-OpenD 只读期权快照，以及三个会员频道 `16:15 ET` 的 Active / 当日 Closed 幂等总结。
+Production status: 可用；没有宣称已完成新的真实 LEAPS 运营验收。
 
-本轮最新范围要求 `FEATURE_MOOMOO_ENABLED=false`；旧每日总结代码保留但不启动，不属于
-AXIS LAB 开发。
+## Short-Term Pipeline — PARTIAL
 
-Missing: off-host backup target、非生产环境完整 restore / rollback rehearsal。
+Implemented: ST-XXXX 编号、自动结构建议、Manager Category 修正、简化审核、固定 TP 20% / 50%、
+Runner 100%–1000%、watermark、Reference Protection、Fast Momentum Reversal、Overnight、
+Tracking Stop、Active View、Daily Summary 与 Daily Results。
+
+Remaining: 修复或确认已发布订单自动注册 tracking 的运行路径；完成真实 Massive quote、
+milestone、reversal/protection、Discord 事件、重启恢复和定时总结 E2E。
+
+Tests: 策略、里程碑、watermark、保护、重启恢复和摘要均有自动化覆盖。
+
+Production status: BLOCKED FOR LIVE CLAIM。ST-0001 已 Published 且 Entry Price 有效，
+但 short_term_tracking=0、short_term_events=0。
+
+## Mentor Management — COMPLETE
+
+Implemented: create、rename、alias、activate/deactivate、Trade reassign 与持久化控制面板。
+
+Remaining: 仅长期运营观察。
+
+Tests: Registry、审计、面板恢复与重分配。
+
+Production status: 已部署。
+
+## Member Management — COMPLETE
+
+Implemented: lookup、gift、extend、cancel-at-expiry、revoke、Role reconciliation 和审计。
+
+Remaining: Live Stripe 场景下继续观察多 Entitlement 合并。
+
+Tests: Role sync、到期任务、撤权与多 Entitlement 决策。
+
+Production status: 已部署。
+
+## Free Trial — COMPLETE
+
+Implemented: 终身一次、版本化风险确认、XNYS 三个交易日和 Member Role 同步。
+
+Remaining: Test Guild 的真实到期时钟演练。
+
+Tests: 周末、休市日、重复申请、到期和多 Entitlement。
+
+Production status: 代码已部署；数据库存在 ACTIVE FREE_TRIAL entitlement。
+
+## Day Pass — PARTIAL
+
+Implemented: XNYS 一个交易日、动态 Checkout、payment event dedup 和 Role 同步。
+
+Remaining: Stripe Live Product / Price / webhook 与真实付款验收。
+
+Tests: 自动化及 Stripe Test Mode checkout.session.completed E2E。
+
+Production status: Test Mode 已通过；Live 未启用。
+
+## Monthly — PARTIAL
+
+Implemented: 自动续费订阅、invoice lifecycle、cancel-at-period-end、PAST_DUE 和 Portal。
+
+Remaining: Live renewal、payment failure、payment-method update、cancel 和重复 webhook 验收。
+
+Tests: 自动化及 Test Mode signup / invoice replay。
+
+Production status: Test Mode 已通过；Live 未启用。
+
+## Stripe Integration — PARTIAL
+
+Implemented: 动态 Checkout / Portal、签名 Webhook、最小 payment event 存储、幂等、价格快照。
+
+Remaining: 公开 TLS webhook、Live keys / products / prices、Live events、法律商家资料和隐私检查。
+
+Tests: 单元/集成测试和 Test Mode 外部 verifier。
+
+Production status: STRIPE_ENABLED=true 指向 Test Mode；不得解释为 Live billing。
+
+## Price Grandfathering — PARTIAL
+
+Implemented: entitlement 保存不可变 Price snapshot，既有订阅不因 catalog 更新被覆盖。
+
+Remaining: 在 Stripe Test/Live 创建新 Price 后完成真实 grandfathering 演练。
+
+Tests: 自动化覆盖。
+
+Production status: 机制已部署，外部价格变更验收待办。
+
+## Manager Extend Access — PARTIAL
+
+Implemented: MANUAL_EXTENSION 独立 entitlement，不覆盖付款来源。
+
+Remaining: 真实 Manager 流程和到期组合验收。
+
+Tests: 自动化覆盖 extend / expiry / Role merge。
+
+Production status: 已部署，运营验收仍需记录。
+
+## GENERAL UI — COMPLETE
+
+Implemented: Welcome、Membership、Results、Member Wins、Lobby Topic 与数据库 Message ID 幂等同步。
+
+Remaining: 仅文案和移动端体验的持续观察。
+
+Tests: Public identity、Guide 数量、权限和 runtime verifier。
+
+Production status: 已部署。
+
+## Analysis Pipeline — COMPLETE
+
+Implemented: analysis-input、A-00001 编号、Mentor 下拉、编辑、重写、归档、发布、删除、
+Raw / Normalized / Public Snapshot 与模型 Trace。
+
+Remaining: 用真实 Mentor 内容继续做质量与移动端 UX 复核。
+
+Tests: 文字/图片/多图、四类 Analysis、无臆造、失败重试、独立观点和 Public leakage。
+
+Production status: FEATURE_ANALYSIS_ENABLED=true；已有 4 个 Published Analysis。
+
+## Analysis Fusion — COMPLETE
+
+Implemented: Mentor-first / AXIS-fill-missing、字段 provenance、冲突记录、2–3 scenarios、
+Top Scenario confidence gate 与归档层次。
+
+Remaining: 真实 Mentor 卡片逐项复核点位、warnings 和公开文案。
+
+Tests: 来源优先级、冲突、阈值、fallback 和 card/chart 同源。
+
+Production status: FEATURE_AXIS_STOCK_ANALYST_ENABLED=true；真实输出已有发布记录。
+
+## Prediction Chart — PARTIAL
+
+Implemented: 确定性 renderer、单一路径、无未来 K 线、失败不阻塞文字归档。
+
+Remaining: 真实 Mentor 输入和移动端 Discord 的视觉验收；当前策略不新增 AI 生图。
+
+Tests: renderer、fallback、路径同源和 source image 不转发。
+
+Production status: 可生成并发布，但尚未形成完整 UX 验收记录。
+
+## Results — COMPLETE
+
+Implemented: position-event 加权收益、关闭订单幂等官方发布与 Public DTO。
+
+Remaining: 用更多真实已关闭订单观察统计。
+
+Tests: 加权计算、防泄漏、幂等 Message ID。
+
+Production status: 已部署。
+
+## Card Testing — COMPLETE
+
+Implemented: Owner-only test commands 使用内存 DTO，不写正式订单或 Results。
+
+Remaining: 新卡片类型出现时补 preview。
+
+Tests: 权限、命令同步和无数据库副作用。
+
+Production status: Owner-only 频道已部署。
+
+## System Alerts — PARTIAL
+
+Implemented: ERROR / WARNING / RECOVERY、fingerprint 去重、occurrence count 和持久化状态。
+
+Remaining: 数据库、OpenAI、Discord、Jobs、Membership 与行情依赖的真实故障/恢复演练。
+
+Tests: dedup、恢复、再次告警。
+
+Production status: 数据库有 active/resolved 告警记录；完整演练尚未完成。
+
+## Backup — PARTIAL
+
+Implemented: PostgreSQL custom-format dump、pg_restore list 验证、SHA-256 和本地备份目录。
+
+Remaining: 加密 off-host target、保留策略和自动监控。
+
+Tests: Secret 不进入 argv、文件校验脚本。
+
+Production status: 本地最新备份存在；没有 off-host 副本证明。
+
+## Restore — PARTIAL
+
+Implemented: 双确认 restore 工具和操作文档。
+
+Remaining: 在非生产环境完整 restore、数据核对与 rollback rehearsal。
+
+Tests: 工具安全边界有自动化覆盖。
+
+Production status: 未完成正式 restore rehearsal。
+
+## Production Monitoring — PARTIAL
+
+Implemented: 结构化日志、后台 job、System Alerts 与若干只读 verifier。
+
+Remaining: 集中监控、值班/响应流程、外部健康检查和故障演练。
+
+Tests: monitor service 与 alert policy 自动化覆盖。
+
+Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系。
 
 ## AXIS LAB — DEFERRED
 
-频道结构保持原状且功能关闭。以下功能保持未实现：
-
-- Model A / B
-- Moomoo 模型扫描、账户/持仓/订单与交易接口
-- Generate / Shadow / Champion / Challenger
-- 自动交易
+未开始：Model A / Model B、Generate / Shadow / Champion / Challenger、模型扫描、账户读取、
+自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
