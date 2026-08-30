@@ -375,7 +375,10 @@ class ShortTermEditModal(discord.ui.Modal):
             label="Ticker", default=_display(draft.ticker), max_length=12
         )
         self.expiry = discord.ui.TextInput(
-            label="Expiry · YYYY-MM-DD", default=_display(draft.expiry), max_length=10
+            label="Expiry · 0DTE / MM/DD / YYYY-MM-DD",
+            default=_display(draft.expiry_input or draft.expiry),
+            required=False,
+            max_length=32,
         )
         self.strike = discord.ui.TextInput(
             label="Strike", default=_decimal_display(draft.strike), max_length=24
@@ -399,15 +402,14 @@ class ShortTermEditModal(discord.ui.Modal):
         if not await self.controller.authorize(interaction):
             return
         try:
-            expiry = _optional_date(self.expiry.value)
             strike = _optional_decimal(self.strike.value)
             entry = _optional_decimal(self.entry_price.value)
-            if expiry is None or strike is None or entry is None:
+            if strike is None or entry is None:
                 raise ReviewValidationError("SHORT_TERM_FIELDS_REQUIRED")
             values = ShortTermDraftEdit(
                 selected_category="SHORT_TERM",
                 ticker=self.ticker.value.strip().upper(),
-                expiry=expiry,
+                expiry_input=self.expiry.value.strip() or None,
                 strike=strike,
                 option_side=self.option_side.value.strip().upper(),
                 entry_price=entry,
@@ -574,6 +576,83 @@ class CategorySelect(discord.ui.Select):
             await self.controller.handle_error(interaction, exc)
 
 
+class ExpirySelect(discord.ui.Select):
+    def __init__(
+        self,
+        controller: CardReviewCog,
+        draft: ReviewDraft,
+        *,
+        allow_shortcuts: bool = True,
+        row: int = 1,
+    ) -> None:
+        self.controller = controller
+        self.draft = draft
+        options = []
+        if allow_shortcuts:
+            options.extend(
+                [
+                    discord.SelectOption(
+                        label="0DTE",
+                        value="ZERO_DTE",
+                        description="仅选择今天存在的真实合约",
+                        default=draft.expiry_precision == "ZERO_DTE",
+                    ),
+                    discord.SelectOption(
+                        label="Nearest",
+                        value="AUTO_NEAREST",
+                        description="今天无合约时选择最近有效到期日",
+                        default=draft.expiry_precision == "AUTO_NEAREST",
+                    ),
+                ]
+            )
+        limit = 23 if allow_shortcuts else 25
+        for candidate in draft.expiry_candidates[:limit]:
+            options.append(
+                discord.SelectOption(
+                    label=candidate.strftime("%m/%d/%Y"),
+                    value=f"DATE:{candidate.isoformat()}",
+                    description="Available expiration",
+                    default=(
+                        draft.expiry == candidate
+                        and draft.expiry_precision not in {"ZERO_DTE", "AUTO_NEAREST"}
+                    ),
+                )
+            )
+        super().__init__(
+            placeholder=(
+                "EXPIRY · 0DTE / NEAREST / SELECT"
+                if allow_shortcuts
+                else "EXPIRY · SELECT AVAILABLE DATE"
+            ),
+            min_values=1,
+            max_values=1,
+            options=options,
+            row=row,
+            custom_id=f"axis:review:expiry:select:{draft.id.hex}:v{draft.version}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.select_expiry(
+                self.draft.id,
+                selection=self.values[0],
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "Expiry 已验证并保存。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
 class ReviewDraftView(discord.ui.View):
     def __init__(
         self,
@@ -591,8 +670,9 @@ class ReviewDraftView(discord.ui.View):
         self.add_item(CategorySelect(controller, draft))
         short_term = (draft.selected_category or draft.category_suggestion) == "SHORT_TERM"
         if short_term:
+            self.add_item(ExpirySelect(controller, draft))
             buttons = (
-                ("EDIT", discord.ButtonStyle.primary, "edit", 1, self.edit),
+                ("EDIT", discord.ButtonStyle.primary, "edit", 2, self.edit),
                 (
                     f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
                     (
@@ -601,11 +681,11 @@ class ReviewDraftView(discord.ui.View):
                         else discord.ButtonStyle.secondary
                     ),
                     "lotto",
-                    1,
+                    2,
                     self.toggle_lotto,
                 ),
-                ("PUBLISH", discord.ButtonStyle.success, "approve", 1, self.approve),
-                ("DELETE", discord.ButtonStyle.danger, "delete", 1, self.delete),
+                ("PUBLISH", discord.ButtonStyle.success, "approve", 2, self.approve),
+                ("DELETE", discord.ButtonStyle.danger, "delete", 2, self.delete),
             )
             for label, style, action, row, callback in buttons:
                 button = discord.ui.Button(
@@ -618,7 +698,19 @@ class ReviewDraftView(discord.ui.View):
                 self.add_item(button)
             return
         self.add_item(ReviewChoiceSelect(controller, draft, kind="mentor", choices=mentor_choices))
-        self.add_item(ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices))
+        if draft.expiry is None and draft.expiry_candidates:
+            self.add_item(
+                ExpirySelect(
+                    controller,
+                    draft,
+                    allow_shortcuts=False,
+                    row=2,
+                )
+            )
+        else:
+            self.add_item(
+                ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices)
+            )
         buttons = (
             ("完整编辑", discord.ButtonStyle.primary, "edit", 3, self.edit),
             (

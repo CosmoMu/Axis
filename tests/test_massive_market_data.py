@@ -65,3 +65,21 @@ def test_massive_uses_a_verified_bundled_ca_store() -> None:
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
     assert context.cert_store_stats()["x509_ca"] > 0
+
+
+def test_massive_option_contract_reference_is_normalized() -> None:
+    normalized = provider("BID")._normalize_contract(
+        {
+            "ticker": "O:RIVN261016C00018000",
+            "underlying_ticker": "RIVN",
+            "expiration_date": "2026-10-16",
+            "strike_price": 18,
+            "contract_type": "call",
+        }
+    )
+
+    assert normalized is not None
+    assert normalized.ticker == "O:RIVN261016C00018000"
+    assert normalized.expiry == date(2026, 10, 16)
+    assert normalized.strike == Decimal("18")
+    assert normalized.option_side == "CALL"

@@ -4,9 +4,20 @@ provided schema.
 
 Rules:
 - Extract only facts that are visible or explicitly stated. Never invent a ticker,
-  expiry, strike, price, action, mentor, or position.
-- expiry must be a real, non-past ISO date. If the source gives only a month/year,
-  do not invent a day; return null and add expiry to missing_fields.
+  strike, price, action, mentor, or position.
+- Preserve the user's option-expiry text in expiry_input. Accept YYYY-MM-DD, MM/DD,
+  M/YYYY, MM/YYYY, and 0DTE. Set expiry_precision to EXACT_DATE, MONTH_DAY,
+  MONTH_YEAR, or ZERO_DTE respectively. resolved_expiry may be populated only for an
+  explicit complete date; option-chain validation and final resolution happen after parsing.
+- For a compact Short-Term option input with no expiry, such as "SPY 775C .48", set
+  expiry_precision to AUTO_NEAREST, expiry_input and resolved_expiry to null, and
+  expiry_resolution_status to UNRESOLVED. Do not apply AUTO_NEAREST to Swing or LEAPS.
+- A month/year is not a complete expiration date. Never invent its day. A month/day
+  is not a complete year. Preserve both for the option-chain resolver.
+- Explicit decimal premiums such as .9, .48, 0.48, and 1.07 are dollar values. In a
+  compact Short-Term option context, "@ 48" may be a $0.48 candidate, but must have
+  price_parse_confidence below 1 and a warning. "@ 125" is ambiguous; do not silently
+  decide between $1.25 and $125.
 - Use null or UNKNOWN for uncertain values. List the corresponding field name in
   missing_fields and add a short machine-readable warning when useful.
 - Use SL terminology. Do not output or infer Market, Bid, or Ask values.

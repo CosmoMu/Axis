@@ -97,6 +97,15 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     } <= set(memberships.columns.keys())
     assert "source_kind" in Base.metadata.tables["source_messages"].columns
     assert "moomoo_option_code" in Base.metadata.tables["trades"].columns
+    for column in (
+        "expiry_input",
+        "expiry_precision",
+        "expiry_resolution_status",
+        "option_contract_code",
+        "contract_validation_status",
+        "price_parse_confidence",
+    ):
+        assert column in Base.metadata.tables["trade_drafts"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
     assert "llm_invocation_id" in drafts.columns
     events = Base.metadata.tables["trade_events"]

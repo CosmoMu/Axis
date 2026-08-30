@@ -15,7 +15,12 @@ from app.bot.cards import (
     build_review_embed,
 )
 from app.bot.cogs.card_review import CardReviewCog
-from app.bot.views.review_views import EntryPlanEditModal, ReviewDraftView, ShortTermEditModal
+from app.bot.views.review_views import (
+    EntryPlanEditModal,
+    ExpirySelect,
+    ReviewDraftView,
+    ShortTermEditModal,
+)
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Mentor, SourceMessage, TradeDraft
 from app.db.session import Database
@@ -29,6 +34,10 @@ from app.services.card_review import (
     ReviewValidationError,
     public_preview_payload,
     publication_missing_fields,
+)
+from app.services.option_contracts import (
+    ListedOptionContract,
+    OptionContractResolver,
 )
 
 GUILD_ID = 1543309921066684567
@@ -109,6 +118,29 @@ def complete_edit() -> DraftEdit:
         position_delta_eighths=1,
         position_after_eighths=1,
     )
+
+
+class ReviewOptionCatalog:
+    def __init__(self, contracts: tuple[ListedOptionContract, ...]) -> None:
+        self.contracts = contracts
+
+    async def list_option_contracts(
+        self,
+        *,
+        underlying: str,
+        start: date,
+        end: date,
+        strike: Decimal,
+        option_side: str,
+    ) -> tuple[ListedOptionContract, ...]:
+        return tuple(
+            item
+            for item in self.contracts
+            if item.underlying == underlying
+            and start <= item.expiry <= end
+            and item.strike == strike
+            and item.option_side == option_side
+        )
 
 
 @pytest.mark.asyncio
@@ -489,7 +521,7 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
         buttons = [item for item in view.children if isinstance(item, discord.ui.Button)]
         rendered = str(build_review_embed(short).to_dict())
 
-        assert len(selects) == 1
+        assert len(selects) == 2
         assert [item.label for item in buttons] == [
             "EDIT",
             "LOTTO · NO",
@@ -513,7 +545,7 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
         modal = ShortTermEditModal(SimpleNamespace(), short)
         assert [item.label for item in modal.children] == [
             "Ticker",
-            "Expiry · YYYY-MM-DD",
+            "Expiry · 0DTE / MM/DD / YYYY-MM-DD",
             "Strike",
             "Call / Put",
             "Entry Price",
@@ -526,6 +558,152 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
             interaction_id=701,
         )
         assert approved.status == DraftStatus.READY.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_month_year_expirations_are_selectable_and_survive_service_restart() -> None:
+    database, draft, _mentor = await review_database()
+    contracts = (
+        ListedOptionContract(
+            "O:GOOGL260904C00200000", "GOOGL", date(2026, 9, 4), Decimal("200"), "CALL"
+        ),
+        ListedOptionContract(
+            "O:GOOGL260911C00200000", "GOOGL", date(2026, 9, 11), Decimal("200"), "CALL"
+        ),
+    )
+    resolver = OptionContractResolver(
+        ReviewOptionCatalog(contracts), today=date(2026, 8, 30)
+    )
+    async with database.session() as session:
+        stored = await session.get(TradeDraft, draft.id)
+        assert stored is not None
+        stored.selected_category = "SHORT_TERM"
+        stored.category_suggestion = "SHORT_TERM"
+        stored.mentor_id = None
+        stored.expiry = None
+        stored.expiry_input = "9/2026"
+        stored.expiry_precision = "MONTH_YEAR"
+        stored.expiry_resolution_status = "UNRESOLVED"
+        stored.contract_validation_status = "UNVALIDATED"
+        await session.commit()
+    service = CardReviewService(database, resolver)
+    try:
+        unresolved = await service.ensure_expiry_resolution(draft.id)
+        assert unresolved.expiry is None
+        assert unresolved.expiry_candidates == (date(2026, 9, 4), date(2026, 9, 11))
+        view = ReviewDraftView(
+            SimpleNamespace(), unresolved, mentor_choices=[], trade_choices=[]
+        )
+        expiry_select = next(item for item in view.children if isinstance(item, ExpirySelect))
+        assert {option.label for option in expiry_select.options} >= {
+            "09/04/2026",
+            "09/11/2026",
+        }
+        leaps_view = ReviewDraftView(
+            SimpleNamespace(),
+            replace(
+                unresolved,
+                selected_category="LEAPS",
+                category_suggestion="LEAPS",
+            ),
+            mentor_choices=[],
+            trade_choices=[],
+        )
+        leaps_expiry = next(
+            item for item in leaps_view.children if isinstance(item, ExpirySelect)
+        )
+        assert {option.value for option in leaps_expiry.options} == {
+            "DATE:2026-09-04",
+            "DATE:2026-09-11",
+        }
+
+        selected = await service.select_expiry(
+            draft.id,
+            selection="DATE:2026-09-11",
+            expected_version=unresolved.version,
+            actor_user_id=501,
+            interaction_id=702,
+        )
+        assert selected.expiry == date(2026, 9, 11)
+        assert selected.expiry_resolution_status == "MANAGER_CONFIRMED"
+        assert selected.contract_validation_status == "VALID"
+
+        restarted_service = CardReviewService(database, resolver)
+        reloaded = await restarted_service.get(draft.id)
+        assert reloaded.expiry == date(2026, 9, 11)
+        assert reloaded.option_contract_code == "O:GOOGL260911C00200000"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_invalid_contract_is_visible_in_review_and_cannot_be_approved() -> None:
+    database, draft, _mentor = await review_database()
+    service = CardReviewService(
+        database,
+        OptionContractResolver(ReviewOptionCatalog(()), today=date(2026, 8, 30)),
+    )
+    try:
+        short = await service.select_category(
+            draft.id,
+            category="SHORT_TERM",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=703,
+        )
+        assert short.contract_validation_status == "NOT_FOUND"
+        rendered = str(build_review_embed(short).to_dict())
+        assert "Contract not found." in rendered
+        with pytest.raises(ReviewValidationError) as caught:
+            await service.approve(
+                draft.id,
+                expected_version=short.version,
+                actor_user_id=501,
+                interaction_id=704,
+            )
+        assert "contract" in caught.value.missing_fields
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_legacy_impossible_year_is_recovered_from_original_month_day() -> None:
+    database, draft, _mentor = await review_database()
+    listed = ListedOptionContract(
+        "O:SPY260902C00200000",
+        "SPY",
+        date(2026, 9, 2),
+        Decimal("200"),
+        "CALL",
+    )
+    async with database.session() as session:
+        stored = await session.get(TradeDraft, draft.id)
+        assert stored is not None
+        source = await session.get(SourceMessage, stored.source_message_id)
+        assert source is not None
+        source.raw_text = None
+        stored.selected_category = "SHORT_TERM"
+        stored.category_suggestion = "SHORT_TERM"
+        stored.ticker = "SPY"
+        stored.expiry = date(9221, 9, 2)
+        stored.expiry_input = "9221-09-02"
+        stored.expiry_precision = "EXACT_DATE"
+        stored.strike = Decimal("200")
+        stored.option_side = "CALL"
+        stored.contract_validation_status = "UNVALIDATED"
+        await session.commit()
+    service = CardReviewService(
+        database,
+        OptionContractResolver(ReviewOptionCatalog((listed,)), today=date(2026, 8, 30)),
+    )
+    try:
+        repaired = await service.ensure_expiry_resolution(draft.id)
+        assert repaired.expiry_input == "9/2"
+        assert repaired.expiry_precision == "MONTH_DAY"
+        assert repaired.expiry == date(2026, 9, 2)
+        assert repaired.contract_validation_status == "VALID"
     finally:
         await database.dispose()
 

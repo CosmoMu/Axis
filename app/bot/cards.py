@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -104,7 +105,12 @@ def _position(value: int | None) -> str:
 
 
 def _contract(draft: ReviewDraft | PublicTradeCard) -> str:
-    expiry = draft.expiry.strftime("%m/%d/%Y") if draft.expiry else "—"
+    category = (
+        draft.selected_category or draft.category_suggestion
+        if isinstance(draft, ReviewDraft)
+        else draft.category
+    )
+    expiry = _expiry_display(draft.expiry, category) if draft.expiry else "—"
     side = {"CALL": "C", "PUT": "P"}.get(draft.option_side or "", "?")
     strike = _number(draft.strike)
     lotto = " (LOTTO)" if draft.is_lotto else ""
@@ -114,10 +120,16 @@ def _contract(draft: ReviewDraft | PublicTradeCard) -> str:
 def _short_term_contract(
     card: ShortTermEntryCard | ShortTermTrackingCard,
 ) -> str:
-    expiry = card.expiry.strftime("%m/%d/%Y")
+    expiry = _expiry_display(card.expiry, "SHORT_TERM")
     side = {"CALL": "C", "PUT": "P"}.get(card.option_side, "?")
     lotto = " (LOTTO)" if card.is_lotto else ""
     return f"{card.ticker} · {expiry} · {_number(card.strike)}{side}{lotto}"
+
+
+def _expiry_display(expiry: date, category: str | None) -> str:
+    if category == "LEAPS" or expiry.year != date.today().year:
+        return expiry.strftime("%m/%d/%y")
+    return expiry.strftime("%m/%d")
 
 
 def _draft_entry_price(draft: ReviewDraft) -> Decimal | None:
@@ -188,6 +200,15 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
     embed.add_field(name="审核", value="\n".join(review_lines), inline=False)
     if draft.warnings:
         embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
+    if draft.expiry_input:
+        embed.add_field(
+            name="Internal · Expiry Resolution",
+            value=(
+                f"输入 {draft.expiry_input} → "
+                f"{draft.expiry.strftime('%m/%d/%Y') if draft.expiry else 'unresolved'}"
+            ),
+            inline=False,
+        )
     confidence = _number(draft.parser_confidence)
     embed.set_footer(
         text=f"AXIS Signal · {draft.draft_code} · v{draft.version} · confidence {confidence}"
@@ -212,7 +233,31 @@ def build_short_term_review_embed(draft: ReviewDraft) -> discord.Embed:
         color=color,
     )
     embed.add_field(name="入场价格", value=_money(_draft_entry_price(draft)), inline=False)
+    if draft.expiry is None:
+        expiry_text = "待解析"
+    elif draft.expiry_precision == "ZERO_DTE" or (
+        draft.expiry_precision == "AUTO_NEAREST" and draft.expiry == date.today()
+    ):
+        expiry_text = "0DTE"
+    elif draft.expiry_precision == "AUTO_NEAREST":
+        expiry_text = f"{draft.expiry.strftime('%m/%d')} · 最近到期"
+    else:
+        expiry_text = draft.expiry.strftime("%m/%d/%Y")
+    embed.add_field(name="到期", value=expiry_text, inline=False)
+    if draft.expiry_input:
+        resolved = draft.expiry.strftime("%m/%d/%Y") if draft.expiry else "unresolved"
+        embed.add_field(
+            name="Internal · Expiry Source",
+            value=f"{draft.expiry_input} → {resolved}",
+            inline=False,
+        )
     embed.add_field(name="分类", value="SHORT-TERM", inline=False)
+    if draft.contract_validation_status == "NOT_FOUND":
+        embed.add_field(
+            name="Contract not found.",
+            value="请选择 Expiry，或编辑 Strike / Side。",
+            inline=False,
+        )
     if draft.warnings:
         embed.add_field(name="Warnings", value="\n".join(draft.warnings)[:1024], inline=False)
     embed.set_footer(text=f"AXIS Signal · {draft.draft_code} · v{draft.version}")
@@ -360,7 +405,7 @@ def _build_swing_leaps_entry_embed(
     *,
     public_ref: str | None,
 ) -> discord.Embed:
-    expiry = card.expiry.strftime("%m/%d/%Y") if card.expiry else "—"
+    expiry = _expiry_display(card.expiry, card.category) if card.expiry else "—"
     side = {"CALL": "C", "PUT": "P"}.get(card.option_side or "", "?")
     lotto = " (LOTTO)" if card.is_lotto else ""
     contract = "$" + f"{card.ticker or '—'} {expiry} {_number(card.strike)}{side}{lotto}"
@@ -420,7 +465,7 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
         embed.description = "当前没有进行中的订单。"
         return _public(embed)
     for trade in trades:
-        expiry = trade.expiry.strftime("%m/%d")
+        expiry = _expiry_display(trade.expiry, category)
         side = {"CALL": "C", "PUT": "P"}.get(trade.option_side, "?")
         lotto = " (LOTTO)" if trade.is_lotto else ""
         contract = f"{trade.ticker} {expiry} {_number(trade.strike)}{side}{lotto}"
@@ -442,9 +487,9 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
 
 def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     side = {"CALL": "C", "PUT": "P"}.get(result.option_side, "?")
-    contract = (
-        f"{result.ticker} · {result.expiry.strftime('%m/%d/%Y')} · {_number(result.strike)}{side}"
-    )
+    category = "LEAPS" if result.public_trade_id.startswith("LP-") else "SWING"
+    expiry = _expiry_display(result.expiry, category)
+    contract = f"{result.ticker} · {expiry} · {_number(result.strike)}{side}"
     value = result.final_return_pct.quantize(Decimal("0.01"))
     rendered_return = f"{value:+f}%"
     embed = discord.Embed(
@@ -457,8 +502,8 @@ def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     return _public(embed)
 
 
-def _daily_contract(item: DailyActiveTrade | DailyClosedTrade) -> str:
-    expiry = item.expiry.strftime("%m/%d/%Y")
+def _daily_contract(item: DailyActiveTrade | DailyClosedTrade, category: str) -> str:
+    expiry = _expiry_display(item.expiry, category)
     side = {"CALL": "C", "PUT": "P"}.get(item.option_side, "?")
     lotto = " (LOTTO)" if item.is_lotto else ""
     return f"{item.ticker} · {expiry} · {_number(item.strike)}{side}{lotto}"
@@ -477,7 +522,9 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
             exit_return=trade.exit_return_pct,
             fallback=trade.final_return_pct,
         )
-        closed_lines.append(f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n{details}")
+        closed_lines.append(
+            f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n{details}"
+        )
     if len(summary.closed) > 12:
         closed_lines.append(f"另有 {len(summary.closed) - 12} 个今日已完成订单。")
     embed.add_field(
@@ -494,7 +541,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
             else f"当前 {trade.unrealized_pnl_pct:+.2f}%"
         )
         active_lines.append(
-            f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n"
+            f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
             f"{current} · 当前持仓 {_position(trade.position_eighths)}"
             + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
         )

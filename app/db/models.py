@@ -273,6 +273,16 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     selected_category: Mapped[str | None] = mapped_column(String(32))
     ticker: Mapped[str | None] = mapped_column(String(12))
     expiry: Mapped[date | None] = mapped_column(Date)
+    expiry_input: Mapped[str | None] = mapped_column(String(32))
+    expiry_precision: Mapped[str | None] = mapped_column(String(20))
+    expiry_resolution_status: Mapped[str] = mapped_column(
+        String(24), default="UNRESOLVED", nullable=False
+    )
+    option_contract_code: Mapped[str | None] = mapped_column(String(64))
+    contract_validation_status: Mapped[str] = mapped_column(
+        String(24), default="UNVALIDATED", nullable=False
+    )
+    price_parse_confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
     strike: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     option_side: Mapped[str | None] = mapped_column(String(16))
     entry_low: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))

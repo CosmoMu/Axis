@@ -31,6 +31,7 @@ from app.domain.enums import (
 )
 from app.domain.public_cards import ActivePublicTrade, PublicTradeCard, ShortTermEntryCard
 from app.services.card_review import _plan_decimal, _public_thesis
+from app.services.option_contracts import ContractValidationStatus, OptionContractResolver
 
 ACTIVE_CUSTOM_IDS = {
     TradeCategory.SWING.value: "axis:active:swing:v1",
@@ -103,8 +104,13 @@ def _payload_hash(card: PublicTradeCard | ShortTermEntryCard) -> str:
 
 
 class TradePublicationService:
-    def __init__(self, database: Database) -> None:
+    def __init__(
+        self,
+        database: Database,
+        contract_resolver: OptionContractResolver | None = None,
+    ) -> None:
         self.database = database
+        self.contract_resolver = contract_resolver
 
     async def next_publishable(self, guild_id: int) -> uuid.UUID | None:
         cutoff = utc_now() - RETRY_AFTER
@@ -170,6 +176,17 @@ class TradePublicationService:
                 DraftStatus.PUBLISH_FAILED.value,
             }:
                 raise PublicationValidationError("DRAFT_NOT_READY")
+            if (
+                self.contract_resolver is not None
+                and draft.intent == "NEW_TRADE"
+                and (
+                    draft.expiry is None
+                    or draft.contract_validation_status
+                    != ContractValidationStatus.VALID.value
+                    or not draft.option_contract_code
+                )
+            ):
+                raise PublicationValidationError("CONTRACT_NOT_VALIDATED")
 
             now = utc_now()
             if (

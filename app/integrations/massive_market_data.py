@@ -12,6 +12,8 @@ from urllib.parse import quote
 import aiohttp
 import certifi
 
+from app.services.option_contracts import ListedOptionContract
+
 
 class MarketDataProviderError(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -121,6 +123,88 @@ class MassiveMarketDataProvider:
                 raise first_error
             raise MarketDataProviderError("MASSIVE_BATCH_FAILED")
         return prices
+
+    async def list_option_contracts(
+        self,
+        *,
+        underlying: str,
+        start: date,
+        end: date,
+        strike: Decimal,
+        option_side: str,
+    ) -> tuple[ListedOptionContract, ...]:
+        normalized_underlying = underlying.strip().upper().removeprefix("US.").removeprefix("$")
+        contract_type = {"CALL": "call", "PUT": "put"}.get(option_side)
+        if not normalized_underlying or contract_type is None or strike <= 0 or start > end:
+            raise MarketDataProviderError("OPTION_CONTRACT_INVALID")
+        params = {
+            "underlying_ticker": normalized_underlying,
+            "contract_type": contract_type,
+            "strike_price": str(strike),
+            "expiration_date.gte": start.isoformat(),
+            "expiration_date.lte": end.isoformat(),
+            "expired": "false",
+            "order": "asc",
+            "sort": "expiration_date",
+            "limit": "1000",
+        }
+        own_session = self.session is None
+        session = self.session or aiohttp.ClientSession(
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            timeout=self.timeout,
+            connector=aiohttp.TCPConnector(ssl=verified_ssl_context()),
+        )
+        contracts: list[ListedOptionContract] = []
+        url = f"{self.base_url}/v3/reference/options/contracts"
+        try:
+            while url:
+                async with self.semaphore, session.get(url, params=params) as response:
+                    if response.status in {401, 403}:
+                        raise MarketDataProviderError("MASSIVE_AUTH_FAILED")
+                    if response.status == 429:
+                        raise MarketDataProviderError("MASSIVE_RATE_LIMITED")
+                    if response.status != 200:
+                        raise MarketDataProviderError("OPTION_CHAIN_UNAVAILABLE")
+                    payload = await response.json(content_type=None)
+                if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+                    raise MarketDataProviderError("MASSIVE_RESPONSE_INVALID")
+                contracts.extend(
+                    contract
+                    for item in payload["results"]
+                    if (contract := self._normalize_contract(item)) is not None
+                    and contract.underlying == normalized_underlying
+                    and contract.option_side == option_side
+                    and contract.strike == strike
+                    and start <= contract.expiry <= end
+                )
+                next_url = payload.get("next_url")
+                url = str(next_url) if isinstance(next_url, str) and next_url else ""
+                params = None
+        except MarketDataProviderError:
+            raise
+        except (TimeoutError, aiohttp.ClientError, ValueError) as exc:
+            raise MarketDataProviderError("OPTION_CHAIN_UNAVAILABLE") from exc
+        finally:
+            if own_session:
+                await session.close()
+        unique = {contract.ticker: contract for contract in contracts}
+        return tuple(sorted(unique.values(), key=lambda item: (item.expiry, item.ticker)))
+
+    @staticmethod
+    def _normalize_contract(payload: Any) -> ListedOptionContract | None:
+        if not isinstance(payload, dict):
+            return None
+        try:
+            ticker = str(payload["ticker"])
+            underlying = str(payload["underlying_ticker"]).upper()
+            expiry = date.fromisoformat(str(payload["expiration_date"]))
+            strike = Decimal(str(payload["strike_price"]))
+            option_side = {"call": "CALL", "put": "PUT"}[str(payload["contract_type"]).lower()]
+        except (InvalidOperation, KeyError, TypeError, ValueError):
+            return None
+        if not ticker or strike <= 0:
+            return None
+        return ListedOptionContract(ticker, underlying, expiry, strike, option_side)
 
     async def _fetch_one(
         self,

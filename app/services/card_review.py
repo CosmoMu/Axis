@@ -8,10 +8,21 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AuditLog, Mentor, Trade, TradeDraft
+from app.db.models import AuditLog, Mentor, SourceMessage, Trade, TradeDraft
 from app.db.session import Database
 from app.domain.enums import DraftStatus, TradeState
 from app.domain.public_cards import PublicTradeCard
+from app.services.option_contracts import (
+    ContractValidationStatus,
+    ExpiryPrecision,
+    ExpiryRequest,
+    ExpiryResolution,
+    ExpiryResolutionStatus,
+    OptionContractResolver,
+    extract_expiry_input,
+    parse_expiry_input,
+    parse_fast_signal,
+)
 
 
 class ReviewError(RuntimeError):
@@ -74,7 +85,7 @@ class DraftEdit:
 class ShortTermDraftEdit:
     selected_category: str
     ticker: str
-    expiry: date
+    expiry_input: str | None
     strike: Decimal
     option_side: str
     entry_price: Decimal
@@ -93,6 +104,14 @@ class ReviewDraft:
     selected_category: str | None
     ticker: str | None
     expiry: date | None
+    expiry_input: str | None
+    expiry_precision: str | None
+    expiry_resolution_status: str
+    option_contract_code: str | None
+    contract_validation_status: str
+    price_parse_confidence: Decimal | None
+    expiry_candidates: tuple[date, ...]
+    expiry_metadata_legacy: bool
     strike: Decimal | None
     option_side: str | None
     entry_low: Decimal | None
@@ -154,6 +173,15 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             value = getattr(draft, field)
             if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
+        if (
+            getattr(draft, "expiry_precision", None) is not None
+            and getattr(draft, "contract_validation_status", None)
+            in {
+                ContractValidationStatus.NOT_FOUND.value,
+                ContractValidationStatus.UNAVAILABLE.value,
+            }
+        ):
+            missing.append("contract")
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
         return tuple(missing)
@@ -173,6 +201,15 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             value = getattr(draft, field)
             if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
+        if (
+            getattr(draft, "expiry_precision", None) is not None
+            and getattr(draft, "contract_validation_status", None)
+            in {
+                ContractValidationStatus.NOT_FOUND.value,
+                ContractValidationStatus.UNAVAILABLE.value,
+            }
+        ):
+            missing.append("contract")
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
         if draft.position_after_eighths is None:
@@ -257,6 +294,19 @@ def _public_thesis(payload: dict[str, object]) -> str | None:
     return rendered[:300] or None
 
 
+def _expiry_candidates(payload: dict[str, object]) -> tuple[date, ...]:
+    raw = payload.get("expiry_candidates")
+    if not isinstance(raw, list):
+        return ()
+    candidates = []
+    for value in raw:
+        try:
+            candidates.append(date.fromisoformat(str(value)))
+        except ValueError:
+            continue
+    return tuple(dict.fromkeys(candidates))
+
+
 def _audit_payload(draft: TradeDraft) -> dict[str, object]:
     return {
         "status": draft.status,
@@ -269,6 +319,11 @@ def _audit_payload(draft: TradeDraft) -> dict[str, object]:
         "selected_category": draft.selected_category,
         "ticker": draft.ticker,
         "expiry": draft.expiry.isoformat() if draft.expiry else None,
+        "expiry_input": draft.expiry_input,
+        "expiry_precision": draft.expiry_precision,
+        "expiry_resolution_status": draft.expiry_resolution_status,
+        "option_contract_code": draft.option_contract_code,
+        "contract_validation_status": draft.contract_validation_status,
         "strike": str(draft.strike) if draft.strike is not None else None,
         "option_side": draft.option_side,
         "entry_low": str(draft.entry_low) if draft.entry_low is not None else None,
@@ -298,8 +353,13 @@ def _audit_payload(draft: TradeDraft) -> dict[str, object]:
 
 
 class CardReviewService:
-    def __init__(self, database: Database) -> None:
+    def __init__(
+        self,
+        database: Database,
+        contract_resolver: OptionContractResolver | None = None,
+    ) -> None:
         self.database = database
+        self.contract_resolver = contract_resolver
 
     async def get(self, draft_id: uuid.UUID) -> ReviewDraft:
         async with self.database.session() as session:
@@ -307,6 +367,96 @@ class CardReviewService:
             if draft is None:
                 raise ReviewError("DRAFT_NOT_FOUND")
             return await self._snapshot(session, draft)
+
+    async def ensure_expiry_resolution(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int | None = None,
+        force: bool = False,
+    ) -> ReviewDraft:
+        current = await self.get(draft_id)
+        if expected_version is not None and current.version != expected_version:
+            raise ReviewConflictError("DRAFT_VERSION_CONFLICT")
+        if self.contract_resolver is None:
+            return current
+        if (
+            not force
+            and current.expiry is not None
+            and current.contract_validation_status == ContractValidationStatus.VALID.value
+        ):
+            return current
+        request = await self._expiry_request(current)
+        if request is None:
+            return current
+        result = await self.contract_resolver.resolve(request)
+        return await self._persist_expiry_resolution(
+            current.id,
+            result=result,
+            expected_version=current.version,
+            actor_user_id=None,
+            interaction_id=None,
+            action_type="TRADE_DRAFT_EXPIRY_AUTO_RESOLVED",
+        )
+
+    async def select_expiry(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        selection: str,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        if self.contract_resolver is None:
+            raise ReviewValidationError("OPTION_CHAIN_UNAVAILABLE")
+        current = await self.get(draft_id)
+        if current.version != expected_version:
+            raise ReviewConflictError("DRAFT_VERSION_CONFLICT")
+        if current.ticker is None or current.strike is None or current.option_side is None:
+            raise ReviewValidationError("CONTRACT_FIELDS_REQUIRED")
+        if selection in {"ZERO_DTE", "AUTO_NEAREST"}:
+            if (current.selected_category or current.category_suggestion) != "SHORT_TERM":
+                raise ReviewValidationError("SHORT_TERM_EXPIRY_MODE_REQUIRED")
+            precision = ExpiryPrecision(selection)
+            expiry_input = "0DTE" if precision is ExpiryPrecision.ZERO_DTE else None
+            result = await self.contract_resolver.resolve(
+                ExpiryRequest(
+                    expiry_input=expiry_input,
+                    precision=precision,
+                    ticker=current.ticker,
+                    strike=current.strike,
+                    option_side=current.option_side,
+                )
+            )
+        elif selection.startswith("DATE:"):
+            try:
+                selected_date = date.fromisoformat(selection.removeprefix("DATE:"))
+            except ValueError as exc:
+                raise ReviewValidationError("EXPIRY_INVALID") from exc
+            result = await self.contract_resolver.validate_exact(
+                ticker=current.ticker,
+                expiry=selected_date,
+                strike=current.strike,
+                option_side=current.option_side,
+                manager_confirmed=True,
+            )
+        else:
+            raise ReviewValidationError("EXPIRY_SELECTION_INVALID")
+        if result.validation_status is not ContractValidationStatus.VALID:
+            raise ReviewValidationError(
+                "CONTRACT_NOT_FOUND"
+                if result.validation_status is ContractValidationStatus.NOT_FOUND
+                else "OPTION_CHAIN_UNAVAILABLE"
+            )
+        return await self._persist_expiry_resolution(
+            current.id,
+            result=result,
+            expected_version=current.version,
+            actor_user_id=actor_user_id,
+            interaction_id=interaction_id,
+            action_type="TRADE_DRAFT_EXPIRY_SELECTED",
+        )
 
     async def next_unposted(self, guild_id: int) -> ReviewDraft | None:
         async with self.database.session() as session:
@@ -466,7 +616,14 @@ class CardReviewService:
         interaction_id: int,
     ) -> ReviewDraft:
         async with self.database.session() as session:
-            draft = await self._locked_draft(session, draft_id, expected_version)
+            draft = await session.scalar(
+                select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            if draft.status not in REGISTERED_REVIEW_STATUSES:
+                raise ReviewValidationError("DRAFT_NOT_EDITABLE")
+            self._assert_version(draft, expected_version)
             before = _audit_payload(draft)
             draft.is_lotto = not draft.is_lotto
             self._mark_edited(draft, actor_user_id)
@@ -500,6 +657,20 @@ class CardReviewService:
             draft.selected_category = category
             if category == "SHORT_TERM":
                 self._clear_short_term_fields(draft)
+                if draft.expiry_precision is None:
+                    if draft.expiry is not None:
+                        draft.expiry_input = draft.expiry.isoformat()
+                        draft.expiry_precision = ExpiryPrecision.EXACT_DATE.value
+                    else:
+                        draft.expiry_input = None
+                        draft.expiry_precision = ExpiryPrecision.AUTO_NEAREST.value
+            elif draft.expiry_precision == ExpiryPrecision.AUTO_NEAREST.value:
+                draft.expiry = None
+                draft.expiry_input = None
+                draft.expiry_precision = None
+                draft.expiry_resolution_status = ExpiryResolutionStatus.UNRESOLVED.value
+                draft.option_contract_code = None
+                draft.contract_validation_status = ContractValidationStatus.UNVALIDATED.value
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session,
@@ -510,7 +681,14 @@ class CardReviewService:
                 before,
             )
             await session.commit()
-            return await self._snapshot(session, draft)
+            updated = await self._snapshot(session, draft)
+        if category == "SHORT_TERM":
+            return await self.ensure_expiry_resolution(
+                updated.id,
+                expected_version=updated.version,
+                force=True,
+            )
+        return updated
 
     async def edit_short_term(
         self,
@@ -531,9 +709,18 @@ class CardReviewService:
             draft.action = "ENTRY"
             draft.action_stage = None
             draft.ticker = values.ticker
-            draft.expiry = values.expiry
             draft.strike = values.strike
             draft.option_side = values.option_side
+            expiry_input, precision = parse_expiry_input(values.expiry_input)
+            if precision is None:
+                expiry_input = None
+                precision = ExpiryPrecision.AUTO_NEAREST
+            draft.expiry = None
+            draft.expiry_input = expiry_input
+            draft.expiry_precision = precision.value
+            draft.expiry_resolution_status = ExpiryResolutionStatus.UNRESOLVED.value
+            draft.option_contract_code = None
+            draft.contract_validation_status = ContractValidationStatus.UNVALIDATED.value
             draft.entry_low = values.entry_price
             draft.entry_high = values.entry_price
             draft.action_price = None
@@ -551,7 +738,12 @@ class CardReviewService:
                 session, draft, actor_user_id, interaction_id, "SHORT_TERM_DRAFT_EDITED", before
             )
             await session.commit()
-            return await self._snapshot(session, draft)
+            updated = await self._snapshot(session, draft)
+        return await self.ensure_expiry_resolution(
+            updated.id,
+            expected_version=updated.version,
+            force=True,
+        )
 
     async def edit(
         self,
@@ -587,6 +779,16 @@ class CardReviewService:
                 "position_after_eighths",
             ):
                 setattr(draft, field, getattr(values, field))
+            if values.expiry is not None:
+                draft.expiry_input = values.expiry.isoformat()
+                draft.expiry_precision = ExpiryPrecision.EXACT_DATE.value
+                draft.expiry_resolution_status = ExpiryResolutionStatus.EXPLICIT.value
+            else:
+                draft.expiry_input = None
+                draft.expiry_precision = None
+                draft.expiry_resolution_status = ExpiryResolutionStatus.UNRESOLVED.value
+            draft.option_contract_code = None
+            draft.contract_validation_status = ContractValidationStatus.UNVALIDATED.value
             if values.replace_plan:
                 payload = dict(draft.parse_payload)
                 for attribute, key in (
@@ -621,6 +823,35 @@ class CardReviewService:
         actor_user_id: int,
         interaction_id: int,
     ) -> ReviewDraft:
+        validated: ExpiryResolution | None = None
+        if self.contract_resolver is not None:
+            current = await self.get(draft_id)
+            if current.version != expected_version:
+                raise ReviewConflictError("DRAFT_VERSION_CONFLICT")
+            if (
+                current.intent == "NEW_TRADE"
+                and current.ticker is not None
+                and current.expiry is not None
+                and current.strike is not None
+                and current.option_side in {"CALL", "PUT"}
+            ):
+                validated = await self.contract_resolver.validate_exact(
+                    ticker=current.ticker,
+                    expiry=current.expiry,
+                    strike=current.strike,
+                    option_side=current.option_side,
+                    manager_confirmed=(
+                        current.expiry_resolution_status
+                        == ExpiryResolutionStatus.MANAGER_CONFIRMED.value
+                    ),
+                )
+                if validated.validation_status is not ContractValidationStatus.VALID:
+                    code = (
+                        "CONTRACT_NOT_FOUND"
+                        if validated.validation_status is ContractValidationStatus.NOT_FOUND
+                        else "OPTION_CHAIN_UNAVAILABLE"
+                    )
+                    raise ReviewValidationError(code)
         async with self.database.session() as session:
             draft = await session.scalar(
                 select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
@@ -635,6 +866,8 @@ class CardReviewService:
                 return await self._snapshot(session, draft)
             self._assert_editable(draft)
             self._assert_version(draft, expected_version)
+            if validated is not None:
+                self._apply_resolution_to_draft(draft, validated)
             missing = publication_missing_fields(draft)
             if missing:
                 raise ReviewValidationError("DRAFT_INCOMPLETE", missing)
@@ -694,6 +927,139 @@ class CardReviewService:
             )
             await session.commit()
             return await self._snapshot(session, draft)
+
+    async def _expiry_request(self, draft: ReviewDraft) -> ExpiryRequest | None:
+        if draft.ticker is None or draft.strike is None or draft.option_side not in {"CALL", "PUT"}:
+            return None
+        if draft.expiry_metadata_legacy and draft.expiry_precision in {
+            None,
+            ExpiryPrecision.EXACT_DATE.value,
+        }:
+            async with self.database.session() as session:
+                raw_text = await session.scalar(
+                    select(SourceMessage.raw_text)
+                    .join(TradeDraft, TradeDraft.source_message_id == SourceMessage.id)
+                    .where(TradeDraft.id == draft.id)
+                )
+            expiry_input, source_precision = extract_expiry_input(raw_text)
+            fast = parse_fast_signal(raw_text)
+            if fast is not None and fast.expiry_precision is not None:
+                expiry_input = fast.expiry_input
+                source_precision = fast.expiry_precision
+            if source_precision is not None:
+                return ExpiryRequest(
+                    expiry_input=expiry_input,
+                    precision=source_precision,
+                    ticker=draft.ticker,
+                    strike=draft.strike,
+                    option_side=draft.option_side,
+                )
+            if draft.expiry is not None and (
+                draft.expiry.year < self.contract_resolver.today.year
+                or draft.expiry.year > self.contract_resolver.today.year + 10
+            ):
+                return ExpiryRequest(
+                    expiry_input=f"{draft.expiry.month}/{draft.expiry.day}",
+                    precision=ExpiryPrecision.MONTH_DAY,
+                    ticker=draft.ticker,
+                    strike=draft.strike,
+                    option_side=draft.option_side,
+                )
+            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+                return ExpiryRequest(
+                    expiry_input=None,
+                    precision=ExpiryPrecision.AUTO_NEAREST,
+                    ticker=draft.ticker,
+                    strike=draft.strike,
+                    option_side=draft.option_side,
+                )
+        precision_value = draft.expiry_precision
+        expiry_input = draft.expiry_input
+        if precision_value not in {item.value for item in ExpiryPrecision}:
+            if draft.expiry is not None:
+                precision_value = ExpiryPrecision.EXACT_DATE.value
+                expiry_input = draft.expiry.isoformat()
+            elif (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+                precision_value = ExpiryPrecision.AUTO_NEAREST.value
+                expiry_input = None
+            else:
+                return None
+        return ExpiryRequest(
+            expiry_input=expiry_input,
+            precision=ExpiryPrecision(precision_value),
+            ticker=draft.ticker,
+            strike=draft.strike,
+            option_side=draft.option_side,
+        )
+
+    async def _persist_expiry_resolution(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        result: ExpiryResolution,
+        expected_version: int,
+        actor_user_id: int | None,
+        interaction_id: int | None,
+        action_type: str,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            self._apply_resolution_to_draft(draft, result)
+            draft.version += 1
+            if actor_user_id is not None and interaction_id is not None:
+                await self._add_audit(
+                    session,
+                    draft,
+                    actor_user_id,
+                    interaction_id,
+                    action_type,
+                    before,
+                )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    @staticmethod
+    def _apply_resolution_to_draft(draft: TradeDraft, result: ExpiryResolution) -> None:
+        draft.expiry = result.resolved_expiry
+        draft.expiry_input = result.expiry_input
+        draft.expiry_precision = result.precision.value
+        draft.expiry_resolution_status = result.resolution_status.value
+        draft.option_contract_code = result.option_contract_code
+        draft.contract_validation_status = result.validation_status.value
+        payload = dict(draft.parse_payload)
+        payload.update(
+            {
+                "expiry_input": result.expiry_input,
+                "expiry_precision": result.precision.value,
+                "resolved_expiry": (
+                    result.resolved_expiry.isoformat() if result.resolved_expiry else None
+                ),
+                "expiry": result.resolved_expiry.isoformat() if result.resolved_expiry else None,
+                "expiry_resolution_status": result.resolution_status.value,
+                "contract_validation_status": result.validation_status.value,
+                "option_contract_code": result.option_contract_code,
+                "expiry_candidates": [candidate.isoformat() for candidate in result.candidates],
+            }
+        )
+        draft.parse_payload = payload
+        warnings = [
+            warning
+            for warning in draft.warnings
+            if warning
+            not in {
+                "OPTION_CHAIN_UNAVAILABLE",
+                "OPTION_CONTRACT_NOT_FOUND",
+                "MULTIPLE_EXPIRATIONS_REQUIRE_MANAGER",
+            }
+        ]
+        if result.warning:
+            warnings.append(result.warning)
+        draft.warnings = list(dict.fromkeys(warnings))
+        missing = [field for field in draft.missing_fields if field not in {"expiry", "contract"}]
+        if result.resolved_expiry is None:
+            missing.append("expiry")
+        draft.missing_fields = list(dict.fromkeys(missing))
 
     async def _locked_draft(
         self, session: AsyncSession, draft_id: uuid.UUID, expected_version: int
@@ -916,8 +1282,9 @@ class CardReviewService:
             raise ReviewValidationError("CATEGORY_INVALID")
         if values.option_side not in {"CALL", "PUT"}:
             raise ReviewValidationError("OPTION_SIDE_INVALID")
-        if values.expiry < date.today():
-            raise ReviewValidationError("EXPIRY_IN_PAST")
+        _, precision = parse_expiry_input(values.expiry_input)
+        if values.expiry_input and precision is None:
+            raise ReviewValidationError("EXPIRY_INVALID")
         if not 1 <= len(values.ticker) <= 12 or any(
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for character in values.ticker
         ):
@@ -997,6 +1364,14 @@ class CardReviewService:
             selected_category=draft.selected_category,
             ticker=draft.ticker,
             expiry=draft.expiry,
+            expiry_input=draft.expiry_input,
+            expiry_precision=draft.expiry_precision,
+            expiry_resolution_status=draft.expiry_resolution_status,
+            option_contract_code=draft.option_contract_code,
+            contract_validation_status=draft.contract_validation_status,
+            price_parse_confidence=draft.price_parse_confidence,
+            expiry_candidates=_expiry_candidates(draft.parse_payload),
+            expiry_metadata_legacy="expiry_precision" not in draft.parse_payload,
             strike=draft.strike,
             option_side=draft.option_side,
             entry_low=draft.entry_low,

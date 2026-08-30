@@ -59,6 +59,7 @@ from app.services.membership_management import MembershipManagementService  # no
 from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
 from app.services.official_results import OfficialResultsService  # noqa: E402
+from app.services.option_contracts import OptionContractResolver  # noqa: E402
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
@@ -100,6 +101,25 @@ async def run() -> None:
             )
             await session.commit()
 
+        short_term_policy = ShortTermTrackingPolicy.load(
+            settings.short_term_tracking_config_path
+        )
+        if settings.short_term_tracking_enabled and not settings.massive_api_key:
+            raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
+        massive_provider = (
+            MassiveMarketDataProvider(
+                api_key=settings.massive_api_key,
+                price_source=short_term_policy.price_source,
+                max_quote_age_seconds=short_term_policy.max_quote_age_seconds,
+                last_trade_quote_guard_pct=(short_term_policy.last_trade_quote_guard_pct),
+                base_url=settings.massive_base_url,
+            )
+            if settings.massive_api_key
+            else None
+        )
+        contract_resolver = (
+            OptionContractResolver(massive_provider) if massive_provider is not None else None
+        )
         attachment_store = LocalAttachmentStore(
             settings.attachment_storage_path,
             max_bytes=settings.max_attachment_bytes,
@@ -132,6 +152,7 @@ async def run() -> None:
                 database,
                 attachment_store,
                 parser,
+                contract_resolver,
             )
             if settings.analysis_enabled:
                 analysis_parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)
@@ -180,22 +201,10 @@ async def run() -> None:
                     else None
                 ),
             )
-        short_term_policy = ShortTermTrackingPolicy.load(settings.short_term_tracking_config_path)
-        if settings.short_term_tracking_enabled and not settings.massive_api_key:
-            raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
-        massive_provider = (
-            MassiveMarketDataProvider(
-                api_key=settings.massive_api_key,
-                price_source=short_term_policy.price_source,
-                max_quote_age_seconds=short_term_policy.max_quote_age_seconds,
-                last_trade_quote_guard_pct=(short_term_policy.last_trade_quote_guard_pct),
-                base_url=settings.massive_base_url,
-            )
-            if settings.short_term_tracking_enabled
-            else None
-        )
         short_term_tracking_service = MarketTrackingService(
-            database, short_term_policy, massive_provider
+            database,
+            short_term_policy,
+            massive_provider if settings.short_term_tracking_enabled else None,
         )
         swing_leaps_trade_plan_service = (
             SwingLeapsTradePlanService(
@@ -257,8 +266,8 @@ async def run() -> None:
             discord_ids=discord_ids,
             signal_input_service=SignalInputService(database, attachment_store),
             draft_generation_service=draft_generation_service,
-            card_review_service=CardReviewService(database),
-            trade_publication_service=TradePublicationService(database),
+            card_review_service=CardReviewService(database, contract_resolver),
+            trade_publication_service=TradePublicationService(database, contract_resolver),
             short_term_tracking_service=short_term_tracking_service,
             mentor_service=MentorManagementService(database),
             membership_service=membership_service,

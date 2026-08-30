@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import date
@@ -27,6 +28,17 @@ from app.integrations.openai_trade_parser import (
 )
 from app.services.attachment_storage import AttachmentStorageError, LocalAttachmentStore
 from app.services.input_codes import next_input_code
+from app.services.option_contracts import (
+    ContractValidationStatus,
+    ExpiryPrecision,
+    ExpiryRequest,
+    ExpiryResolution,
+    ExpiryResolutionStatus,
+    OptionContractResolver,
+    extract_expiry_input,
+    parse_expiry_input,
+    parse_fast_signal,
+)
 
 
 class TradeParser(Protocol):
@@ -82,13 +94,90 @@ def _unique_strings(values: Any) -> list[str]:
     return list(dict.fromkeys(str(value)[:100] for value in values if str(value).strip()))
 
 
-def _normalize_expiry(payload: dict[str, Any]) -> None:
-    expiry = _date(payload.get("expiry"))
-    if expiry is None or expiry >= date.today():
-        return
-    payload["expiry"] = None
+def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> None:
+    fast = parse_fast_signal(raw_text)
+    if fast is not None:
+        payload["ticker"] = fast.ticker
+        payload["strike"] = float(fast.strike)
+        payload["option_side"] = fast.option_side
+        if fast.entry_price is not None:
+            payload["entry_low"] = float(fast.entry_price)
+            payload["entry_high"] = float(fast.entry_price)
+            payload["action_price"] = None
+        elif fast.warning and fast.warning.startswith("Ambiguous integer option premium"):
+            payload["entry_low"] = None
+            payload["entry_high"] = None
+            payload["action_price"] = None
+        payload["price_parse_confidence"] = (
+            float(fast.price_parse_confidence)
+            if fast.price_parse_confidence is not None
+            else None
+        )
+        if fast.warning:
+            payload["warnings"] = [*_unique_strings(payload.get("warnings")), fast.warning]
+        if fast.expiry_precision is not None:
+            payload["expiry_input"] = fast.expiry_input
+            payload["expiry_precision"] = fast.expiry_precision.value
+        elif (
+            payload.get("intent") == "NEW_TRADE"
+            and (fast.entry_price is not None or fast.warning is not None)
+            and not re.search(r"\b(SWING|LEAPS?|波段|长期)\b", raw_text or "", re.IGNORECASE)
+        ):
+            payload["category_suggestion"] = "SHORT_TERM"
+
+    source_input, source_precision = extract_expiry_input(raw_text)
+    if source_precision is not None:
+        payload["expiry_input"] = source_input
+        payload["expiry_precision"] = source_precision.value
+
+    normalized_input, normalized_precision = parse_expiry_input(payload.get("expiry_input"))
+    if normalized_precision is not None:
+        payload["expiry_input"] = normalized_input
+        payload["expiry_precision"] = normalized_precision.value
+
+    precision = payload.get("expiry_precision")
+    if precision not in {item.value for item in ExpiryPrecision}:
+        precision = None
+    if precision is None and payload.get("category_suggestion") == "SHORT_TERM":
+        payload["expiry_input"] = None
+        payload["expiry_precision"] = ExpiryPrecision.AUTO_NEAREST.value
+        payload["expiry_resolution_status"] = ExpiryResolutionStatus.UNRESOLVED.value
+    candidate = payload.get("resolved_expiry")
+    if candidate is not None:
+        candidate_date = _date(candidate)
+        if candidate_date is not None and candidate_date < date.today():
+            payload["resolved_expiry"] = None
+            payload["warnings"] = [
+                *_unique_strings(payload.get("warnings")),
+                "EXPIRY_IN_PAST_REQUIRES_REVIEW",
+            ]
+    payload["expiry"] = payload.get("resolved_expiry")
+
+
+def _apply_expiry_resolution(payload: dict[str, Any], result: ExpiryResolution) -> None:
+    payload["expiry_input"] = result.expiry_input
+    payload["expiry_precision"] = result.precision.value
+    payload["resolved_expiry"] = (
+        result.resolved_expiry.isoformat() if result.resolved_expiry else None
+    )
+    payload["expiry"] = payload["resolved_expiry"]
+    payload["expiry_resolution_status"] = result.resolution_status.value
+    payload["contract_validation_status"] = result.validation_status.value
+    payload["option_contract_code"] = result.option_contract_code
+    payload["expiry_candidates"] = [candidate.isoformat() for candidate in result.candidates]
     warnings = _unique_strings(payload.get("warnings"))
-    warnings.append("EXPIRY_IN_PAST_REQUIRES_REVIEW")
+    warnings = [
+        warning
+        for warning in warnings
+        if warning
+        not in {
+            "OPTION_CHAIN_UNAVAILABLE",
+            "OPTION_CONTRACT_NOT_FOUND",
+            "MULTIPLE_EXPIRATIONS_REQUIRE_MANAGER",
+        }
+    ]
+    if result.warning:
+        warnings.append(result.warning)
     payload["warnings"] = list(dict.fromkeys(warnings))
 
 
@@ -135,6 +224,8 @@ def _apply_position_ladder(payload: dict[str, Any]) -> None:
 
 def _add_required_missing_fields(payload: dict[str, Any]) -> None:
     missing = _unique_strings(payload.get("missing_fields"))
+    if payload.get("expiry") is not None:
+        missing = [field for field in missing if field != "expiry"]
     if payload.get("intent") == "UNKNOWN":
         missing.append("intent")
     if payload.get("action") == "UNKNOWN":
@@ -165,10 +256,12 @@ class DraftGenerationService:
         database: Database,
         attachment_store: LocalAttachmentStore,
         parser: TradeParser,
+        contract_resolver: OptionContractResolver | None = None,
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
         self.parser = parser
+        self.contract_resolver = contract_resolver
 
     async def process_next(self) -> DraftGenerationResult | None:
         async with self.database.session() as session:
@@ -221,7 +314,8 @@ class DraftGenerationService:
             )
             parse_trace = parse_result.trace
             payload = dict(parse_result.payload)
-            _normalize_expiry(payload)
+            _prepare_signal_payload(payload, source_snapshot[1])
+            await self._resolve_expiry(payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)
             return await self._persist_success(
@@ -246,6 +340,33 @@ class DraftGenerationService:
                 reason_code="DRAFT_GENERATION_FAILED",
                 trace=parse_trace,
             )
+
+    async def _resolve_expiry(self, payload: dict[str, Any]) -> None:
+        precision_value = payload.get("expiry_precision")
+        if precision_value not in {item.value for item in ExpiryPrecision}:
+            payload["contract_validation_status"] = ContractValidationStatus.UNVALIDATED.value
+            return
+        if self.contract_resolver is None:
+            payload.setdefault(
+                "contract_validation_status", ContractValidationStatus.UNVALIDATED.value
+            )
+            return
+        ticker = payload.get("ticker")
+        strike = _decimal(payload.get("strike"))
+        option_side = _optional_enum(payload.get("option_side"))
+        if not ticker or strike is None or option_side not in {"CALL", "PUT"}:
+            payload["contract_validation_status"] = ContractValidationStatus.UNVALIDATED.value
+            return
+        result = await self.contract_resolver.resolve(
+            ExpiryRequest(
+                expiry_input=payload.get("expiry_input"),
+                precision=ExpiryPrecision(str(precision_value)),
+                ticker=str(ticker).upper(),
+                strike=strike,
+                option_side=option_side,
+            )
+        )
+        _apply_expiry_resolution(payload, result)
 
     async def _load_attachments(self, source_message_id: uuid.UUID) -> list[ParserAttachment]:
         async with self.database.session() as session:
@@ -489,6 +610,18 @@ class DraftGenerationService:
             ),
             ticker=str(payload["ticker"]).upper() if payload.get("ticker") else None,
             expiry=_date(payload.get("expiry")),
+            expiry_input=payload.get("expiry_input"),
+            expiry_precision=payload.get("expiry_precision"),
+            expiry_resolution_status=str(
+                payload.get("expiry_resolution_status", ExpiryResolutionStatus.UNRESOLVED.value)
+            ),
+            option_contract_code=payload.get("option_contract_code"),
+            contract_validation_status=str(
+                payload.get(
+                    "contract_validation_status", ContractValidationStatus.UNVALIDATED.value
+                )
+            ),
+            price_parse_confidence=_decimal(payload.get("price_parse_confidence")),
             strike=_decimal(payload.get("strike")),
             option_side=_optional_enum(payload.get("option_side")),
             entry_low=_decimal(payload.get("entry_low")),

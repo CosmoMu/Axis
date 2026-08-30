@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, replace
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
 from typing import Protocol
@@ -487,7 +488,13 @@ def render_swing_leaps_entry_chart(
 
     category = "SWING" if card.category == "SWING" else "LEAPS"
     side = "C" if card.option_side == "CALL" else "P"
-    expiry = card.expiry.strftime("%m/%d/%Y") if card.expiry else "—"
+    expiry = "—"
+    if card.expiry:
+        expiry = (
+            card.expiry.strftime("%m/%d/%y")
+            if category == "LEAPS" or card.expiry.year != date.today().year
+            else card.expiry.strftime("%m/%d")
+        )
     draw.text(
         (left, 42),
         f"{card.ticker or '—'} · {expiry} · {_number(card.strike)}{side}",

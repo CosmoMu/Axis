@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 169 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 190 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -154,4 +154,4 @@ trigger、Discord event、Daily Results 和 restart recovery 必须完成后，S
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 169 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 190 项测试结果。

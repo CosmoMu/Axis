@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from app.services.draft_generation import (
     DraftGenerationDisposition,
     DraftGenerationService,
 )
+from app.services.option_contracts import ListedOptionContract, OptionContractResolver
 from tests.test_openai_trade_parser import valid_payload
 
 GUILD_ID = 1543309921066684567
@@ -39,10 +41,12 @@ class FakeParser:
         fail: bool = False,
         payload: dict[str, object] | None = None,
         expected_attachment_count: int = 1,
+        expected_raw_text: str = "SPY 700C entry",
     ) -> None:
         self.fail = fail
         self.payload = payload or valid_payload()
         self.expected_attachment_count = expected_attachment_count
+        self.expected_raw_text = expected_raw_text
         self.calls = 0
 
     async def parse(self, *, raw_text: str | None, attachments: list[object]) -> TradeParseResult:
@@ -60,7 +64,7 @@ class FakeParser:
         )
         if self.fail:
             raise TradeParseError("LLM_REQUEST_FAILED", trace=trace)
-        assert raw_text == "SPY 700C entry"
+        assert raw_text == self.expected_raw_text
         assert len(attachments) == self.expected_attachment_count
         return TradeParseResult(self.payload, trace)
 
@@ -70,6 +74,7 @@ async def database_with_source(
     *,
     message_id: int,
     with_attachment: bool,
+    raw_text: str = "SPY 700C entry",
 ) -> tuple[Database, LocalAttachmentStore, SourceMessage]:
     database = Database("sqlite+aiosqlite:///:memory:")
     async with database.engine.begin() as connection:
@@ -82,7 +87,7 @@ async def database_with_source(
             discord_message_id=message_id,
             channel_id=200,
             submitted_by=300,
-            raw_text="SPY 700C entry",
+            raw_text=raw_text,
             status=SourceStatus.RECEIVED.value,
             received_at=datetime.now(UTC),
         )
@@ -157,6 +162,120 @@ async def test_generation_is_idempotent_and_short_term_has_no_position(tmp_path:
         assert saved_source is not None and saved_source.status == SourceStatus.PARSED.value
         assert draft_count == 1
         assert audit_count == 1
+    finally:
+        await database.dispose()
+
+
+class FastSignalCatalog:
+    async def list_option_contracts(
+        self,
+        *,
+        underlying: str,
+        start: date,
+        end: date,
+        strike: Decimal,
+        option_side: str,
+    ) -> tuple[ListedOptionContract, ...]:
+        expiry = date.today()
+        if (
+            underlying == "SPY"
+            and strike == Decimal("775")
+            and option_side == "CALL"
+            and start <= expiry <= end
+        ):
+            return (
+                ListedOptionContract(
+                    "O:SPY", "SPY", expiry, Decimal("775"), "CALL"
+                ),
+            )
+        return ()
+
+
+@pytest.mark.asyncio
+async def test_short_term_fast_input_resolves_and_persists_zero_dte(tmp_path: Path) -> None:
+    raw = "SPY 775C .48"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1005,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+        }
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(
+            payload=payload,
+            expected_attachment_count=0,
+            expected_raw_text=raw,
+        ),
+        OptionContractResolver(FastSignalCatalog()),
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.selected_category == "SHORT_TERM"
+        assert draft.expiry == date.today()
+        assert draft.expiry_precision == "AUTO_NEAREST"
+        assert draft.expiry_resolution_status == "AUTO_RESOLVED"
+        assert draft.contract_validation_status == "VALID"
+        assert draft.option_contract_code == "O:SPY"
+        assert draft.entry_low == Decimal("0.4800")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_swing_without_expiry_does_not_use_auto_nearest(tmp_path: Path) -> None:
+    raw = "RIVN 18C .90 SWING"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1006,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "RIVN",
+            "strike": 18,
+            "category_suggestion": "SWING",
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+        }
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(
+            payload=payload,
+            expected_attachment_count=0,
+            expected_raw_text=raw,
+        ),
+        OptionContractResolver(FastSignalCatalog()),
+    )
+    try:
+        await service.generate(source.id)
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.selected_category == "SWING"
+        assert draft.expiry is None
+        assert draft.expiry_precision is None
+        assert "expiry" in draft.missing_fields
     finally:
         await database.dispose()
 
@@ -242,7 +361,9 @@ async def test_impossible_past_expiry_is_removed_before_review(tmp_path: Path) -
     payload = valid_payload()
     payload.update(
         {
-            "expiry": "1202-01-31",
+            "expiry_input": "1202-01-31",
+            "expiry_precision": "EXACT_DATE",
+            "resolved_expiry": "1202-01-31",
             "category_suggestion": "LEAPS",
         }
     )

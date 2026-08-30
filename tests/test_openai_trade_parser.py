@@ -25,7 +25,10 @@ def valid_payload() -> dict[str, object]:
         "action": "ENTRY",
         "add_stage": "NONE",
         "ticker": "SPY",
-        "expiry": "2026-09-18",
+        "expiry_input": "2026-09-18",
+        "expiry_precision": "EXACT_DATE",
+        "resolved_expiry": "2026-09-18",
+        "expiry_resolution_status": "EXPLICIT",
         "strike": 700,
         "option_side": "CALL",
         "entry_low": 1.2,
@@ -51,6 +54,7 @@ def valid_payload() -> dict[str, object]:
         "category_suggestion": "SHORT_TERM",
         "mentor_hint": None,
         "confidence": 0.93,
+        "price_parse_confidence": 1.0,
         "missing_fields": [],
         "warnings": [],
         "summary": "SPY 短线新仓草稿。",
@@ -103,8 +107,8 @@ async def test_parser_uses_strict_responses_schema_and_multimodal_input() -> Non
     assert result.payload["ticker"] == "SPY"
     assert result.response_id == "resp_test"
     assert result.trace.workload is LlmWorkload.SIGNAL_PARSE
-    assert result.trace.prompt_version == "axis-trade-parse-v4"
-    assert result.trace.schema_version == "axis-trade-v2"
+    assert result.trace.prompt_version == "axis-trade-parse-v5"
+    assert result.trace.schema_version == "axis-trade-v3"
     assert result.trace.success is True
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False

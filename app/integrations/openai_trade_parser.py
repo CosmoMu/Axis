@@ -4,6 +4,7 @@ import base64
 import copy
 import json
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -207,7 +208,12 @@ class OpenAITradeParser:
             response = await self.client.responses.create(
                 model=self.route.model,
                 input=[
-                    {"role": "system", "content": self.prompt},
+                    {
+                        "role": "system",
+                        "content": (
+                            f"{self.prompt}\nRuntime reference date: {date.today().isoformat()}."
+                        ),
+                    },
                     {"role": "user", "content": content},
                 ],
                 text={

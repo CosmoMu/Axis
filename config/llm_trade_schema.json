@@ -8,7 +8,10 @@
     "action",
     "add_stage",
     "ticker",
-    "expiry",
+    "expiry_input",
+    "expiry_precision",
+    "resolved_expiry",
+    "expiry_resolution_status",
     "strike",
     "option_side",
     "entry_low",
@@ -34,6 +37,7 @@
     "category_suggestion",
     "mentor_hint",
     "confidence",
+    "price_parse_confidence",
     "missing_fields",
     "warnings",
     "summary"
@@ -68,9 +72,21 @@
       "type": ["string", "null"],
       "pattern": "^[A-Za-z0-9.\\-]{1,12}$"
     },
-    "expiry": {
+    "expiry_input": {
+      "type": ["string", "null"],
+      "maxLength": 32
+    },
+    "expiry_precision": {
+      "type": ["string", "null"],
+      "enum": ["EXACT_DATE", "MONTH_DAY", "MONTH_YEAR", "ZERO_DTE", "AUTO_NEAREST", null]
+    },
+    "resolved_expiry": {
       "type": ["string", "null"],
       "format": "date"
+    },
+    "expiry_resolution_status": {
+      "type": "string",
+      "enum": ["UNRESOLVED", "AUTO_RESOLVED", "MANAGER_CONFIRMED", "EXPLICIT"]
     },
     "strike": {
       "type": ["number", "null"],
@@ -171,6 +187,11 @@
     },
     "confidence": {
       "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "price_parse_confidence": {
+      "type": ["number", "null"],
       "minimum": 0,
       "maximum": 1
     },

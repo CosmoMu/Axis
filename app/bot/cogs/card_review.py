@@ -136,6 +136,10 @@ class CardReviewCog(commands.Cog):
         elif isinstance(exc, ReviewValidationError):
             if exc.missing_fields:
                 message = "无法确认，还缺少：" + "、".join(exc.missing_fields)
+            elif exc.code == "CONTRACT_NOT_FOUND":
+                message = "Contract not found. 请选择 Expiry，或编辑 Strike / Side。"
+            elif exc.code == "OPTION_CHAIN_UNAVAILABLE":
+                message = "Option Chain 暂时不可用，尚未保存或发布。"
             else:
                 message = f"操作未保存：{exc.code}"
         elif isinstance(exc, PublicationConflictError):
@@ -218,6 +222,8 @@ class CardReviewCog(commands.Cog):
         for category in (TradeCategory.SWING, TradeCategory.LEAPS):
             self.bot.add_view(ActiveOrdersView(self, category.value))
         for draft in await self.service.registered(self.guild_id):
+            with suppress(ReviewError):
+                draft = await self.service.ensure_expiry_resolution(draft.id)
             view = await self._review_view(draft)
             if draft.review_message_id is not None and view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)

@@ -28,11 +28,20 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, PublicationStatus, SourceStatus, TradeState
+from app.services.option_contracts import OptionContractResolver
 from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.short_term_tracking import MarketTrackingService
-from app.services.trade_publication import TradePublicationService
+from app.services.trade_publication import (
+    PublicationValidationError,
+    TradePublicationService,
+)
 
 GUILD_ID = 1543309921066684567
+
+
+class EmptyContractCatalog:
+    async def list_option_contracts(self, **_: object) -> tuple[object, ...]:
+        return ()
 
 
 async def publication_database() -> tuple[Database, TradeDraft]:
@@ -190,6 +199,20 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert event_count == 1
         assert event_price == Decimal("3.275")
         assert audit_actions == ["TRADE_PUBLICATION_CLAIMED", "TRADE_PUBLISHED"]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_publish_gate_requires_persisted_contract_validation() -> None:
+    database, draft = await publication_database()
+    service = TradePublicationService(
+        database,
+        OptionContractResolver(EmptyContractCatalog()),  # type: ignore[arg-type]
+    )
+    try:
+        with pytest.raises(PublicationValidationError, match="CONTRACT_NOT_VALIDATED"):
+            await service.claim(draft.id)
     finally:
         await database.dispose()
 
@@ -461,6 +484,8 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
             assert forbidden not in public_text
         assert "MY RISK IS NOT YOUR RISK" in public_text
         assert "(LOTTO)" in public_text
+        assert "01/15/27" in public_text
+        assert "2027-01-15" not in public_text
         assert claim.claim_token is not None
         result = await publication.finalize(
             claim.publication_id,
