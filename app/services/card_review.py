@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -12,6 +12,7 @@ from app.db.models import AuditLog, Mentor, Trade, TradeDraft
 from app.db.session import Database
 from app.domain.enums import DraftStatus, TradeState
 from app.domain.public_cards import PublicTradeCard
+from app.services.review_cleanup import ReviewMessageRef
 
 
 class ReviewError(RuntimeError):
@@ -117,6 +118,10 @@ REGISTERED_REVIEW_STATUSES = {
     *ACTIVE_REVIEW_STATUSES,
     DraftStatus.READY.value,
     DraftStatus.PUBLISH_FAILED.value,
+}
+CLEANUP_REVIEW_STATUSES = {
+    DraftStatus.PUBLISHED.value,
+    DraftStatus.DELETED.value,
 }
 
 
@@ -271,6 +276,56 @@ class CardReviewService:
                 )
             ).all()
             return [await self._snapshot(session, draft) for draft in drafts]
+
+    async def review_cleanup_candidates(
+        self,
+        guild_id: int,
+        *,
+        updated_before: datetime,
+        limit: int = 25,
+    ) -> list[ReviewMessageRef]:
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        TradeDraft.id,
+                        TradeDraft.review_channel_id,
+                        TradeDraft.review_message_id,
+                    )
+                    .where(
+                        TradeDraft.guild_id == guild_id,
+                        TradeDraft.status.in_(CLEANUP_REVIEW_STATUSES),
+                        TradeDraft.review_channel_id.is_not(None),
+                        TradeDraft.review_message_id.is_not(None),
+                        TradeDraft.updated_at <= updated_before,
+                    )
+                    .order_by(TradeDraft.updated_at, TradeDraft.id)
+                    .limit(limit)
+                )
+            ).all()
+        return [
+            ReviewMessageRef(draft_id, channel_id, message_id)
+            for draft_id, channel_id, message_id in rows
+            if channel_id is not None and message_id is not None
+        ]
+
+    async def release_review_message(self, ref: ReviewMessageRef) -> bool:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft)
+                .where(
+                    TradeDraft.id == ref.draft_id,
+                    TradeDraft.status.in_(CLEANUP_REVIEW_STATUSES),
+                    TradeDraft.review_channel_id == ref.channel_id,
+                    TradeDraft.review_message_id == ref.message_id,
+                )
+                .with_for_update()
+            )
+            if draft is None:
+                return False
+            draft.review_message_id = None
+            await session.commit()
+            return True
 
     async def attach_review_message(
         self,

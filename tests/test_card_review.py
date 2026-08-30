@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -265,6 +265,44 @@ async def test_review_message_attachment_is_idempotent() -> None:
         second = await service.attach_review_message(draft.id, channel_id=701, message_id=801)
         assert first.review_channel_id == second.review_channel_id == 700
         assert first.review_message_id == second.review_message_id == 800
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_terminal_signal_review_message_is_cleanup_candidate_and_released() -> None:
+    database, draft, _ = await review_database()
+    service = CardReviewService(database)
+    try:
+        await service.attach_review_message(draft.id, channel_id=700, message_id=800)
+        old = datetime.now(UTC) - timedelta(minutes=10)
+        async with database.session() as session:
+            stored = await session.get(TradeDraft, draft.id)
+            assert stored is not None
+            stored.status = DraftStatus.PUBLISH_FAILED.value
+            stored.updated_at = old
+            await session.commit()
+
+        assert await service.review_cleanup_candidates(
+            GUILD_ID,
+            updated_before=datetime.now(UTC) - timedelta(minutes=5),
+        ) == []
+
+        async with database.session() as session:
+            stored = await session.get(TradeDraft, draft.id)
+            assert stored is not None
+            stored.status = DraftStatus.PUBLISHED.value
+            stored.updated_at = old
+            await session.commit()
+
+        refs = await service.review_cleanup_candidates(
+            GUILD_ID,
+            updated_before=datetime.now(UTC) - timedelta(minutes=5),
+        )
+        assert [(ref.channel_id, ref.message_id) for ref in refs] == [(700, 800)]
+        assert await service.release_review_message(refs[0]) is True
+        assert await service.release_review_message(refs[0]) is False
+        assert (await service.get(draft.id)).review_message_id is None
     finally:
         await database.dispose()
 

@@ -1223,6 +1223,46 @@ def test_public_analysis_is_neutral_and_image_independent() -> None:
         assert forbidden not in public_text
 
 
+@pytest.mark.asyncio
+async def test_terminal_analysis_review_message_is_cleanup_candidate_and_released(
+    tmp_path: Path,
+) -> None:
+    database, store, mentor = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1731,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA analysis for cleanup",
+    )
+    service, _, _ = analysis_service(database, store, [valid_analysis_payload()])
+    try:
+        draft = await generate_and_select_mentor(service, source_id, mentor.id)
+        await service.attach_review_message(draft.id, channel_id=710, message_id=810)
+        archived = await service.archive(
+            draft.id,
+            publish=False,
+            actor_user_id=901,
+            interaction_id=1732,
+        )
+        old = datetime.now(UTC) - timedelta(minutes=10)
+        async with database.session() as session:
+            stored = await session.get(AnalysisDraft, archived.draft.id)
+            assert stored is not None
+            stored.updated_at = old
+            await session.commit()
+
+        refs = await service.review_cleanup_candidates(
+            GUILD_ID,
+            updated_before=datetime.now(UTC) - timedelta(minutes=5),
+        )
+        assert [(ref.channel_id, ref.message_id) for ref in refs] == [(710, 810)]
+        assert await service.release_review_message(refs[0]) is True
+        assert await service.release_review_message(refs[0]) is False
+        assert (await service.get(draft.id)).review_message_id is None
+    finally:
+        await database.dispose()
+
+
 def test_prediction_chart_is_deterministic_structural_png() -> None:
     payload = {
         "symbols": ["NVDA"],

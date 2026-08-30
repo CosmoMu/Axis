@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import discord
@@ -10,6 +11,7 @@ from app.bot.cards import build_analysis_review_embed, build_public_analysis_emb
 from app.bot.cogs.signal_input import is_signal_manager
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.message_input import extract_message_input
+from app.bot.review_cleanup import delete_owned_bot_message
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.domain.enums import AnalysisDraftStatus, SourceKind
 from app.services.analysis_pipeline import (
@@ -39,6 +41,8 @@ class AnalysisPipelineCog(commands.Cog):
         owner_user_id: int | None,
         input_service: SignalInputService,
         service: AnalysisPipelineService,
+        cleanup_interval_seconds: int,
+        cleanup_retention_minutes: int,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -48,13 +52,17 @@ class AnalysisPipelineCog(commands.Cog):
         self.owner_user_id = owner_user_id
         self.input_service = input_service
         self.service = service
+        self.cleanup_retention_minutes = cleanup_retention_minutes
         self._registered = False
+        self.review_cleanup.change_interval(seconds=cleanup_interval_seconds)
         self.worker.start()
         self.review_queue.start()
+        self.review_cleanup.start()
 
     def cog_unload(self) -> None:
         self.worker.cancel()
         self.review_queue.cancel()
+        self.review_cleanup.cancel()
 
     async def authorize(self, interaction: discord.Interaction) -> bool:
         user = interaction.user
@@ -201,6 +209,31 @@ class AnalysisPipelineCog(commands.Cog):
 
     @review_queue.before_loop
     async def before_review(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=60)
+    async def review_cleanup(self) -> None:
+        cutoff = datetime.now(UTC) - timedelta(minutes=self.cleanup_retention_minutes)
+        try:
+            refs = await self.service.review_cleanup_candidates(
+                self.guild_id,
+                updated_before=cutoff,
+            )
+            for ref in refs:
+                if await delete_owned_bot_message(
+                    self.bot,
+                    channel_id=ref.channel_id,
+                    message_id=ref.message_id,
+                ):
+                    await self.service.release_review_message(ref)
+        except Exception as exc:
+            logger.warning(
+                "event=analysis_review_cleanup_failed error_type=%s",
+                type(exc).__name__,
+            )
+
+    @review_cleanup.before_loop
+    async def before_review_cleanup(self) -> None:
         await self.bot.wait_until_ready()
 
     def _view(self, draft: AnalysisDraftSnapshot) -> discord.ui.View | None:

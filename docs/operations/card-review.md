@@ -1,7 +1,9 @@
 # Signal Review 管理员审核
 
 LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・signal-review` 发布一张 Manager 专用
-审核卡片。卡片是幂等的：Bot 重启时会复用数据库中的 Discord Message ID；如果
+审核卡片。卡片发布成功或被删除后保留 5 分钟，再由定时任务按数据库保存的 Message ID
+清理；`PENDING_REVIEW / PARSE_FAILED / READY / PUBLISH_FAILED` 卡片不会被清理。卡片是
+幂等的：Bot 重启时会复用数据库中的 Discord Message ID；如果
 发送成功但数据库回写中断，Bot 会根据 Embed Footer 中的 Draft UUID 找回已有消息，
 不会重复发卡。
 

@@ -100,6 +100,19 @@ def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch)
     assert Settings.load(Path("/tmp/axis-test")).daily_summary_time_et == "09:05"
 
 
+def test_review_cleanup_schedule_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
+    monkeypatch.setenv("REVIEW_CLEANUP_INTERVAL_SECONDS", "90")
+    monkeypatch.setenv("REVIEW_CLEANUP_RETENTION_MINUTES", "0")
+    configured = Settings.load(Path("/tmp/axis-test"))
+    assert configured.review_cleanup_interval_seconds == 90
+    assert configured.review_cleanup_retention_minutes == 0
+
+    monkeypatch.setenv("REVIEW_CLEANUP_INTERVAL_SECONDS", "0")
+    with pytest.raises(ConfigurationError, match="REVIEW_CLEANUP_INTERVAL_SECONDS"):
+        Settings.load(Path("/tmp/axis-test"))
+
+
 def test_lab_gate_requires_all_deferred_features_off() -> None:
     configured = settings(apply_changes=False, dry_run=True)
     configured.assert_lab_disabled()

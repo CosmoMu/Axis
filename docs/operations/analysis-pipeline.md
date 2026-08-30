@@ -64,6 +64,10 @@ Manager-facing 输入编号独立递增：Signal 使用 `S-00001`，Analysis 使
 Discord 发送失败时，Mentor Analysis 和 Public Snapshot 已安全归档，Draft 转为
 `PUBLISH_FAILED`。管理员使用 persistent `重试发布`；marker 扫描和唯一约束避免重复卡片。
 
+归档、发布或删除后的 Analysis Review 卡片保留 5 分钟，再由定时任务按精确 Message ID
+清理。待审核、解析失败和发布失败卡片始终保留；任务同时校验消息作者必须为 AXIS BOT，
+不会删除 Manager 或其他用户消息。
+
 ## Feature Gate
 
 Owner 已对 `analysis-input` 的 OpenAI 数据出口作出独立明确授权，当前本机为：

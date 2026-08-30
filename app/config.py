@@ -124,6 +124,8 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    review_cleanup_interval_seconds: int = 60
+    review_cleanup_retention_minutes: int = 5
     public_operator_name: str = "VALE"
     public_identity_forbidden_terms: tuple[str, ...] = ()
     lab_enabled: bool = False
@@ -223,6 +225,12 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            review_cleanup_interval_seconds=_parse_positive_int(
+                "REVIEW_CLEANUP_INTERVAL_SECONDS", 60
+            ),
+            review_cleanup_retention_minutes=_parse_nonnegative_int(
+                "REVIEW_CLEANUP_RETENTION_MINUTES", 5
+            ),
             public_operator_name=(os.getenv("PUBLIC_OPERATOR_NAME", "VALE").strip() or "VALE")[:40],
             public_identity_forbidden_terms=tuple(
                 item.strip()
