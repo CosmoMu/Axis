@@ -243,6 +243,10 @@ class CardReviewCog(commands.Cog):
         actor_user_id: int | None = None,
         interaction_id: int | None = None,
     ) -> ReviewDraft:
+        if (
+            draft.selected_category or draft.category_suggestion
+        ) == TradeCategory.SHORT_TERM.value and not self.tracking_service.enabled:
+            raise PublicationValidationError("SHORT_TERM_TRACKING_DISABLED")
         claim = await self.publication_service.claim(
             draft.id,
             actor_user_id=actor_user_id,
