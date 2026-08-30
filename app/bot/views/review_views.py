@@ -1,0 +1,383 @@
+from __future__ import annotations
+
+import uuid
+from datetime import date
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING
+
+import discord
+
+from app.bot.cards import build_public_preview_embed
+from app.services.card_review import (
+    DraftEdit,
+    ReviewChoice,
+    ReviewDraft,
+    ReviewValidationError,
+)
+
+if TYPE_CHECKING:
+    from app.bot.cogs.card_review import CardReviewCog
+
+
+def _display(value: object | None) -> str:
+    return "-" if value is None else str(value)
+
+
+def _decimal_display(value: Decimal | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:f}".rstrip("0").rstrip(".") or "0"
+
+
+def _split(raw: str, count: int) -> list[str]:
+    parts = [part.strip() for part in raw.replace("｜", "|").split("|")]
+    if len(parts) != count:
+        raise ReviewValidationError("FORM_FORMAT_INVALID")
+    return parts
+
+
+def _optional_text(raw: str) -> str | None:
+    value = raw.strip()
+    return None if value in {"", "-", "—", "NULL"} else value
+
+
+def _optional_decimal(raw: str) -> Decimal | None:
+    value = _optional_text(raw.replace("$", "").replace("%", ""))
+    if value is None:
+        return None
+    try:
+        return Decimal(value)
+    except InvalidOperation as exc:
+        raise ReviewValidationError("NUMBER_INVALID") from exc
+
+
+def _optional_date(raw: str) -> date | None:
+    value = _optional_text(raw)
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ReviewValidationError("DATE_INVALID") from exc
+
+
+def _optional_eighths(raw: str) -> int | None:
+    value = _optional_text(raw.upper().replace(" ", ""))
+    if value is None:
+        return None
+    aliases = {
+        "1/8": 1,
+        "1/4": 2,
+        "3/8": 3,
+        "1/2": 4,
+        "5/8": 5,
+        "3/4": 6,
+        "7/8": 7,
+        "FULL": 8,
+        "满仓": 8,
+    }
+    if value in aliases:
+        return aliases[value]
+    if value.endswith("/8"):
+        value = value[:-2]
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ReviewValidationError("POSITION_INVALID") from exc
+
+
+class DraftEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"编辑 {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:modal:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        self.operation = discord.ui.TextInput(
+            label="意图 | 操作 | 阶段 | 分类",
+            default=" | ".join(
+                (
+                    draft.intent,
+                    draft.action,
+                    _display(draft.action_stage),
+                    _display(draft.selected_category),
+                )
+            ),
+            placeholder="NEW_TRADE | ENTRY | NONE | SHORT_TERM",
+            max_length=100,
+        )
+        self.contract = discord.ui.TextInput(
+            label="Ticker | YYYY-MM-DD | Strike | CALL/PUT",
+            default=" | ".join(
+                (
+                    _display(draft.ticker),
+                    _display(draft.expiry),
+                    _decimal_display(draft.strike),
+                    _display(draft.option_side),
+                )
+            ),
+            max_length=100,
+        )
+        self.prices = discord.ui.TextInput(
+            label="入场低 | 入场高 | 操作价 | 平均成本",
+            default=" | ".join(
+                (
+                    _decimal_display(draft.entry_low),
+                    _decimal_display(draft.entry_high),
+                    _decimal_display(draft.action_price),
+                    _decimal_display(draft.avg_cost),
+                )
+            ),
+            max_length=100,
+        )
+        self.risk = discord.ui.TextInput(
+            label="SL | TP1 | TP2 | 当前收益%",
+            default=" | ".join(
+                (
+                    _decimal_display(draft.sl),
+                    _decimal_display(draft.tp1),
+                    _decimal_display(draft.tp2),
+                    _decimal_display(draft.current_pnl_pct),
+                )
+            ),
+            max_length=100,
+        )
+        self.position = discord.ui.TextInput(
+            label="本次仓位 | 操作后持仓（八分之一单位）",
+            default=(
+                f"{_display(draft.position_delta_eighths)} | "
+                f"{_display(draft.position_after_eighths)}"
+            ),
+            placeholder="1 | 2（也支持 1/8 | 1/4）",
+            max_length=50,
+        )
+        for item in (self.operation, self.contract, self.prices, self.risk, self.position):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            intent, action, stage, category = _split(self.operation.value, 4)
+            ticker, expiry, strike, side = _split(self.contract.value, 4)
+            entry_low, entry_high, action_price, avg_cost = _split(
+                self.prices.value, 4
+            )
+            sl, tp1, tp2, pnl = _split(self.risk.value, 4)
+            position_delta, position_after = _split(self.position.value, 2)
+            values = DraftEdit(
+                intent=intent.upper(),
+                action=action.upper(),
+                action_stage=(value.upper() if (value := _optional_text(stage)) else None),
+                selected_category=(
+                    value.upper() if (value := _optional_text(category)) else None
+                ),
+                ticker=(value.upper() if (value := _optional_text(ticker)) else None),
+                expiry=_optional_date(expiry),
+                strike=_optional_decimal(strike),
+                option_side=(value.upper() if (value := _optional_text(side)) else None),
+                entry_low=_optional_decimal(entry_low),
+                entry_high=_optional_decimal(entry_high),
+                action_price=_optional_decimal(action_price),
+                avg_cost=_optional_decimal(avg_cost),
+                sl=_optional_decimal(sl),
+                tp1=_optional_decimal(tp1),
+                tp2=_optional_decimal(tp2),
+                current_pnl_pct=_optional_decimal(pnl),
+                position_delta_eighths=_optional_eighths(position_delta),
+                position_after_eighths=_optional_eighths(position_after),
+            )
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=values,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await interaction.followup.send("草稿已更新。", ephemeral=True)
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class ReviewChoiceSelect(discord.ui.Select):
+    def __init__(
+        self,
+        controller: CardReviewCog,
+        draft: ReviewDraft,
+        *,
+        kind: str,
+        choices: list[ReviewChoice],
+    ) -> None:
+        self.controller = controller
+        self.draft = draft
+        self.kind = kind
+        options = [
+            discord.SelectOption(
+                label=choice.label[:100],
+                value=choice.value,
+                description=choice.description[:100] if choice.description else None,
+            )
+            for choice in choices
+        ]
+        label = "选择 Mentor" if kind == "mentor" else "选择当前订单"
+        super().__init__(
+            placeholder=label,
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id=f"axis:review:{kind}:select:{draft.id.hex}:v{draft.version}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            selected_id = uuid.UUID(self.values[0])
+            common = {
+                "expected_version": self.draft.version,
+                "actor_user_id": interaction.user.id,
+                "interaction_id": interaction.id,
+            }
+            if self.kind == "mentor":
+                updated = await self.controller.service.select_mentor(
+                    self.draft.id, mentor_id=selected_id, **common
+                )
+            else:
+                updated = await self.controller.service.select_trade(
+                    self.draft.id, trade_id=selected_id, **common
+                )
+            await self.controller.refresh(updated)
+            await interaction.followup.send("选择已保存。", ephemeral=True)
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class ReviewChoiceView(discord.ui.View):
+    def __init__(
+        self,
+        controller: CardReviewCog,
+        draft: ReviewDraft,
+        *,
+        kind: str,
+        choices: list[ReviewChoice],
+    ) -> None:
+        super().__init__(timeout=180)
+        self.add_item(ReviewChoiceSelect(controller, draft, kind=kind, choices=choices))
+
+
+class ConfirmDeleteView(discord.ui.View):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(timeout=120)
+        self.controller = controller
+        self.draft = draft
+
+    @discord.ui.button(label="确认删除草稿", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.delete(
+                self.draft.id,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await interaction.followup.send("草稿已标记为删除。", ephemeral=True)
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class ReviewDraftView(discord.ui.View):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(timeout=None)
+        self.controller = controller
+        self.draft = draft
+        buttons = (
+            ("选择 Mentor", discord.ButtonStyle.secondary, "mentor", 0, self.select_mentor),
+            ("选择订单", discord.ButtonStyle.secondary, "trade", 0, self.select_trade),
+            ("编辑卡片", discord.ButtonStyle.primary, "edit", 0, self.edit),
+            ("预览会员卡片", discord.ButtonStyle.secondary, "preview", 0, self.preview),
+            ("确认发布", discord.ButtonStyle.success, "approve", 1, self.approve),
+            ("删除草稿", discord.ButtonStyle.danger, "delete", 1, self.delete),
+        )
+        for label, style, action, row, callback in buttons:
+            button = discord.ui.Button(
+                label=label,
+                style=style,
+                row=row,
+                custom_id=f"axis:review:{action}:{draft.id.hex}:v{draft.version}",
+            )
+            button.callback = callback
+            self.add_item(button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await self.controller.authorize(interaction)
+
+    async def select_mentor(self, interaction: discord.Interaction) -> None:
+        choices = await self.controller.service.mentor_choices(self.draft.guild_id)
+        if not choices:
+            await interaction.response.send_message(
+                "当前没有可用 Mentor，请先在 Mentor 管理阶段创建。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            "请选择 Mentor：",
+            view=ReviewChoiceView(
+                self.controller, self.draft, kind="mentor", choices=choices
+            ),
+            ephemeral=True,
+        )
+
+    async def select_trade(self, interaction: discord.Interaction) -> None:
+        choices = await self.controller.service.trade_choices(self.draft.guild_id)
+        if not choices:
+            await interaction.response.send_message("当前没有可关联的活跃订单。", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            "请选择订单：",
+            view=ReviewChoiceView(
+                self.controller, self.draft, kind="trade", choices=choices
+            ),
+            ephemeral=True,
+        )
+
+    async def edit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
+
+    async def preview(self, interaction: discord.Interaction) -> None:
+        current = await self.controller.service.get(self.draft.id)
+        await interaction.response.send_message(
+            embed=build_public_preview_embed(current), ephemeral=True
+        )
+
+    async def approve(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.approve(
+                self.draft.id,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await interaction.followup.send(
+                "已通过管理员审核；会员发布模块完成前不会发卡。",
+                ephemeral=True,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+    async def delete(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            "删除后该草稿不会进入发布队列。是否继续？",
+            view=ConfirmDeleteView(self.controller, self.draft),
+            ephemeral=True,
+        )

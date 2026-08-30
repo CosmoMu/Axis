@@ -170,6 +170,9 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("guild_id", "draft_code", name="draft_code_per_guild"),
         UniqueConstraint("source_message_id", name="trade_draft_source_message"),
+        UniqueConstraint(
+            "guild_id", "review_message_id", name="draft_review_message_per_guild"
+        ),
         CheckConstraint(enum_check("status", DraftStatus), name="draft_status"),
         CheckConstraint("position_delta_eighths BETWEEN -8 AND 8", name="draft_position_delta"),
         CheckConstraint("position_after_eighths BETWEEN 0 AND 8", name="draft_position_after"),
@@ -218,6 +221,8 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     internal_notes: Mapped[str | None] = mapped_column(Text)
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
+    review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    review_message_id: Mapped[int | None] = mapped_column(BigInteger)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 

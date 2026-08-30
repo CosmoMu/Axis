@@ -46,9 +46,11 @@ def discord_ids() -> dict[str, object]:
 def test_metadata_contains_the_complete_mvp_schema() -> None:
     assert set(Base.metadata.tables) == EXPECTED_TABLES
     trades = Base.metadata.tables["trades"]
+    drafts = Base.metadata.tables["trade_drafts"]
     assert {"position_eighths", "max_position_eighths", "version"} <= set(trades.columns.keys())
     assert "mentor_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
+    assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
 
 
 @pytest.mark.asyncio

@@ -27,6 +27,7 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
     load_trade_schema,
 )
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
+from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
 
@@ -69,6 +70,7 @@ async def run() -> None:
             discord_ids=discord_ids,
             signal_input_service=SignalInputService(database, attachment_store),
             draft_generation_service=draft_generation_service,
+            card_review_service=CardReviewService(database),
         )
         async with bot:
             await bot.start(token, reconnect=True)

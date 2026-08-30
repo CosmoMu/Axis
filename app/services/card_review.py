@@ -1,0 +1,599 @@
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import AuditLog, Mentor, Trade, TradeDraft
+from app.db.session import Database
+from app.domain.enums import DraftStatus, TradeState
+
+
+class ReviewError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class ReviewConflictError(ReviewError):
+    pass
+
+
+class ReviewValidationError(ReviewError):
+    def __init__(self, code: str, missing_fields: tuple[str, ...] = ()) -> None:
+        super().__init__(code)
+        self.missing_fields = missing_fields
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewChoice:
+    value: str
+    label: str
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DraftEdit:
+    intent: str
+    action: str
+    action_stage: str | None
+    selected_category: str | None
+    ticker: str | None
+    expiry: date | None
+    strike: Decimal | None
+    option_side: str | None
+    entry_low: Decimal | None
+    entry_high: Decimal | None
+    action_price: Decimal | None
+    avg_cost: Decimal | None
+    sl: Decimal | None
+    tp1: Decimal | None
+    tp2: Decimal | None
+    current_pnl_pct: Decimal | None
+    position_delta_eighths: int | None
+    position_after_eighths: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewDraft:
+    id: uuid.UUID
+    guild_id: int
+    draft_code: str
+    status: str
+    intent: str
+    action: str
+    action_stage: str | None
+    category_suggestion: str | None
+    selected_category: str | None
+    ticker: str | None
+    expiry: date | None
+    strike: Decimal | None
+    option_side: str | None
+    entry_low: Decimal | None
+    entry_high: Decimal | None
+    action_price: Decimal | None
+    avg_cost: Decimal | None
+    sl: Decimal | None
+    tp1: Decimal | None
+    tp2: Decimal | None
+    position_delta_eighths: int | None
+    position_after_eighths: int | None
+    current_pnl_pct: Decimal | None
+    mentor_hint: str | None
+    mentor_name: str | None
+    matched_trade_code: str | None
+    parser_confidence: Decimal | None
+    missing_fields: tuple[str, ...]
+    warnings: tuple[str, ...]
+    internal_notes: str | None
+    reviewed_by: int | None
+    review_channel_id: int | None
+    review_message_id: int | None
+    version: int
+
+
+ACTIVE_REVIEW_STATUSES = {
+    DraftStatus.PENDING_REVIEW.value,
+    DraftStatus.PARSE_FAILED.value,
+}
+
+
+def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ...]:
+    missing: list[str] = []
+    if draft.intent not in {"NEW_TRADE", "UPDATE_TRADE"}:
+        missing.append("intent")
+    mentor_missing = (
+        draft.mentor_id is None if isinstance(draft, TradeDraft) else draft.mentor_name is None
+    )
+    if mentor_missing:
+        missing.append("mentor")
+
+    if draft.intent == "NEW_TRADE":
+        if draft.selected_category is None:
+            missing.append("category")
+        for field in ("ticker", "expiry", "strike", "option_side"):
+            if getattr(draft, field) is None:
+                missing.append(field)
+        if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
+            missing.append("entry_price")
+        if draft.position_after_eighths is None:
+            missing.append("position_after_eighths")
+    elif draft.intent == "UPDATE_TRADE":
+        matched = (
+            draft.matched_trade_id
+            if isinstance(draft, TradeDraft)
+            else draft.matched_trade_code
+        )
+        if matched is None:
+            missing.append("matched_trade")
+        if draft.action in {"", "UNKNOWN"}:
+            missing.append("action")
+        if all(
+            value is None
+            for value in (
+                draft.action_price,
+                draft.avg_cost,
+                draft.sl,
+                draft.tp1,
+                draft.tp2,
+                draft.current_pnl_pct,
+            )
+        ):
+            missing.append("update_content")
+        if draft.position_after_eighths is None:
+            missing.append("position_after_eighths")
+    return tuple(missing)
+
+
+def _audit_payload(draft: TradeDraft) -> dict[str, object]:
+    return {
+        "status": draft.status,
+        "version": draft.version,
+        "mentor_id": str(draft.mentor_id) if draft.mentor_id else None,
+        "matched_trade_id": str(draft.matched_trade_id) if draft.matched_trade_id else None,
+        "intent": draft.intent,
+        "action": draft.action,
+        "action_stage": draft.action_stage,
+        "selected_category": draft.selected_category,
+        "ticker": draft.ticker,
+        "expiry": draft.expiry.isoformat() if draft.expiry else None,
+        "strike": str(draft.strike) if draft.strike is not None else None,
+        "option_side": draft.option_side,
+        "entry_low": str(draft.entry_low) if draft.entry_low is not None else None,
+        "entry_high": str(draft.entry_high) if draft.entry_high is not None else None,
+        "action_price": str(draft.action_price) if draft.action_price is not None else None,
+        "avg_cost": str(draft.avg_cost) if draft.avg_cost is not None else None,
+        "sl": str(draft.sl) if draft.sl is not None else None,
+        "tp1": str(draft.tp1) if draft.tp1 is not None else None,
+        "tp2": str(draft.tp2) if draft.tp2 is not None else None,
+        "position_delta_eighths": draft.position_delta_eighths,
+        "position_after_eighths": draft.position_after_eighths,
+        "current_pnl_pct": (
+            str(draft.current_pnl_pct) if draft.current_pnl_pct is not None else None
+        ),
+    }
+
+
+class CardReviewService:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    async def get(self, draft_id: uuid.UUID) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await session.get(TradeDraft, draft_id)
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            return await self._snapshot(session, draft)
+
+    async def next_unposted(self, guild_id: int) -> ReviewDraft | None:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft)
+                .where(
+                    TradeDraft.guild_id == guild_id,
+                    TradeDraft.status.in_(ACTIVE_REVIEW_STATUSES),
+                    TradeDraft.review_message_id.is_(None),
+                )
+                .order_by(TradeDraft.created_at, TradeDraft.id)
+                .limit(1)
+            )
+            return await self._snapshot(session, draft) if draft is not None else None
+
+    async def registered(self, guild_id: int) -> list[ReviewDraft]:
+        async with self.database.session() as session:
+            drafts = (
+                await session.scalars(
+                    select(TradeDraft)
+                    .where(
+                        TradeDraft.guild_id == guild_id,
+                        TradeDraft.status.in_(
+                            [*ACTIVE_REVIEW_STATUSES, DraftStatus.READY.value]
+                        ),
+                        TradeDraft.review_message_id.is_not(None),
+                    )
+                    .order_by(TradeDraft.created_at, TradeDraft.id)
+                )
+            ).all()
+            return [await self._snapshot(session, draft) for draft in drafts]
+
+    async def attach_review_message(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        channel_id: int,
+        message_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await session.get(TradeDraft, draft_id)
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            if draft.review_message_id is None:
+                draft.review_channel_id = channel_id
+                draft.review_message_id = message_id
+                await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def mentor_choices(self, guild_id: int) -> list[ReviewChoice]:
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(Mentor.id, Mentor.name, Mentor.short_code)
+                    .where(Mentor.guild_id == guild_id, Mentor.is_active.is_(True))
+                    .order_by(Mentor.name)
+                    .limit(25)
+                )
+            ).all()
+        return [
+            ReviewChoice(str(mentor_id), name[:100], f"Code: {short_code}"[:100])
+            for mentor_id, name, short_code in rows
+        ]
+
+    async def trade_choices(self, guild_id: int) -> list[ReviewChoice]:
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(Trade.id, Trade.public_trade_id, Trade.ticker, Trade.option_side)
+                    .where(
+                        Trade.guild_id == guild_id,
+                        Trade.state.in_([TradeState.ACTIVE.value, TradeState.RUNNER.value]),
+                    )
+                    .order_by(Trade.updated_at.desc())
+                    .limit(25)
+                )
+            ).all()
+        return [
+            ReviewChoice(str(trade_id), public_id[:100], f"{ticker} · {side}"[:100])
+            for trade_id, public_id, ticker, side in rows
+        ]
+
+    async def select_mentor(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        mentor_id: uuid.UUID,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            mentor = await session.get(Mentor, mentor_id)
+            if mentor is None or mentor.guild_id != draft.guild_id or not mentor.is_active:
+                raise ReviewValidationError("MENTOR_UNAVAILABLE")
+            before = _audit_payload(draft)
+            draft.mentor_id = mentor.id
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_MENTOR_SELECTED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def select_trade(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        trade_id: uuid.UUID,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            trade = await session.get(Trade, trade_id)
+            if trade is None or trade.guild_id != draft.guild_id:
+                raise ReviewValidationError("TRADE_UNAVAILABLE")
+            before = _audit_payload(draft)
+            draft.matched_trade_id = trade.id
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_TRADE_SELECTED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def edit(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        values: DraftEdit,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        self._validate_edit(values)
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            for field in DraftEdit.__dataclass_fields__:
+                setattr(draft, field, getattr(values, field))
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_EDITED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def approve(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            if draft.status == DraftStatus.READY.value:
+                return await self._snapshot(session, draft)
+            self._assert_editable(draft)
+            self._assert_version(draft, expected_version)
+            missing = publication_missing_fields(draft)
+            if missing:
+                raise ReviewValidationError("DRAFT_INCOMPLETE", missing)
+            await self._validate_position_transition(session, draft)
+            before = _audit_payload(draft)
+            draft.status = DraftStatus.READY.value
+            draft.reviewed_by = actor_user_id
+            draft.version += 1
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_APPROVED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def delete(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            if draft.status == DraftStatus.DELETED.value:
+                return await self._snapshot(session, draft)
+            if draft.status == DraftStatus.PUBLISHED.value:
+                raise ReviewValidationError("PUBLISHED_DRAFT_LOCKED")
+            self._assert_version(draft, expected_version)
+            before = _audit_payload(draft)
+            draft.status = DraftStatus.DELETED.value
+            draft.reviewed_by = actor_user_id
+            draft.version += 1
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_DELETED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def _locked_draft(
+        self, session: AsyncSession, draft_id: uuid.UUID, expected_version: int
+    ) -> TradeDraft:
+        draft = await session.scalar(
+            select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+        )
+        if draft is None:
+            raise ReviewError("DRAFT_NOT_FOUND")
+        self._assert_editable(draft)
+        self._assert_version(draft, expected_version)
+        return draft
+
+    @staticmethod
+    def _assert_editable(draft: TradeDraft) -> None:
+        if draft.status not in ACTIVE_REVIEW_STATUSES:
+            raise ReviewValidationError("DRAFT_NOT_EDITABLE")
+
+    @staticmethod
+    def _assert_version(draft: TradeDraft, expected_version: int) -> None:
+        if draft.version != expected_version:
+            raise ReviewConflictError("DRAFT_VERSION_CONFLICT")
+
+    @staticmethod
+    def _mark_edited(draft: TradeDraft, actor_user_id: int) -> None:
+        draft.status = DraftStatus.PENDING_REVIEW.value
+        draft.reviewed_by = actor_user_id
+        draft.version += 1
+
+    @staticmethod
+    def _validate_edit(values: DraftEdit) -> None:
+        if values.intent not in {"NEW_TRADE", "UPDATE_TRADE"}:
+            raise ReviewValidationError("INTENT_INVALID")
+        if values.action not in {
+            "ENTRY",
+            "ADD",
+            "UPDATE",
+            "TP1",
+            "TP2",
+            "RUNNER",
+            "PARTIAL_SL",
+            "SL",
+            "CLOSE",
+            "CANCEL",
+            "ROLL",
+        }:
+            raise ReviewValidationError("ACTION_INVALID")
+        if values.action_stage not in {None, "NONE", "FIRST", "SECOND", "THIRD", "FOURTH"}:
+            raise ReviewValidationError("ACTION_STAGE_INVALID")
+        if values.action == "ADD" and values.action_stage not in {
+            "FIRST",
+            "SECOND",
+            "THIRD",
+            "FOURTH",
+        }:
+            raise ReviewValidationError("ADD_STAGE_REQUIRED")
+        if values.action != "ADD" and values.action_stage not in {None, "NONE"}:
+            raise ReviewValidationError("ACTION_STAGE_INVALID")
+        if values.selected_category not in {None, "SHORT_TERM", "SWING", "LEAPS"}:
+            raise ReviewValidationError("CATEGORY_INVALID")
+        if values.option_side not in {None, "CALL", "PUT"}:
+            raise ReviewValidationError("OPTION_SIDE_INVALID")
+        if values.ticker is not None and (
+            not 1 <= len(values.ticker) <= 12
+            or any(
+                character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+                for character in values.ticker
+            )
+        ):
+            raise ReviewValidationError("TICKER_INVALID")
+        nonnegative = (
+            values.strike,
+            values.entry_low,
+            values.entry_high,
+            values.action_price,
+            values.avg_cost,
+            values.sl,
+            values.tp1,
+            values.tp2,
+        )
+        all_decimals = (*nonnegative, values.current_pnl_pct)
+        if any(value is not None and not value.is_finite() for value in all_decimals):
+            raise ReviewValidationError("NUMBER_INVALID")
+        if any(value is not None and value < 0 for value in nonnegative):
+            raise ReviewValidationError("PRICE_INVALID")
+        if values.strike is not None and values.strike == 0:
+            raise ReviewValidationError("STRIKE_INVALID")
+        if (
+            values.entry_low is not None
+            and values.entry_high is not None
+            and values.entry_low > values.entry_high
+        ):
+            raise ReviewValidationError("ENTRY_RANGE_INVALID")
+        if values.position_delta_eighths is not None and not (
+            -8 <= values.position_delta_eighths <= 8
+        ):
+            raise ReviewValidationError("POSITION_DELTA_INVALID")
+        if values.position_after_eighths is not None and not (
+            0 <= values.position_after_eighths <= 8
+        ):
+            raise ReviewValidationError("POSITION_AFTER_INVALID")
+        if (
+            values.intent == "NEW_TRADE"
+            and values.action == "ENTRY"
+            and values.position_delta_eighths is not None
+            and values.position_after_eighths is not None
+            and values.position_delta_eighths != values.position_after_eighths
+        ):
+            raise ReviewValidationError("ENTRY_POSITION_MISMATCH")
+
+    @staticmethod
+    async def _validate_position_transition(
+        session: AsyncSession, draft: TradeDraft
+    ) -> None:
+        if draft.intent != "UPDATE_TRADE" or draft.matched_trade_id is None:
+            return
+        trade = await session.get(Trade, draft.matched_trade_id)
+        if trade is None:
+            raise ReviewValidationError("TRADE_UNAVAILABLE")
+        after = draft.position_after_eighths
+        if after is None:
+            return
+        if draft.action == "ADD" and after < trade.position_eighths:
+            raise ReviewValidationError("ADD_POSITION_DECREASED")
+        if draft.action in {"TP1", "TP2", "PARTIAL_SL"} and after > trade.position_eighths:
+            raise ReviewValidationError("REDUCTION_POSITION_INCREASED")
+        if draft.action in {"SL", "CLOSE", "CANCEL"} and after != 0:
+            raise ReviewValidationError("CLOSED_POSITION_NOT_ZERO")
+
+    @staticmethod
+    async def _add_audit(
+        session: AsyncSession,
+        draft: TradeDraft,
+        actor_user_id: int,
+        interaction_id: int,
+        action_type: str,
+        before: dict[str, object],
+    ) -> None:
+        session.add(
+            AuditLog(
+                guild_id=draft.guild_id,
+                actor_user_id=actor_user_id,
+                action_type=action_type,
+                entity_type="trade_draft",
+                entity_id=str(draft.id),
+                before_json=before,
+                after_json=_audit_payload(draft),
+                discord_interaction_id=interaction_id,
+            )
+        )
+
+    @staticmethod
+    async def _snapshot(session: AsyncSession, draft: TradeDraft) -> ReviewDraft:
+        mentor_name = None
+        if draft.mentor_id is not None:
+            mentor_name = await session.scalar(
+                select(Mentor.name).where(Mentor.id == draft.mentor_id)
+            )
+        matched_trade_code = None
+        if draft.matched_trade_id is not None:
+            matched_trade_code = await session.scalar(
+                select(Trade.public_trade_id).where(Trade.id == draft.matched_trade_id)
+            )
+        return ReviewDraft(
+            id=draft.id,
+            guild_id=draft.guild_id,
+            draft_code=draft.draft_code,
+            status=draft.status,
+            intent=draft.intent,
+            action=draft.action,
+            action_stage=draft.action_stage,
+            category_suggestion=draft.category_suggestion,
+            selected_category=draft.selected_category,
+            ticker=draft.ticker,
+            expiry=draft.expiry,
+            strike=draft.strike,
+            option_side=draft.option_side,
+            entry_low=draft.entry_low,
+            entry_high=draft.entry_high,
+            action_price=draft.action_price,
+            avg_cost=draft.avg_cost,
+            sl=draft.sl,
+            tp1=draft.tp1,
+            tp2=draft.tp2,
+            position_delta_eighths=draft.position_delta_eighths,
+            position_after_eighths=draft.position_after_eighths,
+            current_pnl_pct=draft.current_pnl_pct,
+            mentor_hint=draft.mentor_hint,
+            mentor_name=mentor_name,
+            matched_trade_code=matched_trade_code,
+            parser_confidence=draft.parser_confidence,
+            missing_fields=tuple(draft.missing_fields),
+            warnings=tuple(draft.warnings),
+            internal_notes=draft.internal_notes,
+            reviewed_by=draft.reviewed_by,
+            review_channel_id=draft.review_channel_id,
+            review_message_id=draft.review_message_id,
+            version=draft.version,
+        )
