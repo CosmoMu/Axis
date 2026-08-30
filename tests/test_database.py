@@ -11,6 +11,12 @@ from app.db.session import Database
 from app.domain.enums import OptionSide, TradeCategory, TradeState
 
 EXPECTED_TABLES = {
+    "analysis_draft_revisions",
+    "analysis_drafts",
+    "analysis_key_levels",
+    "analysis_points",
+    "analysis_publications",
+    "analysis_symbols",
     "guild_config",
     "mentors",
     "mentor_aliases",
@@ -22,6 +28,7 @@ EXPECTED_TABLES = {
     "trade_publications",
     "llm_invocations",
     "memberships",
+    "mentor_analyses",
     "membership_events",
     "subscriptions",
     "audit_logs",
@@ -56,6 +63,8 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     } <= set(trades.columns.keys())
     assert "mentor_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
+    assert "member_lounge_channel_id" in Base.metadata.tables["guild_config"].columns
+    assert "source_kind" in Base.metadata.tables["source_messages"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
     assert "llm_invocation_id" in drafts.columns
     events = Base.metadata.tables["trade_events"]

@@ -28,6 +28,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 from app.domain.enums import (
     ActionStage,
+    AnalysisDraftStatus,
+    AnalysisHorizon,
+    AnalysisStance,
+    AnalysisType,
     DraftStatus,
     JobStatus,
     LlmWorkload,
@@ -35,6 +39,7 @@ from app.domain.enums import (
     MembershipStatus,
     OptionSide,
     PublicationStatus,
+    SourceKind,
     SourceStatus,
     TradeAction,
     TradeCategory,
@@ -85,6 +90,7 @@ class GuildConfig(TimestampMixin, Base):
     short_term_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     swing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     leaps_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    member_lounge_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_control_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     member_control_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -130,6 +136,7 @@ class SourceMessage(UuidPrimaryKeyMixin, Base):
     __table_args__ = (
         UniqueConstraint("guild_id", "discord_message_id", name="source_message_per_guild"),
         CheckConstraint(enum_check("status", SourceStatus), name="source_status"),
+        CheckConstraint(enum_check("source_kind", SourceKind), name="source_kind"),
     )
 
     guild_id: Mapped[int] = mapped_column(
@@ -139,6 +146,9 @@ class SourceMessage(UuidPrimaryKeyMixin, Base):
     channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     submitted_by: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     raw_text: Mapped[str | None] = mapped_column(Text)
+    source_kind: Mapped[str] = mapped_column(
+        String(16), default=SourceKind.SIGNAL.value, nullable=False
+    )
     status: Mapped[str] = mapped_column(
         String(24), default=SourceStatus.RECEIVED.value, nullable=False
     )
@@ -200,9 +210,7 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("guild_id", "draft_code", name="draft_code_per_guild"),
         UniqueConstraint("source_message_id", name="trade_draft_source_message"),
-        UniqueConstraint(
-            "guild_id", "review_message_id", name="draft_review_message_per_guild"
-        ),
+        UniqueConstraint("guild_id", "review_message_id", name="draft_review_message_per_guild"),
         CheckConstraint(enum_check("status", DraftStatus), name="draft_status"),
         CheckConstraint("position_delta_eighths BETWEEN -8 AND 8", name="draft_position_delta"),
         CheckConstraint("position_after_eighths BETWEEN 0 AND 8", name="draft_position_after"),
@@ -263,9 +271,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "trades"
     __table_args__ = (
         UniqueConstraint("guild_id", "public_trade_id", name="public_trade_id_per_guild"),
-        UniqueConstraint(
-            "guild_id", "result_message_id", name="trade_result_message_per_guild"
-        ),
+        UniqueConstraint("guild_id", "result_message_id", name="trade_result_message_per_guild"),
         CheckConstraint(enum_check("category", TradeCategory), name="trade_category"),
         CheckConstraint(enum_check("option_side", OptionSide), name="trade_option_side"),
         CheckConstraint(enum_check("state", TradeState), name="trade_state"),
@@ -357,15 +363,9 @@ class TradePublication(UuidPrimaryKeyMixin, Base):
             name="trade_publication_per_guild",
         ),
         UniqueConstraint("draft_id", name="trade_publication_per_draft"),
-        UniqueConstraint(
-            "guild_id", "public_ref", name="trade_public_ref_per_guild"
-        ),
-        CheckConstraint(
-            enum_check("status", PublicationStatus), name="trade_publication_status"
-        ),
-        CheckConstraint(
-            "attempt_count >= 0", name="trade_publication_attempt_count"
-        ),
+        UniqueConstraint("guild_id", "public_ref", name="trade_public_ref_per_guild"),
+        CheckConstraint(enum_check("status", PublicationStatus), name="trade_publication_status"),
+        CheckConstraint("attempt_count >= 0", name="trade_publication_attempt_count"),
     )
 
     guild_id: Mapped[int] = mapped_column(
@@ -402,6 +402,172 @@ class TradePublication(UuidPrimaryKeyMixin, Base):
 
 # One release-cycle import compatibility. The database and new code use TradePublication.
 PublicMessage = TradePublication
+
+
+class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "analysis_drafts"
+    __table_args__ = (
+        UniqueConstraint("source_message_id", name="analysis_draft_per_source"),
+        UniqueConstraint("guild_id", "draft_code", name="analysis_draft_code_per_guild"),
+        UniqueConstraint("guild_id", "review_message_id", name="analysis_review_message_per_guild"),
+        CheckConstraint(enum_check("status", AnalysisDraftStatus), name="analysis_draft_status"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    draft_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_message_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_messages.id", ondelete="RESTRICT"), index=True
+    )
+    llm_invocation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("llm_invocations.id", ondelete="SET NULL"), index=True
+    )
+    mentor_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mentors.id", ondelete="SET NULL"), index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(24), default=AnalysisDraftStatus.PENDING_REVIEW.value, nullable=False
+    )
+    normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    parser_confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
+    review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    review_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class AnalysisDraftRevision(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_draft_revisions"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "revision", name="analysis_draft_revision_number"),
+    )
+
+    draft_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("analysis_drafts.id", ondelete="CASCADE"), index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    llm_invocation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("llm_invocations.id", ondelete="SET NULL"), index=True
+    )
+    instruction: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class MentorAnalysis(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "mentor_analyses"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "analysis_code", name="analysis_code_per_guild"),
+        UniqueConstraint("draft_id", name="mentor_analysis_per_draft"),
+        CheckConstraint(enum_check("analysis_type", AnalysisType), name="analysis_type"),
+        CheckConstraint(enum_check("stance", AnalysisStance), name="analysis_stance"),
+        CheckConstraint(enum_check("time_horizon", AnalysisHorizon), name="analysis_horizon"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    analysis_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    draft_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("analysis_drafts.id", ondelete="RESTRICT"), index=True
+    )
+    source_message_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_messages.id", ondelete="RESTRICT"), index=True
+    )
+    mentor_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentors.id", ondelete="RESTRICT"), index=True
+    )
+    analysis_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    stance: Mapped[str] = mapped_column(String(16), nullable=False)
+    time_horizon: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(160))
+    summary: Mapped[str | None] = mapped_column(Text)
+    core_thesis: Mapped[str | None] = mapped_column(Text)
+    invalidation: Mapped[str | None] = mapped_column(Text)
+    sector: Mapped[str | None] = mapped_column(String(120))
+    normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    public_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    publication_status: Mapped[str | None] = mapped_column(String(16))
+    market_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True))
+    llm_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    llm_workload: Mapped[str] = mapped_column(String(32), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class AnalysisSymbol(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_symbols"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", "symbol", "symbol_kind", name="analysis_symbol_unique"),
+    )
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    symbol: Mapped[str] = mapped_column(String(12), nullable=False)
+    symbol_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+
+
+class AnalysisKeyLevel(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_key_levels"
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    symbol: Mapped[str | None] = mapped_column(String(12))
+    level_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    note: Mapped[str | None] = mapped_column(String(500))
+
+
+class AnalysisPoint(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_points"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", "point_type", "position", name="analysis_point_position"),
+    )
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    point_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class AnalysisPublication(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_publications"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", name="analysis_publication_per_analysis"),
+        UniqueConstraint("guild_id", "message_id", name="analysis_publication_message"),
+        UniqueConstraint("guild_id", "public_ref", name="analysis_public_ref"),
+        CheckConstraint(
+            enum_check("status", PublicationStatus), name="analysis_publication_status"
+        ),
+    )
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    public_ref: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Membership(UuidPrimaryKeyMixin, TimestampMixin, Base):

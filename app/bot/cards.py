@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import discord
 
-from app.domain.public_cards import ActivePublicTrade, PublicTradeCard
+from app.domain.public_cards import ActivePublicTrade, PublicAnalysisCard, PublicTradeCard
+from app.services.analysis_pipeline import AnalysisDraftSnapshot
 from app.services.card_review import ReviewDraft, publication_missing_fields
 from app.services.official_results import OfficialResult
 
@@ -113,15 +115,11 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
             value=_position(draft.position_delta_eighths),
             inline=True,
         )
-    embed.add_field(
-        name="操作后持仓", value=_position(draft.position_after_eighths), inline=True
-    )
+    embed.add_field(name="操作后持仓", value=_position(draft.position_after_eighths), inline=True)
     if draft.avg_cost is not None:
         embed.add_field(name="操作后平均成本", value=_money(draft.avg_cost), inline=True)
     if draft.current_pnl_pct is not None:
-        embed.add_field(
-            name="当前收益", value=f"{_number(draft.current_pnl_pct)}%", inline=True
-        )
+        embed.add_field(name="当前收益", value=f"{_number(draft.current_pnl_pct)}%", inline=True)
     for name, value in (("SL", draft.sl), ("TP1", draft.tp1), ("TP2", draft.tp2)):
         if value is not None:
             embed.add_field(name=name, value=_money(value), inline=True)
@@ -131,9 +129,7 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
             CATEGORY_LABELS.get(draft.selected_category or "", "尚未选择")
             + (
                 "\n建议："
-                + CATEGORY_LABELS.get(
-                    draft.category_suggestion, draft.category_suggestion
-                )
+                + CATEGORY_LABELS.get(draft.category_suggestion, draft.category_suggestion)
                 if draft.category_suggestion and not draft.selected_category
                 else ""
             )
@@ -141,18 +137,14 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
         inline=True,
     )
     embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=True)
-    embed.add_field(
-        name="对应订单", value=draft.matched_trade_code or "尚未关联", inline=True
-    )
+    embed.add_field(name="对应订单", value=draft.matched_trade_code or "尚未关联", inline=True)
     missing = publication_missing_fields(draft)
     if missing:
         embed.add_field(name="发布前缺失", value="、".join(missing), inline=False)
     if draft.warnings:
         embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
     confidence = _number(draft.parser_confidence)
-    embed.set_footer(
-        text=f"AXIS Draft ID: {draft.id} · v{draft.version} · confidence {confidence}"
-    )
+    embed.set_footer(text=f"AXIS Draft ID: {draft.id} · v{draft.version} · confidence {confidence}")
     return embed
 
 
@@ -208,14 +200,10 @@ def build_public_trade_embed(
         "TP2": "止盈后持仓",
         "ENTRY": "当前持仓",
     }.get(card.action, "操作后持仓")
-    embed.add_field(
-        name=after_label, value=_position(card.position_after_eighths), inline=True
-    )
+    embed.add_field(name=after_label, value=_position(card.position_after_eighths), inline=True)
     if card.pnl_pct is not None:
         pnl_label = "本次收益" if card.action in {"TP1", "TP2", "CLOSE"} else "当前收益"
-        embed.add_field(
-            name=pnl_label, value=f"{_number(card.pnl_pct)}%", inline=True
-        )
+        embed.add_field(name=pnl_label, value=f"{_number(card.pnl_pct)}%", inline=True)
     sl_label = "新 SL" if card.action in {"TP1", "TP2", "ADD", "UPDATE"} else "SL"
     for name, value in ((sl_label, card.sl), ("TP1", card.tp1), ("TP2", card.tp2)):
         if value is not None:
@@ -225,9 +213,7 @@ def build_public_trade_embed(
     return embed
 
 
-def build_active_orders_embed(
-    category: str, trades: list[ActivePublicTrade]
-) -> discord.Embed:
+def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) -> discord.Embed:
     title = {
         "SHORT_TERM": "当前短线订单",
         "SWING": "当前波段订单",
@@ -253,8 +239,7 @@ def build_active_orders_embed(
 def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     side = {"CALL": "C", "PUT": "P"}.get(result.option_side, "?")
     contract = (
-        f"{result.ticker} · {result.expiry.strftime('%m/%d/%Y')} · "
-        f"{_number(result.strike)}{side}"
+        f"{result.ticker} · {result.expiry.strftime('%m/%d/%Y')} · {_number(result.strike)}{side}"
     )
     value = result.final_return_pct.quantize(Decimal("0.01"))
     rendered_return = f"{value:+f}%"
@@ -265,4 +250,103 @@ def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     )
     embed.add_field(name="加权最终收益", value=rendered_return, inline=False)
     embed.set_footer(text=f"AXIS Result · {result.public_trade_id}")
+    return embed
+
+
+def build_analysis_review_embed(draft: AnalysisDraftSnapshot) -> discord.Embed:
+    payload = draft.normalized
+    type_label = {
+        "MARKET": "市场观察",
+        "TICKER": "标的观察",
+        "SECTOR": "板块观察",
+        "MACRO": "宏观观察",
+        "UNKNOWN": "待识别观点",
+    }.get(str(payload.get("analysis_type")), "待识别观点")
+    embed = discord.Embed(
+        title=f"{type_label} · {draft.draft_code}",
+        description=str(payload.get("title") or payload.get("summary") or "需要人工整理"),
+        color=DANGER if draft.status == "PARSE_FAILED" else MUTED,
+    )
+    embed.add_field(
+        name="标的",
+        value=", ".join(payload.get("symbols", [])) or payload.get("sector") or "—",
+        inline=True,
+    )
+    embed.add_field(name="方向", value=str(payload.get("stance", "WATCH")), inline=True)
+    embed.add_field(
+        name="观察周期", value=str(payload.get("time_horizon", "UNSPECIFIED")), inline=True
+    )
+    embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=False)
+    if payload.get("core_thesis"):
+        embed.add_field(name="核心观点", value=str(payload["core_thesis"])[:1024], inline=False)
+    if payload.get("invalidation"):
+        embed.add_field(name="失效条件", value=str(payload["invalidation"])[:1024], inline=False)
+    if draft.warnings:
+        embed.add_field(name="Warnings", value="\n".join(draft.warnings)[:1024], inline=False)
+    embed.set_footer(
+        text=f"AXIS Analysis Draft ID: {draft.id} · r{draft.revision} · v{draft.version}"
+    )
+    return embed
+
+
+def build_public_analysis_embed(card: PublicAnalysisCard, *, public_ref: str) -> discord.Embed:
+    type_label = {
+        "MARKET": "市场观察",
+        "TICKER": "标的观察",
+        "SECTOR": "板块观察",
+        "MACRO": "宏观观察",
+    }[card.analysis_type]
+    subject = ", ".join(card.symbols) or card.sector or card.analysis_code
+    stance = {
+        "BULLISH": "偏多",
+        "BEARISH": "偏空",
+        "NEUTRAL": "中性",
+        "WATCH": "观察",
+    }[card.stance]
+    horizon = {
+        "INTRADAY": "日内",
+        "SHORT_TERM": "短线",
+        "SWING": "波段",
+        "LONG_TERM": "长期",
+        "UNSPECIFIED": "未指定",
+    }[card.time_horizon]
+    embed = discord.Embed(
+        title=f"{type_label} · {subject}",
+        description=card.title or card.summary,
+        color=ACCENT_GREEN,
+    )
+    embed.add_field(name="当前观点", value=stance, inline=True)
+    embed.add_field(name="观察周期", value=horizon, inline=True)
+    if card.core_thesis:
+        embed.add_field(name="核心逻辑", value=card.core_thesis[:1024], inline=False)
+    if card.supporting_points:
+        embed.add_field(
+            name="观察依据",
+            value="\n".join(f"• {item}" for item in card.supporting_points)[:1024],
+            inline=False,
+        )
+    levels = []
+    for level in card.key_levels:
+        price = level.get("price")
+        note = level.get("note")
+        if price is not None or note:
+            price_text = price if price is not None else ""
+            levels.append(
+                f"{level.get('level_type')}: {price_text} {note or ''}".strip()
+            )
+    if levels:
+        embed.add_field(name="关注位置", value="\n".join(levels)[:1024], inline=False)
+    if card.invalidation:
+        embed.add_field(name="失效条件", value=card.invalidation[:1024], inline=False)
+    if card.risks:
+        embed.add_field(name="风险", value="\n".join(card.risks)[:1024], inline=False)
+    if card.market_conditions:
+        embed.add_field(
+            name="市场前提", value="\n".join(card.market_conditions)[:1024], inline=False
+        )
+    if card.related_symbols:
+        embed.add_field(name="相关观察", value=", ".join(card.related_symbols), inline=False)
+    observed = card.observed_at.astimezone(ZoneInfo("America/Toronto"))
+    embed.add_field(name="时间", value=observed.strftime("%m/%d · %H:%M ET"), inline=False)
+    embed.set_footer(text=f"AXIS Analysis · {public_ref}")
     return embed

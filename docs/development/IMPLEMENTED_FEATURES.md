@@ -11,11 +11,12 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0006`。
+- Alembic revisions `0001` 到 `0007`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
 - Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
+- Analysis Draft / Revision / immutable Archive / children / Publication 独立表。
 
 ## Signal
 
@@ -52,6 +53,22 @@
 - 单一 Membership、赠送、延期、到期取消、立即移除和手工 Role 同步。
 - Scheduled Job 到期处理和持续 Member Role reconciliation。
 - Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
+
+## Analysis（code complete / live disabled）
+
+- Signal / Analysis Source queue 隔离。
+- Text / image / multi-image `ANALYSIS_PARSE` 与 `ANALYSIS_REWRITE`。
+- Mentor select、edit、rewrite revision、archive-only、archive + publish、delete。
+- MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
+- Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
+- 无 Thread 的 Member Lounge Public Card 和失败重试。
+
+## Operations
+
+- 只读数据库 revision / row count / feature health check。
+- PostgreSQL custom backup、list verification、SHA-256 与双确认 restore 工具。
+- Dockerfile / Compose 基础部署与 Secret-safe build context。
+- 后台 worker 只记录事件名与异常类型的脱敏结构化日志。
 
 ## Security
 

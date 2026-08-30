@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import discord
 from discord.ext import commands, tasks
 
@@ -7,6 +9,8 @@ from app.services.draft_generation import (
     DraftGenerationDisposition,
     DraftGenerationService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DraftWorkerCog(commands.Cog):
@@ -22,7 +26,8 @@ class DraftWorkerCog(commands.Cog):
     async def process_queue(self) -> None:
         try:
             result = await self.service.process_next()
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=signal_worker_failed error_type=%s", type(exc).__name__)
             return
         if result is None or result.disposition is DraftGenerationDisposition.EXISTING:
             return

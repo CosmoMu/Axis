@@ -24,6 +24,8 @@
 - `LLM_ANALYSIS_MODEL`：`ANALYSIS_PARSE` override。
 - `LLM_ANALYSIS_REWRITE_MODEL`：`ANALYSIS_REWRITE` override。
 - `LLM_TIMEOUT_SECONDS` / `LLM_MAX_RETRIES`：请求策略。
+- `LLM_PROMPT_PATH`：Signal Parse Prompt。
+- `LLM_ANALYSIS_PROMPT_PATH`：Analysis Parse / Rewrite no-invention Prompt。
 
 `LLM_API_KEY` 与 `LLM_MODEL` 仅在 v1 → v2 迁移窗口作为 deprecated fallback，完成
 部署迁移后移除。业务 Service 不得读取具体 model 环境变量。
@@ -31,7 +33,8 @@
 ## Features
 
 - `FEATURE_SIGNAL_ENABLED=true`
-- `FEATURE_ANALYSIS_ENABLED=false`，Gate A 通过前保持关闭。
+- `FEATURE_ANALYSIS_ENABLED=false`，Gate A 与自动 Gate B 已通过；在 Owner 单独授权
+  `analysis-input` 内容发送给 OpenAI 前仍保持关闭。
 - `FEATURE_LAB_ENABLED=false`
 - `FEATURE_MODEL_AB_ENABLED=false`
 - `FEATURE_MOOMOO_ENABLED=false`

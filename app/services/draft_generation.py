@@ -18,7 +18,7 @@ from app.db.models import (
     TradeDraft,
 )
 from app.db.session import Database
-from app.domain.enums import DraftStatus, SourceStatus
+from app.domain.enums import DraftStatus, SourceKind, SourceStatus
 from app.integrations.openai_trade_parser import (
     LlmInvocationTrace,
     ParserAttachment,
@@ -146,6 +146,7 @@ class DraftGenerationService:
                     SourceMessage.status.in_(
                         [SourceStatus.RECEIVED.value, SourceStatus.PROCESSING.value]
                     ),
+                    SourceMessage.source_kind == SourceKind.SIGNAL.value,
                     ~exists().where(TradeDraft.source_message_id == SourceMessage.id),
                 )
                 .order_by(SourceMessage.received_at, SourceMessage.id)

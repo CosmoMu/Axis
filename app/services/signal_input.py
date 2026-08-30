@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import AuditLog, SourceAttachment, SourceMessage
 from app.db.session import Database
-from app.domain.enums import SourceStatus
+from app.domain.enums import SourceKind, SourceStatus
 from app.services.attachment_storage import (
     AttachmentStorageError,
     AttachmentValidationError,
@@ -44,6 +44,7 @@ class IncomingSignal:
     content: str
     received_at: datetime
     attachments: Sequence[IncomingAttachment]
+    source_kind: SourceKind = SourceKind.SIGNAL
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +158,7 @@ class SignalInputService:
                 channel_id=signal.channel_id,
                 submitted_by=signal.submitted_by,
                 raw_text=raw_text,
+                source_kind=signal.source_kind.value,
                 status=status.value,
                 received_at=signal.received_at,
             )

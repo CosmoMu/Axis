@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from contextlib import suppress
 
@@ -27,6 +28,8 @@ from app.services.trade_publication import (
     PublicationValidationError,
     TradePublicationService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CardReviewCog(commands.Cog):
@@ -164,7 +167,8 @@ class CardReviewCog(commands.Cog):
             draft = await self.service.next_unposted(self.guild_id)
             if draft is not None:
                 await self._ensure_review_message(draft)
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=review_queue_failed error_type=%s", type(exc).__name__)
             return
 
     @review_queue.before_loop
@@ -179,7 +183,8 @@ class CardReviewCog(commands.Cog):
                 return
             updated = await self.publish_draft(await self.service.get(draft_id))
             await self.refresh(updated)
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=publication_queue_failed error_type=%s", type(exc).__name__)
             return
 
     @publication_queue.before_loop

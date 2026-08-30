@@ -50,6 +50,42 @@ class SourceStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class SourceKind(StrEnum):
+    SIGNAL = "SIGNAL"
+    ANALYSIS = "ANALYSIS"
+
+
+class AnalysisDraftStatus(StrEnum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+    PARSE_FAILED = "PARSE_FAILED"
+    ARCHIVED = "ARCHIVED"
+    PUBLISHED = "PUBLISHED"
+    PUBLISH_FAILED = "PUBLISH_FAILED"
+    DELETED = "DELETED"
+
+
+class AnalysisType(StrEnum):
+    MARKET = "MARKET"
+    TICKER = "TICKER"
+    SECTOR = "SECTOR"
+    MACRO = "MACRO"
+
+
+class AnalysisStance(StrEnum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
+    WATCH = "WATCH"
+
+
+class AnalysisHorizon(StrEnum):
+    INTRADAY = "INTRADAY"
+    SHORT_TERM = "SHORT_TERM"
+    SWING = "SWING"
+    LONG_TERM = "LONG_TERM"
+    UNSPECIFIED = "UNSPECIFIED"
+
+
 class DraftStatus(StrEnum):
     PENDING_REVIEW = "PENDING_REVIEW"
     PARSE_FAILED = "PARSE_FAILED"

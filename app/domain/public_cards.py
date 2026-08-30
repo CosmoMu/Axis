@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 
@@ -40,3 +40,24 @@ class ActivePublicTrade:
     option_side: str
     last_public_action: str
     position_eighths: int
+
+
+@dataclass(frozen=True, slots=True)
+class PublicAnalysisCard:
+    analysis_code: str
+    analysis_type: str
+    symbols: tuple[str, ...]
+    sector: str | None
+    stance: str
+    time_horizon: str
+    title: str | None
+    summary: str | None
+    core_thesis: str | None
+    supporting_points: tuple[str, ...]
+    key_levels: tuple[dict[str, object], ...]
+    invalidation: str | None
+    catalysts: tuple[str, ...]
+    risks: tuple[str, ...]
+    market_conditions: tuple[str, ...]
+    related_symbols: tuple[str, ...]
+    observed_at: datetime

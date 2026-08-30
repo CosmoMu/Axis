@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-29
 
-**Database:** `20260829_0006`
+**Database:** `20260829_0007`
 
 **Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -57,19 +57,30 @@ Implemented:
 - Scheduled Job 到期、Role reconciliation 和完整 Membership Event/Audit。
 - 基于全部 position event 的 weighted Results 与幂等官方发布。
 
-## Stage 4 — Analysis Pipeline: NOT STARTED
+## Stage 4 — Analysis Pipeline: CODE COMPLETE / LIVE DISABLED
 
-Implemented: 独立规格、Schema、Router workload 和 disabled Discord channels。
+Implemented:
 
-Missing: 所有 Analysis 数据表与业务逻辑。
+- `analysis-input` 与 Signal 完全隔离的 Source queue。
+- `ANALYSIS_PARSE` / `ANALYSIS_REWRITE`，支持 text / image / multi-image。
+- MARKET / TICKER / SECTOR / MACRO、stance、horizon 与 no-invention prompt。
+- 独立 Draft / Revision / Mentor Analysis / children / Publication 表。
+- Mentor selection、edit、rewrite、archive-only、archive + publish、delete。
+- Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。
+- Member Lounge 无 Thread 的 Public Card 白名单。
+- Discord send failure 保留归档并支持 persistent retry。
+- Automated Gate B：PASS。
 
-Gate: Core Gate A 已通过；Analysis 仍保持 disabled，直到独立 Stage 4 部署完成。
+Live gate: 0007 与代码已部署，但 `FEATURE_ANALYSIS_ENABLED=false`。Owner 先前只授权
+`signal-input` 发往 OpenAI；`analysis-input` 是独立数据出口，必须单独明确授权后才能启用。
 
 ## Stage 5 — Stabilization: PARTIAL
 
-Implemented: LaunchAgent、错误信息脱敏、基础重试、测试和 Secret scan。
+Implemented: LaunchAgent、错误信息脱敏、基础重试、测试、Secret scan、只读 DB health check、
+verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署。
 
-Missing: production observability、backup / restore、Docker、完整 rollback rehearsal。
+Missing: live Analysis acceptance、off-host backup target、生产监控告警、非生产环境完整 restore /
+rollback rehearsal。
 
 ## AXIS LAB — DEFERRED
 

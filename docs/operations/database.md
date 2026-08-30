@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260829_0006` 使用 15 张业务表：
+当前 revision `20260829_0007` 使用 22 张业务表：
 
 ```text
 guild_config
@@ -60,6 +60,13 @@ membership_events
 subscriptions
 audit_logs
 scheduled_jobs
+analysis_drafts
+analysis_draft_revisions
+mentor_analyses
+analysis_symbols
+analysis_key_levels
+analysis_points
+analysis_publications
 ```
 
 交易持仓以 `position_eighths` 保存，数据库约束范围为 `0..8`；事件增减范围为 `-8..8`。
@@ -68,6 +75,21 @@ scheduled_jobs
 success 与 error_type；旧调用无法证明的字段不会伪造回填。
 `trade_publications` 保存发布 claim/retry/finalize 状态；`trades` 保存官方 Results Message ID
 和加权最终收益，避免重复发布。
+Analysis 使用独立的 Draft、Revision、不可变 Mentor Analysis、child records 与 Publication，
+不会复用或更新 Trade Domain；`source_messages.source_kind` 隔离两个处理队列。
+
+## 只读健康检查
+
+```bash
+.venv/bin/python scripts/verify_database.py
+```
+
+只输出 revision、选定业务表行数和非 Secret feature flags，不输出连接字符串。
+
+## 备份与恢复
+
+参见 `docs/operations/backup-restore.md`。恢复具有破坏性，必须先在非生产数据库验证备份，
+并提供 Guild ID 与固定确认短语；当前生产数据库未执行恢复演练。
 
 ## 查看版本
 

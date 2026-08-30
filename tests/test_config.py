@@ -17,6 +17,7 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         database_url="",
         apply_changes=apply_changes,
         dry_run=dry_run,
+        analysis_enabled=False,
         blueprint_path=root / "blueprint.yaml",
         ids_path=root / "ids.json",
         report_path=root / "report.json",
@@ -33,6 +34,7 @@ def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
         llm_timeout_seconds=45,
         llm_max_retries=2,
         llm_prompt_path=root / "llm_trade_prompt.txt",
+        llm_analysis_prompt_path=root / "llm_analysis_prompt.txt",
     )
 
 

@@ -2,13 +2,15 @@
 
 **日期：** 2026-08-29
 
-**结果：** 50 passed
+**结果：** 69 passed
 
 **Lint：** Ruff passed
 
 **Config validation：** YAML / JSON Schema load passed
 
 **Core Gate A：** PASS
+
+**Analysis Gate B（automated）：** PASS
 
 覆盖：
 
@@ -29,15 +31,26 @@
 - Database metadata、constraints 和 guild seed 幂等。
 - 品牌锁与正式 Logo。
 - `docs/config-reference/` 与 `config/` byte equality。
+- Signal / Analysis source queue 严格隔离。
+- Analysis text / image / multi-image Structured Output 与安全错误码。
+- MARKET / TICKER / SECTOR / MACRO、missing data 与禁止臆造价格。
+- Analysis Raw / Normalized / Public Snapshot 与 LLM revision trace。
+- Archive-only、Archive + Publish、failure / retry / finalize 幂等。
+- 同 Mentor / symbol 的新 Source 创建独立 Analysis，旧归档不变。
+- Analysis Public DTO 不包含 Mentor、Source、AI、LLM 或 confidence。
+- 数据库备份命令不在 argv 暴露密码，Docker context 排除 `.env`。
 
 Live validation：
 
-- PostgreSQL revision `20260829_0006`。
+- PostgreSQL revision `20260829_0007`。
 - 迁移前后 Source=1、Draft=1，数据未丢失。
+- Analysis 新表初始行数均为 0；Core 数据保持原行数。
 - Discord final dry-run：`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`。
 - LaunchAgent `com.axis.bot` 已重新部署。
 - Bot `manage_roles / send_messages / read_message_history` 权限均为 true。
 - Mentor Panel ID `1543434235761791018`，重启前后不变，频道 marker count=1。
 - Member Panel ID `1543434237733241001`，重启前后不变，频道 marker count=1。
+- 0007 代码已在 `FEATURE_ANALYSIS_ENABLED=false` 状态部署，LaunchAgent 稳定。
+- Analysis live activation 等待 Owner 对 `analysis-input` → OpenAI 数据出口的独立明确授权。
 
 已知唯一 warning：discord.py 间接依赖 `audioop`，与 AXIS 业务测试无关。

@@ -56,6 +56,7 @@ def _deploy_runtime() -> None:
         "model_routing.yaml",
         "llm_trade_schema.json",
         "llm_analysis_schema.json",
+        "llm_analysis_prompt.txt",
         "llm_trade_prompt.txt",
     ):
         shutil.copy2(

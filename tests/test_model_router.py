@@ -46,6 +46,7 @@ def test_config_reference_files_match_runtime_config() -> None:
         ("model_routing.yaml",),
         ("llm_trade_schema.json",),
         ("llm_analysis_schema.json",),
+        ("llm_analysis_prompt.txt",),
     )
     for (filename,) in pairs:
         assert (ROOT / "docs" / "config-reference" / filename).read_bytes() == (

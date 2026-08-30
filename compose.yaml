@@ -1,0 +1,11 @@
+services:
+  axis-bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - axis-attachments:/app/var/attachments
+
+volumes:
+  axis-attachments:

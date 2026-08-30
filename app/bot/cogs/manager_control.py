@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 
 import discord
@@ -12,6 +13,8 @@ from app.db.models import GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
 from app.services.mentor_management import MentorError, MentorManagementService
 from app.services.official_results import OfficialResultsService, ResultsError
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerControlCog(commands.Cog):
@@ -97,7 +100,8 @@ class ManagerControlCog(commands.Cog):
             if not self._panels_ready:
                 await self._ensure_panels()
                 self._panels_ready = True
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=control_loop_failed error_type=%s", type(exc).__name__)
             return
 
     @control_loop.before_loop
@@ -138,7 +142,8 @@ class ManagerControlCog(commands.Cog):
                     continue
                 if (role in member.roles) == expected:
                     self._role_expectations.pop(user_id, None)
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=membership_loop_failed error_type=%s", type(exc).__name__)
             return
 
     @membership_loop.before_loop
@@ -177,7 +182,8 @@ class ManagerControlCog(commands.Cog):
                 final_return_pct=result.final_return_pct,
                 actor_user_id=self.bot.user.id,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=results_loop_failed error_type=%s", type(exc).__name__)
             return
 
     @results_loop.before_loop

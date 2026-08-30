@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -23,12 +24,18 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
+from app.integrations.openai_analysis_parser import (  # noqa: E402
+    OpenAIAnalysisParser,
+    load_analysis_prompt,
+    load_analysis_schema,
+)
 from app.integrations.openai_trade_parser import (  # noqa: E402
     OpenAITradeParser,
     TradeParseError,
     load_trade_prompt,
     load_trade_schema,
 )
+from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
@@ -41,6 +48,19 @@ from app.services.trade_publication import TradePublicationService  # noqa: E402
 
 async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
+    level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s level=%(levelname)s logger=%(name)s %(message)s",
+    )
+    for noisy_logger in ("discord", "httpx", "openai", "sqlalchemy"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+    logging.getLogger(__name__).info(
+        "event=bot_start guild_id=%s analysis_enabled=%s",
+        settings.discord_guild_id,
+        settings.analysis_enabled,
+    )
     token = settings.require_token()
     database = Database(settings.require_database_url())
     discord_ids = load_discord_ids(settings.ids_path, settings.discord_guild_id)
@@ -58,6 +78,7 @@ async def run() -> None:
             max_bytes=settings.max_attachment_bytes,
         )
         draft_generation_service = None
+        analysis_service = None
         if settings.openai_api_key:
             router = ModelRouter.load(
                 settings.llm_routing_path,
@@ -65,9 +86,7 @@ async def run() -> None:
                     LlmWorkload.SIGNAL_PARSE: settings.llm_signal_model_override,
                     LlmWorkload.SIGNAL_REPAIR: settings.llm_signal_repair_model_override,
                     LlmWorkload.ANALYSIS_PARSE: settings.llm_analysis_model_override,
-                    LlmWorkload.ANALYSIS_REWRITE: (
-                        settings.llm_analysis_rewrite_model_override
-                    ),
+                    LlmWorkload.ANALYSIS_REWRITE: (settings.llm_analysis_rewrite_model_override),
                 },
                 default_model_override=settings.llm_default_model_override,
                 timeout_seconds_override=settings.llm_timeout_seconds,
@@ -87,6 +106,35 @@ async def run() -> None:
                 attachment_store,
                 parser,
             )
+            if settings.analysis_enabled:
+                analysis_parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)
+                analysis_rewrite_route = router.resolve(LlmWorkload.ANALYSIS_REWRITE)
+                if (
+                    analysis_parse_route.structured_output is None
+                    or analysis_rewrite_route.structured_output is None
+                ):
+                    raise ModelRoutingError("Analysis workload 缺少 structured_output。")
+                analysis_schema = load_analysis_schema(analysis_parse_route.structured_output)
+                analysis_prompt = load_analysis_prompt(settings.llm_analysis_prompt_path)
+                analysis_service = AnalysisPipelineService(
+                    database,
+                    attachment_store,
+                    OpenAIAnalysisParser(
+                        api_key=settings.require_openai_api_key(),
+                        route=analysis_parse_route,
+                        schema=analysis_schema,
+                        prompt=analysis_prompt,
+                    ),
+                    OpenAIAnalysisParser(
+                        api_key=settings.require_openai_api_key(),
+                        route=analysis_rewrite_route,
+                        schema=load_analysis_schema(analysis_rewrite_route.structured_output),
+                        prompt=analysis_prompt,
+                    ),
+                    analysis_schema,
+                )
+        elif settings.analysis_enabled:
+            raise ConfigurationError("Analysis 已启用但缺少 OPENAI_API_KEY。")
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -97,6 +145,7 @@ async def run() -> None:
             mentor_service=MentorManagementService(database),
             membership_service=MembershipManagementService(database),
             results_service=OfficialResultsService(database),
+            analysis_service=analysis_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

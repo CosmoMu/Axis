@@ -68,6 +68,7 @@ class Settings:
     database_url: str
     apply_changes: bool
     dry_run: bool
+    analysis_enabled: bool
     blueprint_path: Path
     ids_path: Path
     report_path: Path
@@ -84,6 +85,7 @@ class Settings:
     llm_timeout_seconds: int
     llm_max_retries: int
     llm_prompt_path: Path
+    llm_analysis_prompt_path: Path
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -101,6 +103,9 @@ class Settings:
             "LLM_ROUTING_CONFIG", "config/model_routing.yaml"
         )
         llm_prompt_value = os.getenv("LLM_PROMPT_PATH", "config/llm_trade_prompt.txt")
+        llm_analysis_prompt_value = os.getenv(
+            "LLM_ANALYSIS_PROMPT_PATH", "config/llm_analysis_prompt.txt"
+        )
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
         default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
@@ -115,6 +120,7 @@ class Settings:
             database_url=os.getenv("DATABASE_URL", "").strip(),
             apply_changes=_parse_bool("APPLY_CHANGES", False),
             dry_run=_parse_bool("DRY_RUN", True),
+            analysis_enabled=_parse_bool("FEATURE_ANALYSIS_ENABLED", False),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),
@@ -139,6 +145,7 @@ class Settings:
             llm_timeout_seconds=_parse_positive_int("LLM_TIMEOUT_SECONDS", 45),
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
+            llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
         )
 
     def require_token(self) -> str:

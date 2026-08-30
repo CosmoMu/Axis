@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 
 import discord
@@ -11,6 +12,8 @@ from app.services.signal_input import (
     IngestDisposition,
     SignalInputService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_signal_manager(
@@ -87,7 +90,8 @@ class SignalInputCog(commands.Cog):
                     ),
                 )
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("event=signal_ingest_failed error_type=%s", type(exc).__name__)
             await self._safe_reply(message, "信号暂时无法保存，请稍后重试。")
             return
 

@@ -43,6 +43,7 @@ async def seed_guild_config(
         "short_term_channel_id": _snowflake(channels, "short_term_alerts"),
         "swing_channel_id": _snowflake(channels, "swing_alerts"),
         "leaps_channel_id": _snowflake(channels, "leaps_alerts"),
+        "member_lounge_channel_id": _snowflake(channels, "member_chat"),
         "mentor_control_channel_id": _snowflake(channels, "mentor_control"),
         "member_control_channel_id": _snowflake(channels, "member_control"),
     }
