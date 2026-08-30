@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 
 import discord
 
-from app.bot.cards import build_active_orders_embed, build_public_preview_embed
+from app.bot.cards import build_active_orders_embed
 from app.bot.ephemeral import (
-    PREVIEW_DELETE_AFTER,
     SUCCESS_DELETE_AFTER,
     send_temporary_ephemeral,
 )
 from app.domain.enums import TradeCategory
+from app.domain.public_cards import PublicTradeCard
 from app.services.card_review import (
     DraftEdit,
     ReviewChoice,
@@ -192,6 +192,16 @@ class DraftEditModal(discord.ui.Modal):
                 current_pnl_pct=_optional_decimal(pnl),
                 position_delta_eighths=_optional_eighths(position_delta),
                 position_after_eighths=_optional_eighths(position_after),
+                current_stock=self.draft.current_stock,
+                starter=self.draft.starter,
+                add_zone_low=self.draft.add_zone_low,
+                add_zone_high=self.draft.add_zone_high,
+                stock_sl=self.draft.stock_sl,
+                stock_pt1=self.draft.stock_pt1,
+                stock_pt2=self.draft.stock_pt2,
+                stock_pt3=self.draft.stock_pt3,
+                fib_0618=self.draft.fib_0618,
+                public_thesis=self.draft.public_thesis,
             )
             await interaction.response.defer(ephemeral=True)
             updated = await self.controller.service.edit(
@@ -205,6 +215,145 @@ class DraftEditModal(discord.ui.Modal):
             await send_temporary_ephemeral(
                 interaction,
                 "草稿已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class EntryPlanEditModal(discord.ui.Modal):
+    def __init__(
+        self,
+        controller: CardReviewCog,
+        draft: ReviewDraft,
+        preview_card: PublicTradeCard | None = None,
+    ) -> None:
+        super().__init__(
+            title=f"编辑完整卡片 · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:entry-plan:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        plan = preview_card or public_preview_payload(draft)
+        self.contract = discord.ui.TextInput(
+            label="Ticker | YYYY-MM-DD | Strike | CALL/PUT",
+            default=" | ".join(
+                (
+                    _display(draft.ticker),
+                    _display(draft.expiry),
+                    _decimal_display(draft.strike),
+                    _display(draft.option_side),
+                )
+            ),
+            max_length=100,
+        )
+        self.option = discord.ui.TextInput(
+            label="期权入场低 | 入场高 | 持仓成本 | 仓位",
+            default=" | ".join(
+                (
+                    _decimal_display(draft.entry_low),
+                    _decimal_display(draft.entry_high),
+                    _decimal_display(draft.avg_cost),
+                    _display(draft.position_after_eighths),
+                )
+            ),
+            placeholder="0.90 | 0.90 | 0.90 | 1/8",
+            max_length=100,
+        )
+        self.structure = discord.ui.TextInput(
+            label="当前股价 | Starter | Add低 | Add高",
+            default=" | ".join(
+                _decimal_display(value)
+                for value in (
+                    plan.current_stock,
+                    plan.starter,
+                    plan.add_zone_low,
+                    plan.add_zone_high,
+                )
+            ),
+            max_length=120,
+        )
+        self.targets = discord.ui.TextInput(
+            label="正股SL | PT1 | PT2 | PT3 | Fib 0.618",
+            default=" | ".join(
+                _decimal_display(value)
+                for value in (
+                    plan.stock_sl,
+                    plan.stock_pt1,
+                    plan.stock_pt2,
+                    plan.stock_pt3,
+                    plan.fib_0618,
+                )
+            ),
+            max_length=140,
+        )
+        self.thesis = discord.ui.TextInput(
+            label="会员卡片交易逻辑（可留空）",
+            default=plan.public_thesis or "",
+            required=False,
+            style=discord.TextStyle.paragraph,
+            max_length=600,
+        )
+        for item in (self.contract, self.option, self.structure, self.targets, self.thesis):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            ticker, expiry, strike, side = _split(self.contract.value, 4)
+            entry_low, entry_high, avg_cost, position_after = _split(self.option.value, 4)
+            current, starter, add_low, add_high = _split(self.structure.value, 4)
+            stock_sl, pt1, pt2, pt3, fib = _split(self.targets.value, 5)
+            after = _optional_eighths(position_after)
+            values = DraftEdit(
+                intent="NEW_TRADE",
+                action="ENTRY",
+                action_stage="NONE",
+                selected_category=(
+                    self.draft.selected_category
+                    or self.draft.category_suggestion
+                    or TradeCategory.SWING.value
+                ),
+                ticker=(value.upper() if (value := _optional_text(ticker)) else None),
+                expiry=_optional_date(expiry),
+                strike=_optional_decimal(strike),
+                option_side=(value.upper() if (value := _optional_text(side)) else None),
+                entry_low=_optional_decimal(entry_low),
+                entry_high=_optional_decimal(entry_high),
+                action_price=self.draft.action_price,
+                avg_cost=_optional_decimal(avg_cost),
+                sl=self.draft.sl,
+                tp1=self.draft.tp1,
+                tp2=self.draft.tp2,
+                current_pnl_pct=self.draft.current_pnl_pct,
+                position_delta_eighths=after,
+                position_after_eighths=after,
+                current_stock=_optional_decimal(current),
+                starter=_optional_decimal(starter),
+                add_zone_low=_optional_decimal(add_low),
+                add_zone_high=_optional_decimal(add_high),
+                stock_sl=_optional_decimal(stock_sl),
+                stock_pt1=_optional_decimal(pt1),
+                stock_pt2=_optional_decimal(pt2),
+                stock_pt3=_optional_decimal(pt3),
+                fib_0618=_optional_decimal(fib),
+                public_thesis=_optional_text(self.thesis.value),
+                replace_plan=True,
+            )
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=values,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "完整卡片已更新，可点击「重新生成图片」再次刷新图表。",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
@@ -432,10 +581,12 @@ class ReviewDraftView(discord.ui.View):
         *,
         mentor_choices: list[ReviewChoice],
         trade_choices: list[ReviewChoice],
+        preview_card: PublicTradeCard | None = None,
     ) -> None:
         super().__init__(timeout=None)
         self.controller = controller
         self.draft = draft
+        self.preview_card = preview_card
         self.add_item(CategorySelect(controller, draft))
         short_term = (draft.selected_category or draft.category_suggestion) == "SHORT_TERM"
         if short_term:
@@ -458,7 +609,13 @@ class ReviewDraftView(discord.ui.View):
         self.add_item(ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices))
         buttons = (
             ("完整编辑", discord.ButtonStyle.primary, "edit", 3, self.edit),
-            ("会员预览", discord.ButtonStyle.secondary, "preview", 3, self.preview),
+            (
+                "重新生成图片",
+                discord.ButtonStyle.secondary,
+                "regenerate-image",
+                3,
+                self.regenerate_image,
+            ),
             ("确认发布", discord.ButtonStyle.success, "approve", 4, self.approve),
             ("删除", discord.ButtonStyle.danger, "delete", 4, self.delete),
         )
@@ -478,16 +635,26 @@ class ReviewDraftView(discord.ui.View):
     async def edit(self, interaction: discord.Interaction) -> None:
         if (self.draft.selected_category or self.draft.category_suggestion) == "SHORT_TERM":
             await interaction.response.send_modal(ShortTermEditModal(self.controller, self.draft))
+        elif self.draft.intent == "NEW_TRADE" and self.draft.action == "ENTRY":
+            await interaction.response.send_modal(
+                EntryPlanEditModal(self.controller, self.draft, self.preview_card)
+            )
         else:
             await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
 
-    async def preview(self, interaction: discord.Interaction) -> None:
-        current = await self.controller.service.get(self.draft.id)
-        await interaction.response.send_message(
-            embed=build_public_preview_embed(public_preview_payload(current)),
-            ephemeral=True,
-            delete_after=PREVIEW_DELETE_AFTER,
-        )
+    async def regenerate_image(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            generated = await self.controller.regenerate_review_image(self.draft.id)
+            if not generated:
+                raise ReviewValidationError("TRADE_PLAN_IMAGE_UNAVAILABLE")
+            await send_temporary_ephemeral(
+                interaction,
+                "图片已根据当前卡片内容重新生成。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
 
     async def approve(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)

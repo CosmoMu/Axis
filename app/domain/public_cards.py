@@ -50,6 +50,7 @@ class ActivePublicTrade:
     option_side: str
     last_public_action: str
     position_eighths: int
+    avg_cost: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)

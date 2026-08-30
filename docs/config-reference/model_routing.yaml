@@ -14,14 +14,14 @@ workloads:
   SIGNAL_PARSE:
     model: gpt-5.6-terra
     reasoning: low
-    prompt_version: axis-trade-parse-v3
+    prompt_version: axis-trade-parse-v4
     schema_version: axis-trade-v2
     structured_output: llm_trade_schema.json
 
   SIGNAL_REPAIR:
     model: gpt-5.6-terra
     reasoning: medium
-    prompt_version: axis-trade-repair-v3
+    prompt_version: axis-trade-repair-v4
     schema_version: axis-trade-v2
     structured_output: llm_trade_schema.json
 

@@ -230,3 +230,35 @@ async def test_fourth_add_position_is_never_defaulted(tmp_path: Path) -> None:
         assert "DEFAULT_POSITION_APPLIED" not in draft.warnings
     finally:
         await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_impossible_past_expiry_is_removed_before_review(tmp_path: Path) -> None:
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1004,
+        with_attachment=False,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "expiry": "1202-01-31",
+            "category_suggestion": "LEAPS",
+        }
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(payload=payload, expected_attachment_count=0),
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.expiry is None
+        assert "expiry" in draft.missing_fields
+        assert "EXPIRY_IN_PAST_REQUIRES_REVIEW" in draft.warnings
+    finally:
+        await database.dispose()

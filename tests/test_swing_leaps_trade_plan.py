@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import uuid
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -129,6 +130,38 @@ def test_mentor_points_win_and_axis_fills_only_missing_fields() -> None:
     assert filled.fib_0618 is not None
     assert fill_provenance["current_stock"] == "STOCK_ANALYST"
     assert fill_provenance["fib_0618"] == "STOCK_ANALYST"
+
+
+def test_axis_never_backfills_a_later_pt_below_explicit_mentor_pt1() -> None:
+    bars = _bars()
+    base = analyze_stock("IGV", bars, sector_etf="SPY")
+    analysis = replace(
+        base,
+        current_price=6.10,
+        resistance_levels=(),
+        support_levels=(),
+        scenarios=(
+            replace(
+                base.scenarios[0],
+                targets=(6.3556, 6.4838),
+            ),
+        ),
+    )
+    card = replace(
+        _card(complete_plan=False),
+        current_stock=Decimal("6.10"),
+        stock_pt1=Decimal("7.40"),
+        stock_pt2=None,
+        stock_pt3=None,
+    )
+
+    resolved, provenance = resolve_entry_plan(card, analysis, bars)
+
+    assert resolved.stock_pt1 == Decimal("7.40")
+    assert resolved.stock_pt2 is None
+    assert resolved.stock_pt3 is None
+    assert "stock_pt2" not in provenance
+    assert "stock_pt3" not in provenance
 
 
 def test_deterministic_chart_contains_all_supported_plan_labels() -> None:

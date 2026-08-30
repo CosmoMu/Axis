@@ -57,6 +57,17 @@ class DraftEdit:
     current_pnl_pct: Decimal | None
     position_delta_eighths: int | None
     position_after_eighths: int | None
+    current_stock: Decimal | None = None
+    starter: Decimal | None = None
+    add_zone_low: Decimal | None = None
+    add_zone_high: Decimal | None = None
+    stock_sl: Decimal | None = None
+    stock_pt1: Decimal | None = None
+    stock_pt2: Decimal | None = None
+    stock_pt3: Decimal | None = None
+    fib_0618: Decimal | None = None
+    public_thesis: str | None = None
+    replace_plan: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +150,8 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
         if draft.selected_category != "SHORT_TERM":
             missing.append("category")
         for field in ("ticker", "expiry", "strike", "option_side"):
-            if getattr(draft, field) is None:
+            value = getattr(draft, field)
+            if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
@@ -157,7 +169,8 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
         if draft.selected_category is None:
             missing.append("category")
         for field in ("ticker", "expiry", "strike", "option_side"):
-            if getattr(draft, field) is None:
+            value = getattr(draft, field)
+            if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
@@ -268,6 +281,16 @@ def _audit_payload(draft: TradeDraft) -> dict[str, object]:
         "current_pnl_pct": (
             str(draft.current_pnl_pct) if draft.current_pnl_pct is not None else None
         ),
+        "plan_current_stock": draft.parse_payload.get("plan_current_stock"),
+        "plan_starter": draft.parse_payload.get("plan_starter"),
+        "plan_add_zone_low": draft.parse_payload.get("plan_add_zone_low"),
+        "plan_add_zone_high": draft.parse_payload.get("plan_add_zone_high"),
+        "plan_stock_sl": draft.parse_payload.get("plan_stock_sl"),
+        "plan_stock_pt1": draft.parse_payload.get("plan_stock_pt1"),
+        "plan_stock_pt2": draft.parse_payload.get("plan_stock_pt2"),
+        "plan_stock_pt3": draft.parse_payload.get("plan_stock_pt3"),
+        "plan_fib_0618": draft.parse_payload.get("plan_fib_0618"),
+        "public_thesis": draft.parse_payload.get("public_thesis"),
     }
 
 
@@ -515,8 +538,44 @@ class CardReviewService:
         async with self.database.session() as session:
             draft = await self._locked_draft(session, draft_id, expected_version)
             before = _audit_payload(draft)
-            for field in DraftEdit.__dataclass_fields__:
+            for field in (
+                "intent",
+                "action",
+                "action_stage",
+                "selected_category",
+                "ticker",
+                "expiry",
+                "strike",
+                "option_side",
+                "entry_low",
+                "entry_high",
+                "action_price",
+                "avg_cost",
+                "sl",
+                "tp1",
+                "tp2",
+                "current_pnl_pct",
+                "position_delta_eighths",
+                "position_after_eighths",
+            ):
                 setattr(draft, field, getattr(values, field))
+            if values.replace_plan:
+                payload = dict(draft.parse_payload)
+                for attribute, key in (
+                    ("current_stock", "plan_current_stock"),
+                    ("starter", "plan_starter"),
+                    ("add_zone_low", "plan_add_zone_low"),
+                    ("add_zone_high", "plan_add_zone_high"),
+                    ("stock_sl", "plan_stock_sl"),
+                    ("stock_pt1", "plan_stock_pt1"),
+                    ("stock_pt2", "plan_stock_pt2"),
+                    ("stock_pt3", "plan_stock_pt3"),
+                    ("fib_0618", "plan_fib_0618"),
+                ):
+                    value = getattr(values, attribute)
+                    payload[key] = float(value) if value is not None else None
+                payload["public_thesis"] = values.public_thesis
+                draft.parse_payload = payload
             if draft.selected_category == "SHORT_TERM":
                 self._clear_short_term_fields(draft)
             self._mark_edited(draft, actor_user_id)
@@ -551,6 +610,23 @@ class CardReviewService:
             missing = publication_missing_fields(draft)
             if missing:
                 raise ReviewValidationError("DRAFT_INCOMPLETE", missing)
+            if (
+                (draft.selected_category or draft.category_suggestion) in {"SWING", "LEAPS"}
+                and draft.intent == "NEW_TRADE"
+                and draft.action == "ENTRY"
+            ):
+                self._validate_plan_fields(
+                    option_side=draft.option_side,
+                    current_stock=_plan_decimal(draft.parse_payload, "plan_current_stock"),
+                    starter=_plan_decimal(draft.parse_payload, "plan_starter"),
+                    add_zone_low=_plan_decimal(draft.parse_payload, "plan_add_zone_low"),
+                    add_zone_high=_plan_decimal(draft.parse_payload, "plan_add_zone_high"),
+                    stock_sl=_plan_decimal(draft.parse_payload, "plan_stock_sl"),
+                    stock_pt1=_plan_decimal(draft.parse_payload, "plan_stock_pt1"),
+                    stock_pt2=_plan_decimal(draft.parse_payload, "plan_stock_pt2"),
+                    stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
+                    fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
+                )
             await self._validate_position_transition(session, draft)
             before = _audit_payload(draft)
             draft.status = DraftStatus.READY.value
@@ -633,6 +709,21 @@ class CardReviewService:
         draft.tp1 = None
         draft.tp2 = None
         draft.current_pnl_pct = None
+        payload = dict(draft.parse_payload)
+        for field in (
+            "plan_current_stock",
+            "plan_starter",
+            "plan_add_zone_low",
+            "plan_add_zone_high",
+            "plan_stock_sl",
+            "plan_stock_pt1",
+            "plan_stock_pt2",
+            "plan_stock_pt3",
+            "plan_fib_0618",
+            "public_thesis",
+        ):
+            payload[field] = None
+        draft.parse_payload = payload
 
     @staticmethod
     def _validate_edit(values: DraftEdit) -> None:
@@ -667,6 +758,8 @@ class CardReviewService:
             raise ReviewValidationError("CATEGORY_INVALID")
         if values.option_side not in {None, "CALL", "PUT"}:
             raise ReviewValidationError("OPTION_SIDE_INVALID")
+        if values.expiry is not None and values.expiry < date.today():
+            raise ReviewValidationError("EXPIRY_IN_PAST")
         if values.ticker is not None and (
             not 1 <= len(values.ticker) <= 12
             or any(
@@ -714,6 +807,80 @@ class CardReviewService:
             and values.position_delta_eighths != values.position_after_eighths
         ):
             raise ReviewValidationError("ENTRY_POSITION_MISMATCH")
+        if values.replace_plan:
+            CardReviewService._validate_plan_fields(
+                option_side=values.option_side,
+                current_stock=values.current_stock,
+                starter=values.starter,
+                add_zone_low=values.add_zone_low,
+                add_zone_high=values.add_zone_high,
+                stock_sl=values.stock_sl,
+                stock_pt1=values.stock_pt1,
+                stock_pt2=values.stock_pt2,
+                stock_pt3=values.stock_pt3,
+                fib_0618=values.fib_0618,
+            )
+        if values.public_thesis is not None and len(values.public_thesis) > 600:
+            raise ReviewValidationError("PUBLIC_THESIS_TOO_LONG")
+
+    @staticmethod
+    def _validate_plan_fields(
+        *,
+        option_side: str | None,
+        current_stock: Decimal | None,
+        starter: Decimal | None,
+        add_zone_low: Decimal | None,
+        add_zone_high: Decimal | None,
+        stock_sl: Decimal | None,
+        stock_pt1: Decimal | None,
+        stock_pt2: Decimal | None,
+        stock_pt3: Decimal | None,
+        fib_0618: Decimal | None,
+    ) -> None:
+        plan_values = (
+            current_stock,
+            starter,
+            add_zone_low,
+            add_zone_high,
+            stock_sl,
+            stock_pt1,
+            stock_pt2,
+            stock_pt3,
+            fib_0618,
+        )
+        if any(
+            value is not None and (not value.is_finite() or value <= 0)
+            for value in plan_values
+        ):
+            raise ReviewValidationError("PLAN_PRICE_INVALID")
+        if (
+            add_zone_low is not None
+            and add_zone_high is not None
+            and add_zone_low > add_zone_high
+        ):
+            raise ReviewValidationError("PLAN_ADD_ZONE_INVALID")
+        reference = starter or current_stock
+        targets = [
+            value
+            for value in (stock_pt1, stock_pt2, stock_pt3)
+            if value is not None
+        ]
+        if reference is not None and option_side == "CALL":
+            if stock_sl is not None and stock_sl >= reference:
+                raise ReviewValidationError("PLAN_SL_DIRECTION_INVALID")
+            if any(
+                current <= previous
+                for previous, current in zip([reference, *targets], targets, strict=False)
+            ):
+                raise ReviewValidationError("PLAN_TARGET_ORDER_INVALID")
+        if reference is not None and option_side == "PUT":
+            if stock_sl is not None and stock_sl <= reference:
+                raise ReviewValidationError("PLAN_SL_DIRECTION_INVALID")
+            if any(
+                current >= previous
+                for previous, current in zip([reference, *targets], targets, strict=False)
+            ):
+                raise ReviewValidationError("PLAN_TARGET_ORDER_INVALID")
 
     @staticmethod
     def _validate_short_term_edit(values: ShortTermDraftEdit) -> None:
@@ -721,6 +888,8 @@ class CardReviewService:
             raise ReviewValidationError("CATEGORY_INVALID")
         if values.option_side not in {"CALL", "PUT"}:
             raise ReviewValidationError("OPTION_SIDE_INVALID")
+        if values.expiry < date.today():
+            raise ReviewValidationError("EXPIRY_IN_PAST")
         if not 1 <= len(values.ticker) <= 12 or any(
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for character in values.ticker
         ):

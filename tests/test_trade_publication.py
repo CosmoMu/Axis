@@ -161,7 +161,9 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         active_text = str(build_active_orders_embed("SWING", orders).to_dict())
         assert len(orders) == 1
         assert orders[0].public_trade_id == "SW-0001"
+        assert orders[0].avg_cost == Decimal("3.275")
         assert "当前波段订单" in active_text
+        assert "最近持仓成本 $3.275" in active_text
         assert "Private Mentor" not in active_text
 
         async with database.session() as session:

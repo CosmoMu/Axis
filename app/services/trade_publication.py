@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -339,6 +340,12 @@ class TradePublicationService:
             ):
                 raise PublicationValidationError("POSITION_TRANSITION_MISMATCH")
 
+            avg_cost_after = self._average_cost_after(
+                trade,
+                draft,
+                before_position=before_position,
+                after_position=after_position,
+            )
             event = TradeEvent(
                 trade_id=trade.id,
                 action=draft.action,
@@ -346,7 +353,7 @@ class TradePublicationService:
                 price=self._event_price(draft),
                 position_delta_eighths=position_delta,
                 position_after_eighths=after_position,
-                avg_cost_after=draft.avg_cost if draft.avg_cost is not None else trade.avg_cost,
+                avg_cost_after=avg_cost_after,
                 pnl_pct=draft.current_pnl_pct,
                 sl_before=trade.sl,
                 sl_after=draft.sl if draft.sl is not None else trade.sl,
@@ -358,7 +365,12 @@ class TradePublicationService:
                 published_message_id=message_id,
             )
             session.add(event)
-            self._apply_trade_update(trade, draft, after_position)
+            self._apply_trade_update(
+                trade,
+                draft,
+                after_position,
+                avg_cost_after=avg_cost_after,
+            )
             await session.flush()
 
             publication.trade_event_id = event.id
@@ -408,18 +420,34 @@ class TradePublicationService:
                     .limit(25)
                 )
             ).all()
-        return [
-            ActivePublicTrade(
-                public_trade_id=trade.public_trade_id,
-                ticker=trade.ticker,
-                expiry=trade.expiry,
-                strike=trade.strike,
-                option_side=trade.option_side,
-                last_public_action=trade.last_public_action or TradeAction.ENTRY.value,
-                position_eighths=trade.position_eighths,
-            )
-            for trade in trades
-        ]
+            output = []
+            for trade in trades:
+                latest_cost = await session.scalar(
+                    select(TradeEvent.avg_cost_after)
+                    .where(
+                        TradeEvent.trade_id == trade.id,
+                        TradeEvent.avg_cost_after.is_not(None),
+                    )
+                    .order_by(TradeEvent.created_at.desc(), TradeEvent.id.desc())
+                    .limit(1)
+                )
+                if trade.entry_low is not None and trade.entry_high is not None:
+                    entry_cost = (trade.entry_low + trade.entry_high) / 2
+                else:
+                    entry_cost = trade.entry_low or trade.entry_high
+                output.append(
+                    ActivePublicTrade(
+                        public_trade_id=trade.public_trade_id,
+                        ticker=trade.ticker,
+                        expiry=trade.expiry,
+                        strike=trade.strike,
+                        option_side=trade.option_side,
+                        last_public_action=trade.last_public_action or TradeAction.ENTRY.value,
+                        position_eighths=trade.position_eighths,
+                        avg_cost=trade.avg_cost or latest_cost or entry_cost,
+                    )
+                )
+        return output
 
     async def _resolve_trade(
         self,
@@ -589,7 +617,40 @@ class TradePublicationService:
         return draft.entry_low if draft.entry_low is not None else draft.entry_high
 
     @staticmethod
-    def _apply_trade_update(trade: Trade, draft: TradeDraft, after_position: int) -> None:
+    def _average_cost_after(
+        trade: Trade,
+        draft: TradeDraft,
+        *,
+        before_position: int,
+        after_position: int,
+    ) -> Decimal | None:
+        if after_position <= 0:
+            return None
+        if draft.avg_cost is not None:
+            return draft.avg_cost
+        event_price = TradePublicationService._event_price(draft)
+        if before_position == 0:
+            return event_price or trade.avg_cost
+        if (
+            draft.action == TradeAction.ADD.value
+            and after_position > before_position
+            and trade.avg_cost is not None
+            and event_price is not None
+        ):
+            added = after_position - before_position
+            return (
+                trade.avg_cost * before_position + event_price * added
+            ) / after_position
+        return trade.avg_cost
+
+    @staticmethod
+    def _apply_trade_update(
+        trade: Trade,
+        draft: TradeDraft,
+        after_position: int,
+        *,
+        avg_cost_after: Decimal | None = None,
+    ) -> None:
         now = utc_now()
         trade.last_public_action = (
             f"ADD_{draft.action_stage}"
@@ -602,8 +663,8 @@ class TradePublicationService:
             trade.entry_low = draft.entry_low
         if draft.entry_high is not None:
             trade.entry_high = draft.entry_high
-        if draft.avg_cost is not None:
-            trade.avg_cost = draft.avg_cost
+        if avg_cost_after is not None:
+            trade.avg_cost = avg_cost_after
         if draft.sl is not None:
             trade.sl = draft.sl
         if draft.tp1 is not None:

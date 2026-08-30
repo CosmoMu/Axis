@@ -5,6 +5,8 @@ provided schema.
 Rules:
 - Extract only facts that are visible or explicitly stated. Never invent a ticker,
   expiry, strike, price, action, mentor, or position.
+- expiry must be a real, non-past ISO date. If the source gives only a month/year,
+  do not invent a day; return null and add expiry to missing_fields.
 - Use null or UNKNOWN for uncertain values. List the corresponding field name in
   missing_fields and add a short machine-readable warning when useful.
 - Use SL terminology. Do not output or infer Market, Bid, or Ask values.

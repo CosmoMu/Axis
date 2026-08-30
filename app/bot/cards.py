@@ -261,6 +261,28 @@ def build_public_preview_embed(card: PublicTradeCard) -> discord.Embed:
     return _public(embed)
 
 
+def build_complete_review_embed(
+    draft: ReviewDraft,
+    card: PublicTradeCard,
+) -> discord.Embed:
+    """Show the complete member card while keeping review-only context at the bottom."""
+
+    embed = build_public_trade_embed(card)
+    embed.title = f"会员卡片预览 · {embed.title or action_label(card)}"
+    review_lines = [
+        f"Mentor：{draft.mentor_name or '待选择'}",
+        f"关联订单：{draft.matched_trade_code or '无'}",
+    ]
+    missing = publication_missing_fields(draft)
+    if missing:
+        review_lines.append("缺失：" + "、".join(missing))
+    embed.add_field(name="审核信息", value="\n".join(review_lines)[:1024], inline=False)
+    if draft.warnings:
+        embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
+    embed.set_footer(text=f"AXIS Signal · {draft.draft_code} · v{draft.version}")
+    return embed
+
+
 def build_public_trade_embed(
     card: PublicTradeCard, *, public_ref: str | None = None
 ) -> discord.Embed:
@@ -425,7 +447,14 @@ def build_active_orders_embed(
         label = ACTION_LABELS.get(trade.last_public_action, trade.last_public_action)
         embed.add_field(
             name=trade.public_trade_id,
-            value=f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}",
+            value=(
+                f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}"
+                + (
+                    f"\n最近持仓成本 {_money(trade.avg_cost)}"
+                    if trade.avg_cost is not None
+                    else ""
+                )
+            ),
             inline=False,
         )
     return _public(embed)

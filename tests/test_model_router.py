@@ -16,7 +16,7 @@ def test_router_resolves_all_workloads_without_one_global_business_model() -> No
 
     assert signal.model == "gpt-5.6-terra"
     assert signal.reasoning == "low"
-    assert signal.prompt_version == "axis-trade-parse-v3"
+    assert signal.prompt_version == "axis-trade-parse-v4"
     assert signal.schema_version == "axis-trade-v2"
     assert signal.structured_output == (ROOT / "config" / "llm_trade_schema.json").resolve()
     assert analysis.model == "gpt-5.6-terra"

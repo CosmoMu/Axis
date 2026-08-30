@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -8,12 +9,18 @@ import discord
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cards import build_public_preview_embed, build_review_embed
-from app.bot.views.review_views import ReviewDraftView, ShortTermEditModal
+from app.bot.cards import (
+    build_complete_review_embed,
+    build_public_preview_embed,
+    build_review_embed,
+)
+from app.bot.cogs.card_review import CardReviewCog
+from app.bot.views.review_views import EntryPlanEditModal, ReviewDraftView, ShortTermEditModal
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Mentor, SourceMessage, TradeDraft
 from app.db.session import Database
 from app.domain.enums import DraftStatus, SourceStatus
+from app.market_intelligence.trade_plan import TradePlanArtifact
 from app.services.card_review import (
     CardReviewService,
     DraftEdit,
@@ -218,6 +225,8 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
         category_select, mentor_select, trade_select = selects
         defaults = [option.value for option in category_select.options if option.default]
         embed = build_review_embed(snapshot)
+        complete = build_complete_review_embed(snapshot, public_preview_payload(snapshot))
+        buttons = [item for item in view.children if isinstance(item, discord.ui.Button)]
 
         assert len(selects) == 3
         assert category_select.custom_id.startswith("axis:review:category:select:")
@@ -236,6 +245,95 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
         )
         assert len(embed.fields) <= 4
         assert "GOOGL" in (embed.description or "")
+        assert [item.label for item in buttons] == [
+            "完整编辑",
+            "重新生成图片",
+            "确认发布",
+            "删除",
+        ]
+        assert "会员卡片预览" in (complete.title or "")
+        assert "当前股价" in str(complete.to_dict())
+        assert "止盈目标" in str(complete.to_dict())
+        assert "审核信息" in str(complete.to_dict())
+
+        modal = EntryPlanEditModal(SimpleNamespace(), snapshot, public_preview_payload(snapshot))
+        assert [item.label for item in modal.children] == [
+            "Ticker | YYYY-MM-DD | Strike | CALL/PUT",
+            "期权入场低 | 入场高 | 持仓成本 | 仓位",
+            "当前股价 | Starter | Add低 | Add高",
+            "正股SL | PT1 | PT2 | PT3 | Fib 0.618",
+            "会员卡片交易逻辑（可留空）",
+        ]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_review_presentation_attaches_complete_card_chart() -> None:
+    database, draft, _ = await review_database()
+    service = CardReviewService(database)
+    try:
+        snapshot = await service.get(draft.id)
+
+        class Plan:
+            async def prepare(self, card):
+                return TradePlanArtifact(card=card, chart_png=b"chart-png", provenance={})
+
+        controller = CardReviewCog.__new__(CardReviewCog)
+        controller.service = service
+        controller.trade_plan_service = Plan()
+        controller._review_artifacts = {}
+        embed, view, chart, filename = await controller._review_presentation(snapshot)
+
+        assert chart == b"chart-png"
+        assert filename == "axis-d-test-v1-entry-plan.png"
+        assert embed.image.url == f"attachment://{filename}"
+        assert "会员卡片预览" in (embed.title or "")
+        assert view is not None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_entry_plan_edit_persists_targets_and_rejects_wrong_order() -> None:
+    database, draft, _ = await review_database()
+    service = CardReviewService(database)
+    try:
+        valid = replace(
+            complete_edit(),
+            current_stock=Decimal("201"),
+            starter=Decimal("201"),
+            add_zone_low=Decimal("195"),
+            add_zone_high=Decimal("198"),
+            stock_sl=Decimal("190"),
+            stock_pt1=Decimal("210"),
+            stock_pt2=Decimal("220"),
+            stock_pt3=Decimal("230"),
+            fib_0618=Decimal("196"),
+            public_thesis="结构守稳后观察目标推进。",
+            replace_plan=True,
+        )
+        updated = await service.edit(
+            draft.id,
+            values=valid,
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=801,
+        )
+        assert updated.stock_pt1 == Decimal("210.0")
+        assert updated.stock_pt2 == Decimal("220.0")
+        assert updated.stock_pt3 == Decimal("230.0")
+        assert updated.public_thesis == "结构守稳后观察目标推进。"
+
+        invalid = replace(valid, stock_pt2=Decimal("205"))
+        with pytest.raises(ReviewValidationError, match="PLAN_TARGET_ORDER_INVALID"):
+            await service.edit(
+                draft.id,
+                values=invalid,
+                expected_version=updated.version,
+                actor_user_id=501,
+                interaction_id=802,
+            )
     finally:
         await database.dispose()
 

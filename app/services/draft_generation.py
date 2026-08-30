@@ -82,6 +82,16 @@ def _unique_strings(values: Any) -> list[str]:
     return list(dict.fromkeys(str(value)[:100] for value in values if str(value).strip()))
 
 
+def _normalize_expiry(payload: dict[str, Any]) -> None:
+    expiry = _date(payload.get("expiry"))
+    if expiry is None or expiry >= date.today():
+        return
+    payload["expiry"] = None
+    warnings = _unique_strings(payload.get("warnings"))
+    warnings.append("EXPIRY_IN_PAST_REQUIRES_REVIEW")
+    payload["warnings"] = list(dict.fromkeys(warnings))
+
+
 def _apply_position_ladder(payload: dict[str, Any]) -> None:
     if payload.get("category_suggestion") == "SHORT_TERM":
         payload["position_delta_eighths"] = None
@@ -211,6 +221,7 @@ class DraftGenerationService:
             )
             parse_trace = parse_result.trace
             payload = dict(parse_result.payload)
+            _normalize_expiry(payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)
             return await self._persist_success(

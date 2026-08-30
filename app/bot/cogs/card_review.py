@@ -10,6 +10,7 @@ import discord
 from discord.ext import commands, tasks
 
 from app.bot.cards import (
+    build_complete_review_embed,
     build_public_trade_embed,
     build_review_embed,
     build_short_term_entry_embed,
@@ -22,7 +23,10 @@ from app.bot.views.review_views import (
 )
 from app.domain.enums import DraftStatus, TradeCategory
 from app.domain.public_cards import PublicTradeCard, ShortTermEntryCard
-from app.market_intelligence.trade_plan import SwingLeapsTradePlanService
+from app.market_intelligence.trade_plan import (
+    SwingLeapsTradePlanService,
+    TradePlanArtifact,
+)
 from app.services.card_review import (
     ACTIVE_REVIEW_STATUSES,
     CardReviewService,
@@ -30,6 +34,7 @@ from app.services.card_review import (
     ReviewDraft,
     ReviewError,
     ReviewValidationError,
+    public_preview_payload,
 )
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.trade_publication import (
@@ -68,6 +73,7 @@ class CardReviewCog(commands.Cog):
         self.member_role_id = member_role_id
         self.owner_user_id = owner_user_id
         self._views_registered = False
+        self._review_artifacts: dict[uuid.UUID, tuple[int, TradePlanArtifact]] = {}
         self.review_queue.start()
         self.publication_queue.start()
 
@@ -168,8 +174,7 @@ class CardReviewCog(commands.Cog):
             return
         try:
             message = await fetch_message(draft.review_message_id)
-            view = await self._review_view(draft)
-            await message.edit(embed=build_review_embed(draft), view=view)
+            view, _ = await self._edit_review_message(message, draft)
             if view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)
         except discord.HTTPException:
@@ -219,7 +224,12 @@ class CardReviewCog(commands.Cog):
         for draft in await self.service.published_without_review_message(self.guild_id):
             await self._ensure_review_message(draft)
 
-    async def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
+    async def _review_view(
+        self,
+        draft: ReviewDraft,
+        *,
+        preview_card: PublicTradeCard | None = None,
+    ) -> discord.ui.View | None:
         if draft.status in ACTIVE_REVIEW_STATUSES:
             if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
                 return ReviewDraftView(
@@ -227,6 +237,7 @@ class CardReviewCog(commands.Cog):
                     draft,
                     mentor_choices=[],
                     trade_choices=[],
+                    preview_card=preview_card,
                 )
             mentor_choices, trade_choices = await asyncio.gather(
                 self.service.mentor_choices(draft.guild_id),
@@ -237,10 +248,97 @@ class CardReviewCog(commands.Cog):
                 draft,
                 mentor_choices=mentor_choices,
                 trade_choices=trade_choices,
+                preview_card=preview_card,
             )
         if draft.status == DraftStatus.PUBLISH_FAILED.value:
             return PublicationRetryView(self, draft)
         return None
+
+    async def _review_artifact(
+        self,
+        draft: ReviewDraft,
+        *,
+        force: bool = False,
+    ) -> TradePlanArtifact:
+        cache = getattr(self, "_review_artifacts", None)
+        if cache is None:
+            cache = {}
+            self._review_artifacts = cache
+        cached = cache.get(draft.id)
+        if not force and cached is not None and cached[0] == draft.version:
+            return cached[1]
+        card = public_preview_payload(draft)
+        if self.trade_plan_service is None:
+            artifact = TradePlanArtifact(card=card, chart_png=None, provenance={})
+        else:
+            artifact = await self.trade_plan_service.prepare(card)
+        cache[draft.id] = (draft.version, artifact)
+        return artifact
+
+    async def _review_presentation(
+        self,
+        draft: ReviewDraft,
+        *,
+        force_image: bool = False,
+    ) -> tuple[discord.Embed, discord.ui.View | None, bytes | None, str | None]:
+        category = draft.selected_category or draft.category_suggestion
+        complete_entry = (
+            draft.status in ACTIVE_REVIEW_STATUSES
+            and category in {TradeCategory.SWING.value, TradeCategory.LEAPS.value}
+            and draft.intent == "NEW_TRADE"
+            and draft.action == "ENTRY"
+        )
+        if not complete_entry:
+            return build_review_embed(draft), await self._review_view(draft), None, None
+        artifact = await self._review_artifact(draft, force=force_image)
+        embed = build_complete_review_embed(draft, artifact.card)
+        filename = None
+        if artifact.chart_png is not None:
+            filename = f"axis-{draft.draft_code.lower()}-v{draft.version}-entry-plan.png"
+            embed.set_image(url=f"attachment://{filename}")
+        view = await self._review_view(draft, preview_card=artifact.card)
+        return embed, view, artifact.chart_png, filename
+
+    async def _edit_review_message(
+        self,
+        message: discord.Message,
+        draft: ReviewDraft,
+        *,
+        force_image: bool = False,
+    ) -> tuple[discord.ui.View | None, bool]:
+        embed, view, chart_png, filename = await self._review_presentation(
+            draft,
+            force_image=force_image,
+        )
+        if chart_png is not None and filename is not None:
+            await message.edit(
+                embed=embed,
+                attachments=[discord.File(BytesIO(chart_png), filename=filename)],
+                view=view,
+            )
+        else:
+            await message.edit(embed=embed, attachments=[], view=view)
+        return view, chart_png is not None
+
+    async def regenerate_review_image(self, draft_id: uuid.UUID) -> bool:
+        draft = await self.service.get(draft_id)
+        if draft.review_message_id is None:
+            return False
+        channel = self.bot.get_channel(draft.review_channel_id or self.channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(draft.review_channel_id or self.channel_id)
+        fetch_message = getattr(channel, "fetch_message", None)
+        if fetch_message is None:
+            return False
+        message = await fetch_message(draft.review_message_id)
+        view, generated = await self._edit_review_message(
+            message,
+            draft,
+            force_image=True,
+        )
+        if view is not None:
+            self.bot.add_view(view, message_id=draft.review_message_id)
+        return generated
 
     async def publish_draft(
         self,
@@ -352,11 +450,18 @@ class CardReviewCog(commands.Cog):
                 existing = message
                 break
 
-        view = await self._review_view(draft)
         if existing is None:
-            existing = await send(embed=build_review_embed(draft), view=view)
+            embed, view, chart_png, filename = await self._review_presentation(draft)
+            if chart_png is not None and filename is not None:
+                existing = await send(
+                    embed=embed,
+                    file=discord.File(BytesIO(chart_png), filename=filename),
+                    view=view,
+                )
+            else:
+                existing = await send(embed=embed, view=view)
         else:
-            await existing.edit(embed=build_review_embed(draft), view=view)
+            view, _ = await self._edit_review_message(existing, draft)
         saved = await self.service.attach_review_message(
             draft.id,
             channel_id=self.channel_id,

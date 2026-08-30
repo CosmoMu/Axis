@@ -70,6 +70,13 @@ def _money(value: float | Decimal) -> str:
     return "$" + f"{float(value):,.2f}"
 
 
+def _number(value: Decimal | None) -> str:
+    if value is None:
+        return "—"
+    rendered = f"{value:f}".rstrip("0").rstrip(".")
+    return rendered or "0"
+
+
 def _mentor_provenance(card: PublicTradeCard) -> dict[str, str]:
     fields = {
         "current_stock": card.current_stock,
@@ -104,6 +111,54 @@ def _directional_targets(
             reverse=True,
         )
     return sorted({round(value, 4) for value in raw if value > current and value not in existing})
+
+
+def _fill_directional_targets(
+    card: PublicTradeCard,
+    analysis: StockAnalysis,
+    current: Decimal,
+) -> tuple[list[Decimal | None], dict[str, str]]:
+    """Fill gaps without ever placing a later PT behind an earlier PT."""
+
+    targets: list[Decimal | None] = [card.stock_pt1, card.stock_pt2, card.stock_pt3]
+    candidates = _directional_targets(card, analysis, float(current))
+    provenance: dict[str, str] = {}
+    put = card.option_side == "PUT"
+
+    for index, target in enumerate(targets):
+        previous = current if index == 0 else targets[index - 1]
+        if target is not None or previous is None:
+            continue
+        next_explicit = next(
+            (value for value in targets[index + 1 :] if value is not None),
+            None,
+        )
+        if put:
+            match = next(
+                (
+                    value
+                    for value in candidates
+                    if value < float(previous)
+                    and (next_explicit is None or value > float(next_explicit))
+                ),
+                None,
+            )
+        else:
+            match = next(
+                (
+                    value
+                    for value in candidates
+                    if value > float(previous)
+                    and (next_explicit is None or value < float(next_explicit))
+                ),
+                None,
+            )
+        if match is None:
+            continue
+        targets[index] = _decimal(match)
+        candidates.remove(match)
+        provenance[f"stock_pt{index + 1}"] = "STOCK_ANALYST"
+    return targets, provenance
 
 
 def _axis_add_zone(
@@ -184,12 +239,8 @@ def resolve_entry_plan(
         starter = current
         provenance["starter"] = "STOCK_ANALYST"
 
-    targets: list[Decimal | None] = [card.stock_pt1, card.stock_pt2, card.stock_pt3]
-    candidates = _directional_targets(card, analysis, float(current))
-    for index, value in enumerate(targets):
-        if value is None and candidates:
-            targets[index] = _decimal(candidates.pop(0))
-            provenance[f"stock_pt{index + 1}"] = "STOCK_ANALYST"
+    targets, target_provenance = _fill_directional_targets(card, analysis, current)
+    provenance.update(target_provenance)
 
     add_low, add_high, add_provenance = _axis_add_zone(card, analysis, float(current))
     provenance.update(add_provenance)
@@ -331,7 +382,7 @@ def render_swing_leaps_entry_chart(
     expiry = card.expiry.strftime("%m/%d/%Y") if card.expiry else "—"
     draw.text(
         (left, 42),
-        f"{card.ticker or '—'} · {expiry} · {card.strike or '—'}{side}",
+        f"{card.ticker or '—'} · {expiry} · {_number(card.strike)}{side}",
         font=_font(40, bold=True),
         fill=white,
     )
@@ -426,10 +477,23 @@ def render_swing_leaps_entry_chart(
             fill=fib_color,
             anchor="rs",
         )
-    horizontal(card.current_stock, "CURRENT", white, 2, history_right - 8)
+    same_start = (
+        card.starter is not None
+        and abs(card.starter - card.current_stock) <= Decimal("0.0001")
+    )
+    if same_start:
+        draw.text(
+            (history_right - 8, y(float(card.current_stock)) - 8),
+            f"CURRENT  {_money(card.current_stock)}",
+            font=_font(16, bold=True),
+            fill=white,
+            anchor="rs",
+        )
+    else:
+        horizontal(card.current_stock, "CURRENT", white, 2, history_right - 8)
 
     path_values: list[tuple[str, Decimal]] = [("CURRENT", card.current_stock)]
-    if card.starter is not None:
+    if card.starter is not None and not same_start:
         path_values.append(("STARTER", card.starter))
     if card.add_zone_low is not None and card.add_zone_high is not None:
         path_values.append(("ADD", (card.add_zone_low + card.add_zone_high) / 2))

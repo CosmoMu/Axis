@@ -33,17 +33,19 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Source message checksum 与幂等。
 - OpenAI Responses Structured Output 与 SIGNAL_PARSE / SIGNAL_REPAIR 路由。
 - 失败草稿、missing fields 和安全错误信息。
+- 过去日期或不可能年份的 expiry 会在进入 review 前清空并要求人工确认，不允许直接发布。
 - 默认仓位阶梯：1/8、1/4、1/2、3/4。
 
 ## Signal review and publication
 
 - AI Category 默认识别，Manager 可通过下拉修改。
 - Mentor 和关联订单下拉。
-- Modal 编辑、Public Preview、删除和幂等发布。
+- Review 直接显示完整会员卡片与预测图；完整编辑覆盖期权、正股点位和公开交易逻辑。
+- 「重新生成图片」按当前已编辑内容重建预测图；删除和发布保持幂等。
 - 乐观并发版本、审核状态和审计记录。
 - Public DTO 白名单，不显示 Mentor、来源、Market、Bid、Ask 或 Parser 信息。
 - Entry / Add / Update / TP / SL / Runner / Close。
-- 固定 persistent「查看当前订单」按钮和 ephemeral Active View。
+- 固定 persistent「查看当前订单」按钮和 ephemeral Active View；SWING / LEAPS 显示最近持仓成本。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
 ## SWING / LEAPS Entry Plan Visual
@@ -51,6 +53,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 - ENTRY / STARTER ENTRY 使用新的中文结构化交易卡。
 - 期权 Premium 与正股计划点位严格分开。
 - Mentor 点位优先，AXIS Stock Analyst 只补 Current、Starter、Add Zone、SL、PT 和 Fib 缺项。
+- 自动补 PT 必须沿交易方向严格递进；不得把低于 PT1 的 CALL 目标补成 PT2/PT3，PUT 反之。
 - 基于真实日 K 的确定性 PNG，不使用图片生成模型，不生成假 K 线。
 - 黑色背景、K 线、EMA20、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、
   绿色 PT1/PT2/PT3 和灰色 Fib 0.618。
