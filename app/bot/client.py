@@ -12,6 +12,7 @@ from app.config import ConfigurationError, Settings
 from app.services.card_review import CardReviewService
 from app.services.draft_generation import DraftGenerationService
 from app.services.signal_input import SignalInputService
+from app.services.trade_publication import TradePublicationService
 
 
 def _required_snowflake(section: dict[str, Any], key: str) -> int:
@@ -30,6 +31,7 @@ class AxisBot(commands.Bot):
         signal_input_service: SignalInputService,
         draft_generation_service: DraftGenerationService | None,
         card_review_service: CardReviewService,
+        trade_publication_service: TradePublicationService,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -57,9 +59,11 @@ class AxisBot(commands.Bot):
         self._card_review_cog = CardReviewCog(
             self,
             service=card_review_service,
+            publication_service=trade_publication_service,
             guild_id=settings.discord_guild_id,
             channel_id=_required_snowflake(channels, "card_review"),
             manager_role_id=_required_snowflake(roles, "manager"),
+            member_role_id=_required_snowflake(roles, "member"),
             owner_user_id=settings.discord_owner_user_id,
         )
 

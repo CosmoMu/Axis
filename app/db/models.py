@@ -34,6 +34,7 @@ from app.domain.enums import (
     MembershipSource,
     MembershipStatus,
     OptionSide,
+    PublicationStatus,
     SourceStatus,
     TradeAction,
     TradeCategory,
@@ -304,6 +305,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
 class TradeEvent(UuidPrimaryKeyMixin, Base):
     __tablename__ = "trade_events"
     __table_args__ = (
+        UniqueConstraint("draft_id", name="trade_event_per_draft"),
         CheckConstraint(enum_check("action", TradeAction), name="trade_event_action"),
         CheckConstraint(enum_check("action_stage", ActionStage), name="trade_event_stage"),
         CheckConstraint("position_delta_eighths BETWEEN -8 AND 8", name="event_position_delta"),
@@ -348,6 +350,16 @@ class TradePublication(UuidPrimaryKeyMixin, Base):
             "message_id",
             name="trade_publication_per_guild",
         ),
+        UniqueConstraint("draft_id", name="trade_publication_per_draft"),
+        UniqueConstraint(
+            "guild_id", "public_ref", name="trade_public_ref_per_guild"
+        ),
+        CheckConstraint(
+            enum_check("status", PublicationStatus), name="trade_publication_status"
+        ),
+        CheckConstraint(
+            "attempt_count >= 0", name="trade_publication_attempt_count"
+        ),
     )
 
     guild_id: Mapped[int] = mapped_column(
@@ -359,15 +371,27 @@ class TradePublication(UuidPrimaryKeyMixin, Base):
     trade_event_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("trade_events.id", ondelete="SET NULL"), index=True
     )
+    draft_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("trade_drafts.id", ondelete="SET NULL"), index=True
+    )
     message_type: Mapped[str] = mapped_column(String(32), nullable=False)
     channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    message_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    public_ref: Mapped[str | None] = mapped_column(String(20))
     custom_id: Mapped[str | None] = mapped_column(String(100))
     payload_hash: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(
+        String(16), default=PublicationStatus.PENDING.value, nullable=False
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    claim_token: Mapped[str | None] = mapped_column(String(64))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )
     corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # One release-cycle import compatibility. The database and new code use TradePublication.

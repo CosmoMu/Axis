@@ -2,8 +2,6 @@
 
 ## Blocking for Gate A
 
-- `READY` Draft 尚未创建 Trade / Trade Event 或发布会员卡片。
-- `查看当前订单` custom_id 已锁定，但查询 View 尚未实现。
 - Mentor Control、Member Control、Results 尚未实现。
 - 长期控制面板 Message ID 字段存在，但面板尚未创建。
 
@@ -18,3 +16,4 @@
 - Python 3.12 下 discord.py 依赖会产生 `audioop` Python 3.13 removal warning。
 - 当前为 macOS 本地 LaunchAgent 部署，尚无 Docker production target。
 - Analysis / LAB 频道已存在，但功能关闭；频道存在不代表业务已完成。
+- Active View 当前单次最多展示 25 个进行中订单，符合 Discord Embed field 上限。

@@ -4,7 +4,7 @@
 
 **Current Source of Truth:** `docs/current/`
 
-**Current Development Stage:** v1 → v2 reconciliation；Stage 1 / Stage 2 部分完成
+**Current Development Stage:** Stage 2 Signal Pipeline complete；Stage 3 进行中
 
 **AXIS LAB:** Deferred
 

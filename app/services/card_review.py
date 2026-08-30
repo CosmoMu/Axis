@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import AuditLog, Mentor, Trade, TradeDraft
 from app.db.session import Database
 from app.domain.enums import DraftStatus, TradeState
+from app.domain.public_cards import PublicTradeCard
 
 
 class ReviewError(RuntimeError):
@@ -100,6 +101,11 @@ ACTIVE_REVIEW_STATUSES = {
     DraftStatus.PENDING_REVIEW.value,
     DraftStatus.PARSE_FAILED.value,
 }
+REGISTERED_REVIEW_STATUSES = {
+    *ACTIVE_REVIEW_STATUSES,
+    DraftStatus.READY.value,
+    DraftStatus.PUBLISH_FAILED.value,
+}
 
 
 def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ...]:
@@ -147,6 +153,31 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
         if draft.position_after_eighths is None:
             missing.append("position_after_eighths")
     return tuple(missing)
+
+
+def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
+    """Copy only explicitly public fields into the member-card boundary."""
+
+    return PublicTradeCard(
+        public_trade_id=None,
+        category=draft.selected_category or draft.category_suggestion or "SHORT_TERM",
+        action=draft.action,
+        action_stage=draft.action_stage,
+        ticker=draft.ticker,
+        expiry=draft.expiry,
+        strike=draft.strike,
+        option_side=draft.option_side,
+        entry_low=draft.entry_low,
+        entry_high=draft.entry_high,
+        action_price=draft.action_price,
+        avg_cost=draft.avg_cost,
+        sl=draft.sl,
+        tp1=draft.tp1,
+        tp2=draft.tp2,
+        position_delta_eighths=draft.position_delta_eighths,
+        position_after_eighths=draft.position_after_eighths or 0,
+        pnl_pct=draft.current_pnl_pct,
+    )
 
 
 def _audit_payload(draft: TradeDraft) -> dict[str, object]:
@@ -210,9 +241,7 @@ class CardReviewService:
                     select(TradeDraft)
                     .where(
                         TradeDraft.guild_id == guild_id,
-                        TradeDraft.status.in_(
-                            [*ACTIVE_REVIEW_STATUSES, DraftStatus.READY.value]
-                        ),
+                        TradeDraft.status.in_(REGISTERED_REVIEW_STATUSES),
                         TradeDraft.review_message_id.is_not(None),
                     )
                     .order_by(TradeDraft.created_at, TradeDraft.id)
@@ -352,7 +381,11 @@ class CardReviewService:
             )
             if draft is None:
                 raise ReviewError("DRAFT_NOT_FOUND")
-            if draft.status == DraftStatus.READY.value:
+            if draft.status in {
+                DraftStatus.READY.value,
+                DraftStatus.PUBLISH_FAILED.value,
+                DraftStatus.PUBLISHED.value,
+            }:
                 return await self._snapshot(session, draft)
             self._assert_editable(draft)
             self._assert_version(draft, expected_version)
@@ -526,6 +559,12 @@ class CardReviewService:
             raise ReviewValidationError("REDUCTION_POSITION_INCREASED")
         if draft.action in {"SL", "CLOSE", "CANCEL"} and after != 0:
             raise ReviewValidationError("CLOSED_POSITION_NOT_ZERO")
+        expected_delta = after - trade.position_eighths
+        if (
+            draft.position_delta_eighths is not None
+            and draft.position_delta_eighths != expected_delta
+        ):
+            raise ReviewValidationError("POSITION_TRANSITION_MISMATCH")
 
     @staticmethod
     async def _add_audit(

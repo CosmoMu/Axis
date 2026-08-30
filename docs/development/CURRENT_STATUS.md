@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-29
 
-**Database:** `20260829_0004`
+**Database:** `20260829_0005`
 
 **Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -27,7 +27,7 @@ Missing:
 
 Tests: Router、Bootstrap、DB metadata 和安全约束已覆盖。
 
-## Stage 2 — Signal Pipeline: PARTIAL
+## Stage 2 — Signal Pipeline: COMPLETE
 
 Implemented:
 
@@ -37,14 +37,12 @@ Implemented:
 - Draft、默认仓位阶梯、missing fields、failure Draft。
 - Card Review、Mentor/Trade 选择、编辑、Public Preview、并发版本与审计。
 - LLM provider/model/workload/Prompt/Schema/latency/result trace。
+- 确认后创建或更新 Trade，并写入不可重复的 Trade Event。
+- 数据库预约、Discord marker 恢复和事务 finalize 组成的幂等会员卡片发布。
+- Public DTO 白名单边界与固定 `axis:active:*:v1` persistent button。
+- `查看当前订单` ephemeral Active View；关闭、清仓和 Cancel 订单自动排除。
 
-Missing:
-
-- 确认后创建/更新 Trade 与 Trade Event。
-- 幂等会员卡片发布。
-- Persistent `查看当前订单` 数据查询与 ephemeral Active View。
-
-Needs migration: none after `0004`。
+Needs migration: none after `0005`。
 
 ## Stage 3 — Mentor / Member / Results: NOT STARTED
 

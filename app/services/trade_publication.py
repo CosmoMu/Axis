@@ -1,0 +1,654 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import uuid
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import (
+    AuditLog,
+    GuildConfig,
+    Trade,
+    TradeDraft,
+    TradeEvent,
+    TradePublication,
+    utc_now,
+)
+from app.db.session import Database
+from app.domain.enums import (
+    ActionStage,
+    DraftStatus,
+    PublicationStatus,
+    TradeAction,
+    TradeCategory,
+    TradeState,
+)
+from app.domain.public_cards import ActivePublicTrade, PublicTradeCard
+
+ACTIVE_CUSTOM_IDS = {
+    TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
+    TradeCategory.SWING.value: "axis:active:swing:v1",
+    TradeCategory.LEAPS.value: "axis:active:leaps:v1",
+}
+PUBLIC_ID_PREFIXES = {
+    TradeCategory.SHORT_TERM.value: "ST",
+    TradeCategory.SWING.value: "SW",
+    TradeCategory.LEAPS.value: "LP",
+}
+RETRY_AFTER = timedelta(seconds=60)
+
+
+class PublicationError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class PublicationConflictError(PublicationError):
+    pass
+
+
+class PublicationValidationError(PublicationError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationClaim:
+    publication_id: uuid.UUID
+    draft_id: uuid.UUID
+    claim_token: str | None
+    should_publish: bool
+    already_published: bool
+    channel_id: int
+    public_ref: str
+    card: PublicTradeCard | None
+    message_id: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationResult:
+    publication_id: uuid.UUID
+    draft_id: uuid.UUID
+    trade_id: uuid.UUID
+    trade_event_id: uuid.UUID
+    message_id: int
+    public_trade_id: str
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _payload_hash(card: PublicTradeCard) -> str:
+    payload = {
+        key: (item.isoformat() if hasattr(item, "isoformat") else str(item))
+        for key, item in asdict(card).items()
+        if item is not None
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+class TradePublicationService:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    async def next_publishable(self, guild_id: int) -> uuid.UUID | None:
+        cutoff = utc_now() - RETRY_AFTER
+        async with self.database.session() as session:
+            draft_id = await session.scalar(
+                select(TradeDraft.id)
+                .outerjoin(TradePublication, TradePublication.draft_id == TradeDraft.id)
+                .where(
+                    TradeDraft.guild_id == guild_id,
+                    or_(
+                        and_(
+                            TradeDraft.status == DraftStatus.READY.value,
+                            or_(
+                                TradePublication.id.is_(None),
+                                and_(
+                                    TradePublication.status
+                                    == PublicationStatus.PENDING.value,
+                                    or_(
+                                        TradePublication.claimed_at.is_(None),
+                                        TradePublication.claimed_at <= cutoff,
+                                    ),
+                                ),
+                            ),
+                        ),
+                        and_(
+                            TradeDraft.status == DraftStatus.PUBLISH_FAILED.value,
+                            TradePublication.status == PublicationStatus.FAILED.value,
+                            or_(
+                                TradePublication.claimed_at.is_(None),
+                                TradePublication.claimed_at <= cutoff,
+                            ),
+                        ),
+                    ),
+                )
+                .order_by(TradeDraft.updated_at, TradeDraft.id)
+                .limit(1)
+            )
+            return draft_id
+
+    async def claim(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        actor_user_id: int | None = None,
+        interaction_id: int | None = None,
+    ) -> PublicationClaim:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise PublicationValidationError("DRAFT_NOT_FOUND")
+            if draft.reviewed_by is None:
+                raise PublicationValidationError("APPROVER_REQUIRED")
+            publication = await session.scalar(
+                select(TradePublication)
+                .where(TradePublication.draft_id == draft.id)
+                .with_for_update()
+            )
+            if publication is not None and publication.status == PublicationStatus.PUBLISHED.value:
+                return self._existing_claim(publication, draft)
+            if draft.status not in {
+                DraftStatus.READY.value,
+                DraftStatus.PUBLISH_FAILED.value,
+            }:
+                raise PublicationValidationError("DRAFT_NOT_READY")
+
+            now = utc_now()
+            if (
+                publication is not None
+                and publication.status == PublicationStatus.PENDING.value
+                and publication.claimed_at is not None
+                and _aware(publication.claimed_at) > now - RETRY_AFTER
+            ):
+                return self._existing_claim(publication, draft)
+
+            config = await session.scalar(
+                select(GuildConfig)
+                .where(GuildConfig.guild_id == draft.guild_id)
+                .with_for_update()
+            )
+            if config is None:
+                raise PublicationValidationError("GUILD_CONFIG_NOT_FOUND")
+            trade = await self._resolve_trade(session, config, draft, publication)
+            pending_for_trade = await session.scalar(
+                select(TradePublication.id).where(
+                    TradePublication.trade_id == trade.id,
+                    TradePublication.draft_id != draft.id,
+                    TradePublication.status == PublicationStatus.PENDING.value,
+                )
+            )
+            if pending_for_trade is not None:
+                raise PublicationConflictError("TRADE_PUBLICATION_PENDING")
+
+            category = trade.category
+            channel_id = self._channel_id(config, category)
+            card = self._public_card(draft, trade)
+            token = uuid.uuid4().hex
+            if publication is None:
+                publication = TradePublication(
+                    guild_id=draft.guild_id,
+                    trade_id=trade.id,
+                    draft_id=draft.id,
+                    message_type="SIGNAL_CARD",
+                    channel_id=channel_id,
+                    public_ref=f"P-{uuid.uuid4().hex[:12].upper()}",
+                    custom_id=ACTIVE_CUSTOM_IDS[category],
+                    payload_hash=_payload_hash(card),
+                    status=PublicationStatus.PENDING.value,
+                    attempt_count=1,
+                    claim_token=token,
+                    claimed_at=now,
+                )
+                session.add(publication)
+            else:
+                publication.trade_id = trade.id
+                publication.channel_id = channel_id
+                publication.custom_id = ACTIVE_CUSTOM_IDS[category]
+                publication.payload_hash = _payload_hash(card)
+                publication.status = PublicationStatus.PENDING.value
+                publication.attempt_count += 1
+                publication.claim_token = token
+                publication.claimed_at = now
+                publication.last_error_code = None
+            draft.status = DraftStatus.READY.value
+            await session.flush()
+            await self._audit(
+                session,
+                draft=draft,
+                actor_user_id=actor_user_id,
+                interaction_id=interaction_id,
+                action_type="TRADE_PUBLICATION_CLAIMED",
+                after={
+                    "publication_id": str(publication.id),
+                    "attempt_count": publication.attempt_count,
+                    "channel_id": channel_id,
+                },
+            )
+            await session.commit()
+            return PublicationClaim(
+                publication_id=publication.id,
+                draft_id=draft.id,
+                claim_token=token,
+                should_publish=True,
+                already_published=False,
+                channel_id=channel_id,
+                public_ref=publication.public_ref or "",
+                card=card,
+                message_id=None,
+            )
+
+    async def mark_failed(
+        self,
+        publication_id: uuid.UUID,
+        *,
+        claim_token: str,
+        error_code: str,
+    ) -> None:
+        async with self.database.session() as session:
+            publication = await session.scalar(
+                select(TradePublication)
+                .where(TradePublication.id == publication_id)
+                .with_for_update()
+            )
+            if publication is None:
+                raise PublicationValidationError("PUBLICATION_NOT_FOUND")
+            if publication.status == PublicationStatus.PUBLISHED.value:
+                return
+            if publication.claim_token != claim_token:
+                raise PublicationConflictError("PUBLICATION_CLAIM_CONFLICT")
+            draft = await session.scalar(
+                select(TradeDraft)
+                .where(TradeDraft.id == publication.draft_id)
+                .with_for_update()
+            )
+            if draft is None:
+                raise PublicationValidationError("DRAFT_NOT_FOUND")
+            publication.status = PublicationStatus.FAILED.value
+            publication.last_error_code = error_code[:64]
+            draft.status = DraftStatus.PUBLISH_FAILED.value
+            draft.version += 1
+            await self._audit(
+                session,
+                draft=draft,
+                actor_user_id=None,
+                interaction_id=None,
+                action_type="TRADE_PUBLICATION_FAILED",
+                after={"publication_id": str(publication.id), "error_code": error_code[:64]},
+            )
+            await session.commit()
+
+    async def finalize(
+        self,
+        publication_id: uuid.UUID,
+        *,
+        claim_token: str,
+        message_id: int,
+    ) -> PublicationResult:
+        async with self.database.session() as session:
+            publication = await session.scalar(
+                select(TradePublication)
+                .where(TradePublication.id == publication_id)
+                .with_for_update()
+            )
+            if publication is None:
+                raise PublicationValidationError("PUBLICATION_NOT_FOUND")
+            if publication.status == PublicationStatus.PUBLISHED.value:
+                return await self._published_result(session, publication)
+            if publication.claim_token != claim_token:
+                raise PublicationConflictError("PUBLICATION_CLAIM_CONFLICT")
+            draft = await session.scalar(
+                select(TradeDraft)
+                .where(TradeDraft.id == publication.draft_id)
+                .with_for_update()
+            )
+            trade = await session.scalar(
+                select(Trade).where(Trade.id == publication.trade_id).with_for_update()
+            )
+            if draft is None or trade is None:
+                raise PublicationValidationError("PUBLICATION_DATA_MISSING")
+            if draft.status not in {
+                DraftStatus.READY.value,
+                DraftStatus.PUBLISH_FAILED.value,
+            }:
+                raise PublicationValidationError("DRAFT_NOT_READY")
+
+            before_position = trade.position_eighths
+            after_position = draft.position_after_eighths
+            if after_position is None:
+                raise PublicationValidationError("POSITION_AFTER_REQUIRED")
+            position_delta = after_position - before_position
+            if (
+                draft.position_delta_eighths is not None
+                and draft.position_delta_eighths != position_delta
+            ):
+                raise PublicationValidationError("POSITION_TRANSITION_MISMATCH")
+
+            event = TradeEvent(
+                trade_id=trade.id,
+                action=draft.action,
+                action_stage=draft.action_stage or ActionStage.NONE.value,
+                price=draft.action_price,
+                position_delta_eighths=position_delta,
+                position_after_eighths=after_position,
+                avg_cost_after=draft.avg_cost if draft.avg_cost is not None else trade.avg_cost,
+                pnl_pct=draft.current_pnl_pct,
+                sl_before=trade.sl,
+                sl_after=draft.sl if draft.sl is not None else trade.sl,
+                tp1_after=draft.tp1 if draft.tp1 is not None else trade.tp1,
+                tp2_after=draft.tp2 if draft.tp2 is not None else trade.tp2,
+                source_message_id=draft.source_message_id,
+                draft_id=draft.id,
+                approved_by=draft.reviewed_by,
+                published_message_id=message_id,
+            )
+            session.add(event)
+            self._apply_trade_update(trade, draft, after_position)
+            await session.flush()
+
+            publication.trade_event_id = event.id
+            publication.message_id = message_id
+            publication.status = PublicationStatus.PUBLISHED.value
+            publication.last_error_code = None
+            publication.published_at = utc_now()
+            draft.status = DraftStatus.PUBLISHED.value
+            draft.version += 1
+            await self._audit(
+                session,
+                draft=draft,
+                actor_user_id=None,
+                interaction_id=None,
+                action_type="TRADE_PUBLISHED",
+                after={
+                    "publication_id": str(publication.id),
+                    "trade_id": str(trade.id),
+                    "trade_event_id": str(event.id),
+                    "message_id": message_id,
+                },
+            )
+            await session.commit()
+            return PublicationResult(
+                publication_id=publication.id,
+                draft_id=draft.id,
+                trade_id=trade.id,
+                trade_event_id=event.id,
+                message_id=message_id,
+                public_trade_id=trade.public_trade_id,
+            )
+
+    async def current_orders(
+        self, guild_id: int, category: str
+    ) -> list[ActivePublicTrade]:
+        if category not in PUBLIC_ID_PREFIXES:
+            raise PublicationValidationError("CATEGORY_INVALID")
+        async with self.database.session() as session:
+            trades = (
+                await session.scalars(
+                    select(Trade)
+                    .where(
+                        Trade.guild_id == guild_id,
+                        Trade.category == category,
+                        Trade.state.in_(
+                            [TradeState.ACTIVE.value, TradeState.RUNNER.value]
+                        ),
+                        Trade.position_eighths > 0,
+                    )
+                    .order_by(Trade.opened_at, Trade.public_trade_id)
+                    .limit(25)
+                )
+            ).all()
+        return [
+            ActivePublicTrade(
+                public_trade_id=trade.public_trade_id,
+                ticker=trade.ticker,
+                expiry=trade.expiry,
+                strike=trade.strike,
+                option_side=trade.option_side,
+                last_public_action=trade.last_public_action or TradeAction.ENTRY.value,
+                position_eighths=trade.position_eighths,
+            )
+            for trade in trades
+        ]
+
+    async def _resolve_trade(
+        self,
+        session: AsyncSession,
+        config: GuildConfig,
+        draft: TradeDraft,
+        publication: TradePublication | None,
+    ) -> Trade:
+        if publication is not None and publication.trade_id is not None:
+            trade = await session.get(Trade, publication.trade_id)
+            if trade is None:
+                raise PublicationValidationError("TRADE_NOT_FOUND")
+            return trade
+        if draft.intent == "UPDATE_TRADE":
+            if draft.matched_trade_id is None:
+                raise PublicationValidationError("MATCHED_TRADE_REQUIRED")
+            trade = await session.scalar(
+                select(Trade)
+                .where(Trade.id == draft.matched_trade_id)
+                .with_for_update()
+            )
+            if (
+                trade is None
+                or trade.guild_id != draft.guild_id
+                or trade.state not in {TradeState.ACTIVE.value, TradeState.RUNNER.value}
+            ):
+                raise PublicationValidationError("TRADE_UNAVAILABLE")
+            return trade
+        if draft.intent != "NEW_TRADE":
+            raise PublicationValidationError("INTENT_INVALID")
+        required = (
+            draft.selected_category,
+            draft.ticker,
+            draft.expiry,
+            draft.strike,
+            draft.option_side,
+            draft.mentor_id,
+        )
+        if any(value is None for value in required):
+            raise PublicationValidationError("DRAFT_INCOMPLETE")
+        category = draft.selected_category or ""
+        public_trade_id = await self._next_public_trade_id(session, config, category)
+        trade = Trade(
+            guild_id=draft.guild_id,
+            public_trade_id=public_trade_id,
+            category=category,
+            mentor_id=draft.mentor_id,
+            ticker=draft.ticker or "",
+            expiry=draft.expiry,
+            strike=draft.strike,
+            option_side=draft.option_side or "",
+            state=TradeState.DRAFT.value,
+            position_eighths=0,
+            max_position_eighths=0,
+            entry_low=draft.entry_low,
+            entry_high=draft.entry_high,
+            avg_cost=draft.avg_cost,
+            sl=draft.sl,
+            tp1=draft.tp1,
+            tp2=draft.tp2,
+        )
+        session.add(trade)
+        await session.flush()
+        draft.matched_trade_id = trade.id
+        return trade
+
+    @staticmethod
+    async def _next_public_trade_id(
+        session: AsyncSession, config: GuildConfig, category: str
+    ) -> str:
+        if category not in PUBLIC_ID_PREFIXES:
+            raise PublicationValidationError("CATEGORY_INVALID")
+        await session.refresh(config, with_for_update=True)
+        prefix = PUBLIC_ID_PREFIXES[category]
+        identifiers = (
+            await session.scalars(
+                select(Trade.public_trade_id).where(
+                    Trade.guild_id == config.guild_id,
+                    Trade.public_trade_id.like(f"{prefix}-%"),
+                )
+            )
+        ).all()
+        numbers = []
+        for identifier in identifiers:
+            try:
+                numbers.append(int(identifier.removeprefix(f"{prefix}-")))
+            except ValueError:
+                continue
+        return f"{prefix}-{max(numbers, default=0) + 1:04d}"
+
+    @staticmethod
+    def _channel_id(config: GuildConfig, category: str) -> int:
+        channel_id = {
+            TradeCategory.SHORT_TERM.value: config.short_term_channel_id,
+            TradeCategory.SWING.value: config.swing_channel_id,
+            TradeCategory.LEAPS.value: config.leaps_channel_id,
+        }.get(category)
+        if channel_id is None:
+            raise PublicationValidationError("PUBLIC_CHANNEL_NOT_CONFIGURED")
+        return channel_id
+
+    @staticmethod
+    def _public_card(draft: TradeDraft, trade: Trade) -> PublicTradeCard:
+        return PublicTradeCard(
+            public_trade_id=trade.public_trade_id,
+            category=trade.category,
+            action=draft.action,
+            action_stage=draft.action_stage,
+            ticker=draft.ticker or trade.ticker,
+            expiry=draft.expiry or trade.expiry,
+            strike=draft.strike or trade.strike,
+            option_side=draft.option_side or trade.option_side,
+            entry_low=draft.entry_low,
+            entry_high=draft.entry_high,
+            action_price=draft.action_price,
+            avg_cost=draft.avg_cost,
+            sl=draft.sl,
+            tp1=draft.tp1,
+            tp2=draft.tp2,
+            position_delta_eighths=draft.position_delta_eighths,
+            position_after_eighths=draft.position_after_eighths or 0,
+            pnl_pct=draft.current_pnl_pct,
+        )
+
+    @staticmethod
+    def _apply_trade_update(
+        trade: Trade, draft: TradeDraft, after_position: int
+    ) -> None:
+        now = utc_now()
+        trade.last_public_action = (
+            f"ADD_{draft.action_stage}"
+            if draft.action == TradeAction.ADD.value and draft.action_stage
+            else draft.action
+        )
+        trade.position_eighths = after_position
+        trade.max_position_eighths = max(trade.max_position_eighths, after_position)
+        if draft.entry_low is not None:
+            trade.entry_low = draft.entry_low
+        if draft.entry_high is not None:
+            trade.entry_high = draft.entry_high
+        if draft.avg_cost is not None:
+            trade.avg_cost = draft.avg_cost
+        if draft.sl is not None:
+            trade.sl = draft.sl
+        if draft.tp1 is not None:
+            trade.tp1 = draft.tp1
+        if draft.tp2 is not None:
+            trade.tp2 = draft.tp2
+        if draft.action == TradeAction.ROLL.value:
+            trade.ticker = draft.ticker or trade.ticker
+            trade.expiry = draft.expiry or trade.expiry
+            trade.strike = draft.strike or trade.strike
+            trade.option_side = draft.option_side or trade.option_side
+        if trade.opened_at is None:
+            trade.opened_at = now
+        if draft.action == TradeAction.CANCEL.value:
+            trade.state = TradeState.CANCELLED.value
+            trade.closed_at = now
+        elif after_position == 0:
+            trade.state = TradeState.CLOSED.value
+            trade.closed_at = now
+        elif draft.action == TradeAction.RUNNER.value:
+            trade.state = TradeState.RUNNER.value
+            trade.closed_at = None
+        else:
+            trade.state = TradeState.ACTIVE.value
+            trade.closed_at = None
+        trade.version += 1
+
+    @staticmethod
+    def _existing_claim(
+        publication: TradePublication, draft: TradeDraft
+    ) -> PublicationClaim:
+        return PublicationClaim(
+            publication_id=publication.id,
+            draft_id=draft.id,
+            claim_token=None,
+            should_publish=False,
+            already_published=(
+                publication.status == PublicationStatus.PUBLISHED.value
+            ),
+            channel_id=publication.channel_id,
+            public_ref=publication.public_ref or "",
+            card=None,
+            message_id=publication.message_id,
+        )
+
+    @staticmethod
+    async def _published_result(
+        session: AsyncSession, publication: TradePublication
+    ) -> PublicationResult:
+        trade = await session.get(Trade, publication.trade_id)
+        event = await session.get(TradeEvent, publication.trade_event_id)
+        if (
+            trade is None
+            or event is None
+            or publication.message_id is None
+            or publication.draft_id is None
+        ):
+            raise PublicationValidationError("PUBLISHED_DATA_MISSING")
+        return PublicationResult(
+            publication_id=publication.id,
+            draft_id=publication.draft_id,
+            trade_id=trade.id,
+            trade_event_id=event.id,
+            message_id=publication.message_id,
+            public_trade_id=trade.public_trade_id,
+        )
+
+    @staticmethod
+    async def _audit(
+        session: AsyncSession,
+        *,
+        draft: TradeDraft,
+        actor_user_id: int | None,
+        interaction_id: int | None,
+        action_type: str,
+        after: dict[str, object],
+    ) -> None:
+        effective_actor = actor_user_id or draft.reviewed_by
+        if effective_actor is None:
+            raise PublicationValidationError("APPROVER_REQUIRED")
+        session.add(
+            AuditLog(
+                guild_id=draft.guild_id,
+                actor_user_id=effective_actor,
+                action_type=action_type,
+                entity_type="trade_draft",
+                entity_id=str(draft.id),
+                before_json=None,
+                after_json=after,
+                discord_interaction_id=interaction_id,
+            )
+        )

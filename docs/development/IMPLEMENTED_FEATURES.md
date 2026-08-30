@@ -11,10 +11,11 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0004`。
+- Alembic revisions `0001` 到 `0005`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
+- Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
 
 ## Signal
 
@@ -34,6 +35,15 @@
 - 乐观并发版本控制。
 - Soft delete、审核 Ready、审计日志。
 - Review Message ID 持久化与 Footer 恢复。
+
+## Member Signal Publication
+
+- 审核确认后自动创建或更新 Trade 与 Trade Event。
+- `ST / SW / LP` Public Trade ID 在 Guild 锁内分配。
+- 重复确认、并发确认和 Bot 重启恢复不会重复发卡。
+- Entry / Add / Update / TP / SL / Runner / Close 状态流转。
+- 每张会员卡片附带固定 persistent `查看当前订单`。
+- Active View 使用 ephemeral response，只返回公开订单字段。
 
 ## Security
 

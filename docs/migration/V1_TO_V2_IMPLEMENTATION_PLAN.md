@@ -83,3 +83,9 @@
 
 Migration 到此停止，不会借此开始 Analysis 或 AXIS LAB。下一开发位置是 Stage 2 的会员
 发布与 `查看当前订单`。
+
+## Stage 2 Continuation Record
+
+- 会员发布、Trade Event、Public Card 与 persistent `查看当前订单` 已完成。
+- PostgreSQL revision `20260829_0005` 增加 publication lifecycle 与幂等约束。
+- 下一开发位置为 Stage 3：Mentor Control、Member Control、Results。

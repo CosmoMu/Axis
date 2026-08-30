@@ -59,6 +59,12 @@ class DraftStatus(StrEnum):
     DELETED = "DELETED"
 
 
+class PublicationStatus(StrEnum):
+    PENDING = "PENDING"
+    PUBLISHED = "PUBLISHED"
+    FAILED = "FAILED"
+
+
 class MembershipStatus(StrEnum):
     ACTIVE = "ACTIVE"
     EXPIRED = "EXPIRED"

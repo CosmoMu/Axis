@@ -16,6 +16,7 @@ from app.services.card_review import (
     DraftEdit,
     ReviewConflictError,
     ReviewValidationError,
+    public_preview_payload,
     publication_missing_fields,
 )
 
@@ -220,7 +221,9 @@ async def test_public_preview_uses_whitelist_and_internal_review_keeps_context()
             actor_user_id=501,
             interaction_id=601,
         )
-        public_text = str(build_public_preview_embed(selected).to_dict())
+        public_text = str(
+            build_public_preview_embed(public_preview_payload(selected)).to_dict()
+        )
         internal_text = str(build_review_embed(selected).to_dict())
 
         for forbidden in (

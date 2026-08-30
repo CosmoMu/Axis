@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING
 
 import discord
 
-from app.bot.cards import build_public_preview_embed
+from app.bot.cards import build_active_orders_embed, build_public_preview_embed
+from app.domain.enums import TradeCategory
 from app.services.card_review import (
     DraftEdit,
     ReviewChoice,
     ReviewDraft,
     ReviewValidationError,
+    public_preview_payload,
 )
 
 if TYPE_CHECKING:
@@ -355,7 +357,7 @@ class ReviewDraftView(discord.ui.View):
     async def preview(self, interaction: discord.Interaction) -> None:
         current = await self.controller.service.get(self.draft.id)
         await interaction.response.send_message(
-            embed=build_public_preview_embed(current), ephemeral=True
+            embed=build_public_preview_embed(public_preview_payload(current)), ephemeral=True
         )
 
     async def approve(self, interaction: discord.Interaction) -> None:
@@ -367,9 +369,18 @@ class ReviewDraftView(discord.ui.View):
                 actor_user_id=interaction.user.id,
                 interaction_id=interaction.id,
             )
+            updated = await self.controller.publish_draft(
+                updated,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
             await self.controller.refresh(updated)
             await interaction.followup.send(
-                "已通过管理员审核；会员发布模块完成前不会发卡。",
+                (
+                    "会员卡片已发布。"
+                    if updated.status == "PUBLISHED"
+                    else "已确认，会员卡片正在发布。"
+                ),
                 ephemeral=True,
             )
         except Exception as exc:
@@ -379,5 +390,72 @@ class ReviewDraftView(discord.ui.View):
         await interaction.response.send_message(
             "删除后该草稿不会进入发布队列。是否继续？",
             view=ConfirmDeleteView(self.controller, self.draft),
+            ephemeral=True,
+        )
+
+
+class PublicationRetryView(discord.ui.View):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(timeout=None)
+        self.controller = controller
+        self.draft = draft
+        button = discord.ui.Button(
+            label="重新发布",
+            style=discord.ButtonStyle.success,
+            custom_id=f"axis:review:retry:{draft.id.hex}:v{draft.version}",
+        )
+        button.callback = self.retry
+        self.add_item(button)
+
+    async def retry(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            current = await self.controller.service.get(self.draft.id)
+            updated = await self.controller.publish_draft(
+                current,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await interaction.followup.send(
+                (
+                    "会员卡片已发布。"
+                    if updated.status == "PUBLISHED"
+                    else "重新发布已进入队列。"
+                ),
+                ephemeral=True,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class ActiveOrdersView(discord.ui.View):
+    def __init__(self, controller: CardReviewCog, category: str) -> None:
+        super().__init__(timeout=None)
+        self.controller = controller
+        self.category = category
+        custom_id = {
+            TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
+            TradeCategory.SWING.value: "axis:active:swing:v1",
+            TradeCategory.LEAPS.value: "axis:active:leaps:v1",
+        }[category]
+        button = discord.ui.Button(
+            label="查看当前订单",
+            style=discord.ButtonStyle.secondary,
+            custom_id=custom_id,
+        )
+        button.callback = self.show_orders
+        self.add_item(button)
+
+    async def show_orders(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize_member(interaction):
+            return
+        orders = await self.controller.publication_service.current_orders(
+            self.controller.guild_id, self.category
+        )
+        await interaction.response.send_message(
+            embed=build_active_orders_embed(self.category, orders),
             ephemeral=True,
         )

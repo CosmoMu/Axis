@@ -53,6 +53,19 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())
     assert "llm_invocation_id" in drafts.columns
+    events = Base.metadata.tables["trade_events"]
+    publications = Base.metadata.tables["trade_publications"]
+    assert "draft_id" in events.columns
+    assert {
+        "draft_id",
+        "public_ref",
+        "status",
+        "attempt_count",
+        "claim_token",
+        "claimed_at",
+        "last_error_code",
+        "published_at",
+    } <= set(publications.columns.keys())
     invocations = Base.metadata.tables["llm_invocations"]
     assert {
         "provider",
