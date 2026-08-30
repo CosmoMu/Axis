@@ -35,6 +35,16 @@ def valid_payload() -> dict[str, object]:
         "sl": 0.8,
         "tp1": 1.6,
         "tp2": 2.0,
+        "plan_current_stock": None,
+        "plan_starter": None,
+        "plan_add_zone_low": None,
+        "plan_add_zone_high": None,
+        "plan_stock_sl": None,
+        "plan_stock_pt1": None,
+        "plan_stock_pt2": None,
+        "plan_stock_pt3": None,
+        "plan_fib_0618": None,
+        "public_thesis": None,
         "position_delta_eighths": None,
         "position_after_eighths": None,
         "current_pnl_pct": None,
@@ -93,8 +103,8 @@ async def test_parser_uses_strict_responses_schema_and_multimodal_input() -> Non
     assert result.payload["ticker"] == "SPY"
     assert result.response_id == "resp_test"
     assert result.trace.workload is LlmWorkload.SIGNAL_PARSE
-    assert result.trace.prompt_version == "axis-trade-parse-v2"
-    assert result.trace.schema_version == "axis-trade-v1"
+    assert result.trace.prompt_version == "axis-trade-parse-v3"
+    assert result.trace.schema_version == "axis-trade-v2"
     assert result.trace.success is True
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False

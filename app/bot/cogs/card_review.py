@@ -4,6 +4,7 @@ import asyncio
 import logging
 import uuid
 from contextlib import suppress
+from io import BytesIO
 
 import discord
 from discord.ext import commands, tasks
@@ -20,7 +21,8 @@ from app.bot.views.review_views import (
     ReviewDraftView,
 )
 from app.domain.enums import DraftStatus, TradeCategory
-from app.domain.public_cards import ShortTermEntryCard
+from app.domain.public_cards import PublicTradeCard, ShortTermEntryCard
+from app.market_intelligence.trade_plan import SwingLeapsTradePlanService
 from app.services.card_review import (
     ACTIVE_REVIEW_STATUSES,
     CardReviewService,
@@ -48,6 +50,7 @@ class CardReviewCog(commands.Cog):
         service: CardReviewService,
         publication_service: TradePublicationService,
         tracking_service: MarketTrackingService,
+        trade_plan_service: SwingLeapsTradePlanService | None,
         guild_id: int,
         channel_id: int,
         manager_role_id: int,
@@ -58,6 +61,7 @@ class CardReviewCog(commands.Cog):
         self.service = service
         self.publication_service = publication_service
         self.tracking_service = tracking_service
+        self.trade_plan_service = trade_plan_service
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.manager_role_id = manager_role_id
@@ -288,15 +292,29 @@ class CardReviewCog(commands.Cog):
             )
             view = ActiveOrdersView(self, category)
             if message is None:
+                public_card = claim.card
+                chart_png = None
+                if isinstance(public_card, PublicTradeCard) and self.trade_plan_service is not None:
+                    artifact = await self.trade_plan_service.prepare(public_card)
+                    public_card = artifact.card
+                    chart_png = artifact.chart_png
                 embed = (
-                    build_short_term_entry_embed(claim.card, public_ref=claim.public_ref)
-                    if isinstance(claim.card, ShortTermEntryCard)
-                    else build_public_trade_embed(claim.card, public_ref=claim.public_ref)
+                    build_short_term_entry_embed(public_card, public_ref=claim.public_ref)
+                    if isinstance(public_card, ShortTermEntryCard)
+                    else build_public_trade_embed(public_card, public_ref=claim.public_ref)
                 )
-                message = await send(
-                    embed=embed,
-                    view=view,
-                )
+                if chart_png is not None and isinstance(public_card, PublicTradeCard):
+                    filename = (
+                        f"axis-{(public_card.public_trade_id or 'trade').lower()}-entry-plan.png"
+                    )
+                    embed.set_image(url=f"attachment://{filename}")
+                    message = await send(
+                        embed=embed,
+                        file=discord.File(BytesIO(chart_png), filename=filename),
+                        view=view,
+                    )
+                else:
+                    message = await send(embed=embed, view=view)
             else:
                 await message.edit(view=view)
         except discord.HTTPException:

@@ -65,7 +65,12 @@ async def review_database() -> tuple[Database, TradeDraft, Mentor]:
             position_delta_eighths=1,
             position_after_eighths=1,
             parser_confidence=Decimal("0.93"),
-            parse_payload={},
+            parse_payload={
+                "plan_current_stock": 201.0,
+                "plan_stock_sl": 190.0,
+                "plan_stock_pt1": 210.0,
+                "plan_stock_pt2": 220.0,
+            },
             missing_fields=[],
             warnings=["expiry_year_unspecified"],
             internal_notes="internal-only",

@@ -82,7 +82,18 @@ async def publication_database() -> tuple[Database, TradeDraft]:
             tp2=Decimal("5.00"),
             position_delta_eighths=1,
             position_after_eighths=1,
-            parse_payload={},
+            parse_payload={
+                "plan_current_stock": 398.5,
+                "plan_starter": 398.0,
+                "plan_add_zone_low": 392.0,
+                "plan_add_zone_high": 395.0,
+                "plan_stock_sl": 386.0,
+                "plan_stock_pt1": 410.0,
+                "plan_stock_pt2": 420.0,
+                "plan_stock_pt3": 435.0,
+                "plan_fib_0618": 390.5,
+                "public_thesis": "结构守稳后观察目标推进。",
+            },
             missing_fields=[],
             warnings=[],
             internal_notes="never public",
@@ -104,6 +115,10 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert claim.should_publish is True
         assert claim.card is not None
         assert claim.card.public_trade_id == "SW-0001"
+        assert claim.public_ref == "P-0001"
+        assert claim.card.current_stock == Decimal("398.5")
+        assert claim.card.stock_pt3 == Decimal("435.0")
+        assert claim.card.fib_0618 == Decimal("390.5")
         assert repeated_pending.should_publish is False
         assert repeated_pending.already_published is False
         assert claim.claim_token is not None
@@ -126,6 +141,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
             assert forbidden not in public_text
         assert "查看当前订单" not in public_text
         assert "SL" in public_text
+        assert "P-F" not in public_text
 
         result = await service.finalize(
             claim.publication_id,

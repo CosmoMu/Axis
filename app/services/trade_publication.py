@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -28,6 +29,7 @@ from app.domain.enums import (
     TradeState,
 )
 from app.domain.public_cards import ActivePublicTrade, PublicTradeCard, ShortTermEntryCard
+from app.services.card_review import _plan_decimal, _public_thesis
 
 ACTIVE_CUSTOM_IDS = {
     TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
@@ -198,7 +200,11 @@ class TradePublicationService:
                     draft_id=draft.id,
                     message_type="SIGNAL_CARD",
                     channel_id=channel_id,
-                    public_ref=f"P-{uuid.uuid4().hex[:12].upper()}",
+                    public_ref=(
+                        f"P-{uuid.uuid4().hex[:12].upper()}"
+                        if category == TradeCategory.SHORT_TERM.value
+                        else await self._next_public_ref(session, config)
+                    ),
                     custom_id=ACTIVE_CUSTOM_IDS[category],
                     payload_hash=_payload_hash(card),
                     status=PublicationStatus.PENDING.value,
@@ -211,6 +217,11 @@ class TradePublicationService:
                 publication.trade_id = trade.id
                 publication.channel_id = channel_id
                 publication.custom_id = ACTIVE_CUSTOM_IDS[category]
+                if (
+                    category != TradeCategory.SHORT_TERM.value
+                    and not re.fullmatch(r"P-\d{4,6}", publication.public_ref or "")
+                ):
+                    publication.public_ref = await self._next_public_ref(session, config)
                 publication.payload_hash = _payload_hash(card)
                 publication.status = PublicationStatus.PENDING.value
                 publication.attempt_count += 1
@@ -502,6 +513,16 @@ class TradePublicationService:
         return f"{prefix}-{max(numbers, default=0) + 1:04d}"
 
     @staticmethod
+    async def _next_public_ref(session: AsyncSession, config: GuildConfig) -> str:
+        await session.refresh(config, with_for_update=True)
+        count = await session.scalar(
+            select(func.count()).select_from(TradePublication).where(
+                TradePublication.guild_id == config.guild_id
+            )
+        )
+        return f"P-{int(count or 0) + 1:04d}"
+
+    @staticmethod
     def _channel_id(config: GuildConfig, category: str) -> int:
         channel_id = {
             TradeCategory.SHORT_TERM.value: config.short_term_channel_id,
@@ -545,6 +566,16 @@ class TradePublicationService:
             position_delta_eighths=draft.position_delta_eighths,
             position_after_eighths=draft.position_after_eighths or 0,
             pnl_pct=draft.current_pnl_pct,
+            current_stock=_plan_decimal(draft.parse_payload, "plan_current_stock"),
+            starter=_plan_decimal(draft.parse_payload, "plan_starter"),
+            add_zone_low=_plan_decimal(draft.parse_payload, "plan_add_zone_low"),
+            add_zone_high=_plan_decimal(draft.parse_payload, "plan_add_zone_high"),
+            stock_sl=_plan_decimal(draft.parse_payload, "plan_stock_sl"),
+            stock_pt1=_plan_decimal(draft.parse_payload, "plan_stock_pt1"),
+            stock_pt2=_plan_decimal(draft.parse_payload, "plan_stock_pt2"),
+            stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
+            fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
+            public_thesis=_public_thesis(draft.parse_payload),
         )
 
     @staticmethod

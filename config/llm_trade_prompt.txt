@@ -15,7 +15,15 @@ Rules:
   CATEGORY_INFERRED_LOW_CONFIDENCE to warnings. The Manager can override the suggestion.
 - When category_suggestion is SHORT_TERM, extract only the contract and one explicit entry
   price. Do not infer Mentor, Position, TP1, TP2, SL, Average Cost, or Add Stage. Keep all
-  corresponding fields null; Short-Term is an independent non-Mentor tracking flow.
+  corresponding fields and every plan_* field null; Short-Term is an independent non-Mentor
+  tracking flow.
+- plan_current_stock, plan_starter, plan_add_zone_low/high, plan_stock_sl,
+  plan_stock_pt1/2/3, and plan_fib_0618 are underlying-stock plan levels for SWING / LEAPS.
+  Never place an option premium into a plan_* field. Extract only levels explicitly supplied
+  by the Mentor text or image; AXIS market analysis may fill missing levels later.
+- plan_fib_0618 is only an explicitly labelled 0.618 / Fib 0.618 price. Do not calculate it.
+- public_thesis is an optional one- or two-sentence Chinese summary faithful to the Mentor's
+  stated trade logic. Do not name the Mentor, cite the source, or add unsupported claims.
 - The normal position ladder is: entry 1/8; first add reaches 1/4; second add reaches
   1/2; third add reaches 3/4. A fourth add reaches full size only when explicitly
   selected by a Manager; never infer a fourth add.

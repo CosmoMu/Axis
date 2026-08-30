@@ -46,6 +46,19 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 固定 persistent「查看当前订单」按钮和 ephemeral Active View。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
+## SWING / LEAPS Entry Plan Visual
+
+- ENTRY / STARTER ENTRY 使用新的中文结构化交易卡。
+- 期权 Premium 与正股计划点位严格分开。
+- Mentor 点位优先，AXIS Stock Analyst 只补 Current、Starter、Add Zone、SL、PT 和 Fib 缺项。
+- 基于真实日 K 的确定性 PNG，不使用图片生成模型，不生成假 K 线。
+- 黑色背景、K 线、EMA20、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、
+  绿色 PT1/PT2/PT3 和灰色 Fib 0.618。
+- 图和文字卡作为同一条 Discord 消息的 attachment + embed 发布。
+- 缺失 Add Zone、PT3 或 0.618 时相应字段和图层自动隐藏。
+- 新公开引用使用 P-0001 短编号；旧长内部 public_ref 不再显示在卡片。
+- Short-Term builder、tracking 和 policy 未修改。
+
 ## Short-Term Automated Tracking
 
 - SHORT_TERM automatic detection 和独立 simplified review。

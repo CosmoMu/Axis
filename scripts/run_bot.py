@@ -41,6 +41,10 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
 )
 from app.integrations.stripe_gateway import StripeSdkGateway  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
+from app.market_intelligence.stock_analyst.market_data import (  # noqa: E402
+    MoomooDailyBarProvider,
+)
+from app.market_intelligence.trade_plan import SwingLeapsTradePlanService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
@@ -193,6 +197,13 @@ async def run() -> None:
         short_term_tracking_service = MarketTrackingService(
             database, short_term_policy, massive_provider
         )
+        swing_leaps_trade_plan_service = (
+            SwingLeapsTradePlanService(
+                MoomooDailyBarProvider(settings.moomoo_host, settings.moomoo_port)
+            )
+            if settings.axis_stock_analyst_enabled
+            else None
+        )
         calendar = TradingCalendarService()
         acknowledgements = MembershipAcknowledgementService(database)
         access_service = MembershipAccessService(database, calendar, acknowledgements)
@@ -261,6 +272,7 @@ async def run() -> None:
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,
             daily_summary_service=daily_summary_service,
+            swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

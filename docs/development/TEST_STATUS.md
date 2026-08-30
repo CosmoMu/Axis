@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 151 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 158 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -46,6 +46,9 @@ Signal / Trade:
 - S-00001 / A-00001 counter、Category/Mentor/Trade select、modal edit 和并发版本。
 - Publication claim / retry / finalize、单 Draft 单 Event 和 Public DTO 防泄漏。
 - Entry / Add / TP / SL / Runner / Close、Active View 和 weighted Results。
+- SWING / LEAPS ENTRY 新中文卡、短公开引用和内部长 ID 隐藏。
+- Mentor-first / AXIS-fill-missing 正股点位、真实 K 线、确定性 PNG、Fib 0.618 和
+  Discord image attachment。
 
 Short-Term:
 
@@ -148,4 +151,4 @@ Short-Term verifier evidence:
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 151 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 158 项测试结果。

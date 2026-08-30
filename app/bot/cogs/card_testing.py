@@ -73,6 +73,16 @@ def _trade_card(action: str) -> PublicTradeCard:
         position_delta_eighths=delta,
         position_after_eighths=after,
         pnl_pct=Decimal("42.5") if action != "ENTRY" else None,
+        current_stock=Decimal("109.27"),
+        starter=Decimal("109.05"),
+        add_zone_low=Decimal("108.23"),
+        add_zone_high=Decimal("108.85"),
+        stock_sl=Decimal("104.14"),
+        stock_pt1=Decimal("111.39"),
+        stock_pt2=Decimal("113.46"),
+        stock_pt3=Decimal("115.53"),
+        fib_0618=Decimal("107.92"),
+        public_thesis="关键结构维持时，先观察 Starter 入场后的目标推进。",
     )
 
 

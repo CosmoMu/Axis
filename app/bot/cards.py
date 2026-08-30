@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -263,6 +264,8 @@ def build_public_preview_embed(card: PublicTradeCard) -> discord.Embed:
 def build_public_trade_embed(
     card: PublicTradeCard, *, public_ref: str | None = None
 ) -> discord.Embed:
+    if card.category in {"SWING", "LEAPS"} and card.action == "ENTRY":
+        return _build_swing_leaps_entry_embed(card, public_ref=public_ref)
     embed = discord.Embed(
         title=(
             f"{action_label(card)} · {card.public_trade_id}"
@@ -313,8 +316,76 @@ def build_public_trade_embed(
     for name, value in ((sl_label, card.sl), ("TP1", card.tp1), ("TP2", card.tp2)):
         if value is not None:
             embed.add_field(name=name, value=_money(value), inline=True)
-    if public_ref:
-        embed.set_footer(text=f"AXIS · {public_ref}")
+    embed.set_footer(text=_public_trade_footer(card, public_ref))
+    return _public(embed)
+
+
+def _public_trade_footer(card: PublicTradeCard, public_ref: str | None) -> str:
+    if public_ref and re.fullmatch(r"P-\d{4,6}", public_ref):
+        return f"AXIS · {public_ref}"
+    category = "SWING" if card.category == "SWING" else "LEAPS"
+    return f"AXIS · {category}"
+
+
+def _option_entry_price(card: PublicTradeCard) -> Decimal | None:
+    if card.action_price is not None:
+        return card.action_price
+    if card.entry_low is not None and card.entry_high is not None:
+        return (card.entry_low + card.entry_high) / 2
+    return card.entry_low if card.entry_low is not None else card.entry_high
+
+
+def _build_swing_leaps_entry_embed(
+    card: PublicTradeCard,
+    *,
+    public_ref: str | None,
+) -> discord.Embed:
+    expiry = card.expiry.strftime("%m/%d/%Y") if card.expiry else "—"
+    side = {"CALL": "C", "PUT": "P"}.get(card.option_side or "", "?")
+    contract = "$" + f"{card.ticker or '—'} {expiry} {_number(card.strike)}{side}"
+    option_entry = _option_entry_price(card)
+    if option_entry is not None:
+        contract += f" · {_money(option_entry)}"
+    embed = discord.Embed(
+        title=(
+            f"#{card.public_trade_id} · STARTER ENTRY"
+            if card.public_trade_id
+            else "STARTER ENTRY"
+        ),
+        description=f"**{contract}**",
+        color=ACCENT_GREEN,
+    )
+    if card.current_stock is not None:
+        embed.add_field(name="当前股价", value=_money(card.current_stock), inline=False)
+    targets = [
+        f"{label} {_money(value)}"
+        for label, value in (
+            ("PT1", card.stock_pt1),
+            ("PT2", card.stock_pt2),
+            ("PT3", card.stock_pt3),
+        )
+        if value is not None
+    ]
+    if targets:
+        embed.add_field(name="止盈目标", value="\n".join(targets), inline=False)
+    if card.add_zone_low is not None and card.add_zone_high is not None:
+        embed.add_field(
+            name="Add Zone",
+            value=f"{_money(card.add_zone_low)} – {_money(card.add_zone_high)}",
+            inline=False,
+        )
+    if card.stock_sl is not None:
+        embed.add_field(name="SL", value=_money(card.stock_sl), inline=True)
+    if card.fib_0618 is not None:
+        embed.add_field(name="Fib 0.618", value=_money(card.fib_0618), inline=True)
+    embed.add_field(
+        name="状态",
+        value=f"ENTRY TRIGGERED · {_position(card.position_after_eighths)}",
+        inline=False,
+    )
+    if card.public_thesis:
+        embed.add_field(name="交易逻辑", value=card.public_thesis[:600], inline=False)
+    embed.set_footer(text=_public_trade_footer(card, public_ref))
     return _public(embed)
 
 

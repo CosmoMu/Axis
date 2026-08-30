@@ -86,6 +86,19 @@ def _apply_position_ladder(payload: dict[str, Any]) -> None:
     if payload.get("category_suggestion") == "SHORT_TERM":
         payload["position_delta_eighths"] = None
         payload["position_after_eighths"] = None
+        for field in (
+            "plan_current_stock",
+            "plan_starter",
+            "plan_add_zone_low",
+            "plan_add_zone_high",
+            "plan_stock_sl",
+            "plan_stock_pt1",
+            "plan_stock_pt2",
+            "plan_stock_pt3",
+            "plan_fib_0618",
+            "public_thesis",
+        ):
+            payload[field] = None
         return
     if payload.get("position_delta_eighths") is not None:
         return

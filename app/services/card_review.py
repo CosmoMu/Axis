@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +107,16 @@ class ReviewDraft:
     review_channel_id: int | None
     review_message_id: int | None
     version: int
+    current_stock: Decimal | None
+    starter: Decimal | None
+    add_zone_low: Decimal | None
+    add_zone_high: Decimal | None
+    stock_sl: Decimal | None
+    stock_pt1: Decimal | None
+    stock_pt2: Decimal | None
+    stock_pt3: Decimal | None
+    fib_0618: Decimal | None
+    public_thesis: str | None
 
 
 ACTIVE_REVIEW_STATUSES = {
@@ -200,7 +210,36 @@ def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
         position_delta_eighths=draft.position_delta_eighths,
         position_after_eighths=draft.position_after_eighths or 0,
         pnl_pct=draft.current_pnl_pct,
+        current_stock=draft.current_stock,
+        starter=draft.starter,
+        add_zone_low=draft.add_zone_low,
+        add_zone_high=draft.add_zone_high,
+        stock_sl=draft.stock_sl,
+        stock_pt1=draft.stock_pt1,
+        stock_pt2=draft.stock_pt2,
+        stock_pt3=draft.stock_pt3,
+        fib_0618=draft.fib_0618,
+        public_thesis=draft.public_thesis,
     )
+
+
+def _plan_decimal(payload: dict[str, object], field: str) -> Decimal | None:
+    value = payload.get(field)
+    if value is None:
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _public_thesis(payload: dict[str, object]) -> str | None:
+    value = payload.get("public_thesis")
+    if not isinstance(value, str):
+        return None
+    rendered = " ".join(value.split()).strip()
+    return rendered[:300] or None
 
 
 def _audit_payload(draft: TradeDraft) -> dict[str, object]:
@@ -786,4 +825,14 @@ class CardReviewService:
             review_channel_id=draft.review_channel_id,
             review_message_id=draft.review_message_id,
             version=draft.version,
+            current_stock=_plan_decimal(draft.parse_payload, "plan_current_stock"),
+            starter=_plan_decimal(draft.parse_payload, "plan_starter"),
+            add_zone_low=_plan_decimal(draft.parse_payload, "plan_add_zone_low"),
+            add_zone_high=_plan_decimal(draft.parse_payload, "plan_add_zone_high"),
+            stock_sl=_plan_decimal(draft.parse_payload, "plan_stock_sl"),
+            stock_pt1=_plan_decimal(draft.parse_payload, "plan_stock_pt1"),
+            stock_pt2=_plan_decimal(draft.parse_payload, "plan_stock_pt2"),
+            stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
+            fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
+            public_thesis=_public_thesis(draft.parse_payload),
         )

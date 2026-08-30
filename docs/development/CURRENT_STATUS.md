@@ -46,19 +46,23 @@ Production status: 已投入使用，数据库有 Published Signal。
 
 ## Swing Pipeline — COMPLETE
 
-Implemented: 独立 SW 编号、订单事件、Active View、加仓阶梯、TP / SL / Runner / Close 和公开卡片。
+Implemented: 独立 SW 编号、订单事件、Active View、加仓阶梯、TP / SL / Runner / Close；
+ENTRY 已升级为真实日 K 结构图 + 中文交易计划卡，并使用 Mentor-first / AXIS-fill-missing 点位。
 
-Remaining: 用更多真实订单观察运营体验。
+Remaining: 完成真实 Discord Desktop / Mobile ENTRY UX 验收；后续再统一 ADD / TP /
+RUNNER / CLOSE 的视觉样式。
 
-Tests: 状态流转、仓位、发布幂等、关闭订单排除和 Results。
+Tests: 状态流转、仓位、发布幂等、关闭订单排除、Results、Mentor 点位优先、0.618、
+确定性图片和 Discord attachment。
 
 Production status: 可用；当前盘点没有新的 Swing live tracking 结论。
 
 ## LEAPS Pipeline — COMPLETE
 
-Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界。
+Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界；
+ENTRY 使用同一套真实日 K 结构图和中文计划卡。
 
-Remaining: 用真实 LEAPS 订单验证长期运营流程。
+Remaining: 完成真实 LEAPS Desktop / Mobile ENTRY UX；后续统一 ADD / TP / RUNNER / CLOSE。
 
 Tests: 与 Signal / Trade 公共状态机和 Public DTO 测试共同覆盖。
 

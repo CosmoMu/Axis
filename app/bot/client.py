@@ -21,6 +21,7 @@ from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
 from app.domain.public_identity import PublicIdentityPolicy
 from app.integrations.stripe_gateway import StripeGateway
+from app.market_intelligence.trade_plan import SwingLeapsTradePlanService
 from app.services.analysis_pipeline import AnalysisPipelineService
 from app.services.card_review import CardReviewService
 from app.services.daily_summary import DailySummaryService
@@ -72,6 +73,7 @@ class AxisBot(commands.Bot):
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
         daily_summary_service: DailySummaryService | None,
+        swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -101,6 +103,7 @@ class AxisBot(commands.Bot):
             service=card_review_service,
             publication_service=trade_publication_service,
             tracking_service=short_term_tracking_service,
+            trade_plan_service=swing_leaps_trade_plan_service,
             guild_id=settings.discord_guild_id,
             channel_id=_required_snowflake(channels, "card_review"),
             manager_role_id=_required_snowflake(roles, "manager"),

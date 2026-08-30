@@ -861,3 +861,22 @@ Short-Term 是 Signal Core 的独立交易路径：
 
 `system-alerts` 与 `card-testing` 只允许 Owner + AXIS BOT。Preview 不能创建正式 Trade、
 Analysis、Results 或 Active Order 数据。
+
+---
+
+# 23. SWING / LEAPS Public Entry Plan Lock
+
+本节只升级 SWING / LEAPS 的 ENTRY / STARTER ENTRY 公开视觉；Short-Term 保持独立且不变。
+
+- Discord 发布顺序为确定性结构图在上、中文交易计划卡在下。
+- 图只使用真实日 K；取数失败时不生成假 K 线、不臆造点位，文字卡仍可发布。
+- 正股计划点位与期权 Premium 分开：Current Stock、Starter、Add Zone、Stock SL、
+  Stock PT1 / PT2 / PT3 与 Fib 0.618 不得复用 option entry / option TP / option SL。
+- Mentor 明确点位永远优先；AXIS Stock Analyst 只补 Mentor 缺失字段。
+- 系统 Fib 0.618 只在真实可识别的近期 swing range 上确定性计算；不可靠时隐藏。
+- 图采用深黑背景、真实 K 线、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、
+  绿色 PT 和低调灰色 0.618。
+- 公共卡只显示短交易编号、合约、期权入场价、当前股价、PT、Add Zone、SL、状态和可选逻辑。
+- 旧 P-XXXXXXXXXXXX 内部长追踪值不得出现在会员卡；新的公开引用使用短 P-0001 格式。
+- 没有数据的可选字段直接隐藏，不显示 N/A。
+- ADD / TP / RUNNER / CLOSE 的同风格视觉统一属于后续阶段，本轮不改变其交易逻辑。

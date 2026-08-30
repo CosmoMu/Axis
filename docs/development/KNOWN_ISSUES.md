@@ -51,6 +51,11 @@ Analysis Fusion 已有真实 Published 数据，确定性 chart renderer 也已�
 Mentor、Trade 和 Active View 受 Discord 单个 Select / Embed 25 项限制。当前规模可用；
 超过 25 项时需要分页或搜索，不应通过丢弃数据规避。
 
+## P2 — SWING / LEAPS 后续卡片尚未视觉统一
+
+ENTRY / STARTER ENTRY 已升级为结构图 + 新文字卡。ADD、TP、RUNNER、CLOSE / SL 仍沿用
+现有公开卡样式；这是本轮明确保留的后续视觉工作，不影响现有交易状态机。
+
 ## Non-blocking dependency warning
 
 Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warning。当前不影响

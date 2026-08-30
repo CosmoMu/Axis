@@ -18,6 +18,16 @@
     "sl",
     "tp1",
     "tp2",
+    "plan_current_stock",
+    "plan_starter",
+    "plan_add_zone_low",
+    "plan_add_zone_high",
+    "plan_stock_sl",
+    "plan_stock_pt1",
+    "plan_stock_pt2",
+    "plan_stock_pt3",
+    "plan_fib_0618",
+    "public_thesis",
     "position_delta_eighths",
     "position_after_eighths",
     "current_pnl_pct",
@@ -97,6 +107,46 @@
     "tp2": {
       "type": ["number", "null"],
       "minimum": 0
+    },
+    "plan_current_stock": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_starter": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_add_zone_low": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_add_zone_high": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_stock_sl": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_stock_pt1": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_stock_pt2": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_stock_pt3": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "plan_fib_0618": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "public_thesis": {
+      "type": ["string", "null"],
+      "maxLength": 300
     },
     "position_delta_eighths": {
       "type": ["integer", "null"],

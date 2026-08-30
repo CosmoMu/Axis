@@ -27,6 +27,16 @@ class PublicTradeCard:
     position_delta_eighths: int | None
     position_after_eighths: int
     pnl_pct: Decimal | None
+    current_stock: Decimal | None = None
+    starter: Decimal | None = None
+    add_zone_low: Decimal | None = None
+    add_zone_high: Decimal | None = None
+    stock_sl: Decimal | None = None
+    stock_pt1: Decimal | None = None
+    stock_pt2: Decimal | None = None
+    stock_pt3: Decimal | None = None
+    fib_0618: Decimal | None = None
+    public_thesis: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
