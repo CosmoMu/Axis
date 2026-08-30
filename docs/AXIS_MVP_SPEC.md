@@ -1,4 +1,8 @@
-# AXIS Discord 初版开发规格
+# AXIS Discord 初版开发规格（已废弃）
+
+> **已于 2026-08-29 被替代。** 本文件仅保留历史上下文，不再作为开发或 Bootstrap
+> 依据。当前唯一 Source of Truth 是 `docs/spec/current/`，入口为
+> `docs/spec/current/README_FOR_CODEX.md`。
 
 - **版本：** MVP v1
 - **品牌：** AXIS

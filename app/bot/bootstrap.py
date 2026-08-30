@@ -220,6 +220,8 @@ async def _create_or_reuse_roles(
     guild: discord.Guild,
     blueprint: Blueprint,
     saved_ids: dict[str, Any],
+    *,
+    allow_axis_renames: bool,
 ) -> dict[str, discord.Role]:
     bot_role = _find_bot_managed_role(guild)
     if bot_role is None or bot_role.name != blueprint.role_by_key["bot"].name:
@@ -238,10 +240,17 @@ async def _create_or_reuse_roles(
             raise ConfigurationError(f"Role {spec.name} 有多个同名资源，拒绝写入。")
         if matches:
             role = matches[0]
-            if role.name != spec.name:
-                raise ConfigurationError(f"保存的 Role {spec.key} 已改名，拒绝自动改名或另建。")
             if role.managed:
                 raise ConfigurationError(f"Role {spec.name} 是 managed Role，拒绝复用。")
+            if role.name != spec.name:
+                if not allow_axis_renames or saved_role is None:
+                    raise ConfigurationError(
+                        f"保存的 Role {spec.key} 已改名，未授权 AXIS 重命名。"
+                    )
+                role = await role.edit(
+                    name=spec.name,
+                    reason="AXIS Bootstrap：更新已登记 Role 名称",
+                )
             permissions = role.permissions
             changed = False
             for forbidden in ("administrator", "manage_roles"):
@@ -251,7 +260,7 @@ async def _create_or_reuse_roles(
             if changed:
                 role = await role.edit(
                     permissions=permissions,
-                    reason="AXIS Bootstrap：移除管理员 Role 的高风险权限",
+                    reason="AXIS Bootstrap：移除 Manager Role 的高风险权限",
                 )
         else:
             role = await guild.create_role(
@@ -269,7 +278,7 @@ async def _create_or_reuse_roles(
     member = result["member"]
     if manager >= bot_role or member >= bot_role:
         raise ConfigurationError(
-            "管理员或会员 Role 高于 Bot Role，Bot 无法安全调整；请 Owner 手动处理。"
+            "Manager 或 Member Role 高于 Bot Role，Bot 无法安全调整；请 Owner 手动处理。"
         )
     if manager <= member:
         await manager.edit(position=max(member.position + 1, 1), reason="AXIS Role 顺序")
@@ -433,7 +442,12 @@ async def apply_blueprint(
     *,
     allow_axis_renames: bool,
 ) -> None:
-    roles = await _create_or_reuse_roles(guild, blueprint, saved_ids)
+    roles = await _create_or_reuse_roles(
+        guild,
+        blueprint,
+        saved_ids,
+        allow_axis_renames=allow_axis_renames,
+    )
     categories = await _create_or_reuse_categories(
         guild,
         blueprint,

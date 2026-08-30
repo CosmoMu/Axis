@@ -1,54 +1,53 @@
 # AXIS — Codex 开发入口
 
-本目录是 AXIS 收费 Discord 的初版开发规格。请先完整阅读：
+**当前规范版本：** `2026-08-29 AXIS Current Spec v2.1`
 
-1. `docs/AXIS_MVP_SPEC.md`
-2. `config/discord_blueprint.yaml`
-3. `config/llm_trade_schema.json`
-4. `config/.env.example`
+本仓库唯一正式 Source of Truth 位于 `docs/spec/current/`。开始任何实现、测试或
+Discord Bootstrap 前，必须依次阅读：
 
-## Codex 执行要求
+1. `docs/spec/current/README_FOR_CODEX.md`
+2. `docs/spec/current/00_AXIS_BRAND_LOCK.md`
+3. `docs/spec/current/01_AXIS_CORE_MVP_SPEC.md`
+4. `docs/spec/current/02_AXIS_ANALYSIS_PIPELINE_SPEC.md`
+5. `docs/spec/current/03_AXIS_LAB_DEFERRED_SPEC.md`
+6. `docs/spec/current/04_IMPLEMENTATION_ORDER_AND_GATES.md`
+7. `config/discord_blueprint.yaml`
+8. `config/model_routing.yaml`
+9. `config/llm_trade_schema.json`
+10. `config/llm_analysis_schema.json`
+11. `config/.env.example`
 
-请以 **Python 3.12 + discord.py 2.x + PostgreSQL + SQLAlchemy 2 + Alembic** 实现。
+## 执行锁
 
-### 必须遵守
+- 品牌固定为 `AXIS`，Bot 为 `AXIS BOT`，研究模块为 `AXIS LAB`。
+- Discord Category / Channel 使用 Emoji + English；卡片和用户交互以中文为主。
+- 只保留 `Manager` 与 `Member` 两个人工业务 Role。
+- Secret 只从 `.env` 或部署 Secret Store 读取，不进入源码、日志、测试快照或 Git。
+- Discord 修改前必须先做只读 inventory 与 dry-run；写入必须通过
+  `APPLY_CHANGES=true`、`DRY_RUN=false`、目标 Guild ID 三重 Gate。
+- Bootstrap 必须幂等，不删除、不移动、不修改任何未登记的非 AXIS 资源。
+- LLM 必须通过 workload router 选择模型，不得在业务 Service 中硬编码单一
+  `LLM_MODEL`。
+- LLM 调用必须保存 provider、实际 model、workload、prompt version、schema version、
+  latency 和成功/失败状态。
+- LLM 只能生成 Draft；所有公开会员卡片必须经 Manager 确认，并通过 Public DTO
+  白名单隔离 Mentor、Source、提交人、附件与解析信息。
+- `AXIS LAB` 只允许创建 Owner-only 预留频道，所有功能 Flag 保持关闭；Owner 明确要求
+  开始 LAB 前不得实现其业务逻辑。
 
-- 主品牌、Discord Server 名称和所有面向用户的品牌文案统一使用 `AXIS`；私人模型模块
-  保持 `AXIS LAB`，Bot 保持 `AXIS BOT`，不增加正式中文品牌名。
-- Discord Category 与 Channel 名称使用英文 + Emoji；卡片、频道说明和用户交互使用中文；
-  代码、枚举、数据库字段使用英文。
-- 不得把 Bot Token、LLM Key、数据库密码或任何 Secret 写入源码、日志、测试快照或提交记录。
-- 只允许从环境变量或 Secret Manager 读取 Secret。
-- 首次连接 Discord 后，先执行只读盘点与 `dry-run`，输出将创建或复用的 Role、Category、Channel 和权限差异。
-- 未显式启用 `APPLY_CHANGES=true` 前，不得修改服务器。
-- Bootstrap 必须幂等：重复运行不得创建重复频道、重复 Role 或重复面板消息。
-- 不得自动删除、重命名或移动任何不属于本项目的现有频道和 Role。
-- 所有公开会员卡片必须经过管理员确认；LLM 不允许直接发布。
-- 公开卡片只能使用 Public DTO 白名单，不得包含 Mentor、提交人、来源消息、原图、解析置信度或内部备注。
-- 会员没有自动交易功能。Moomoo 和 Model A/B 在首版仅保留接口与 Feature Flag，不实现会员交易。
-- `查看当前订单` 必须使用长期有效按钮；Bot 重启后仍可点击。
-- 所有管理员写操作必须记录审计日志。
+## 开发 Gate
 
-## 推荐实施顺序
+严格按照 `docs/spec/current/04_IMPLEMENTATION_ORDER_AND_GATES.md`：
 
-1. 创建项目结构、配置读取、数据库和迁移。
-2. 实现 Discord 只读盘点与幂等 Bootstrap。
-3. 创建 Role、Category、Channel 和权限覆盖。
-4. 实现交易领域模型、仓位规则和卡片生成器。
-5. 实现 `信号输入 → LLM 草稿 → 卡片审核 → 确认发布`。
-6. 实现每张卡片下方的 `查看当前订单`。
-7. 实现导师管理和会员管理。
-8. 实现官方战绩与定时任务。
-9. 添加测试、Docker、日志和部署说明。
-10. 最后只创建 AXIS LAB 的两个频道和接口占位，默认禁用。
+1. Stage 0：Repository / Guild inventory 与 dry-run。
+2. Stage 1：Infrastructure、Discord Core、数据库、模型路由和持久组件。
+3. Stage 2：Signal Pipeline。
+4. Stage 3：Manager、Member、Results。
+5. Gate A 全部通过后，才可开始 Analysis。
+6. Gate B 通过后进行 Production Stabilization。
+7. 当前停止在 AXIS LAB 之前。
 
-## 交付前必须输出
+## 新资料入口
 
-- 项目目录树。
-- 所有环境变量说明。
-- Discord 所需权限和 Intent 清单。
-- Bootstrap dry-run 结果。
-- 数据库迁移文件。
-- 自动化测试结果。
-- 手动验收步骤。
-- 已知限制和下一阶段建议。
+新增想法、草稿、截图和参考资料先放到 `manually input/`。Codex 会按其中 README
+分流到 `docs/`、`config/` 或 `assets/`；确认已完整吸收后再清理临时副本。

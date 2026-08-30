@@ -39,33 +39,36 @@ def test_blueprint_has_exact_mvp_shape() -> None:
 
     assert blueprint.version == 2
     assert blueprint.server_name == "AXIS"
-    assert [role.name for role in blueprint.roles] == ["AXIS BOT", "管理员", "会员"]
+    assert [role.name for role in blueprint.roles] == ["AXIS BOT", "Manager", "Member"]
     assert blueprint.role_order == ("bot", "manager", "member", "everyone")
     assert [category.name for category in blueprint.categories] == [
-        "⬛・AXIS",
-        "🟢・SIGNALS",
-        "⚙️・OPERATIONS",
+        "⬛・GENERAL",
+        "🟢・MEMBERS",
+        "⚙️・MANAGER",
         "🧪・AXIS LAB",
     ]
     assert [channel.name for category in blueprint.categories for channel in category.channels] == [
         "👋・welcome",
-        "💳・membership",
+        "💳・subscriptions",
         "📊・results",
-        "💬・lounge",
+        "💬・lobby",
         "🏆・member-wins",
         "⚡・short-term",
         "〽️・swing",
-        "♾️・long-term",
-        "💬・member-lounge",
+        "♾️・leaps",
+        "🛋️・member-lounge",
         "📥・signal-input",
-        "✅・review-desk",
+        "✅・card-review",
+        "💭・analysis-input",
+        "📝・analysis-review",
         "🧭・mentor-control",
         "👤・member-control",
-        "🟢・model-signals",
-        "🗂️・trade-history",
+        "🟢・lab-signals",
+        "🧬・mentor-status",
+        "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 15
+    assert blueprint.channel_count == 18
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
 
 
@@ -76,7 +79,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 2
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 15
+    assert sum(action.resource_type == "channel" for action in creates) == 18
     assert not plan.blockers
 
 
@@ -123,23 +126,37 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     assert lobby["manager"]["manage_messages"] is True
 
 
-def test_saved_id_is_preferred_and_renames_block_duplicate_creation() -> None:
+def test_saved_axis_role_rename_requires_explicit_opt_in() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
     guild = replace(
         empty_guild(),
         roles=empty_guild().roles + (RoleState(301, "曾经的管理员", False, 1),),
     )
     saved_ids = {"guild_id": GUILD_ID, "roles": {"manager": 301}}
-    plan = build_plan(blueprint, guild, GUILD_ID, saved_ids)
+    blocked = build_plan(blueprint, guild, GUILD_ID, saved_ids)
+    allowed = build_plan(
+        blueprint,
+        guild,
+        GUILD_ID,
+        saved_ids,
+        allow_axis_renames=True,
+    )
 
     assert any(
         action.status == "BLOCK" and action.resource_type == "role" and action.key == "manager"
-        for action in plan.actions
+        for action in blocked.actions
     )
     assert not any(
         action.status == "CREATE" and action.resource_type == "role" and action.key == "manager"
-        for action in plan.actions
+        for action in blocked.actions
     )
+    assert any(
+        action.status == "UPDATE"
+        and action.resource_type == "role_name"
+        and action.key == "manager"
+        for action in allowed.actions
+    )
+    assert not any(action.key == "manager" for action in allowed.blockers)
 
 
 def test_saved_axis_category_and_channel_renames_require_explicit_opt_in() -> None:
@@ -191,7 +208,7 @@ def test_axis_role_above_bot_blocks_apply_before_any_mutation() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
     guild = replace(
         empty_guild(),
-        roles=empty_guild().roles + (RoleState(301, "管理员", False, 4),),
+        roles=empty_guild().roles + (RoleState(301, "Manager", False, 4),),
     )
     plan = build_plan(blueprint, guild, GUILD_ID)
 
@@ -205,8 +222,8 @@ def test_equal_role_positions_use_discord_id_tiebreaker() -> None:
         roles=(
             RoleState(GUILD_ID, "@everyone", True, 0),
             RoleState(201, "AXIS BOT", True, 1),
-            RoleState(301, "管理员", False, 1),
-            RoleState(302, "会员", False, 1),
+            RoleState(301, "Manager", False, 1),
+            RoleState(302, "Member", False, 1),
         ),
     )
     plan = build_plan(blueprint, guild, GUILD_ID)

@@ -1,34 +1,41 @@
 # AXIS 文档索引
 
-这个目录存放会进入版本控制的产品、开发和运维文档。项目入口仍然是仓库根目录的
-`README_FOR_CODEX.md`。
+仓库根目录的 `README_FOR_CODEX.md` 是开发入口；`docs/spec/current/` 是当前唯一产品
+与技术 Source of Truth。旧版 `docs/AXIS_MVP_SPEC.md` 仅保留历史上下文，不再更新。
 
-## 当前文档
+## 正式目录
 
-| 文件 | 用途 | 更新时机 |
+| 路径 | 用途 | 更新时机 |
 |---|---|---|
-| `AXIS_MVP_SPEC.md` | MVP 的产品与技术事实来源 | 需求、权限或业务规则发生变化时 |
-| `../CODEX_ACCEPTANCE_CHECKLIST.md` | 交付验收清单 | 验收条件发生变化时 |
-| `../README_FOR_CODEX.md` | Codex 开发入口和硬性约束 | 开发栈、执行规则或实施顺序变化时 |
-| `operations/discord-bootstrap.md` | Discord 只读盘点、dry-run 和安全 apply 手册 | Bootstrap 流程或权限变化时 |
-| `operations/database.md` | PostgreSQL、Alembic、初始化与回滚手册 | Schema、迁移或数据库环境变化时 |
-| `operations/signal-input.md` | 信号输入、附件安全、Bot 启动与验收手册 | 收件规则、Intent 或运行方式变化时 |
-| `operations/llm-drafts.md` | LLM 结构化草稿、队列、幂等与验收手册 | Prompt、Schema、模型或草稿逻辑变化时 |
+| `spec/current/` | 当前锁定的品牌、Core、Analysis、Deferred LAB 与开发 Gate | 产品范围或核心规则正式变更时 |
+| `development/` | 阶段盘点、差异、实现计划和开发记录 | 每个开发阶段开始或完成时 |
+| `operations/` | Bootstrap、数据库、运行、部署和故障处理 | 运维流程或实现行为变化时 |
+| `decisions/` | 重要架构取舍（ADR） | 存在长期技术权衡时 |
+| `archive/` | 已废弃但必须保留的历史文档 | 文档被新规范取代时 |
 
-## 后续开发文档放置规则
+当前运维文档：
 
-- 产品和技术主规格：继续更新 `docs/AXIS_MVP_SPEC.md`，不要复制出多个“最新版”。
-- 阶段开发记录、实施计划：放到 `docs/development/`，文件名使用
-  `YYYY-MM-DD-topic.md`。
-- 部署、Bootstrap、故障处理说明：放到 `docs/operations/`。
-- 重要架构取舍：放到 `docs/decisions/`，文件名使用 `ADR-0001-topic.md`。
-- 已废弃但需要保留的文档：放到 `docs/archive/`，并在文件顶部标注废弃日期与替代文档。
+- `operations/discord-bootstrap.md`
+- `operations/database.md`
+- `operations/signal-input.md`
+- `operations/llm-drafts.md`
+- `operations/card-review.md`
 
-文档中引用项目文件时使用仓库相对路径。Secret、真实 Token、数据库密码和带签名的
-附件 URL 不得写入任何文档。
+## 文件命名
 
-## 新资料入口
+- 阶段记录：`docs/development/YYYY-MM-DD-topic.md`
+- 架构决策：`docs/decisions/ADR-0001-topic.md`
+- 运维手册：使用稳定主题名，不在文件名写 “final” 或 “最新版”
+- 废弃文档：文件顶部必须写替代日期和新文档路径
 
-以后新增的想法、草稿、截图和参考资料可以先放入仓库根目录的 `manually input/`。
-Codex 会按该目录内的 README 进行分流、整合和清理；正式内容仍以本页列出的 `docs/`
-和 `assets/` 路径为准。
+## 新资料和图片放置
+
+- 新想法、临时文档、截图：先放仓库根目录 `manually input/`。
+- 正式 Logo / Avatar / Lockup：放 `assets/`。
+- 文档截图和流程图：放 `assets/docs/`。
+- UI 设计稿：放 `assets/design/`。
+- 生产交易附件不进入 Git，继续由 `var/attachments/` 或部署存储管理。
+
+Codex 会读取 `manually input/`，将有效内容并入正式路径；只有在确认信息已完整吸收且
+没有唯一内容后，才删除临时副本。Secret、Token、数据库密码、个人信息和带签名 URL
+不得写入任何文档或图片目录。

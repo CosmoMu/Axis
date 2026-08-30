@@ -1,0 +1,36 @@
+version: 1
+provider: openai
+api: responses
+
+# Never hard-code one global model into business services.
+# All workloads resolve through this router.
+
+defaults:
+  model: gpt-5.6-terra
+  timeout_seconds: 45
+  max_retries: 2
+
+workloads:
+  SIGNAL_PARSE:
+    model: gpt-5.6-terra
+    reasoning: low
+    structured_output: llm_trade_schema.json
+
+  SIGNAL_REPAIR:
+    model: gpt-5.6-terra
+    reasoning: medium
+    structured_output: llm_trade_schema.json
+
+  ANALYSIS_PARSE:
+    model: gpt-5.6-terra
+    reasoning: medium
+    structured_output: llm_analysis_schema.json
+    # Future option after MVP validation: gpt-5.6-sol
+
+  ANALYSIS_REWRITE:
+    model: gpt-5.6-terra
+    reasoning: medium
+    # Future option after MVP validation: gpt-5.6-sol
+
+# LAB workloads are intentionally not configured for execution yet.
+# Re-evaluate model selection when AXIS LAB development begins.

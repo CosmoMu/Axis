@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-axis-renames",
         action="store_true",
-        help="仅允许重命名 discord_ids.json 已登记的 AXIS Category 与 Channel。",
+        help="仅允许重命名 discord_ids.json 已登记的 AXIS Role、Category 与 Channel。",
     )
     return parser.parse_args()
 

@@ -445,17 +445,58 @@ def build_plan(
             )
             role_ids[role_spec.key] = None
         elif saved_role and saved_role.name != role_spec.name:
-            actions.append(
-                PlanAction(
-                    "BLOCK",
-                    "role",
-                    role_spec.key,
-                    role_spec.name,
-                    f"保存的 Role ID 当前名称为 {saved_role.name!r}；拒绝自动改名或另建。",
-                    saved_role.id,
+            if saved_role.managed:
+                actions.append(
+                    PlanAction(
+                        "BLOCK",
+                        "role",
+                        role_spec.key,
+                        role_spec.name,
+                        "已登记 Role 是 managed Role，不能作为人工 Role 复用。",
+                        saved_role.id,
+                    )
                 )
-            )
-            role_ids[role_spec.key] = None
+                role_ids[role_spec.key] = None
+            elif allow_axis_renames:
+                role_ids[role_spec.key] = saved_role.id
+                actions.append(
+                    PlanAction(
+                        "UPDATE",
+                        "role_name",
+                        role_spec.key,
+                        role_spec.name,
+                        f"重命名已登记 AXIS Role：{saved_role.name!r} → "
+                        f"{role_spec.name!r}。",
+                        saved_role.id,
+                    )
+                )
+                forbidden = sorted(
+                    {"administrator", "manage_roles"} & set(saved_role.permissions)
+                )
+                if forbidden:
+                    actions.append(
+                        PlanAction(
+                            "UPDATE",
+                            "role_permissions",
+                            role_spec.key,
+                            role_spec.name,
+                            "移除不允许的服务器级权限：" + ", ".join(forbidden),
+                            saved_role.id,
+                        )
+                    )
+            else:
+                actions.append(
+                    PlanAction(
+                        "BLOCK",
+                        "role",
+                        role_spec.key,
+                        role_spec.name,
+                        f"保存的 Role ID 当前名称为 {saved_role.name!r}；"
+                        "需要显式启用 AXIS 重命名。",
+                        saved_role.id,
+                    )
+                )
+                role_ids[role_spec.key] = None
         elif matches[0].managed:
             actions.append(
                 PlanAction(
@@ -538,8 +579,8 @@ def build_plan(
                 "UPDATE",
                 "role_hierarchy",
                 "manager_member_order",
-                "管理员 → 会员",
-                "仅调整 AXIS Role，使管理员位于会员上方。",
+                "Manager → Member",
+                "仅调整 AXIS Role，使 Manager 位于 Member 上方。",
             )
         )
 
@@ -763,8 +804,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 15:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；MVP 规格预期 15 个。")
+    if blueprint.channel_count != 18:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；v2.1 规格预期 18 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

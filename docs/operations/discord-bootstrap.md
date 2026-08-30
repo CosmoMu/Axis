@@ -8,7 +8,7 @@
 - `.env` 中 `APPLY_CHANGES=false`、`DRY_RUN=true` 时不允许写入。
 - dry-run 报告写入本地 `var/discord/dry-run.json`；`var/` 不进入 Git。
 - 脚本不删除任何资源，默认不自动改名，也不自动移动保存 ID 所指向的频道。
-- `--allow-axis-renames` 只能重命名 `discord_ids.json` 已登记的 AXIS Category 与 Channel；
+- `--allow-axis-renames` 只能重命名 `discord_ids.json` 已登记的 AXIS Role、Category 与 Channel；
   未提供该参数时，名称差异仍会触发 `BLOCK`。
 - 已保存 ID 优先；ID 不存在时才按目标 Category 内的完全同名和资源类型恢复。
 - 同名重复、同名异类、目标 Guild 不一致、Bot managed Role 名称不一致时立即停止。
@@ -56,7 +56,7 @@ DRY_RUN=false
 
 ## 品牌命名更新
 
-需要更新已登记的 AXIS Category 或 Channel 名称时，先执行：
+需要更新已登记的 AXIS Role、Category 或 Channel 名称时，先执行：
 
 ```bash
 .venv/bin/python scripts/bootstrap_discord.py --allow-axis-renames
@@ -77,7 +77,7 @@ DRY_RUN=false
 
 Bootstrap 至少需要 `View Channels`、`Manage Channels`、`Manage Roles`。完整 MVP 还需要
 `Send Messages`、`Manage Messages`、`Read Message History`、`Embed Links`、`Attach Files`
-和 `Use Application Commands`。Bot 的 managed Role 必须位于 `管理员` 和 `会员` 上方。
+和 `Use Application Commands`。Bot 的 managed Role 必须位于 `Manager` 和 `Member` 上方。
 
-管理员 Role 不得拥有服务器级 `Administrator` 或 `Manage Roles`；Bootstrap 会在已匹配的
-AXIS `管理员` Role 上移除这两个权限，但不会更改任何非项目 Role。
+`Manager` Role 不得拥有服务器级 `Administrator` 或 `Manage Roles`；Bootstrap 会在
+已匹配的 AXIS `Manager` Role 上移除这两个权限，但不会更改任何非项目 Role。

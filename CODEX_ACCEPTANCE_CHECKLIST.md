@@ -2,18 +2,20 @@
 
 ## Discord 结构
 
-- [ ] Role 顺序为 AXIS BOT → 管理员 → 会员 → @everyone。
-- [ ] 四个 Category 和十五个 Channel 名称完全匹配 Blueprint。
+- [ ] Role 顺序为 AXIS BOT → Manager → Member → @everyone。
+- [ ] 四个 Category 和十八个 Channel 名称完全匹配 Blueprint。
 - [ ] 普通用户看不到会员区、管理区和 AXIS LAB。
 - [ ] 会员只能在会员交流发言，三个信号频道只读。
 - [ ] 管理员能在信号输入上传文字和图片。
-- [ ] AXIS LAB 只有 Owner 和 Bot 可见。
+- [ ] AXIS LAB 只有 Owner 和 Bot 可见，三个频道的功能均保持关闭。
 
 ## 信号工作流
 
 - [ ] 管理员输入文字后生成 Draft。
 - [ ] 管理员输入图片后生成 Draft。
 - [ ] LLM 输出通过 JSON Schema 验证。
+- [ ] Signal Parse / Repair 通过 workload router 选择实际模型。
+- [ ] 每次 LLM 调用记录 provider、model、workload、Prompt/Schema 版本、延迟与结果。
 - [ ] Mentor 必须人工选择。
 - [ ] 新单和更新单都可以编辑。
 - [ ] 确认前不发布。
@@ -57,3 +59,10 @@
 - [ ] Docker 启动成功。
 - [ ] 数据库迁移成功。
 - [ ] 自动化测试全部通过。
+
+## Analysis Gate（仅 Gate A 通过后执行）
+
+- [ ] Analysis 与 Signal 使用独立 Domain。
+- [ ] 新观点总是创建新的 analysis_id，不覆盖历史观点。
+- [ ] 支持仅归档、归档并发布到 🛋️・member-lounge。
+- [ ] 不创建 Analysis Thread，公开卡片不泄露 Mentor、Source 或 LLM 信息。

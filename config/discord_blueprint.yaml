@@ -1,9 +1,10 @@
 version: 2
+# AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
 brand:
   server_name: "AXIS"
   tagline: "Signals without the noise."
   accent_hex: "#86F7A8"
-  logo_path: "assets/axis-brand-lockup.png"
+  logo_path: "assets/axis-logo.png"
 
 roles:
   - key: bot
@@ -12,12 +13,12 @@ roles:
     hoist: false
     mentionable: false
   - key: manager
-    name: "管理员"
+    name: "Manager"
     color_hex: "#F2F4EF"
     hoist: false
     mentionable: false
   - key: member
-    name: "会员"
+    name: "Member"
     color_hex: "#86F7A8"
     hoist: false
     mentionable: false
@@ -30,7 +31,7 @@ role_order:
 
 categories:
   - key: start
-    name: "⬛・AXIS"
+    name: "⬛・GENERAL"
     position: 10
     channels:
       - key: welcome
@@ -43,7 +44,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: subscriptions
-        name: "💳・membership"
+        name: "💳・subscriptions"
         type: text
         topic: "会员权益、订阅链接与订阅管理。"
         everyone_view: true
@@ -61,7 +62,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: lobby
-        name: "💬・lounge"
+        name: "💬・lobby"
         type: text
         topic: "公开交流与产品问题。"
         everyone_view: true
@@ -83,7 +84,7 @@ categories:
         bot_send: true
 
   - key: members
-    name: "🟢・SIGNALS"
+    name: "🟢・MEMBERS"
     position: 20
     default_visibility: member
     channels:
@@ -108,7 +109,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: leaps_alerts
-        name: "♾️・long-term"
+        name: "♾️・leaps"
         type: text
         topic: "长期和 LEAPS 交易信号。仅 Bot 发布。"
         everyone_view: false
@@ -118,7 +119,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: member_chat
-        name: "💬・member-lounge"
+        name: "🛋️・member-lounge"
         type: text
         topic: "会员专属交流。"
         everyone_view: false
@@ -130,7 +131,7 @@ categories:
         bot_send: true
 
   - key: manager
-    name: "⚙️・OPERATIONS"
+    name: "⚙️・MANAGER"
     position: 90
     default_visibility: manager
     channels:
@@ -145,9 +146,29 @@ categories:
         manager_attach: true
         bot_send: true
       - key: card_review
-        name: "✅・review-desk"
+        name: "✅・card-review"
         type: text
         topic: "LLM 草稿、Mentor 选择、编辑、预览和确认发布。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: analysis_input
+        name: "💭・analysis-input"
+        type: text
+        topic: "Mentor 市场观点的文字与图片输入。Analysis 功能在 Gate A 前保持关闭。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        bot_send: true
+      - key: analysis_review
+        name: "📝・analysis-review"
+        type: text
+        topic: "Analysis 草稿审核、归档与发布。Analysis 功能在 Gate A 前保持关闭。"
         everyone_view: false
         member_view: false
         manager_view: true
@@ -180,7 +201,7 @@ categories:
     feature_flag: FEATURE_LAB_ENABLED
     channels:
       - key: lab_signals
-        name: "🟢・model-signals"
+        name: "🟢・lab-signals"
         type: text
         topic: "Model A/B 和 Moomoo 后续生成的私人模型信号。"
         everyone_view: false
@@ -188,8 +209,17 @@ categories:
         manager_view: false
         owner_view: true
         bot_send: true
+      - key: mentor_status
+        name: "🧬・mentor-status"
+        type: text
+        topic: "未来 Mentor 模型状态预留。当前功能禁用。"
+        everyone_view: false
+        member_view: false
+        manager_view: false
+        owner_view: true
+        bot_send: true
       - key: lab_history
-        name: "🗂️・trade-history"
+        name: "🗂️・lab-history"
         type: text
         topic: "模型历史订单、未触发信号和每日收盘总结。"
         everyone_view: false

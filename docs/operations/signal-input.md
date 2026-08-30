@@ -33,7 +33,7 @@ Token、数据库连接或 Discord 附件 URL。
 在本机 `.env` 中配置，不要把真实值提交 Git：
 
 ```text
-DISCORD_BOT_TOKEN=<secret>
+DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=1543309921066684567
 DISCORD_OWNER_USER_ID=<owner-user-id>
 DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
