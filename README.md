@@ -2,16 +2,15 @@
 
 AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官方战绩系统。
 
-## 当前阶段
+## Current Development Stage
 
-**Core feature-complete / Production live validation**
-
-- Core Gate A：PASS
-- Analysis Gate B：PASS
-- 最新自动化回归：151 tests passed；Ruff / compileall PASS
-- Stripe：Test Mode E2E 已通过，Live Mode 尚未启用
-- Short-Term Automated Tracking：实现已完成，但真实 Massive quote / tracking / trigger E2E 尚未通过
-- AXIS LAB：DEFERRED，未开始开发
+- Core Signal / Mentor / Member / Results: COMPLETE
+- Analysis Fusion: COMPLETE / LIVE
+- Short-Term Automated Tracking: CODE COMPLETE / LIVE E2E PENDING
+- Stripe: TEST MODE COMPLETE / LIVE PENDING
+- Production Stabilization: PARTIAL
+- AXIS LAB: DEFERRED
+- Latest automated regression: 151 passed、0 failed、0 skipped；Ruff / compileall PASS
 
 ## 文档入口
 

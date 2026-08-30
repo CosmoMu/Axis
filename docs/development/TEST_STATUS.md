@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 151 tests
+- Full pytest suite: PASS — 151 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -50,8 +50,10 @@ Signal / Trade:
 Short-Term:
 
 - 简化 Review、无 Mentor/position、ST 编号和 Massive provider abstraction。
-- 固定 TP、Runner milestones、watermark、Reference Protection、Fast Momentum Reversal、
-  Overnight、Tracking Stop 和 policy version。
+- Massive MarketTrackingService、固定 TP 20% / 50%、
+  Runner 100% / 150% / 200% / 300% / 400% / 500% / 750% / 1000%。
+- High / Low Watermark、Reference Protection、Fast Momentum Reversal、Overnight Tracking、
+  Tracking Stop 和 policy version。
 - Active/Closed summary、daily results、holiday/idempotency 和 restart recovery。
 
 Membership / Stripe:

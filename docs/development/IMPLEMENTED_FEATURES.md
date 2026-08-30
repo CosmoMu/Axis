@@ -48,10 +48,13 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Short-Term Automated Tracking
 
-- ST-XXXX 独立编号和无 Mentor 的简化审核。
-- Massive market-data provider 接口、受控 fallback 和错误分类。
+- SHORT_TERM automatic detection 和独立 simplified review。
+- no Mentor required；不使用 Swing / LEAPS 的 Mentor Trade Flow。
+- ST-XXXX 独立编号。
+- Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
 - entry_price、current_price、high/low watermark 与 policy version。
-- TP1 20%、TP2 50%、Runner 100%–1000%。
+- TP milestones：20% / 50%。
+- Runner milestones：100% / 150% / 200% / 300% / 400% / 500% / 750% / 1000%。
 - Reference Protection、Fast Momentum Reversal、Overnight、Tracking Stop。
 - milestone 幂等、Active View、category close summary 和 official daily results。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
