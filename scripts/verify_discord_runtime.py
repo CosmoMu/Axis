@@ -43,6 +43,7 @@ TEST_COMMANDS = {
     "test-short-tp",
     "test-short-stop",
 }
+REMOVED_COMMANDS = {"test-short-runner", "test-short-daily"}
 
 
 def _check(condition: bool, label: str, failures: list[str]) -> None:
@@ -211,6 +212,11 @@ async def verify() -> list[str]:
             commands = await client.http.get_guild_commands(application_id, guild.id)
             command_names = {item["name"] for item in commands}
             _check(command_names >= TEST_COMMANDS, "owner_test_commands_missing", failures)
+            _check(
+                command_names.isdisjoint(REMOVED_COMMANDS),
+                "removed_short_term_commands_present",
+                failures,
+            )
     finally:
         await client.close()
         if connect_task is not None:
