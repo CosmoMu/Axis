@@ -1,6 +1,7 @@
 # AXIS v1 → v2 Implementation Plan
 
-**状态：** COMPLETE — 2026-08-29  
+**状态：** COMPLETE — 2026-08-29
+
 **原则：** 增量迁移、保留数据、保留 Discord ID、每阶段可验证。
 
 ## Phase 1 — Documentation Reconciliation

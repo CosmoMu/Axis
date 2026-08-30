@@ -1,7 +1,9 @@
 # AXIS v1 → v2 Migration Audit
 
-**日期：** 2026-08-29  
-**审计基线：** commit `8e6abce`  
+**日期：** 2026-08-29
+
+**审计基线：** commit `8e6abce`
+
 **目标：** 在保留现有代码、数据和 Discord Resource ID 的前提下迁移到 AXIS v2。
 
 ## 1. 已经符合 v2

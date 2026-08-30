@@ -1,8 +1,11 @@
 # AXIS
 
-**Project:** AXIS  
-**Current Source of Truth:** `docs/current/`  
-**Current Development Stage:** v1 → v2 reconciliation；Stage 1 / Stage 2 部分完成  
+**Project:** AXIS
+
+**Current Source of Truth:** `docs/current/`
+
+**Current Development Stage:** v1 → v2 reconciliation；Stage 1 / Stage 2 部分完成
+
 **AXIS LAB:** Deferred
 
 从这里开始：

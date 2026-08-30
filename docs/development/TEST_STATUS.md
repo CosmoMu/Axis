@@ -1,8 +1,11 @@
 # AXIS Test Status
 
-**日期：** 2026-08-29  
-**结果：** 42 passed  
-**Lint：** Ruff passed  
+**日期：** 2026-08-29
+
+**结果：** 42 passed
+
+**Lint：** Ruff passed
+
 **Config validation：** YAML / JSON Schema load passed
 
 覆盖：
