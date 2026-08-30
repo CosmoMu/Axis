@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import discord
 
+from app.domain.analysis_voice import first_person_text
 from app.domain.public_cards import (
     ActivePublicTrade,
     DailyActiveTrade,
@@ -102,52 +103,45 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
     elif draft.status == "DELETED":
         color = DANGER
         title = "已删除草稿"
+    category = CATEGORY_LABELS.get(
+        draft.selected_category or draft.category_suggestion or "", "待选择"
+    )
     embed = discord.Embed(
         title=f"{title} · {draft.draft_code}",
-        description=f"**识别操作**\n{action_label(draft)}",
+        description=f"**{action_label(draft)}** · {category}\n{_contract(draft)}",
         color=color,
     )
-    embed.add_field(name="合约", value=_contract(draft), inline=False)
+    price_lines = []
     if draft.entry_low is not None or draft.entry_high is not None:
-        embed.add_field(
-            name="入场区间",
-            value=f"{_money(draft.entry_low)} – {_money(draft.entry_high)}",
-            inline=True,
-        )
+        price_lines.append(f"入场 {_money(draft.entry_low)}–{_money(draft.entry_high)}")
     if draft.action_price is not None:
-        embed.add_field(name="本次操作价格", value=_money(draft.action_price), inline=True)
-    if draft.position_delta_eighths is not None:
-        embed.add_field(
-            name="本次操作仓位",
-            value=_position(draft.position_delta_eighths),
-            inline=True,
-        )
-    embed.add_field(name="操作后持仓", value=_position(draft.position_after_eighths), inline=True)
+        price_lines.append(f"操作 {_money(draft.action_price)}")
     if draft.avg_cost is not None:
-        embed.add_field(name="操作后平均成本", value=_money(draft.avg_cost), inline=True)
-    if draft.current_pnl_pct is not None:
-        embed.add_field(name="当前收益", value=f"{_number(draft.current_pnl_pct)}%", inline=True)
-    for name, value in (("SL", draft.sl), ("TP1", draft.tp1), ("TP2", draft.tp2)):
-        if value is not None:
-            embed.add_field(name=name, value=_money(value), inline=True)
-    embed.add_field(
-        name="分类",
-        value=(
-            CATEGORY_LABELS.get(draft.selected_category or "", "尚未选择")
-            + (
-                "\n建议："
-                + CATEGORY_LABELS.get(draft.category_suggestion, draft.category_suggestion)
-                if draft.category_suggestion and not draft.selected_category
-                else ""
-            )
-        ),
-        inline=True,
+        price_lines.append(f"均价 {_money(draft.avg_cost)}")
+    price_lines.extend(
+        f"{name} {_money(value)}"
+        for name, value in (("SL", draft.sl), ("TP1", draft.tp1), ("TP2", draft.tp2))
+        if value is not None
     )
-    embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=True)
-    embed.add_field(name="对应订单", value=draft.matched_trade_code or "尚未关联", inline=True)
+    if price_lines:
+        embed.add_field(name="价格 / 风控", value=" · ".join(price_lines)[:1024], inline=False)
+
+    position_lines = []
+    if draft.position_delta_eighths is not None:
+        position_lines.append(f"本次 {_position(draft.position_delta_eighths)}")
+    position_lines.append(f"操作后 {_position(draft.position_after_eighths)}")
+    if draft.current_pnl_pct is not None:
+        position_lines.append(f"当前收益 {_number(draft.current_pnl_pct)}%")
+    embed.add_field(name="仓位", value=" · ".join(position_lines), inline=False)
+
+    review_lines = [
+        f"Mentor：{draft.mentor_name or '待选择'}",
+        f"关联订单：{draft.matched_trade_code or '无'}",
+    ]
     missing = publication_missing_fields(draft)
     if missing:
-        embed.add_field(name="发布前缺失", value="、".join(missing), inline=False)
+        review_lines.append("缺失：" + "、".join(missing))
+    embed.add_field(name="审核", value="\n".join(review_lines), inline=False)
     if draft.warnings:
         embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
     confidence = _number(draft.parser_confidence)
@@ -336,7 +330,9 @@ def build_analysis_review_embed(
     }.get(str(payload.get("analysis_type")), "待识别观点")
     embed = discord.Embed(
         title=f"{type_label} · {draft.draft_code}",
-        description=str(payload.get("title") or payload.get("summary") or "需要人工整理"),
+        description=str(
+            first_person_text(payload.get("title") or payload.get("summary")) or "需要人工整理"
+        ),
         color=DANGER if draft.status == "PARSE_FAILED" else MUTED,
     )
     embed.add_field(
@@ -350,17 +346,23 @@ def build_analysis_review_embed(
     )
     embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=False)
     if payload.get("core_thesis"):
-        embed.add_field(name="核心观点", value=str(payload["core_thesis"])[:1024], inline=False)
+        embed.add_field(
+            name="核心观点",
+            value=str(first_person_text(payload["core_thesis"]))[:1024],
+            inline=False,
+        )
     if payload.get("why_now"):
         embed.add_field(
             name="为什么现在关注",
-            value="\n".join(f"• {item}" for item in payload["why_now"])[:1024],
+            value="\n".join(f"• {first_person_text(item)}" for item in payload["why_now"])[:1024],
             inline=False,
         )
     if payload.get("supporting_points"):
         embed.add_field(
             name="综合依据",
-            value="\n".join(f"• {item}" for item in payload["supporting_points"])[:1024],
+            value="\n".join(
+                f"• {first_person_text(item)}" for item in payload["supporting_points"]
+            )[:1024],
             inline=False,
         )
     if payload.get("engine_observations"):
@@ -378,7 +380,7 @@ def build_analysis_review_embed(
         if price is not None or note:
             levels.append(
                 f"{level.get('level_type', 'WATCH')}: "
-                f"{price if price is not None else ''} {note or ''}".strip()
+                f"{price if price is not None else ''} {first_person_text(note) or ''}".strip()
             )
     if levels:
         embed.add_field(name="路径与关键位", value="\n".join(levels)[:1024], inline=False)
@@ -393,7 +395,7 @@ def build_analysis_review_embed(
             route_lines.append(
                 f"P{index} · {point.get('direction', 'FLAT')}"
                 + (f" · ${float(price):,.2f}" if isinstance(price, (int, float)) else "")
-                + (f" · {point['label']}" if point.get("label") else "")
+                + (f" · {first_person_text(point['label'])}" if point.get("label") else "")
             )
         if route_lines:
             embed.add_field(
@@ -402,7 +404,11 @@ def build_analysis_review_embed(
                 inline=False,
             )
     if payload.get("invalidation"):
-        embed.add_field(name="失效条件", value=str(payload["invalidation"])[:1024], inline=False)
+        embed.add_field(
+            name="失效条件",
+            value=str(first_person_text(payload["invalidation"]))[:1024],
+            inline=False,
+        )
     if draft.warnings:
         embed.add_field(name="Warnings", value="\n".join(draft.warnings)[:1024], inline=False)
     if image_filename:
@@ -441,23 +447,29 @@ def build_public_analysis_embed(
     }[card.time_horizon]
     embed = discord.Embed(
         title=f"{type_label} · {subject}",
-        description=card.title or card.summary,
+        description=first_person_text(card.title or card.summary),
         color=ACCENT_GREEN,
     )
     embed.add_field(name="当前观点", value=stance, inline=True)
     embed.add_field(name="观察周期", value=horizon, inline=True)
     if card.core_thesis:
-        embed.add_field(name="核心逻辑", value=card.core_thesis[:1024], inline=False)
+        embed.add_field(
+            name="核心逻辑",
+            value=str(first_person_text(card.core_thesis))[:1024],
+            inline=False,
+        )
     if card.why_now:
         embed.add_field(
             name="为什么现在关注",
-            value="\n".join(f"• {item}" for item in card.why_now)[:1024],
+            value="\n".join(f"• {first_person_text(item)}" for item in card.why_now)[:1024],
             inline=False,
         )
     if card.supporting_points:
         embed.add_field(
             name="观察依据",
-            value="\n".join(f"• {item}" for item in card.supporting_points)[:1024],
+            value="\n".join(f"• {first_person_text(item)}" for item in card.supporting_points)[
+                :1024
+            ],
             inline=False,
         )
     if card.engine_observations:
@@ -472,7 +484,9 @@ def build_public_analysis_embed(
         note = level.get("note")
         if price is not None or note:
             price_text = price if price is not None else ""
-            levels.append(f"{level.get('level_type')}: {price_text} {note or ''}".strip())
+            levels.append(
+                f"{level.get('level_type')}: {price_text} {first_person_text(note) or ''}".strip()
+            )
     if levels:
         embed.add_field(name="关注位置", value="\n".join(levels)[:1024], inline=False)
     if card.projection_path:
@@ -482,7 +496,7 @@ def build_public_analysis_embed(
             route_lines.append(
                 f"P{index} · {point.get('direction', 'FLAT')}"
                 + (f" · ${float(price):,.2f}" if isinstance(price, (int, float)) else "")
-                + (f" · {point['label']}" if point.get("label") else "")
+                + (f" · {first_person_text(point['label'])}" if point.get("label") else "")
             )
         embed.add_field(
             name="预测路径（文字）",
@@ -490,12 +504,22 @@ def build_public_analysis_embed(
             inline=False,
         )
     if card.invalidation:
-        embed.add_field(name="失效条件", value=card.invalidation[:1024], inline=False)
+        embed.add_field(
+            name="失效条件",
+            value=str(first_person_text(card.invalidation))[:1024],
+            inline=False,
+        )
     if card.risks:
-        embed.add_field(name="风险", value="\n".join(card.risks)[:1024], inline=False)
+        embed.add_field(
+            name="风险",
+            value="\n".join(str(first_person_text(item)) for item in card.risks)[:1024],
+            inline=False,
+        )
     if card.market_conditions:
         embed.add_field(
-            name="市场前提", value="\n".join(card.market_conditions)[:1024], inline=False
+            name="市场前提",
+            value="\n".join(str(first_person_text(item)) for item in card.market_conditions)[:1024],
+            inline=False,
         )
     if card.related_symbols:
         embed.add_field(name="相关观察", value=", ".join(card.related_symbols), inline=False)

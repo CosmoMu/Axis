@@ -130,9 +130,7 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             missing.append("position_after_eighths")
     elif draft.intent == "UPDATE_TRADE":
         matched = (
-            draft.matched_trade_id
-            if isinstance(draft, TradeDraft)
-            else draft.matched_trade_code
+            draft.matched_trade_id if isinstance(draft, TradeDraft) else draft.matched_trade_code
         )
         if matched is None:
             missing.append("matched_trade")
@@ -345,6 +343,35 @@ class CardReviewService:
             await session.commit()
             return await self._snapshot(session, draft)
 
+    async def select_category(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        category: str,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        if category not in {"SHORT_TERM", "SWING", "LEAPS"}:
+            raise ReviewValidationError("CATEGORY_INVALID")
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            if draft.selected_category == category:
+                return await self._snapshot(session, draft)
+            before = _audit_payload(draft)
+            draft.selected_category = category
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session,
+                draft,
+                actor_user_id,
+                interaction_id,
+                "TRADE_DRAFT_CATEGORY_SELECTED",
+                before,
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
     async def edit(
         self,
         draft_id: uuid.UUID,
@@ -542,9 +569,7 @@ class CardReviewService:
             raise ReviewValidationError("ENTRY_POSITION_MISMATCH")
 
     @staticmethod
-    async def _validate_position_transition(
-        session: AsyncSession, draft: TradeDraft
-    ) -> None:
+    async def _validate_position_transition(session: AsyncSession, draft: TradeDraft) -> None:
         if draft.intent != "UPDATE_TRADE" or draft.matched_trade_id is None:
             return
         trade = await session.get(Trade, draft.matched_trade_id)

@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-30
 
-**Database:** `20260830_0011`
+**Database:** `20260830_0013`
 
 **Discord Bootstrap:** `REUSE=27 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -20,7 +20,7 @@ Implemented:
 - 20 个 v2 Channel、Manager / Member Role 与权限；包含 Manager-only
   `🧪・card-testing`。
 - Workload Model Router 和 LLM invocation trace schema。
-- Persistent Card Review Views。
+- Persistent Signal Review Views。
 
 Missing:
 
@@ -37,14 +37,15 @@ Implemented:
 - 安全附件落盘、checksum 与幂等 Source Message。
 - OpenAI Responses API、Structured Output、`SIGNAL_PARSE` routing。
 - Draft、默认仓位阶梯、missing fields、failure Draft。
-- Card Review、Mentor/Trade 选择、编辑、Public Preview、并发版本与审计。
+- Signal Review、AI Category 默认值/Manager 下拉修正、Mentor/Trade 选择、编辑、
+  Public Preview、并发版本与审计。
 - LLM provider/model/workload/Prompt/Schema/latency/result trace。
 - 确认后创建或更新 Trade，并写入不可重复的 Trade Event。
 - 数据库预约、Discord marker 恢复和事务 finalize 组成的幂等会员卡片发布。
 - Public DTO 白名单边界与固定 `axis:active:*:v1` persistent button。
 - `查看当前订单` ephemeral Active View；关闭、清仓和 Cancel 订单自动排除。
 
-Needs migration: none after `0005`。
+Needs migration: none after `0013`。
 
 ## Stage 3 — Mentor / Member / Results: COMPLETE
 
@@ -65,6 +66,8 @@ Implemented:
 - `analysis-input` 与 Signal 完全隔离的 Source queue。
 - `ANALYSIS_PARSE` / `ANALYSIS_REWRITE`，支持 text / image / multi-image。
 - MARKET / TICKER / SECTOR / MACRO、stance、horizon 与 no-invention prompt。
+- Analysis 采用 AXIS 第一人称编辑口吻（`我认为 / 我预计 / 我关注`）；新旧审核卡和
+  会员卡的展示层统一清理“作者认为 / 作者的主观预期”等第三人称转述。
 - 独立 Draft / Revision / Mentor Analysis / children / Publication 表。
 - Mentor selection、edit、rewrite、archive-only、archive + publish、delete。
 - Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。

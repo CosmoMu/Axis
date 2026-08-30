@@ -12,7 +12,7 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0011`。
+- Alembic revisions `0001` 到 `0013`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
@@ -35,9 +35,11 @@
 - 默认八分之一仓位阶梯。
 - 成功/失败 invocation trace。
 
-## Card Review
+## Signal Review
 
 - Internal Embed 与 Public DTO Preview。
+- LLM 默认 Category；低置信或解析失败时安全回退为 Swing，Manager 可在卡片顶部下拉修正。
+- 紧凑审核布局，Category 与常用操作集中在同一张 persistent message。
 - Mentor / Trade 选择。
 - Modal 编辑。
 - 乐观并发版本控制。
@@ -68,6 +70,7 @@
 - Strict Schema 字段名安全清洗、PostgreSQL Invocation → Draft 顺序写入和失败草稿保留审计重试。
 - Mentor select、edit、rewrite revision、archive-only、archive + publish、delete。
 - MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
+- 第一人称 AXIS 编辑口吻；新输入在归一化阶段处理，既有归档在审核卡/会员卡展示时兼容。
 - Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
 - 无 Thread 的 Member Lounge Public Card 和失败重试。
 - 单 ticker 观点合并 AXIS Stock Analyst 当前文字结构数据；输入已有预测路线/有序点位时转换为

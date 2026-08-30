@@ -146,6 +146,8 @@ async def test_generation_is_idempotent_and_applies_default_position(tmp_path: P
         assert draft.status == DraftStatus.PENDING_REVIEW.value
         assert draft.position_delta_eighths == 1
         assert draft.position_after_eighths == 1
+        assert draft.category_suggestion == "SHORT_TERM"
+        assert draft.selected_category == "SHORT_TERM"
         assert "DEFAULT_POSITION_APPLIED" in draft.warnings
         assert draft.mentor_id is None
         assert invocation is not None
@@ -180,6 +182,7 @@ async def test_parse_failure_creates_one_safe_failed_draft(tmp_path: Path) -> No
             audit = await session.scalar(select(AuditLog))
             invocation = await session.scalar(select(LlmInvocation))
         assert draft is not None and draft.status == DraftStatus.PARSE_FAILED.value
+        assert draft.selected_category == "SWING"
         assert draft.warnings == ["LLM_REQUEST_FAILED"]
         assert saved_source is not None and saved_source.status == SourceStatus.FAILED.value
         assert audit is not None and audit.after_json["reason_code"] == "LLM_REQUEST_FAILED"

@@ -437,6 +437,7 @@ class DraftGenerationService:
         payload: dict[str, Any],
         status: str,
     ) -> TradeDraft:
+        category_suggestion = _optional_enum(payload.get("category_suggestion"))
         return TradeDraft(
             id=uuid.uuid4(),
             guild_id=guild_id,
@@ -448,8 +449,12 @@ class DraftGenerationService:
             intent=str(payload.get("intent", "UNKNOWN")),
             action=str(payload.get("action", "UNKNOWN")),
             action_stage=_optional_enum(payload.get("add_stage")),
-            category_suggestion=_optional_enum(payload.get("category_suggestion")),
-            selected_category=None,
+            category_suggestion=category_suggestion,
+            selected_category=(
+                category_suggestion
+                if category_suggestion in {"SHORT_TERM", "SWING", "LEAPS"}
+                else "SWING"
+            ),
             ticker=str(payload["ticker"]).upper() if payload.get("ticker") else None,
             expiry=_date(payload.get("expiry")),
             strike=_decimal(payload.get("strike")),

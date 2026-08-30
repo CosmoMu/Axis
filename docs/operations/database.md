@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0011` 使用 25 张业务表：
+当前 revision `20260830_0013` 使用 25 张业务表：
 
 ```text
 guild_config

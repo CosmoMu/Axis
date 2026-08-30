@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
+import discord
 import pytest
 from sqlalchemy import func, select
 
 from app.bot.cards import build_public_preview_embed, build_review_embed
+from app.bot.views.review_views import ReviewDraftView
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Mentor, SourceMessage, TradeDraft
 from app.db.session import Database
@@ -165,6 +168,57 @@ async def test_review_edit_mentor_and_approval_are_audited_and_versioned() -> No
 
 
 @pytest.mark.asyncio
+async def test_category_select_changes_only_category_and_is_audited() -> None:
+    database, draft, _ = await review_database()
+    service = CardReviewService(database)
+    try:
+        selected = await service.select_category(
+            draft.id,
+            category="SWING",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=606,
+        )
+        unchanged = await service.select_category(
+            draft.id,
+            category="SWING",
+            expected_version=2,
+            actor_user_id=501,
+            interaction_id=607,
+        )
+
+        assert selected.selected_category == "SWING"
+        assert selected.version == unchanged.version == 2
+        async with database.session() as session:
+            actions = list(await session.scalars(select(AuditLog.action_type)))
+        assert actions == ["TRADE_DRAFT_CATEGORY_SELECTED"]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_review_view_starts_with_category_select_and_embed_is_compact() -> None:
+    database, draft, _ = await review_database()
+    service = CardReviewService(database)
+    try:
+        snapshot = await service.get(draft.id)
+        view = ReviewDraftView(SimpleNamespace(), snapshot)
+        category_select = next(
+            item for item in view.children if isinstance(item, discord.ui.Select)
+        )
+        defaults = [option.value for option in category_select.options if option.default]
+        embed = build_review_embed(snapshot)
+
+        assert category_select.custom_id.startswith("axis:review:category:select:")
+        assert defaults == ["SHORT_TERM"]
+        assert category_select.row == 0
+        assert len(embed.fields) <= 4
+        assert "GOOGL" in (embed.description or "")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_incomplete_draft_cannot_be_approved() -> None:
     database, draft, _ = await review_database()
     service = CardReviewService(database)
@@ -190,12 +244,8 @@ async def test_review_message_attachment_is_idempotent() -> None:
     database, draft, _ = await review_database()
     service = CardReviewService(database)
     try:
-        first = await service.attach_review_message(
-            draft.id, channel_id=700, message_id=800
-        )
-        second = await service.attach_review_message(
-            draft.id, channel_id=701, message_id=801
-        )
+        first = await service.attach_review_message(draft.id, channel_id=700, message_id=800)
+        second = await service.attach_review_message(draft.id, channel_id=701, message_id=801)
         assert first.review_channel_id == second.review_channel_id == 700
         assert first.review_message_id == second.review_message_id == 800
     finally:
@@ -221,9 +271,7 @@ async def test_public_preview_uses_whitelist_and_internal_review_keeps_context()
             actor_user_id=501,
             interaction_id=601,
         )
-        public_text = str(
-            build_public_preview_embed(public_preview_payload(selected)).to_dict()
-        )
+        public_text = str(build_public_preview_embed(public_preview_payload(selected)).to_dict())
         internal_text = str(build_review_embed(selected).to_dict())
 
         for forbidden in (

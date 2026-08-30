@@ -101,7 +101,7 @@ async def test_analysis_parser_uses_strict_schema_and_multiple_images() -> None:
     assert result.payload["symbols"] == ["NVDA"]
     assert result.payload["key_levels"][0]["price"] is None  # type: ignore[index]
     assert result.trace.workload is LlmWorkload.ANALYSIS_PARSE
-    assert result.trace.prompt_version == "axis-analysis-parse-v5"
+    assert result.trace.prompt_version == "axis-analysis-parse-v6"
     assert result.trace.schema_version == "axis-analysis-v4"
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False

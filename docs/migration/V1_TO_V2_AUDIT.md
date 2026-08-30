@@ -19,7 +19,7 @@
 
 ### Domain Logic
 
-- Signal Input、Trade Draft 与 Card Review 已是独立 Signal Domain。
+- Signal Input、Trade Draft 与 Signal Review 已是独立 Signal Domain。
 - Analysis 尚未实现，没有塞进 `trades` 或 `trade_drafts`。
 - Public DTO 已使用白名单，测试覆盖 Mentor / Source 泄漏。
 - 默认仓位阶梯为 Entry 1/8、First Add 1/4、Second Add 1/2、Third Add 3/4。
@@ -49,7 +49,7 @@
 | Channel | 💬・lounge | 💬・lobby |
 | Channel | ♾️・long-term | ♾️・leaps |
 | Channel | 💬・member-lounge | 🛋️・member-lounge |
-| Channel | ✅・review-desk | ✅・card-review |
+| Channel | ✅・review-desk | ✅・signal-review |
 | Channel | 🟢・model-signals | 🟢・lab-signals |
 | Channel | 🗂️・trade-history | 🗂️・lab-history |
 

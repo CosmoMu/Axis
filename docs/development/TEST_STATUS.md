@@ -2,7 +2,7 @@
 
 **日期：** 2026-08-30
 
-**结果：** 95 passed
+**结果：** 99 passed
 
 **Lint：** Ruff passed
 
@@ -20,7 +20,7 @@
 - Source / Attachment / Draft 幂等。
 - 默认仓位阶梯和 fourth-add safety。
 - 成功/失败 `llm_invocations`。
-- Card Review Public DTO、防泄漏、并发和审核条件。
+- Signal Review Category 默认值/下拉修正、紧凑卡片、Public DTO、防泄漏、并发和审核条件。
 - Publication claim / retry / finalize 幂等和单 Draft 单 Event 约束。
 - Entry / Add / Close 状态流转与关闭订单 Active View 排除。
 - 三种固定 `查看当前订单` custom_id 和 persistent View。
@@ -56,7 +56,9 @@
 
 Live validation：
 
-- PostgreSQL revision `20260830_0011`。
+- PostgreSQL revision `20260830_0013`。
+- 0012 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T055203Z.dump`
+  已通过 `pg_restore --list`，SHA-256 `0083ce7aaffa4dd33155f1d413b999071bd7547922c306704ecb12eff69d99c1`。
 - 0011 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T054225Z.dump`
   已通过 `pg_restore --list`，SHA-256 `e320f1a8a6cdde3e116765b01fb7184545c30ce5fc671540766ea644f6892aaf`。
 - 迁移后 Signal Draft=2、Analysis Draft=2；编号为 `S-00001..2` / `A-00001..2`，两个
@@ -79,7 +81,11 @@ Live validation：
 - 旧 Cosmos bridge 验证仅作为迁移前记录；0010 后不再调用该 runtime。
 - AXIS Stock Analyst 真实 Moomoo 只读验证：NVDA 标准历史模式通过；SPCX 54 个交易日进入
   LIMITED HISTORY。Analysis Pipeline 当前只消费文字 context，不发布 renderer 图片。
-- card-review 两条现有消息已原地刷新为 `S-00001` / `S-00002`，附件数均为 0。
+- `✅・signal-review` 沿用频道 ID `1543397043043700767`；两条现有消息已原地刷新为
+  `S-00001` / `S-00002`，各有一个 Category 下拉、3–4 个紧凑字段、附件数均为 0，
+  旧草稿已获得可人工修正的默认分类。
+- 两条现有 Analysis Review 与两条已发布会员 Analysis 均已原地重渲染；目标第三人称
+  词组计数为 0。
 - Moomoo SDK / OpenD 均为 `10.10.7008`，`127.0.0.1:11111` quote login 可用。
 - SPY 公开测试期权的 option chain 解析与只读盘后 snapshot 均 PASS；未写数据库、未下单。
 - 周六 live acceptance 返回 `trading_session=false`，三类频道未误发。

@@ -164,18 +164,14 @@ class DraftEditModal(discord.ui.Modal):
         try:
             intent, action, stage, category = _split(self.operation.value, 4)
             ticker, expiry, strike, side = _split(self.contract.value, 4)
-            entry_low, entry_high, action_price, avg_cost = _split(
-                self.prices.value, 4
-            )
+            entry_low, entry_high, action_price, avg_cost = _split(self.prices.value, 4)
             sl, tp1, tp2, pnl = _split(self.risk.value, 4)
             position_delta, position_after = _split(self.position.value, 2)
             values = DraftEdit(
                 intent=intent.upper(),
                 action=action.upper(),
                 action_stage=(value.upper() if (value := _optional_text(stage)) else None),
-                selected_category=(
-                    value.upper() if (value := _optional_text(category)) else None
-                ),
+                selected_category=(value.upper() if (value := _optional_text(category)) else None),
                 ticker=(value.upper() if (value := _optional_text(ticker)) else None),
                 expiry=_optional_date(expiry),
                 strike=_optional_decimal(strike),
@@ -296,18 +292,64 @@ class ConfirmDeleteView(discord.ui.View):
             await self.controller.handle_error(interaction, exc)
 
 
+class CategorySelect(discord.ui.Select):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        self.controller = controller
+        self.draft = draft
+        current = draft.selected_category or draft.category_suggestion
+        options = (
+            ("短线 · Short-term", "SHORT_TERM", "分钟到数日"),
+            ("波段 · Swing", "SWING", "数日到数周"),
+            ("长期 · LEAPS", "LEAPS", "长期或 LEAPS"),
+        )
+        super().__init__(
+            placeholder="Select Category",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label=label,
+                    value=value,
+                    description=description,
+                    default=value == current,
+                )
+                for label, value, description in options
+            ],
+            row=0,
+            custom_id=f"axis:review:category:select:{draft.id.hex}:v{draft.version}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.select_category(
+                self.draft.id,
+                category=self.values[0],
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await interaction.followup.send("Category 已更新。", ephemeral=True)
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
 class ReviewDraftView(discord.ui.View):
     def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
         super().__init__(timeout=None)
         self.controller = controller
         self.draft = draft
+        self.add_item(CategorySelect(controller, draft))
         buttons = (
-            ("选择 Mentor", discord.ButtonStyle.secondary, "mentor", 0, self.select_mentor),
-            ("选择订单", discord.ButtonStyle.secondary, "trade", 0, self.select_trade),
-            ("编辑卡片", discord.ButtonStyle.primary, "edit", 0, self.edit),
-            ("预览会员卡片", discord.ButtonStyle.secondary, "preview", 0, self.preview),
-            ("确认发布", discord.ButtonStyle.success, "approve", 1, self.approve),
-            ("删除草稿", discord.ButtonStyle.danger, "delete", 1, self.delete),
+            ("Mentor", discord.ButtonStyle.secondary, "mentor", 1, self.select_mentor),
+            ("关联订单", discord.ButtonStyle.secondary, "trade", 1, self.select_trade),
+            ("完整编辑", discord.ButtonStyle.primary, "edit", 1, self.edit),
+            ("会员预览", discord.ButtonStyle.secondary, "preview", 1, self.preview),
+            ("确认发布", discord.ButtonStyle.success, "approve", 2, self.approve),
+            ("删除", discord.ButtonStyle.danger, "delete", 2, self.delete),
         )
         for label, style, action, row, callback in buttons:
             button = discord.ui.Button(
@@ -332,9 +374,7 @@ class ReviewDraftView(discord.ui.View):
             return
         await interaction.response.send_message(
             "请选择 Mentor：",
-            view=ReviewChoiceView(
-                self.controller, self.draft, kind="mentor", choices=choices
-            ),
+            view=ReviewChoiceView(self.controller, self.draft, kind="mentor", choices=choices),
             ephemeral=True,
         )
 
@@ -345,9 +385,7 @@ class ReviewDraftView(discord.ui.View):
             return
         await interaction.response.send_message(
             "请选择订单：",
-            view=ReviewChoiceView(
-                self.controller, self.draft, kind="trade", choices=choices
-            ),
+            view=ReviewChoiceView(self.controller, self.draft, kind="trade", choices=choices),
             ephemeral=True,
         )
 
@@ -420,11 +458,7 @@ class PublicationRetryView(discord.ui.View):
             )
             await self.controller.refresh(updated)
             await interaction.followup.send(
-                (
-                    "会员卡片已发布。"
-                    if updated.status == "PUBLISHED"
-                    else "重新发布已进入队列。"
-                ),
+                ("会员卡片已发布。" if updated.status == "PUBLISHED" else "重新发布已进入队列。"),
                 ephemeral=True,
             )
         except Exception as exc:

@@ -1,18 +1,24 @@
-# 管理员草稿审核
+# Signal Review 管理员审核
 
-LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・card-review` 发布一张 Manager 专用
+LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・signal-review` 发布一张 Manager 专用
 审核卡片。卡片是幂等的：Bot 重启时会复用数据库中的 Discord Message ID；如果
 发送成功但数据库回写中断，Bot 会根据 Embed Footer 中的 Draft UUID 找回已有消息，
 不会重复发卡。
 
 ## 操作组件
 
+- `Select Category`：LLM 根据持有周期、到期日和输入语境预选短线、波段或长期；
+  Manager 只需在判断不正确时直接用卡片顶部的下拉框修改。
 - `选择 Mentor`：只显示当前有效 Mentor，不使用 LLM 自动分配。
 - `选择订单`：只显示当前 `ACTIVE/RUNNER` 订单，用于更新类 Draft。
-- `编辑卡片`：编辑操作、合约、价格、SL/TP 和仓位。
-- `预览会员卡片`：仅对当前管理员显示，使用 Public DTO 白名单。
+- `完整编辑`：编辑操作、合约、价格、SL/TP 和仓位。
+- `会员预览`：仅对当前管理员显示，使用 Public DTO 白名单。
 - `确认发布`：校验发布条件、预约幂等 Publication，并发送到对应会员频道。
-- `删除草稿`：需要二次确认，仅软删除为 `DELETED`。
+- `删除`：需要二次确认，仅软删除为 `DELETED`。
+
+审核卡片使用紧凑布局，把合约、价格/风控、仓位和审核状态合并显示。常用 Category
+下拉与操作按钮都在同一张 persistent message 上；Bot 重启或草稿更新时原地刷新，
+不会额外发送一组控制面板。
 
 ## 编辑表单
 
@@ -39,7 +45,7 @@ SL | TP1 | TP2 | 当前收益%
 
 ## 发布前条件
 
-新订单需要 Mentor、人工选择的分类、Ticker、Expiry、Strike、Call/Put、入场价格
+新订单需要 Mentor、已确认的分类、Ticker、Expiry、Strike、Call/Put、入场价格
 或区间以及操作后持仓。更新订单需要 Mentor、已关联订单、操作类型、价格或
 明确更新内容以及操作后持仓。
 
@@ -54,6 +60,7 @@ SL | TP1 | TP2 | 当前收益%
 以下写操作都记录 `actor_user_id`、Discord Interaction ID、修改前和修改后字段：
 
 - Draft 编辑；
+- Category 修改；
 - Mentor 选择；
 - 订单关联；
 - 审核通过；

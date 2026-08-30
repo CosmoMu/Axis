@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import uuid
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from app.bot.cards import build_analysis_review_embed
 from app.market_intelligence.gex_explorer import (
     AXIS_GEX_EXPLORER,
     GexOptionContract,
@@ -14,6 +16,7 @@ from app.market_intelligence.gex_explorer import (
 from app.market_intelligence.stock_analyst import (
     AXIS_STOCK_ANALYST,
     AxisStockAnalystService,
+    sanitize_input_analysis,
 )
 from app.market_intelligence.stock_analyst.chart import (
     render_stock_analysis_chart,
@@ -24,6 +27,7 @@ from app.market_intelligence.stock_analyst.models import (
     DailyBar,
     StockMarketBundle,
 )
+from app.services.analysis_pipeline import AnalysisDraftSnapshot
 
 
 def bars(*, drift: float = 0.0015, phase: float = 0.0) -> tuple[DailyBar, ...]:
@@ -106,6 +110,68 @@ def test_axis_stock_analyst_supports_new_listing_with_reduced_conviction() -> No
     assert "limited_history_under_120_sessions" in analysis.unavailable_data
     assert abs(analysis.trend_score - 50) <= 32.5
     assert rendered.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_analysis_viewpoint_is_normalized_to_first_person() -> None:
+    payload = {
+        "title": "作者预期的路径",
+        "summary": "作者的主观预期是先回踩。",
+        "core_thesis": "输入认为当前位置值得关注。",
+        "invalidation": "原文认为跌破后失效。",
+        "why_now": ["作者认为催化临近。"],
+        "supporting_points": ["原作者预期成交量改善。"],
+        "catalysts": [],
+        "risks": [],
+        "market_conditions": [],
+        "engine_observations": [],
+        "key_levels": [],
+    }
+
+    normalized = sanitize_input_analysis(payload)
+
+    assert normalized["summary"] == "我预计先回踩。"
+    assert normalized["core_thesis"] == "我认为当前位置值得关注。"
+    assert normalized["invalidation"] == "我认为跌破后失效。"
+    assert normalized["why_now"] == ["我认为催化临近。"]
+    assert normalized["supporting_points"] == ["我预计成交量改善。"]
+
+
+def test_existing_analysis_review_renders_in_first_person() -> None:
+    draft = AnalysisDraftSnapshot(
+        id=uuid.uuid4(),
+        guild_id=1543309921066684567,
+        draft_code="A-00001",
+        status="PENDING_REVIEW",
+        normalized={
+            "analysis_type": "TICKER",
+            "symbols": ["NVDA"],
+            "stance": "BULLISH",
+            "time_horizon": "SWING",
+            "summary": "作者的主观预期是先回踩。",
+            "core_thesis": "原文认为关键位仍有效。",
+            "why_now": ["作者认为催化临近。"],
+            "supporting_points": [],
+            "engine_observations": [],
+            "key_levels": [],
+        },
+        mentor_name="Vincent",
+        missing_fields=(),
+        warnings=(),
+        confidence=None,
+        review_channel_id=None,
+        review_message_id=None,
+        revision=1,
+        version=1,
+        chart_source=None,
+    )
+
+    rendered = build_analysis_review_embed(draft).to_dict()
+    serialized = str(rendered)
+
+    assert "我预计先回踩" in serialized
+    assert "我认为关键位仍有效" in serialized
+    assert "我认为催化临近" in serialized
+    assert "作者" not in serialized
 
 
 @pytest.mark.asyncio

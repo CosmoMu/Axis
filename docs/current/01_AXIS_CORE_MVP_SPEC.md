@@ -82,7 +82,7 @@ Member
 
 ⚙️・MANAGER
 ├─ 📥・signal-input
-├─ ✅・card-review
+├─ ✅・signal-review
 ├─ 💭・analysis-input
 ├─ 📝・analysis-review
 ├─ 🧭・mentor-control
@@ -445,7 +445,7 @@ Raw Manager Message
 -> JSON Schema validation
 -> create Trade Draft
 -> suggest possible existing Trade match
--> post internal review card to ✅・card-review
+-> post internal review card to ✅・signal-review
 -> wait for Manager action
 ```
 
@@ -497,7 +497,7 @@ parse_latency_ms
 
 ---
 
-# 13. Card Review
+# 13. Signal Review
 
 内部 Draft Card 可显示：
 

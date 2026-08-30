@@ -58,7 +58,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "♾️・leaps",
         "🛋️・member-lounge",
         "📥・signal-input",
-        "✅・card-review",
+        "✅・signal-review",
         "💭・analysis-input",
         "📝・analysis-review",
         "🧭・mentor-control",

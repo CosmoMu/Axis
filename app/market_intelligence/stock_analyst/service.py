@@ -7,6 +7,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from app.domain.analysis_voice import first_person_text
 from app.market_intelligence.stock_analyst.chart import render_stock_analysis_chart
 from app.market_intelligence.stock_analyst.engine import analyze_stock
 from app.market_intelligence.stock_analyst.market_data import (
@@ -128,9 +129,21 @@ def sanitize_input_analysis(payload: dict[str, Any]) -> dict[str, Any]:
     """Prevent the LLM from claiming observations that only the AXIS engine can create."""
 
     sanitized = dict(payload)
+    for key in ("title", "summary", "core_thesis", "invalidation"):
+        sanitized[key] = first_person_text(payload.get(key))
+    for key in (
+        "why_now",
+        "supporting_points",
+        "catalysts",
+        "risks",
+        "market_conditions",
+    ):
+        sanitized[key] = [
+            first_person_text(item) for item in payload.get(key, []) if isinstance(item, str)
+        ]
     sanitized["engine_observations"] = []
     sanitized["key_levels"] = [
-        {**item, "source": "INPUT"}
+        {**item, "note": first_person_text(item.get("note")), "source": "INPUT"}
         for item in payload.get("key_levels", [])
         if isinstance(item, dict) and item.get("source") != "AXIS_STOCK_ANALYST"
     ]

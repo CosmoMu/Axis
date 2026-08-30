@@ -83,7 +83,7 @@ control panels
 📥・signal-input
 OpenAI SIGNAL_PARSE
 trade draft
-✅・card-review
+✅・signal-review
 Mentor selection
 trade matching
 edit / preview / publish

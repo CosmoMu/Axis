@@ -146,7 +146,7 @@ categories:
         manager_attach: true
         bot_send: true
       - key: card_review
-        name: "✅・card-review"
+        name: "✅・signal-review"
         type: text
         topic: "LLM 草稿、Mentor 选择、编辑、预览和确认发布。"
         everyone_view: false

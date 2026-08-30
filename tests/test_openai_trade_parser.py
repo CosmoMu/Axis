@@ -93,7 +93,7 @@ async def test_parser_uses_strict_responses_schema_and_multimodal_input() -> Non
     assert result.payload["ticker"] == "SPY"
     assert result.response_id == "resp_test"
     assert result.trace.workload is LlmWorkload.SIGNAL_PARSE
-    assert result.trace.prompt_version == "axis-trade-parse-v1"
+    assert result.trace.prompt_version == "axis-trade-parse-v2"
     assert result.trace.schema_version == "axis-trade-v1"
     assert result.trace.success is True
     assert responses.kwargs is not None
