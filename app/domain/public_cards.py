@@ -164,18 +164,17 @@ class PublicAnalysisCard:
     symbols: tuple[str, ...]
     sector: str | None
     stance: str
-    time_horizon: str
     title: str | None
     summary: str | None
     core_thesis: str | None
-    why_now: tuple[str, ...]
-    supporting_points: tuple[str, ...]
-    engine_observations: tuple[str, ...]
     key_levels: tuple[dict[str, object], ...]
-    projection_path: tuple[dict[str, object], ...]
+    indicators: tuple[dict[str, object], ...]
+    market_profile: dict[str, object]
+    top_scenario: dict[str, object] | None
+    prediction_path: tuple[dict[str, object], ...]
     invalidation: str | None
-    catalysts: tuple[str, ...]
     risks: tuple[str, ...]
     market_conditions: tuple[str, ...]
-    related_symbols: tuple[str, ...]
+    methodology_notice: str | None
+    market_as_of: str | None
     observed_at: datetime

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,14 +11,18 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import func, select
 
+from app.bot.cards import build_public_analysis_embed
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.db.base import Base
 from app.db.models import (
     AnalysisDraft,
     AnalysisDraftRevision,
+    AnalysisIndicator,
     AnalysisKeyLevel,
     AnalysisPoint,
+    AnalysisPredictionPoint,
     AnalysisPublication,
+    AnalysisScenario,
     GuildConfig,
     LlmInvocation,
     Mentor,
@@ -37,6 +42,10 @@ from app.domain.enums import (
 from app.integrations.openai_analysis_parser import AnalysisParseResult
 from app.integrations.openai_trade_parser import LlmInvocationTrace, TradeParseResult
 from app.market_intelligence.stock_analyst import AxisStockAnalystError, AxisStockAnalystResult
+from app.market_intelligence.stock_analyst.prediction_chart import (
+    PredictionChartError,
+    render_prediction_chart,
+)
 from app.services.analysis_pipeline import (
     AnalysisDraftSnapshot,
     AnalysisPipelineService,
@@ -57,11 +66,11 @@ def trace(workload: LlmWorkload, *, model: str = "gpt-5.6-terra") -> LlmInvocati
         model=model,
         workload=workload,
         prompt_version=(
-            "axis-analysis-rewrite-v4"
+            "axis-analysis-rewrite-v7"
             if workload is LlmWorkload.ANALYSIS_REWRITE
-            else "axis-analysis-parse-v4"
+            else "axis-analysis-parse-v7"
         ),
-        schema_version="axis-analysis-v4",
+        schema_version="axis-analysis-v5",
         latency_ms=7,
         success=True,
         error_type=None,
@@ -76,8 +85,8 @@ class FakeAnalysisParser:
         self.calls: list[dict[str, object]] = []
         self.route = SimpleNamespace(
             model="gpt-5.6-terra",
-            prompt_version="axis-analysis-parse-v4",
-            schema_version="axis-analysis-v4",
+            prompt_version="axis-analysis-parse-v7",
+            schema_version="axis-analysis-v5",
         )
 
     async def parse(self, **kwargs: object) -> AnalysisParseResult:
@@ -245,11 +254,17 @@ def axis_stock_context() -> dict[str, object]:
     return {
         "ticker": "NVDA",
         "as_of": "2026-08-28",
+        "data_timestamp": "2026-08-28T20:00:00+00:00",
+        "current_price": 178.0,
         "trend_label": "震荡偏多",
         "trend_score": 61.0,
+        "indicator_scores": {"RSI14": 66.0, "MACD_ATR": 0.23},
         "sector_etf": "SMH",
-        "sector_rotation": {"rotation_phase": "LEADING"},
-        "money_flow": {"label": "偏流入", "score": 64.0},
+        "sector_rotation": {"rotation_phase": "LEADING", "strength_score": 64.0},
+        "money_flow": {"label": "偏流入", "score": 64.0, "signed_volume_ratio": 0.23},
+        "point_of_control": 170.25,
+        "value_area_low": 165.0,
+        "value_area_high": 181.0,
         "support_levels": [{"price": 174.25}],
         "resistance_levels": [{"price": 182.5}],
         "scenarios": [
@@ -258,7 +273,22 @@ def axis_stock_context() -> dict[str, object]:
                 "label_zh": "多头延续",
                 "model_weight_percent": 48.0,
                 "targets": [182.5, 188.0],
-            }
+                "invalidation": 174.25,
+            },
+            {
+                "scenario_id": "STRUCTURAL_PULLBACK",
+                "label_zh": "结构回踩",
+                "model_weight_percent": 32.0,
+                "targets": [174.25, 182.5],
+                "invalidation": 169.0,
+            },
+            {
+                "scenario_id": "SUPPORT_BREAKDOWN",
+                "label_zh": "支撑失守",
+                "model_weight_percent": 20.0,
+                "targets": [169.0],
+                "invalidation": 182.5,
+            },
         ],
     }
 
@@ -356,7 +386,8 @@ async def test_analysis_without_source_projection_uses_axis_text_context_only(
         assert draft.market_context_json["ticker"] == "NVDA"
         assert analyst.calls == [("NVDA", False, None)]
         assert any(
-            "AXIS Stock Analyst" in point for point in draft.normalized_json["engine_observations"]
+            item["source"] == "STOCK_ANALYST"
+            for item in draft.normalized_json["key_levels"]
         )
         assert await service.media_for_draft(draft.id) is None
     finally:
@@ -548,18 +579,15 @@ async def test_archive_preserves_model_a_training_provenance(tmp_path: Path) -> 
             levels = list(
                 await session.scalars(select(AnalysisKeyLevel).order_by(AnalysisKeyLevel.source))
             )
-            points = list(
-                await session.scalars(select(AnalysisPoint).order_by(AnalysisPoint.point_type))
-            )
+            points = list(await session.scalars(select(AnalysisPoint)))
+            indicators = list(await session.scalars(select(AnalysisIndicator)))
 
         assert analysis is not None
         assert analysis.why_now_json == ["输入指出价格正在测试关键区域"]
-        assert {level.source for level in levels} == {"INPUT", "AXIS_STOCK_ANALYST"}
+        assert {level.source for level in levels} == {"MENTOR_INPUT", "STOCK_ANALYST"}
         why_now = next(point for point in points if point.point_type == "WHY_NOW")
-        engine = next(point for point in points if point.point_type == "ENGINE_OBSERVATION")
-        assert why_now.source == "INPUT"
-        assert engine.source == "AXIS_STOCK_ANALYST"
-        assert "AXIS Stock Analyst" in engine.content
+        assert why_now.source == "MENTOR_INPUT"
+        assert {indicator.source for indicator in indicators} == {"STOCK_ANALYST"}
     finally:
         await database.dispose()
 
@@ -649,7 +677,10 @@ async def test_archive_only_is_immutable_idempotent_and_never_creates_publicatio
             )
         assert source is not None and source.raw_text == raw
         assert analysis is not None
-        assert analysis.normalized_json == payload
+        assert analysis.normalized_mentor_json == payload
+        assert analysis.final_fused_json == analysis.normalized_json
+        assert "top_scenario" in analysis.final_fused_json
+        assert analysis.raw_source_json["text"] == raw
         assert analysis.public_snapshot is None
         assert analysis.llm_model == "gpt-5.6-terra"
         assert publication_count == 0
@@ -713,10 +744,12 @@ async def test_publish_uses_public_whitelist_and_failure_retry_preserves_archive
         key_levels=[
             {
                 "symbol": "NVDA",
-                "level_type": "WATCH",
+                "role": "WATCH",
                 "price": None,
-                "note": "No explicit source price",
-                "source": "INPUT",
+                "price_high": None,
+                "strength": None,
+                "description": "No explicit source price",
+                "source": "MENTOR_INPUT",
             }
         ]
     )
@@ -819,7 +852,8 @@ async def test_rewrite_creates_traced_revision_without_changing_raw_source(
         assert source is not None and source.raw_text == raw
         assert source.status == SourceStatus.PARSED.value
         assert revision is not None
-        assert revision.normalized_json == rewritten
+        assert revision.normalized_json["summary"] == rewritten["summary"]
+        assert "top_scenario" in revision.normalized_json
         assert revision.instruction == "更简洁"
         assert [item.workload for item in invocations] == [
             LlmWorkload.ANALYSIS_PARSE.value,
@@ -878,6 +912,337 @@ async def test_same_mentor_and_symbol_from_new_source_creates_new_analysis(
         await database.dispose()
 
 
+def mentor_level(role: str, price: float, description: str) -> dict[str, object]:
+    return {
+        "symbol": "NVDA",
+        "role": role,
+        "price": price,
+        "price_high": None,
+        "strength": None,
+        "description": description,
+        "source": "MENTOR_INPUT",
+    }
+
+
+@pytest.mark.asyncio
+async def test_final_fusion_is_mentor_first_and_persists_field_provenance(
+    tmp_path: Path,
+) -> None:
+    database, store, mentor = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1601,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 支撑 174，突破 183，目标 190；ZCZL 与 MACD 改善。",
+    )
+    payload = valid_analysis_payload(
+        key_levels=[
+            mentor_level("SUPPORT", 174.0, "主要支撑"),
+            mentor_level("BREAKOUT", 183.0, "关键突破"),
+            mentor_level("TARGET", 190.0, "上方目标"),
+            mentor_level("INVALIDATION", 171.0, "结构失效"),
+        ],
+        indicators=[
+            {
+                "indicator_name": "ZCZL",
+                "value": 91,
+                "interpretation": "多头结构保持完整",
+                "source": "MENTOR_INPUT",
+            },
+            {
+                "indicator_name": "MACD",
+                "value": 78,
+                "interpretation": "动能正在重新改善",
+                "source": "MENTOR_INPUT",
+            },
+        ],
+    )
+    context = axis_stock_context()
+    context["support_levels"] = [{"price": 172.8, "strength": 0.68}]
+    context["resistance_levels"] = [{"price": 182.5, "strength": 0.82}]
+    service, _, _ = analysis_service(
+        database, store, [payload], stock_analyst=FakeStockAnalyst(context)
+    )
+    try:
+        draft = await generate_and_select_mentor(service, source_id, mentor.id)
+        levels = draft.normalized["key_levels"]
+        assert [item["price"] for item in levels if item["role"] == "SUPPORT"] == [174.0]
+        assert [item["price"] for item in levels if item["role"] == "BREAKOUT"] == [183.0]
+        assert [item["price"] for item in levels if item["role"] == "TARGET"] == [190.0]
+        assert not any(
+            item["price"] == 182.5 and item["source"] == "STOCK_ANALYST"
+            for item in levels
+        )
+        assert draft.normalized["conflict_detected"] is True
+        assert {item["field"] for item in draft.conflicts} == {
+            "SUPPORT",
+            "TARGET",
+            "INVALIDATION",
+        }
+        indicator_names = [item["indicator_name"] for item in draft.normalized["indicators"]]
+        assert indicator_names[:2] == ["ZCZL", "MACD"]
+        assert indicator_names.count("MACD") == 1
+        assert "RSI14" in indicator_names
+
+        archived = await service.archive(
+            draft.id,
+            publish=True,
+            actor_user_id=901,
+            interaction_id=1602,
+        )
+        assert archived.card is not None
+        public_payload = asdict(archived.card)
+        assert all("source" not in item for item in public_payload["key_levels"])
+        assert all("source" not in item for item in public_payload["indicators"])
+        embed_text = str(
+            build_public_analysis_embed(archived.card, public_ref="AN-P-TEST").to_dict()
+        )
+        assert "MENTOR_INPUT" not in embed_text
+        assert "STOCK_ANALYST" not in embed_text
+        assert "观察周期" not in embed_text
+        assert "依据" not in embed_text
+
+        async with database.session() as session:
+            analysis = await session.get(MentorAnalysis, archived.analysis_id)
+            saved_levels = list(await session.scalars(select(AnalysisKeyLevel)))
+            saved_indicators = list(await session.scalars(select(AnalysisIndicator)))
+        assert analysis is not None and analysis.conflict_detected is True
+        assert {item.source for item in saved_levels} == {"MENTOR_INPUT"}
+        assert {item.source for item in saved_indicators} == {
+            "MENTOR_INPUT",
+            "STOCK_ANALYST",
+        }
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_axis_fills_only_missing_level_roles(tmp_path: Path) -> None:
+    database, store, _ = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1611,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 目标 190，未提供支撑。",
+    )
+    payload = valid_analysis_payload(
+        key_levels=[mentor_level("TARGET", 190.0, "上方目标")]
+    )
+    service, _, _ = analysis_service(
+        database,
+        store,
+        [payload],
+        stock_analyst=FakeStockAnalyst(axis_stock_context()),
+    )
+    try:
+        await service.generate(source_id)
+        async with database.session() as session:
+            draft = await session.scalar(select(AnalysisDraft))
+        assert draft is not None
+        supports = [
+            item for item in draft.normalized_json["key_levels"] if item["role"] == "SUPPORT"
+        ]
+        targets = [
+            item for item in draft.normalized_json["key_levels"] if item["role"] == "TARGET"
+        ]
+        assert supports and all(item["source"] == "STOCK_ANALYST" for item in supports)
+        assert [item["price"] for item in targets] == [190.0]
+        assert targets[0]["source"] == "MENTOR_INPUT"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_scenario_confidence_policy_publishes_only_one_top_path_and_chart(
+    tmp_path: Path,
+) -> None:
+    database, store, mentor = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1621,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 突破 183 后观察 190，171 失效。",
+    )
+    payload = valid_analysis_payload(
+        key_levels=[
+            mentor_level("BREAKOUT", 183.0, "关键突破"),
+            mentor_level("TARGET", 190.0, "上方目标"),
+            mentor_level("INVALIDATION", 171.0, "结构失效"),
+        ]
+    )
+    context = deepcopy(axis_stock_context())
+    context["scenarios"][0]["model_weight_percent"] = 68.0  # type: ignore[index]
+    context["scenarios"][1]["model_weight_percent"] = 22.0  # type: ignore[index]
+    context["scenarios"][2]["model_weight_percent"] = 10.0  # type: ignore[index]
+    analyst = FakeStockAnalyst(context)
+    service, _, _ = analysis_service(database, store, [payload], stock_analyst=analyst)
+    try:
+        draft = await generate_and_select_mentor(service, source_id, mentor.id)
+        assert draft.normalized["top_scenario"]["model_weight_percent"] == 68.0
+        assert draft.normalized["top_scenario"]["direction_clear"] is True
+        assert [item["price"] for item in draft.normalized["prediction_path"]] == [
+            178.0,
+            183.0,
+            190.0,
+        ]
+        media = await service.media_for_draft(draft.id)
+        assert media is not None and media.data.startswith(b"\x89PNG")
+
+        archived = await service.archive(
+            draft.id,
+            publish=True,
+            actor_user_id=901,
+            interaction_id=1622,
+        )
+        assert archived.card is not None
+        assert archived.card.top_scenario is not None
+        public = asdict(archived.card)
+        assert "scenarios" not in public
+        assert public["top_scenario"]["model_weight_percent"] == 68.0
+        async with database.session() as session:
+            scenarios = list(
+                await session.scalars(
+                    select(AnalysisScenario).order_by(AnalysisScenario.position)
+                )
+            )
+            points = list(
+                await session.scalars(
+                    select(AnalysisPredictionPoint).order_by(AnalysisPredictionPoint.sequence)
+                )
+            )
+        assert len(scenarios) == 3
+        assert [float(item.model_weight_percent) for item in scenarios] == [68.0, 22.0, 10.0]
+        assert [float(item.price) for item in points] == [178.0, 183.0, 190.0]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("weights", [(42.0, 37.0, 21.0), (52.0, 45.0, 3.0)])
+async def test_unclear_scenario_does_not_publish_directional_path(
+    tmp_path: Path, weights: tuple[float, float, float]
+) -> None:
+    database, store, _ = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=int(sum(weights) * 100),
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 当前结构仍不明确。",
+    )
+    context = deepcopy(axis_stock_context())
+    for scenario, weight in zip(context["scenarios"], weights, strict=True):  # type: ignore[arg-type]
+        scenario["model_weight_percent"] = weight
+    service, _, _ = analysis_service(
+        database,
+        store,
+        [valid_analysis_payload()],
+        stock_analyst=FakeStockAnalyst(context),
+    )
+    try:
+        await service.generate(source_id)
+        async with database.session() as session:
+            draft = await session.scalar(select(AnalysisDraft))
+        assert draft is not None
+        assert draft.normalized_json["top_scenario"]["direction_clear"] is False
+        assert draft.normalized_json["prediction_path"] == []
+        assert await service.media_for_draft(draft.id) is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_chart_failure_does_not_block_archive_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.services.analysis_pipeline as pipeline_module
+
+    database, store, mentor = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1631,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 突破 183 后观察 190。",
+    )
+    context = deepcopy(axis_stock_context())
+    context["scenarios"][0]["model_weight_percent"] = 70.0  # type: ignore[index]
+    context["scenarios"][1]["model_weight_percent"] = 20.0  # type: ignore[index]
+    context["scenarios"][2]["model_weight_percent"] = 10.0  # type: ignore[index]
+    payload = valid_analysis_payload(
+        key_levels=[
+            mentor_level("BREAKOUT", 183.0, "关键突破"),
+            mentor_level("TARGET", 190.0, "目标"),
+        ]
+    )
+
+    def fail_render(_: dict[str, object]) -> bytes:
+        raise PredictionChartError("TEST_RENDER_FAILURE")
+
+    monkeypatch.setattr(pipeline_module, "render_prediction_chart", fail_render)
+    service, _, _ = analysis_service(
+        database, store, [payload], stock_analyst=FakeStockAnalyst(context)
+    )
+    try:
+        draft = await generate_and_select_mentor(service, source_id, mentor.id)
+        assert draft.chart_render_error == "TEST_RENDER_FAILURE"
+        monkeypatch.setattr(pipeline_module, "render_prediction_chart", render_prediction_chart)
+        retried = await service.retry_prediction_chart(draft.id)
+        assert retried.chart_render_error is None
+        assert await service.media_for_draft(draft.id) is not None
+        archived = await service.archive(
+            retried.id,
+            publish=False,
+            actor_user_id=901,
+            interaction_id=1632,
+        )
+        assert archived.analysis_id is not None
+    finally:
+        await database.dispose()
+
+
+def test_public_analysis_is_neutral_and_image_independent() -> None:
+    from app.market_intelligence.stock_analyst import sanitize_input_analysis
+
+    payload = valid_analysis_payload(
+        summary="如图所示，我认为 NVDA 仍在整理。",
+        core_thesis="图中红线与箭头指向关键区域。",
+        key_levels=[mentor_level("SUPPORT", 174.0, "图里的 Golden Zone")],
+    )
+    sanitized = sanitize_input_analysis(payload)
+    public_text = str(sanitized)
+    for forbidden in (
+        "图中",
+        "如图所示",
+        "箭头",
+        "红线",
+        "蓝线",
+        "我认为",
+        "我觉得",
+        "我关注",
+        "Mentor 认为",
+    ):
+        assert forbidden not in public_text
+
+
+def test_prediction_chart_is_deterministic_structural_png() -> None:
+    payload = {
+        "symbols": ["NVDA"],
+        "top_scenario": {
+            "model_weight_percent": 68,
+            "direction_clear": True,
+            "invalidation": 171,
+        },
+        "prediction_path": [
+            {"type": "CURRENT", "price": 178, "label": "当前", "sequence": 0},
+            {"type": "BREAKOUT", "price": 183, "label": "关键突破", "sequence": 1},
+            {"type": "TARGET", "price": 190, "label": "目标", "sequence": 2},
+        ],
+    }
+    first = render_prediction_chart(payload)
+    second = render_prediction_chart(payload)
+    assert first == second
+    assert first.startswith(b"\x89PNG\r\n\x1a\n")
+
+
 @pytest.mark.parametrize("analysis_type", ["MARKET", "TICKER", "SECTOR", "MACRO"])
 def test_all_supported_analysis_types_pass_archive_validation(analysis_type: str) -> None:
     AnalysisPipelineService._validate_archive(valid_analysis_payload(analysis_type=analysis_type))
@@ -900,6 +1265,10 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         revision=1,
         version=3,
         chart_source=None,
+        normalized_mentor=valid_analysis_payload(),
+        market_context={},
+        conflicts=(),
+        chart_render_error=None,
     )
     controller = SimpleNamespace()
 
@@ -908,6 +1277,6 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
 
     assert review_ids == {
         f"axis:analysis:{action}:{draft_id.hex}:v3"
-        for action in ("mentor", "edit", "rewrite", "archive", "publish", "delete")
+        for action in ("mentor", "edit", "rewrite", "chart", "archive", "publish", "delete")
     }
     assert retry_ids == {f"axis:analysis:retry:{draft_id.hex}:v3"}

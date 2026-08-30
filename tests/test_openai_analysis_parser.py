@@ -27,20 +27,23 @@ def valid_analysis_payload(**updates: object) -> dict[str, object]:
         "stance": "BULLISH",
         "time_horizon": "SWING",
         "title": "NVDA 观察",
-        "summary": "价格正在测试图中明确标注的区域。",
-        "core_thesis": "仅观察原图中出现的趋势与位置。",
+        "summary": "价格正在测试明确标注的区域。",
+        "core_thesis": "当前重点是趋势与关键位置。",
         "why_now": ["输入指出价格正在测试关键区域"],
         "supporting_points": ["原图显示价格维持在支撑上方"],
         "engine_observations": [],
         "key_levels": [
             {
                 "symbol": "NVDA",
-                "level_type": "WATCH",
+                "role": "WATCH",
                 "price": None,
-                "note": "原文未提供明确价格",
-                "source": "INPUT",
+                "price_high": None,
+                "strength": None,
+                "description": "原文未提供明确价格",
+                "source": "MENTOR_INPUT",
             }
         ],
+        "indicators": [],
         "invalidation": None,
         "catalysts": [],
         "risks": ["方向仍需确认"],
@@ -101,8 +104,8 @@ async def test_analysis_parser_uses_strict_schema_and_multiple_images() -> None:
     assert result.payload["symbols"] == ["NVDA"]
     assert result.payload["key_levels"][0]["price"] is None  # type: ignore[index]
     assert result.trace.workload is LlmWorkload.ANALYSIS_PARSE
-    assert result.trace.prompt_version == "axis-analysis-parse-v6"
-    assert result.trace.schema_version == "axis-analysis-v4"
+    assert result.trace.prompt_version == "axis-analysis-parse-v7"
+    assert result.trace.schema_version == "axis-analysis-v5"
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False
     assert responses.kwargs["reasoning"] == {"effort": "medium"}
@@ -171,3 +174,5 @@ def test_analysis_prompt_forbids_invention_and_trade_instructions() -> None:
     assert "never infer a missing numeric price" in prompt
     assert "why_now" in prompt
     assert "engine_observations must always be an empty array" in prompt
+    assert "Mentor 认为" in prompt
+    assert "source=MENTOR_INPUT" in prompt

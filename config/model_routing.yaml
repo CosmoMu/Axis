@@ -28,16 +28,16 @@ workloads:
   ANALYSIS_PARSE:
     model: gpt-5.6-terra
     reasoning: medium
-    prompt_version: axis-analysis-parse-v6
-    schema_version: axis-analysis-v4
+    prompt_version: axis-analysis-parse-v7
+    schema_version: axis-analysis-v5
     structured_output: llm_analysis_schema.json
     # Future option after MVP validation: gpt-5.6-sol
 
   ANALYSIS_REWRITE:
     model: gpt-5.6-terra
     reasoning: medium
-    prompt_version: axis-analysis-rewrite-v6
-    schema_version: axis-analysis-v4
+    prompt_version: axis-analysis-rewrite-v7
+    schema_version: axis-analysis-v5
     structured_output: llm_analysis_schema.json
     # Future option after MVP validation: gpt-5.6-sol
 

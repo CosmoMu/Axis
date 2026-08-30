@@ -112,7 +112,7 @@ def test_axis_stock_analyst_supports_new_listing_with_reduced_conviction() -> No
     assert rendered.startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_analysis_viewpoint_is_normalized_to_first_person() -> None:
+def test_analysis_viewpoint_is_normalized_to_neutral_axis_voice() -> None:
     payload = {
         "title": "作者预期的路径",
         "summary": "作者的主观预期是先回踩。",
@@ -129,14 +129,14 @@ def test_analysis_viewpoint_is_normalized_to_first_person() -> None:
 
     normalized = sanitize_input_analysis(payload)
 
-    assert normalized["summary"] == "我预计先回踩。"
-    assert normalized["core_thesis"] == "我认为当前位置值得关注。"
-    assert normalized["invalidation"] == "我认为跌破后失效。"
-    assert normalized["why_now"] == ["我认为催化临近。"]
-    assert normalized["supporting_points"] == ["我预计成交量改善。"]
+    assert normalized["summary"] == "先回踩。"
+    assert normalized["core_thesis"] == "当前位置值得关注。"
+    assert normalized["invalidation"] == "跌破后失效。"
+    assert normalized["why_now"] == ["催化临近。"]
+    assert normalized["supporting_points"] == ["成交量改善。"]
 
 
-def test_existing_analysis_review_renders_in_first_person() -> None:
+def test_existing_analysis_review_renders_in_neutral_axis_voice() -> None:
     draft = AnalysisDraftSnapshot(
         id=uuid.uuid4(),
         guild_id=1543309921066684567,
@@ -163,14 +163,18 @@ def test_existing_analysis_review_renders_in_first_person() -> None:
         revision=1,
         version=1,
         chart_source=None,
+        normalized_mentor={},
+        market_context={},
+        conflicts=(),
+        chart_render_error=None,
     )
 
     rendered = build_analysis_review_embed(draft).to_dict()
     serialized = str(rendered)
 
-    assert "我预计先回踩" in serialized
-    assert "我认为关键位仍有效" in serialized
-    assert "我认为催化临近" in serialized
+    assert "先回踩" in serialized
+    assert "关键位仍有效" in serialized
+    assert "我认为" not in serialized
     assert "作者" not in serialized
 
 

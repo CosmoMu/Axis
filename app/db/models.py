@@ -637,7 +637,13 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
         String(24), default=AnalysisDraftStatus.PENDING_REVIEW.value, nullable=False
     )
     normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    normalized_mentor_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
     market_context_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    conflicts_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
     missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     parser_confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
@@ -651,6 +657,7 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     chart_storage_key: Mapped[str | None] = mapped_column(String(512))
     chart_checksum_sha256: Mapped[str | None] = mapped_column(String(64))
     chart_content_type: Mapped[str | None] = mapped_column(String(64))
+    chart_render_error: Mapped[str | None] = mapped_column(String(64))
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
@@ -709,6 +716,11 @@ class MentorAnalysis(UuidPrimaryKeyMixin, Base):
     invalidation: Mapped[str | None] = mapped_column(Text)
     sector: Mapped[str | None] = mapped_column(String(120))
     normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    raw_source_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    normalized_mentor_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    stock_analyst_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    final_fused_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    conflict_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     public_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -739,7 +751,7 @@ class AnalysisKeyLevel(UuidPrimaryKeyMixin, Base):
     __tablename__ = "analysis_key_levels"
     __table_args__ = (
         CheckConstraint(
-            "source IN ('INPUT','AXIS_STOCK_ANALYST')",
+            "source IN ('MENTOR_INPUT','STOCK_ANALYST')",
             name="analysis_key_level_source",
         ),
     )
@@ -749,8 +761,11 @@ class AnalysisKeyLevel(UuidPrimaryKeyMixin, Base):
     symbol: Mapped[str | None] = mapped_column(String(12))
     level_type: Mapped[str] = mapped_column(String(16), nullable=False)
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    price_high: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    strength: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     note: Mapped[str | None] = mapped_column(String(500))
-    source: Mapped[str] = mapped_column(String(32), default="INPUT", nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str] = mapped_column(String(32), default="MENTOR_INPUT", nullable=False)
 
 
 class AnalysisPoint(UuidPrimaryKeyMixin, Base):
@@ -758,7 +773,7 @@ class AnalysisPoint(UuidPrimaryKeyMixin, Base):
     __table_args__ = (
         UniqueConstraint("analysis_id", "point_type", "position", name="analysis_point_position"),
         CheckConstraint(
-            "source IN ('INPUT','AXIS_STOCK_ANALYST')",
+            "source IN ('MENTOR_INPUT','STOCK_ANALYST')",
             name="analysis_point_source",
         ),
     )
@@ -768,7 +783,66 @@ class AnalysisPoint(UuidPrimaryKeyMixin, Base):
     point_type: Mapped[str] = mapped_column(String(32), nullable=False)
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    source: Mapped[str] = mapped_column(String(32), default="INPUT", nullable=False)
+    source: Mapped[str] = mapped_column(String(32), default="MENTOR_INPUT", nullable=False)
+
+
+class AnalysisIndicator(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_indicators"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", "position", name="analysis_indicator_position"),
+        CheckConstraint(
+            "source IN ('MENTOR_INPUT','STOCK_ANALYST')",
+            name="analysis_indicator_source",
+        ),
+    )
+
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    indicator_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    indicator_value: Mapped[str | None] = mapped_column(String(120))
+    indicator_interpretation: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class AnalysisScenario(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_scenarios"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", "position", name="analysis_scenario_position"),
+        CheckConstraint(
+            "source IN ('MENTOR_INPUT','STOCK_ANALYST')",
+            name="analysis_scenario_source",
+        ),
+    )
+
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    scenario_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(160), nullable=False)
+    model_weight_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    trigger: Mapped[str | None] = mapped_column(String(500))
+    targets_json: Mapped[list[float]] = mapped_column(JSON, default=list, nullable=False)
+    invalidation: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    rationale: Mapped[str | None] = mapped_column(String(1000))
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class AnalysisPredictionPoint(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "analysis_prediction_points"
+    __table_args__ = (
+        UniqueConstraint("analysis_id", "sequence", name="analysis_prediction_point_sequence"),
+    )
+
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mentor_analyses.id", ondelete="CASCADE"), index=True
+    )
+    sequence: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    point_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    label: Mapped[str | None] = mapped_column(String(120))
 
 
 class AnalysisPublication(UuidPrimaryKeyMixin, Base):

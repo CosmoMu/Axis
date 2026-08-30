@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-30
 
-**Database:** `20260830_0015`
+**Database:** `20260830_0018`
 
 **Discord Bootstrap:** `REUSE=28 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -42,7 +42,7 @@ Implemented:
 - Public DTO 白名单边界与固定 `axis:active:*:v1` persistent button。
 - `查看当前订单` ephemeral Active View；关闭、清仓和 Cancel 订单自动排除。
 
-Needs migration: none after `0014`。
+Needs migration: none after `20260830_0018`。
 
 ## Stage 3 — Mentor / Member / Results: COMPLETE
 
@@ -63,18 +63,18 @@ Implemented:
 - `analysis-input` 与 Signal 完全隔离的 Source queue。
 - `ANALYSIS_PARSE` / `ANALYSIS_REWRITE`，支持 text / image / multi-image。
 - MARKET / TICKER / SECTOR / MACRO、stance、horizon 与 no-invention prompt。
-- Analysis 采用 AXIS 第一人称编辑口吻（`我认为 / 我预计 / 我关注`）；新旧审核卡和
-  会员卡的展示层统一清理“作者认为 / 作者的主观预期”等第三人称转述。
+- Analysis 使用中性 AXIS 编辑口吻，公开层清理第一人称、作者归因与图片引用。
 - 独立 Draft / Revision / Mentor Analysis / children / Publication 表。
 - Mentor selection、edit、rewrite、archive-only、archive + publish、delete。
 - Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。
 - Member Lounge 无 Thread 的 Public Card 白名单。
 - Discord send failure 保留归档并支持 persistent retry。
-- 单 ticker 合并 AXIS Stock Analyst 文字结构数据；输入路线/点位转为“预测路径（文字）”。
-  引擎失败时只保留 LLM 对 input 的忠实整理，不阻塞草稿。当前不生成或发布 Analysis 图片，
-  后续 Massive API 从 provider/renderer 接点扩展。
+- 单 ticker 使用 Mentor-first / AXIS-fill-missing 字段级融合；点位与指标保存来源和冲突。
+  后台保留 2–3 个 Scenario，公开只显示通过 50% / 10% 优势门槛的 Top Scenario。
+- 单一路径使用确定性 renderer 生成 PNG；不画未来 K 线，失败不阻塞归档并可重试。
 - Manager-facing 草稿编号改为 Signal `S-00001` / Analysis `A-00001` 独立顺序号。
-- `why_now`、输入/引擎点位来源与引擎观察单独归档，供未来 Model A 训练。
+- Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot 与字段级 provenance 单独归档，
+  供未来 Model A 训练。
 - AXIS GEX Explorer 纯计算引擎已内置，默认不建频道、不自动发布。
 - Automated Gate B：PASS。
 

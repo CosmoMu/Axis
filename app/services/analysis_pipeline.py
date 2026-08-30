@@ -13,9 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     AnalysisDraft,
     AnalysisDraftRevision,
+    AnalysisIndicator,
     AnalysisKeyLevel,
     AnalysisPoint,
+    AnalysisPredictionPoint,
     AnalysisPublication,
+    AnalysisScenario,
     AnalysisSymbol,
     AuditLog,
     GuildConfig,
@@ -47,7 +50,9 @@ from app.integrations.openai_trade_parser import LlmInvocationTrace, ParserAttac
 from app.market_intelligence.stock_analyst import (
     AxisStockAnalystError,
     AxisStockAnalystService,
+    PredictionChartError,
     merge_stock_analysis,
+    render_prediction_chart,
     sanitize_input_analysis,
 )
 from app.services.attachment_storage import AttachmentStorageError, LocalAttachmentStore
@@ -80,6 +85,10 @@ class AnalysisDraftSnapshot:
     revision: int
     version: int
     chart_source: str | None
+    normalized_mentor: dict[str, Any]
+    market_context: dict[str, Any]
+    conflicts: tuple[dict[str, Any], ...]
+    chart_render_error: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,10 +120,12 @@ class AnalysisMedia:
 @dataclass(frozen=True, slots=True)
 class AnalysisEnrichment:
     payload: dict[str, Any]
+    mentor_payload: dict[str, Any]
     market_context: dict[str, Any]
     chart_source: str | None
     source_attachment_id: uuid.UUID | None
     generated_chart_png: bytes | None
+    chart_render_error: str | None
 
 
 EDITABLE = {
@@ -317,16 +328,42 @@ class AnalysisPipelineService:
         actor_user_id: int,
         interaction_id: int,
     ) -> AnalysisDraftSnapshot:
-        if list(self.validator.iter_errors(payload)):
-            raise AnalysisValidationError("ANALYSIS_PAYLOAD_INVALID")
+        self._validate_archive(payload)
+        chart_png = None
+        chart_error = None
+        if payload.get("prediction_path"):
+            try:
+                chart_png = render_prediction_chart(payload)
+            except (PredictionChartError, OSError, RuntimeError) as exc:
+                chart_error = (str(exc) or type(exc).__name__)[:64]
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
             draft.normalized_json = payload
+            draft.conflicts_json = list(payload.get("conflicts", []))
             draft.missing_fields = list(payload.get("missing_fields", []))
             draft.warnings = list(payload.get("warnings", []))
             draft.reviewed_by = actor_user_id
             draft.revision += 1
             draft.version += 1
+            if chart_png is not None:
+                stored = await self.attachment_store.write_generated_png(
+                    guild_id=draft.guild_id,
+                    artifact_id=uuid.uuid5(draft.id, f"manual-edit-{draft.revision}"),
+                    data=chart_png,
+                )
+                draft.chart_source = "AXIS_STOCK_ANALYST"
+                draft.chart_storage_key = stored.storage_key
+                draft.chart_checksum_sha256 = stored.checksum_sha256
+                draft.chart_content_type = stored.content_type
+                draft.chart_render_error = None
+            elif not payload.get("prediction_path"):
+                draft.chart_source = None
+                draft.chart_storage_key = None
+                draft.chart_checksum_sha256 = None
+                draft.chart_content_type = None
+                draft.chart_render_error = None
+            else:
+                draft.chart_render_error = chart_error
             session.add(
                 AnalysisDraftRevision(
                     draft_id=draft.id,
@@ -353,7 +390,7 @@ class AnalysisPipelineService:
             source = await session.get(SourceMessage, draft.source_message_id)
             if source is None:
                 raise AnalysisValidationError("SOURCE_NOT_FOUND")
-            current = dict(draft.normalized_json)
+            current = dict(draft.normalized_mentor_json or draft.normalized_json)
             source_id = source.id
             raw_text = source.raw_text
         attachment_rows = await self._attachment_rows(source_id)
@@ -427,6 +464,15 @@ class AnalysisPipelineService:
             )
             if source is None or invocation is None or config is None:
                 raise AnalysisValidationError("ANALYSIS_TRACE_MISSING")
+            attachments = list(
+                (
+                    await session.scalars(
+                        select(SourceAttachment)
+                        .where(SourceAttachment.source_message_id == source.id)
+                        .order_by(SourceAttachment.created_at, SourceAttachment.id)
+                    )
+                ).all()
+            )
             analysis = MentorAnalysis(
                 guild_id=draft.guild_id,
                 analysis_code=await self._next_code(session, draft.guild_id),
@@ -443,6 +489,22 @@ class AnalysisPipelineService:
                 invalidation=payload.get("invalidation"),
                 sector=payload.get("sector"),
                 normalized_json=payload,
+                raw_source_json={
+                    "text": source.raw_text,
+                    "source_message_id": str(source.id),
+                    "attachments": [
+                        {
+                            "id": str(item.id),
+                            "content_type": item.content_type,
+                            "checksum_sha256": item.checksum_sha256,
+                        }
+                        for item in attachments
+                    ],
+                },
+                normalized_mentor_json=dict(draft.normalized_mentor_json),
+                stock_analyst_snapshot=dict(draft.market_context_json),
+                final_fused_json=payload,
+                conflict_detected=bool(payload.get("conflict_detected")),
                 public_snapshot=None,
                 observed_at=source.received_at,
                 approved_at=utc_now(),
@@ -572,10 +634,12 @@ class AnalysisPipelineService:
         draft_id = uuid.uuid4()
         effective = enrichment or AnalysisEnrichment(
             payload=result.payload,
+            mentor_payload=result.payload,
             market_context={},
             chart_source=None,
             source_attachment_id=None,
             generated_chart_png=None,
+            chart_render_error=None,
         )
         draft = AnalysisDraft(
             id=draft_id,
@@ -589,12 +653,15 @@ class AnalysisPipelineService:
                 else AnalysisDraftStatus.PENDING_REVIEW.value
             ),
             normalized_json=effective.payload,
+            normalized_mentor_json=effective.mentor_payload,
             market_context_json=effective.market_context,
+            conflicts_json=list(effective.payload.get("conflicts", [])),
             missing_fields=list(effective.payload.get("missing_fields", [])),
             warnings=list(effective.payload.get("warnings", [])),
             parser_confidence=Decimal(str(effective.payload.get("confidence", 0))),
             chart_source=effective.chart_source,
             chart_source_attachment_id=effective.source_attachment_id,
+            chart_render_error=effective.chart_render_error,
         )
         if effective.generated_chart_png is not None:
             stored = await self.attachment_store.write_generated_png(
@@ -660,8 +727,9 @@ class AnalysisPipelineService:
         payload: dict[str, Any],
         attachment_rows: list[SourceAttachment],
     ) -> AnalysisEnrichment:
-        enriched = sanitize_input_analysis(payload)
-        warnings = list(enriched.get("warnings", []))
+        mentor_payload = sanitize_input_analysis(payload)
+        enriched = dict(mentor_payload)
+        warnings = list(mentor_payload.get("warnings", []))
         source_attachment_id = None
         projection = enriched.get("source_projection")
         if isinstance(projection, dict) and projection.get("present") is True:
@@ -690,24 +758,44 @@ class AnalysisPipelineService:
                 enriched = merge_stock_analysis(enriched, context)
             except AxisStockAnalystError:
                 warnings.append("AXIS_STOCK_ANALYST_UNAVAILABLE")
+                enriched = merge_stock_analysis(enriched, {})
+        else:
+            enriched = merge_stock_analysis(enriched, {})
         warnings.extend(enriched.get("warnings", []))
         enriched["warnings"] = list(dict.fromkeys(warnings))
+        generated_chart_png = None
+        chart_source = None
+        chart_render_error = None
+        if enriched.get("prediction_path"):
+            try:
+                generated_chart_png = render_prediction_chart(enriched)
+                chart_source = "AXIS_STOCK_ANALYST"
+            except (PredictionChartError, OSError, RuntimeError) as exc:
+                chart_render_error = str(exc)[:64] or type(exc).__name__
+                enriched["warnings"] = list(
+                    dict.fromkeys([*enriched["warnings"], "AXIS_PREDICTION_CHART_FAILED"])
+                )
         return AnalysisEnrichment(
             payload=enriched,
+            mentor_payload=mentor_payload,
             market_context=context,
-            chart_source=None,
+            chart_source=chart_source,
             source_attachment_id=source_attachment_id,
-            generated_chart_png=None,
+            generated_chart_png=generated_chart_png,
+            chart_render_error=chart_render_error,
         )
 
     async def _apply_enrichment(self, draft: AnalysisDraft, enrichment: AnalysisEnrichment) -> None:
         draft.normalized_json = enrichment.payload
+        draft.normalized_mentor_json = enrichment.mentor_payload
         draft.market_context_json = enrichment.market_context
+        draft.conflicts_json = list(enrichment.payload.get("conflicts", []))
         draft.chart_source = enrichment.chart_source
         draft.chart_source_attachment_id = enrichment.source_attachment_id
         draft.chart_storage_key = None
         draft.chart_checksum_sha256 = None
         draft.chart_content_type = None
+        draft.chart_render_error = enrichment.chart_render_error
         if enrichment.generated_chart_png is not None:
             stored = await self.attachment_store.write_generated_png(
                 guild_id=draft.guild_id,
@@ -717,6 +805,36 @@ class AnalysisPipelineService:
             draft.chart_storage_key = stored.storage_key
             draft.chart_checksum_sha256 = stored.checksum_sha256
             draft.chart_content_type = stored.content_type
+
+    async def retry_prediction_chart(self, draft_id: uuid.UUID) -> AnalysisDraftSnapshot:
+        async with self.database.session() as session:
+            draft = await self._locked_editable(session, draft_id)
+            payload = dict(draft.normalized_json)
+            guild_id = draft.guild_id
+            revision = draft.revision
+        try:
+            png = render_prediction_chart(payload)
+        except (PredictionChartError, OSError, RuntimeError) as exc:
+            async with self.database.session() as session:
+                draft = await self._locked_editable(session, draft_id)
+                draft.chart_render_error = (str(exc) or type(exc).__name__)[:64]
+                await session.commit()
+            raise AnalysisValidationError("ANALYSIS_CHART_RENDER_FAILED") from exc
+        stored = await self.attachment_store.write_generated_png(
+            guild_id=guild_id,
+            artifact_id=uuid.uuid5(draft_id, f"chart-retry-{revision}"),
+            data=png,
+        )
+        async with self.database.session() as session:
+            draft = await self._locked_editable(session, draft_id)
+            draft.chart_source = "AXIS_STOCK_ANALYST"
+            draft.chart_storage_key = stored.storage_key
+            draft.chart_checksum_sha256 = stored.checksum_sha256
+            draft.chart_content_type = stored.content_type
+            draft.chart_render_error = None
+            draft.version += 1
+            await session.commit()
+            return await self._snapshot(session, draft)
 
     async def media_for_draft(self, draft_id: uuid.UUID) -> AnalysisMedia | None:
         async with self.database.session() as session:
@@ -797,6 +915,10 @@ class AnalysisPipelineService:
             revision=draft.revision,
             version=draft.version,
             chart_source=draft.chart_source,
+            normalized_mentor=dict(draft.normalized_mentor_json),
+            market_context=dict(draft.market_context_json),
+            conflicts=tuple(draft.conflicts_json),
+            chart_render_error=draft.chart_render_error,
         )
 
     @staticmethod
@@ -827,15 +949,49 @@ class AnalysisPipelineService:
 
     @staticmethod
     def _public_card(analysis: MentorAnalysis, payload: dict[str, Any]) -> PublicAnalysisCard:
-        projection = payload.get("source_projection")
-        raw_path = projection.get("path_points") if isinstance(projection, dict) else []
-        projection_path = tuple(
+        levels = tuple(
             {
-                "direction": item.get("direction"),
-                "price": item.get("price"),
-                "label": item.get("label"),
+                key: item.get(key)
+                for key in (
+                    "symbol",
+                    "role",
+                    "price",
+                    "price_high",
+                    "strength",
+                    "description",
+                )
             }
-            for item in raw_path
+            for item in payload.get("key_levels", [])
+            if isinstance(item, dict)
+        )
+        indicators = tuple(
+            {
+                key: item.get(key)
+                for key in ("indicator_name", "value", "interpretation")
+            }
+            for item in payload.get("indicators", [])
+            if isinstance(item, dict)
+        )
+        raw_top = payload.get("top_scenario")
+        top_scenario = (
+            {
+                key: raw_top.get(key)
+                for key in (
+                    "scenario_id",
+                    "label",
+                    "model_weight_percent",
+                    "trigger",
+                    "targets",
+                    "invalidation",
+                    "direction_clear",
+                )
+            }
+            if isinstance(raw_top, dict)
+            else None
+        )
+        prediction_path = tuple(
+            {key: item.get(key) for key in ("type", "price", "label", "sequence")}
+            for item in payload.get("prediction_path", [])
             if isinstance(item, dict)
         )
         return PublicAnalysisCard(
@@ -844,20 +1000,19 @@ class AnalysisPipelineService:
             symbols=tuple(payload.get("symbols", [])),
             sector=payload.get("sector"),
             stance=payload["stance"],
-            time_horizon=payload["time_horizon"],
             title=payload.get("title"),
             summary=payload.get("summary"),
             core_thesis=payload.get("core_thesis"),
-            why_now=tuple(payload.get("why_now", [])),
-            supporting_points=tuple(payload.get("supporting_points", [])),
-            engine_observations=tuple(payload.get("engine_observations", [])),
-            key_levels=tuple(payload.get("key_levels", [])),
-            projection_path=projection_path,
+            key_levels=levels,
+            indicators=indicators,
+            market_profile=dict(payload.get("market_profile") or {}),
+            top_scenario=top_scenario,
+            prediction_path=prediction_path,
             invalidation=payload.get("invalidation"),
-            catalysts=tuple(payload.get("catalysts", [])),
             risks=tuple(payload.get("risks", [])),
             market_conditions=tuple(payload.get("market_conditions", [])),
-            related_symbols=tuple(payload.get("related_symbols", [])),
+            methodology_notice=payload.get("methodology_notice"),
+            market_as_of=payload.get("market_as_of"),
             observed_at=analysis.observed_at,
         )
 
@@ -902,10 +1057,64 @@ class AnalysisPipelineService:
                 AnalysisKeyLevel(
                     analysis_id=analysis_id,
                     symbol=level.get("symbol"),
-                    level_type=level["level_type"],
+                    level_type=level.get("role") or level.get("level_type") or "WATCH",
                     price=level.get("price"),
-                    note=level.get("note"),
-                    source=level.get("source", "INPUT"),
+                    price_high=level.get("price_high"),
+                    strength=level.get("strength"),
+                    note=level.get("description") or level.get("note"),
+                    description=level.get("description") or level.get("note"),
+                    source=(
+                        "STOCK_ANALYST"
+                        if level.get("source") in {"STOCK_ANALYST", "AXIS_STOCK_ANALYST"}
+                        else "MENTOR_INPUT"
+                    ),
+                )
+            )
+        for position, indicator in enumerate(payload.get("indicators", [])):
+            if not isinstance(indicator, dict):
+                continue
+            value = indicator.get("value")
+            session.add(
+                AnalysisIndicator(
+                    analysis_id=analysis_id,
+                    position=position,
+                    indicator_name=str(indicator.get("indicator_name") or "Indicator")[:80],
+                    indicator_value=None if value is None else str(value)[:120],
+                    indicator_interpretation=indicator.get("interpretation"),
+                    source=(
+                        "STOCK_ANALYST"
+                        if indicator.get("source") == "STOCK_ANALYST"
+                        else "MENTOR_INPUT"
+                    ),
+                )
+            )
+        for position, scenario in enumerate(payload.get("scenarios", [])[:3]):
+            if not isinstance(scenario, dict):
+                continue
+            session.add(
+                AnalysisScenario(
+                    analysis_id=analysis_id,
+                    position=position,
+                    scenario_id=str(scenario.get("scenario_id") or f"SCENARIO_{position + 1}"),
+                    label=str(scenario.get("label") or "结构路径")[:160],
+                    model_weight_percent=scenario.get("model_weight_percent", 0),
+                    trigger=scenario.get("trigger"),
+                    targets_json=list(scenario.get("targets") or []),
+                    invalidation=scenario.get("invalidation"),
+                    rationale=scenario.get("rationale"),
+                    source=scenario.get("source", "STOCK_ANALYST"),
+                )
+            )
+        for position, point in enumerate(payload.get("prediction_path", [])):
+            if not isinstance(point, dict) or point.get("price") is None:
+                continue
+            session.add(
+                AnalysisPredictionPoint(
+                    analysis_id=analysis_id,
+                    sequence=position,
+                    point_type=str(point.get("type") or "STRUCTURE")[:32],
+                    price=point["price"],
+                    label=point.get("label"),
                 )
             )
         for point_type, key in (
@@ -923,7 +1132,11 @@ class AnalysisPipelineService:
                         point_type=point_type,
                         position=position,
                         content=content,
-                        source=("AXIS_STOCK_ANALYST" if key == "engine_observations" else "INPUT"),
+                        source=(
+                            "STOCK_ANALYST"
+                            if key == "engine_observations"
+                            else "MENTOR_INPUT"
+                        ),
                     )
                 )
 
@@ -970,7 +1183,9 @@ class AnalysisPipelineService:
             "summary": None,
             "core_thesis": None,
             "supporting_points": [],
+            "engine_observations": [],
             "key_levels": [],
+            "indicators": [],
             "invalidation": None,
             "catalysts": [],
             "risks": [],

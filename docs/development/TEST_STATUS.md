@@ -51,10 +51,13 @@
 - 同 Mentor / symbol 的新 Source 创建独立 Analysis，旧归档不变。
 - Analysis Public DTO 不包含 Mentor、Source、AI、LLM 或 confidence。
 - 输入图路径与文字有序点位转换成“预测路径（文字）”，LLM 不补数字。
-- Analysis 审核和发布不生成或上传图片；Source Attachment ID 只作 provenance。
+- Analysis 只发布确定性单一路径 PNG；Source 图片不转发，renderer 失败不阻塞归档且可重试。
 - Stock Analyst 失败时保留 LLM input 卡片并加入安全 warning。
 - Signal `S-00001` / Analysis `A-00001` 分别递增且不在页脚暴露 UUID。
-- `why_now`、INPUT / AXIS_STOCK_ANALYST Key Level 与 Point provenance 归档。
+- Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot 分层归档；Key Level 与 Indicator
+  使用 MENTOR_INPUT / STOCK_ANALYST provenance。
+- Mentor 点位和指标优先、AXIS 只补缺；冲突、Top Scenario 50% / 10% 门槛、Public 来源隐藏、
+  图片引用清理和 Card/Chart 同源路径均有回归测试。
 - AXIS Stock Analyst 结构位、情景权重、provider injection 与新股有限历史模式。
 - AXIS GEX Explorer Gamma/IV fallback、Walls、Zero Gamma 与 regime。
 - 数据库备份命令不在 argv 暴露密码，Docker context 排除 `.env`。
@@ -64,7 +67,7 @@
 
 Live validation：
 
-- PostgreSQL revision `20260830_0015`。
+- PostgreSQL revision `20260830_0018`。
 - 0015 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T071335Z.dump`
   已通过 `pg_restore --list`，SHA-256
   `c1dc2521caba1e3c44adfaf05fa4f7f09ac6ea91019cc0cac7db0841186b0e8b`。
@@ -101,7 +104,7 @@ Live validation：
   `gpt-5.6-terra`。
 - 旧 Cosmos bridge 验证仅作为迁移前记录；0010 后不再调用该 runtime。
 - AXIS Stock Analyst 真实 Moomoo 只读验证：NVDA 标准历史模式通过；SPCX 54 个交易日进入
-  LIMITED HISTORY。Analysis Pipeline 当前只消费文字 context，不发布 renderer 图片。
+  LIMITED HISTORY。Analysis Pipeline 使用独立确定性 renderer，不调用图片生成模型。
 - `✅・signal-review` 沿用频道 ID `1543397043043700767`；两条现有消息已原地刷新为
   `S-00001` / `S-00002`，各有一个 Category 下拉、3–4 个紧凑字段、附件数均为 0，
   旧草稿已获得可人工修正的默认分类。

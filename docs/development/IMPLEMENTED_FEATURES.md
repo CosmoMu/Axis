@@ -90,12 +90,12 @@
 - Strict Schema 字段名安全清洗、PostgreSQL Invocation → Draft 顺序写入和失败草稿保留审计重试。
 - Mentor select、edit、rewrite revision、archive-only、archive + publish、delete。
 - MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
-- 第一人称 AXIS 编辑口吻；新输入在归一化阶段处理，既有归档在审核卡/会员卡展示时兼容。
+- 中性 AXIS 编辑口吻；公开层不出现第一人称、作者归因或图片引用。
 - Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
 - 无 Thread 的 Member Lounge Public Card 和失败重试。
-- 单 ticker 观点合并 AXIS Stock Analyst 当前文字结构数据；输入已有预测路线/有序点位时转换为
-  “预测路径（文字）”。Stock Analyst 失败时使用 LLM input 卡片继续审核。
-- Analysis 审核卡与会员卡当前只发布文字；Source 原图只作内部解析证据。
+- 单 ticker 采用 Mentor-first / AXIS-fill-missing 融合，并保存点位、指标来源和冲突。
+- 后台 2–3 个 Scenario；Public 只显示有明确优势的 Top Scenario。单一结构路径由确定性
+  renderer 生成 PNG，不画未来 K 线；失败时文字 Analysis 继续归档并支持重试。
 - `AXIS GEX Explorer` 纯计算引擎已内置，保留未来 Moomoo option chain / Discord 频道接点。
 
 ## Operations

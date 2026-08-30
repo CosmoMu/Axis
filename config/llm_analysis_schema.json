@@ -16,6 +16,7 @@
     "supporting_points",
     "engine_observations",
     "key_levels",
+    "indicators",
     "invalidation",
     "catalysts",
     "risks",
@@ -120,9 +121,11 @@
         "additionalProperties": false,
         "required": [
           "symbol",
-          "level_type",
+          "role",
           "price",
-          "note",
+          "price_high",
+          "strength",
+          "description",
           "source"
         ],
         "properties": {
@@ -132,13 +135,17 @@
               "null"
             ]
           },
-          "level_type": {
+          "role": {
             "type": "string",
             "enum": [
               "WATCH",
               "SUPPORT",
               "RESISTANCE",
+              "PIVOT",
+              "BREAKOUT",
+              "TARGET",
               "INVALIDATION",
+              "KEY_ZONE",
               "OTHER"
             ]
           },
@@ -148,7 +155,21 @@
               "null"
             ]
           },
-          "note": {
+          "price_high": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "strength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "description": {
             "type": [
               "string",
               "null"
@@ -158,8 +179,46 @@
           "source": {
             "type": "string",
             "enum": [
-              "INPUT",
-              "AXIS_STOCK_ANALYST"
+              "MENTOR_INPUT"
+            ]
+          }
+        }
+      }
+    },
+    "indicators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "indicator_name",
+          "value",
+          "interpretation",
+          "source"
+        ],
+        "properties": {
+          "indicator_name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "interpretation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "MENTOR_INPUT"
             ]
           }
         }
