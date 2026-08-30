@@ -128,6 +128,7 @@ class ReviewDraft:
     stock_pt3: Decimal | None
     fib_0618: Decimal | None
     public_thesis: str | None
+    is_lotto: bool
 
 
 ACTIVE_REVIEW_STATUSES = {
@@ -233,6 +234,7 @@ def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
         stock_pt3=draft.stock_pt3,
         fib_0618=draft.fib_0618,
         public_thesis=draft.public_thesis,
+        is_lotto=draft.is_lotto,
     )
 
 
@@ -291,6 +293,7 @@ def _audit_payload(draft: TradeDraft) -> dict[str, object]:
         "plan_stock_pt3": draft.parse_payload.get("plan_stock_pt3"),
         "plan_fib_0618": draft.parse_payload.get("plan_fib_0618"),
         "public_thesis": draft.parse_payload.get("public_thesis"),
+        "is_lotto": draft.is_lotto,
     }
 
 
@@ -446,9 +449,34 @@ class CardReviewService:
                 raise ReviewValidationError("TRADE_UNAVAILABLE")
             before = _audit_payload(draft)
             draft.matched_trade_id = trade.id
+            draft.is_lotto = trade.is_lotto
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_TRADE_SELECTED", before
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def toggle_lotto(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            draft.is_lotto = not draft.is_lotto
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session,
+                draft,
+                actor_user_id,
+                interaction_id,
+                "TRADE_DRAFT_LOTTO_TOGGLED",
+                before,
             )
             await session.commit()
             return await self._snapshot(session, draft)
@@ -1004,4 +1032,5 @@ class CardReviewService:
             stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
+            is_lotto=draft.is_lotto,
         )

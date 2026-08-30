@@ -41,9 +41,7 @@ TEST_COMMANDS = {
     "test-payment-ui",
     "test-short-entry",
     "test-short-tp",
-    "test-short-runner",
     "test-short-stop",
-    "test-short-daily",
 }
 
 

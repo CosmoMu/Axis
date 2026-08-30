@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.db.base import Base
 from app.db.models import (
+    DailySummaryPublication,
     GuildConfig,
     ShortTermTracking,
     ShortTermTrackingEvent,
@@ -89,7 +90,7 @@ async def registered_service() -> tuple[Database, MarketTrackingService, ShortTe
 
 
 @pytest.mark.asyncio
-async def test_all_fixed_milestones_fire_once_and_watermarks_are_saved() -> None:
+async def test_all_fixed_tp_levels_fire_once_and_watermarks_are_saved() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
@@ -103,23 +104,39 @@ async def test_all_fixed_milestones_fire_once_and_watermarks_are_saved() -> None
             events = list(
                 await session.scalars(
                     select(ShortTermTrackingEvent).where(
-                        ShortTermTrackingEvent.milestone_pct.is_not(None)
+                        ShortTermTrackingEvent.tp_return_pct.is_not(None)
                     )
                 )
             )
+            events.sort(key=lambda event: event.tp_return_pct or 0)
         assert saved is not None
-        assert saved.milestones_hit == [20, 50, 100, 150, 200, 300, 400, 500, 750, 1000]
+        assert saved.tp_levels_hit == [f"TP{index}" for index in range(1, 11)]
         assert saved.highest_price == Decimal("11.5000")
         assert saved.highest_return_pct == Decimal("1050.0000")
         assert len(events) == 10
-        assert len({event.milestone_pct for event in events}) == 10
-        assert {event.public_card_type for event in events} == {"TP", "RUNNER"}
+        assert len({event.tp_return_pct for event in events}) == 10
+        assert {event.public_card_type for event in events} == {
+            f"TP{index}" for index in range(1, 11)
+        }
+        assert all(event.event_type == "FIXED_TP_HIT" for event in events)
+        assert [(event.public_price, event.public_return_pct) for event in events] == [
+            (Decimal("1.2000"), Decimal("20.0000")),
+            (Decimal("1.5000"), Decimal("50.0000")),
+            (Decimal("2.0000"), Decimal("100.0000")),
+            (Decimal("2.5000"), Decimal("150.0000")),
+            (Decimal("3.0000"), Decimal("200.0000")),
+            (Decimal("4.0000"), Decimal("300.0000")),
+            (Decimal("5.0000"), Decimal("400.0000")),
+            (Decimal("6.0000"), Decimal("500.0000")),
+            (Decimal("8.5000"), Decimal("750.0000")),
+            (Decimal("11.0000"), Decimal("1000.0000")),
+        ]
     finally:
         await database.dispose()
 
 
 @pytest.mark.asyncio
-async def test_high_low_initial_and_trailing_reference_stop_are_internal_states() -> None:
+async def test_high_low_and_tracking_protection_stop_are_internal_states() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
@@ -135,14 +152,40 @@ async def test_high_low_initial_and_trailing_reference_stop_are_internal_states(
                 )
             )
         assert saved is not None and stop is not None
-        assert saved.reference_protection_price == Decimal("1.5000")
-        assert saved.reference_protection_return_pct == Decimal("50.0000")
+        assert saved.tracking_protection_price == Decimal("1.5000")
+        assert saved.tracking_protection_return_pct == Decimal("50.0000")
         assert saved.tracking_state == "STOPPED"
-        assert saved.tracking_end_reason == "TRAILING_REFERENCE_PROTECTION"
+        assert saved.tracking_end_reason == "TRAILING_TRACKING_PROTECTION"
         assert saved.highest_return_pct == Decimal("100.0000")
         assert saved.lowest_return_pct == Decimal("0.0000")
         assert stop.public_card_type == "STOP_TRACKING"
         assert stop.event_type not in {"CLOSE", "SL", "SELL"}
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_tp1_moves_protection_to_entry_and_entry_touch_stops_tracking() -> None:
+    database, service, tracking = await registered_service()
+    now = datetime.now(UTC)
+    try:
+        await service.process_price(tracking.id, market_price(tracking.id, "1.20", now))
+        await service.process_price(
+            tracking.id, market_price(tracking.id, "1.00", now + timedelta(seconds=10))
+        )
+        async with database.session() as session:
+            saved = await session.get(ShortTermTracking, tracking.id)
+            stop = await session.scalar(
+                select(ShortTermTrackingEvent).where(
+                    ShortTermTrackingEvent.event_type == "TRACKING_STOPPED"
+                )
+            )
+        assert saved is not None and stop is not None
+        assert saved.tp_levels_hit == ["TP1"]
+        assert saved.tracking_protection_price == Decimal("1.0000")
+        assert saved.tracking_state == "STOPPED"
+        assert stop.public_notification is True
+        assert stop.public_card_type == "STOP_TRACKING"
     finally:
         await database.dispose()
 
@@ -179,6 +222,11 @@ async def test_fast_momentum_cooldown_and_new_high_rearm() -> None:
         assert events[0].trigger_market_price == Decimal("1.7900")
         assert events[0].public_price == Decimal("2.0000")
         assert events[0].trigger_market_price != events[0].public_price
+        assert {event.public_card_type for event in events} == {"TP"}
+        async with database.session() as session:
+            saved = await session.get(ShortTermTracking, tracking.id)
+        assert saved is not None
+        assert saved.tp_levels_hit == ["TP1", "TP2", "TP3"]
     finally:
         await database.dispose()
 
@@ -204,7 +252,7 @@ async def test_slow_pullback_does_not_trigger_momentum() -> None:
 
 
 @pytest.mark.asyncio
-async def test_overnight_gap_is_silent_but_enters_next_daily_results() -> None:
+async def test_overnight_gap_publishes_stop_and_enters_next_daily_results() -> None:
     database, service, tracking = await registered_service()
     first_day = datetime(2026, 8, 28, 19, 0, tzinfo=UTC)
     try:
@@ -214,9 +262,13 @@ async def test_overnight_gap_is_silent_but_enters_next_daily_results() -> None:
         await summaries.prepare_session(GUILD_ID, session_date)
         async with database.session() as session:
             overnight = await session.get(ShortTermTracking, tracking.id)
+            summary_categories = set(
+                await session.scalars(select(DailySummaryPublication.category))
+            )
         assert overnight is not None
         assert overnight.tracking_state == "OVERNIGHT_ACTIVE"
         assert overnight.overnight_count == 1
+        assert summary_categories == {"SWING", "LEAPS"}
 
         second_day = first_day + timedelta(days=3)
         await service.process_price(tracking.id, market_price(tracking.id, "1.40", second_day))
@@ -231,10 +283,30 @@ async def test_overnight_gap_is_silent_but_enters_next_daily_results() -> None:
                 )
             )
         assert stopped is not None and gap_event is not None and claim is not None
-        assert stopped.tracking_end_reason == "OVERNIGHT_GAP_REFERENCE_PROTECTION"
-        assert gap_event.public_notification is False
+        assert stopped.tracking_end_reason == "OVERNIGHT_GAP_TRACKING_PROTECTION"
+        assert gap_event.public_notification is True
         assert len(claim.card.short_term) == 1
         assert claim.card.short_term[0].tracking_end_return_pct == Decimal("40.0000")
         assert claim.card.short_term[0].maximum_return_pct == Decimal("100.0000")
+        assert claim.card.short_term[0].displayed_result_pct == Decimal("100.0000")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_daily_result_uses_tracking_end_when_no_tp_was_triggered() -> None:
+    database, service, tracking = await registered_service()
+    at = datetime(2026, 8, 28, 18, 0, tzinfo=UTC)
+    try:
+        await service.process_price(tracking.id, market_price(tracking.id, "0.49", at))
+        summaries = DailySummaryService(database)
+        await summaries.prepare_session(GUILD_ID, date(2026, 8, 28))
+        claim = await summaries.next_results_publishable(GUILD_ID, date(2026, 8, 28))
+        assert claim is not None
+        assert len(claim.card.short_term) == 1
+        row = claim.card.short_term[0]
+        assert row.tracking_end_return_pct == Decimal("-51.0000")
+        assert row.maximum_return_pct == Decimal("0.0000")
+        assert row.displayed_result_pct == Decimal("-51.0000")
     finally:
         await database.dispose()

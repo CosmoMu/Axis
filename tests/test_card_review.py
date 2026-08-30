@@ -249,6 +249,7 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
             "完整编辑",
             "重新生成图片",
             "确认发布",
+            "LOTTO · NO",
             "删除",
         ]
         assert "会员卡片预览" in (complete.title or "")
@@ -489,7 +490,12 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
         rendered = str(build_review_embed(short).to_dict())
 
         assert len(selects) == 1
-        assert [item.label for item in buttons] == ["EDIT", "PUBLISH", "DELETE"]
+        assert [item.label for item in buttons] == [
+            "EDIT",
+            "LOTTO · NO",
+            "PUBLISH",
+            "DELETE",
+        ]
         for forbidden in (
             "Mentor",
             "关联订单",
@@ -520,6 +526,83 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
             interaction_id=701,
         )
         assert approved.status == DraftStatus.READY.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_lotto_toggle_is_persisted_versioned_and_preserved_across_category_changes() -> None:
+    database, draft, _mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        initial = await service.get(draft.id)
+        assert initial.is_lotto is False
+        missing_before = publication_missing_fields(initial)
+        lotto = await service.toggle_lotto(
+            draft.id,
+            expected_version=initial.version,
+            actor_user_id=501,
+            interaction_id=720,
+        )
+        assert lotto.is_lotto is True
+        assert publication_missing_fields(lotto) == missing_before
+        swing_view = ReviewDraftView(
+            SimpleNamespace(), lotto, mentor_choices=[], trade_choices=[]
+        )
+        assert "LOTTO · YES" in [
+            item.label for item in swing_view.children if isinstance(item, discord.ui.Button)
+        ]
+        short = await service.select_category(
+            draft.id,
+            category="SHORT_TERM",
+            expected_version=lotto.version,
+            actor_user_id=501,
+            interaction_id=721,
+        )
+        assert short.is_lotto is True
+        short_view = ReviewDraftView(
+            SimpleNamespace(), short, mentor_choices=[], trade_choices=[]
+        )
+        assert "LOTTO · YES" in [
+            item.label for item in short_view.children if isinstance(item, discord.ui.Button)
+        ]
+        leaps = await service.select_category(
+            draft.id,
+            category="LEAPS",
+            expected_version=short.version,
+            actor_user_id=501,
+            interaction_id=722,
+        )
+        edited = await service.edit(
+            draft.id,
+            values=replace(complete_edit(), selected_category="LEAPS"),
+            expected_version=leaps.version,
+            actor_user_id=501,
+            interaction_id=723,
+        )
+        assert edited.is_lotto is True
+        leaps_view = ReviewDraftView(
+            SimpleNamespace(), edited, mentor_choices=[], trade_choices=[]
+        )
+        assert "LOTTO · YES" in [
+            item.label for item in leaps_view.children if isinstance(item, discord.ui.Button)
+        ]
+        restored = await service.toggle_lotto(
+            draft.id,
+            expected_version=edited.version,
+            actor_user_id=501,
+            interaction_id=724,
+        )
+        assert restored.is_lotto is False
+        async with database.session() as session:
+            actions = list(
+                await session.scalars(
+                    select(AuditLog.action_type).where(
+                        AuditLog.action_type == "TRADE_DRAFT_LOTTO_TOGGLED"
+                    )
+                )
+            )
+        assert actions == ["TRADE_DRAFT_LOTTO_TOGGLED", "TRADE_DRAFT_LOTTO_TOGGLED"]
     finally:
         await database.dispose()
 

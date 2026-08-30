@@ -291,6 +291,7 @@ class TradeDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     internal_notes: Mapped[str | None] = mapped_column(Text)
+    is_lotto: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
     review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     review_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -337,6 +338,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     sl: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     tp1: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     tp2: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    is_lotto: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -415,13 +417,13 @@ class ShortTermTracking(UuidPrimaryKeyMixin, TimestampMixin, Base):
     lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     lowest_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    milestones_hit: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    tp_levels_hit: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     momentum_tp_events: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON, default=list, nullable=False
     )
-    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    reference_protection_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
-    reference_protection_reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    tracking_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    tracking_protection_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    tracking_protection_reason: Mapped[str] = mapped_column(String(64), nullable=False)
     tracking_state: Mapped[str] = mapped_column(String(24), nullable=False)
     tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
     tracking_end_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
@@ -452,8 +454,8 @@ class ShortTermTrackingEvent(UuidPrimaryKeyMixin, Base):
         UniqueConstraint("guild_id", "public_ref", name="short_term_event_public_ref"),
         UniqueConstraint("guild_id", "discord_message_id", name="short_term_event_message"),
         CheckConstraint(
-            "event_type IN ('ENTRY_PUBLISHED','FIXED_TP_HIT','RUNNER_MILESTONE',"
-            "'FAST_MOMENTUM_REVERSAL','REFERENCE_PROTECTION_MOVED','TRACKING_STOPPED',"
+            "event_type IN ('ENTRY_PUBLISHED','FIXED_TP_HIT',"
+            "'FAST_MOMENTUM_REVERSAL','TRACKING_PROTECTION_MOVED','TRACKING_STOPPED',"
             "'OVERNIGHT_CARRY','OVERNIGHT_GAP_STOP')",
             name="short_term_event_type",
         ),
@@ -473,7 +475,7 @@ class ShortTermTrackingEvent(UuidPrimaryKeyMixin, Base):
     )
     event_key: Mapped[str] = mapped_column(String(100), nullable=False)
     event_type: Mapped[str] = mapped_column(String(48), nullable=False)
-    milestone_pct: Mapped[int | None] = mapped_column(Integer)
+    tp_return_pct: Mapped[int | None] = mapped_column(Integer)
     source_market_timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -485,7 +487,7 @@ class ShortTermTrackingEvent(UuidPrimaryKeyMixin, Base):
     high_watermark_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     low_watermark_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     low_watermark_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
-    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    tracking_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     trigger_market_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     trigger_market_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     drawdown_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
@@ -527,7 +529,7 @@ class ShortTermDailySnapshot(UuidPrimaryKeyMixin, Base):
     highest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
-    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    tracking_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     tracking_state: Mapped[str] = mapped_column(String(24), nullable=False)
     tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(

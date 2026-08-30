@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -31,7 +32,6 @@ from app.domain.public_cards import (
     DailyResultRow,
     DailyResultsCard,
     ShortTermDailyRow,
-    ShortTermDailySummary,
 )
 from app.integrations.moomoo_market_data import (
     MarketDataError,
@@ -42,12 +42,10 @@ from app.services.trading_calendar import TradingCalendarService
 
 ET = ZoneInfo("America/New_York")
 CATEGORIES = (
-    TradeCategory.SHORT_TERM.value,
     TradeCategory.SWING.value,
     TradeCategory.LEAPS.value,
 )
 PUBLIC_PREFIX = {
-    TradeCategory.SHORT_TERM.value: "ST",
     TradeCategory.SWING.value: "SW",
     TradeCategory.LEAPS.value: "LP",
 }
@@ -64,7 +62,7 @@ class DailySummaryClaim:
     publication_id: uuid.UUID
     channel_id: int
     public_ref: str
-    summary: DailyCategorySummary | ShortTermDailySummary
+    summary: DailyCategorySummary
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,29 +106,57 @@ def _weighted_return(events: list[TradeEvent]) -> Decimal | None:
     return ((exit_value - entry_cost) / entry_cost) * Decimal("100")
 
 
-def _serialize_summary(
-    summary: DailyCategorySummary | ShortTermDailySummary,
-) -> dict[str, Any]:
+def _trade_result_details(
+    events: list[TradeEvent],
+    final_return_pct: Decimal | None,
+) -> tuple[tuple[tuple[str, Decimal], ...], Decimal | None, str | None, Decimal | None]:
+    tp_returns = tuple(
+        sorted(
+            (
+                (event.action, event.pnl_pct)
+                for event in events
+                if re.fullmatch(r"TP\d+", event.action) and event.pnl_pct is not None
+            ),
+            key=lambda item: int(item[0][2:]),
+        )
+    )
+    pnl_values = [event.pnl_pct for event in events if event.pnl_pct is not None]
+    if final_return_pct is not None:
+        pnl_values.append(final_return_pct)
+    highest = max(pnl_values) if pnl_values else None
+    exit_event = next(
+        (
+            event
+            for event in reversed(events)
+            if event.position_after_eighths == 0
+            and event.action in {"SL", "CLOSE", "CANCEL"}
+        ),
+        None,
+    )
+    return (
+        tp_returns,
+        highest,
+        exit_event.action if exit_event is not None else None,
+        (
+            exit_event.pnl_pct
+            if exit_event is not None and exit_event.pnl_pct is not None
+            else final_return_pct
+        ),
+    )
+
+
+def _serialize_summary(summary: DailyCategorySummary) -> dict[str, Any]:
     def clean(value: object) -> object:
         if isinstance(value, (date, datetime)):
             return value.isoformat()
         if isinstance(value, Decimal):
             return str(value)
+        if isinstance(value, (tuple, list)):
+            return [clean(item) for item in value]
+        if isinstance(value, dict):
+            return {key: clean(item) for key, item in value.items()}
         return value
 
-    if isinstance(summary, ShortTermDailySummary):
-        return {
-            "kind": "SHORT_TERM_TRACKING",
-            "category": summary.category,
-            "session_date": summary.session_date.isoformat(),
-            "active": [
-                {key: clean(value) for key, value in asdict(item).items()}
-                for item in summary.active
-            ],
-            "ended": [
-                {key: clean(value) for key, value in asdict(item).items()} for item in summary.ended
-            ],
-        }
     return {
         "kind": "STANDARD_TRADE",
         "category": summary.category,
@@ -153,31 +179,8 @@ def _optional_decimal(value: object) -> Decimal | None:
         return None
 
 
-def _short_term_row(item: dict[str, Any]) -> ShortTermDailyRow:
-    return ShortTermDailyRow(
-        public_trade_id=str(item["public_trade_id"]),
-        ticker=str(item["ticker"]),
-        expiry=date.fromisoformat(str(item["expiry"])),
-        strike=Decimal(str(item["strike"])),
-        option_side=str(item["option_side"]),
-        current_return_pct=_optional_decimal(item.get("current_return_pct")),
-        tracking_end_return_pct=_optional_decimal(item.get("tracking_end_return_pct")),
-        highest_return_pct=Decimal(str(item["highest_return_pct"])),
-        lowest_return_pct=Decimal(str(item["lowest_return_pct"])),
-    )
-
-
-def _deserialize_summary(
-    payload: dict[str, Any],
-) -> DailyCategorySummary | ShortTermDailySummary:
+def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
     try:
-        if payload.get("kind") == "SHORT_TERM_TRACKING":
-            return ShortTermDailySummary(
-                category=TradeCategory.SHORT_TERM.value,
-                session_date=date.fromisoformat(str(payload["session_date"])),
-                active=tuple(_short_term_row(item) for item in payload.get("active", [])),
-                ended=tuple(_short_term_row(item) for item in payload.get("ended", [])),
-            )
         active = tuple(
             DailyActiveTrade(
                 public_trade_id=str(item["public_trade_id"]),
@@ -194,6 +197,7 @@ def _deserialize_summary(
                     if item.get("quote_time")
                     else None
                 ),
+                is_lotto=bool(item.get("is_lotto", False)),
             )
             for item in payload.get("active", [])
         )
@@ -205,6 +209,14 @@ def _deserialize_summary(
                 strike=Decimal(str(item["strike"])),
                 option_side=str(item["option_side"]),
                 final_return_pct=_optional_decimal(item.get("final_return_pct")),
+                tp_returns=tuple(
+                    (str(label), Decimal(str(value)))
+                    for label, value in item.get("tp_returns", [])
+                ),
+                highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
+                exit_label=(str(item["exit_label"]) if item.get("exit_label") else None),
+                exit_return_pct=_optional_decimal(item.get("exit_return_pct")),
+                is_lotto=bool(item.get("is_lotto", False)),
             )
             for item in payload.get("closed", [])
         )
@@ -220,10 +232,15 @@ def _deserialize_summary(
 
 def _serialize_results(card: DailyResultsCard) -> dict[str, Any]:
     def row(item: DailyResultRow) -> dict[str, object]:
-        return {
-            key: str(value) if isinstance(value, Decimal) else value
-            for key, value in asdict(item).items()
-        }
+        output: dict[str, object] = {}
+        for key, value in asdict(item).items():
+            if isinstance(value, Decimal):
+                output[key] = str(value)
+            elif key == "tp_returns":
+                output[key] = [[label, str(return_pct)] for label, return_pct in value]
+            else:
+                output[key] = value
+        return output
 
     return {
         "session_date": card.session_date.isoformat(),
@@ -245,6 +262,15 @@ def _deserialize_results(payload: dict[str, Any]) -> DailyResultsCard:
                 maximum_return_pct=_optional_decimal(item.get("maximum_return_pct")),
                 maximum_drawdown_pct=_optional_decimal(item.get("maximum_drawdown_pct")),
                 mentor_final_return_pct=_optional_decimal(item.get("mentor_final_return_pct")),
+                displayed_result_pct=_optional_decimal(item.get("displayed_result_pct")),
+                tp_returns=tuple(
+                    (str(label), Decimal(str(value)))
+                    for label, value in item.get("tp_returns", [])
+                ),
+                highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
+                exit_label=(str(item["exit_label"]) if item.get("exit_label") else None),
+                exit_return_pct=_optional_decimal(item.get("exit_return_pct")),
+                is_lotto=bool(item.get("is_lotto", False)),
             )
             for item in payload.get(key, [])
         )
@@ -289,13 +315,12 @@ class DailySummaryService:
                     DailyResultsPublication.session_date == session_date,
                 )
             )
-            if existing == set(CATEGORIES) and results_existing is not None:
+            if set(CATEGORIES).issubset(existing) and results_existing is not None:
                 return True
             config = await session.get(GuildConfig, guild_id)
             if config is None:
                 raise DailySummaryError("GUILD_CONFIG_NOT_FOUND")
             channels = {
-                TradeCategory.SHORT_TERM.value: config.short_term_channel_id,
                 TradeCategory.SWING.value: config.swing_channel_id,
                 TradeCategory.LEAPS.value: config.leaps_channel_id,
             }
@@ -382,7 +407,6 @@ class DailySummaryService:
         for event in events:
             events_by_trade.setdefault(event.trade_id, []).append(event)
 
-        short_term_active: list[ShortTermDailyRow] = []
         short_term_ended: list[ShortTermDailyRow] = []
         for tracking, trade in tracking_rows:
             row = ShortTermDailyRow(
@@ -395,20 +419,12 @@ class DailySummaryService:
                 tracking_end_return_pct=tracking.tracking_end_return_pct,
                 highest_return_pct=tracking.highest_return_pct,
                 lowest_return_pct=tracking.lowest_return_pct,
+                is_lotto=trade.is_lotto,
             )
-            if tracking.tracking_state in {"ACTIVE", "OVERNIGHT_ACTIVE"}:
-                short_term_active.append(row)
-            else:
+            if tracking.tracking_state not in {"ACTIVE", "OVERNIGHT_ACTIVE"}:
                 short_term_ended.append(row)
 
-        summaries: list[DailyCategorySummary | ShortTermDailySummary] = [
-            ShortTermDailySummary(
-                category=TradeCategory.SHORT_TERM.value,
-                session_date=session_date,
-                active=tuple(short_term_active),
-                ended=tuple(short_term_ended),
-            )
-        ]
+        summaries: list[DailyCategorySummary] = []
         for category in (TradeCategory.SWING.value, TradeCategory.LEAPS.value):
             active_rows = []
             for trade in active_trades:
@@ -431,6 +447,7 @@ class DailySummaryService:
                         reference_price=reference,
                         unrealized_pnl_pct=pnl,
                         quote_time=quote.quote_time if quote is not None else None,
+                        is_lotto=trade.is_lotto,
                     )
                 )
             closed_rows = []
@@ -440,6 +457,9 @@ class DailySummaryService:
                 final_return = trade.final_return_pct
                 if final_return is None:
                     final_return = _weighted_return(events_by_trade.get(trade.id, []))
+                tp_returns, highest, exit_label, exit_return = _trade_result_details(
+                    events_by_trade.get(trade.id, []), final_return
+                )
                 closed_rows.append(
                     DailyClosedTrade(
                         public_trade_id=trade.public_trade_id,
@@ -448,6 +468,11 @@ class DailySummaryService:
                         strike=trade.strike,
                         option_side=trade.option_side,
                         final_return_pct=final_return,
+                        tp_returns=tp_returns,
+                        highest_return_pct=highest,
+                        exit_label=exit_label,
+                        exit_return_pct=exit_return,
+                        is_lotto=trade.is_lotto,
                     )
                 )
             summaries.append(
@@ -516,7 +541,7 @@ class DailySummaryService:
                         highest_return_pct=current.highest_return_pct,
                         lowest_price=current.lowest_price,
                         lowest_return_pct=current.lowest_return_pct,
-                        reference_protection_price=current.reference_protection_price,
+                        tracking_protection_price=current.tracking_protection_price,
                         tracking_state=current.tracking_state,
                         tracking_end_reason=current.tracking_end_reason,
                     )
@@ -545,7 +570,7 @@ class DailySummaryService:
                         high_watermark_at=current.highest_at,
                         low_watermark_price=current.lowest_price,
                         low_watermark_return_pct=current.lowest_return_pct,
-                        reference_protection_price=current.reference_protection_price,
+                        tracking_protection_price=current.tracking_protection_price,
                         tracking_policy_version=current.tracking_policy_version,
                         price_source=current.price_source,
                         public_notification=False,
@@ -570,18 +595,33 @@ class DailySummaryService:
                     )
                 )
             if results_existing is None:
-                short_results = tuple(
-                    DailyResultRow(
-                        public_trade_id=row.public_trade_id,
-                        ticker=row.ticker,
-                        strike=row.strike,
-                        option_side=row.option_side,
-                        tracking_end_return_pct=row.tracking_end_return_pct,
-                        maximum_return_pct=row.highest_return_pct,
-                        maximum_drawdown_pct=row.lowest_return_pct,
+                tracking_by_public_id = {
+                    trade.public_trade_id: tracking for tracking, trade in tracking_rows
+                }
+                short_result_rows = []
+                for row in short_term_ended:
+                    tracking = tracking_by_public_id[row.public_trade_id]
+                    has_take_profit = bool(
+                        tracking.tp_levels_hit or tracking.momentum_tp_events
                     )
-                    for row in short_term_ended
-                )
+                    short_result_rows.append(
+                        DailyResultRow(
+                            public_trade_id=row.public_trade_id,
+                            ticker=row.ticker,
+                            strike=row.strike,
+                            option_side=row.option_side,
+                            tracking_end_return_pct=row.tracking_end_return_pct,
+                            maximum_return_pct=row.highest_return_pct,
+                            maximum_drawdown_pct=row.lowest_return_pct,
+                            displayed_result_pct=(
+                                row.highest_return_pct
+                                if has_take_profit
+                                else row.tracking_end_return_pct
+                            ),
+                            is_lotto=row.is_lotto,
+                        )
+                    )
+                short_results = tuple(short_result_rows)
                 mentor_results: dict[str, list[DailyResultRow]] = {
                     TradeCategory.SWING.value: [],
                     TradeCategory.LEAPS.value: [],
@@ -590,6 +630,9 @@ class DailySummaryService:
                     final_return = trade.final_return_pct
                     if final_return is None:
                         final_return = _weighted_return(events_by_trade.get(trade.id, []))
+                    tp_returns, highest, exit_label, exit_return = _trade_result_details(
+                        events_by_trade.get(trade.id, []), final_return
+                    )
                     mentor_results[trade.category].append(
                         DailyResultRow(
                             public_trade_id=trade.public_trade_id,
@@ -597,6 +640,11 @@ class DailySummaryService:
                             strike=trade.strike,
                             option_side=trade.option_side,
                             mentor_final_return_pct=final_return,
+                            tp_returns=tp_returns,
+                            highest_return_pct=highest,
+                            exit_label=exit_label,
+                            exit_return_pct=exit_return,
+                            is_lotto=trade.is_lotto,
                         )
                     )
                 results_card = DailyResultsCard(
@@ -631,6 +679,7 @@ class DailySummaryService:
                 .where(
                     DailySummaryPublication.guild_id == guild_id,
                     DailySummaryPublication.session_date == session_date,
+                    DailySummaryPublication.category.in_(CATEGORIES),
                     DailySummaryPublication.status.in_(
                         (PublicationStatus.PENDING.value, PublicationStatus.FAILED.value)
                     ),

@@ -214,7 +214,7 @@ class CardReviewCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _register_views(self) -> None:
-        for category in TradeCategory:
+        for category in (TradeCategory.SWING, TradeCategory.LEAPS):
             self.bot.add_view(ActiveOrdersView(self, category.value))
         for draft in await self.service.registered(self.guild_id):
             view = await self._review_view(draft)
@@ -388,7 +388,11 @@ class CardReviewCog(commands.Cog):
                 if isinstance(claim.card, ShortTermEntryCard)
                 else claim.card.category
             )
-            view = ActiveOrdersView(self, category)
+            view = (
+                None
+                if category == TradeCategory.SHORT_TERM.value
+                else ActiveOrdersView(self, category)
+            )
             if message is None:
                 public_card = claim.card
                 chart_png = None

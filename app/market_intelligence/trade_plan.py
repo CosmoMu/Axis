@@ -82,7 +82,9 @@ def _money(value: float | Decimal) -> str:
 def _number(value: Decimal | None) -> str:
     if value is None:
         return "—"
-    rendered = f"{value:f}".rstrip("0").rstrip(".")
+    rendered = f"{value:f}"
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
     return rendered or "0"
 
 

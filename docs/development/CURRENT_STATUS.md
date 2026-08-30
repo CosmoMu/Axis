@@ -4,7 +4,7 @@
 
 **Current stage:** Core feature-complete / Production live validation
 
-**Database revision:** 20260830_0018
+**Database revision:** 20260830_0019
 
 **AXIS LAB:** DEFERRED
 
@@ -76,22 +76,23 @@ Implemented:
 - no Mentor required，不选择 Mentor、不关联 Mentor Trade。
 - 独立 ST-XXXX 公开编号。
 - Massive MarketTrackingService 与可替换的 market-data provider 边界。
-- 固定 TP milestones：20% / 50%。
-- Runner milestones：100% / 150% / 200% / 300% / 400% / 500% / 750% / 1000%。
-- Fast Momentum Reversal。
+- 固定 TP1–TP10：20% / 50% / 100% / 150% / 200% / 300% / 400% / 500% / 750% /
+  1000%，每一级只触发一次。
+- Short-Term Runner 已删除；Fast Momentum Reversal 只发送不推进固定编号的 Momentum TP。
 - High / Low Watermark。
-- Reference Protection。
+- Tracking Protection：初始 -50%；TP1 后锁成本；之后锁前一级 TP。
 - Overnight Tracking。
 - Tracking Stop。
-- Active View。
-- Daily Summary。
+- LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
+- Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」。
 - Results。
 
 Remaining: 修复或确认已发布订单自动注册 tracking 的运行路径；完成真实 Massive quote、
-milestone、reversal/protection、Discord 事件、重启恢复和定时总结 E2E。
+TP、reversal/protection、Discord 事件、重启恢复和 Daily Results E2E。
 
-Tests: simplified review、MarketTrackingService、milestones、watermark、momentum reversal、
-reference protection、overnight、tracking stop、restart recovery、summary 和 results 均有自动化覆盖。
+Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、watermark、momentum
+reversal、tracking protection、overnight、tracking stop、restart recovery、无 Short-Term Daily
+Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 
 Production status: **真实 Massive E2E 尚未验收。** ST-0001 已 Published 且 Entry Price 有效，
 但 short_term_tracking=0、short_term_events=0，因此不能标记 Live Complete。

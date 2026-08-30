@@ -19,7 +19,7 @@ from app.db.models import (
     utc_now,
 )
 from app.db.session import Database
-from app.domain.public_cards import ShortTermActiveTrade, ShortTermTrackingCard
+from app.domain.public_cards import ShortTermTrackingCard
 from app.integrations.massive_market_data import (
     MarketDataProvider,
     MarketPrice,
@@ -77,7 +77,9 @@ class MarketTrackingService:
             if trade is None or trade.category != "SHORT_TERM" or trade.mentor_id is not None:
                 raise ShortTermTrackingError("SHORT_TERM_TRADE_INVALID")
             now = utc_now()
-            reference_price, reference_return = self.policy.reference_for(entry_price, set())
+            protection_price, protection_return, protection_reason = self.policy.protection_for(
+                entry_price, set()
+            )
             tracking = ShortTermTracking(
                 guild_id=trade.guild_id,
                 trade_id=trade.id,
@@ -93,11 +95,11 @@ class MarketTrackingService:
                 lowest_price=entry_price,
                 lowest_return_pct=Decimal("0"),
                 lowest_at=now,
-                milestones_hit=[],
+                tp_levels_hit=[],
                 momentum_tp_events=[],
-                reference_protection_price=reference_price,
-                reference_protection_return_pct=Decimal(reference_return),
-                reference_protection_reason="INITIAL_REFERENCE_PROTECTION",
+                tracking_protection_price=protection_price,
+                tracking_protection_return_pct=Decimal(protection_return),
+                tracking_protection_reason=protection_reason,
                 tracking_state="ACTIVE",
                 tracking_started_at=now,
                 last_session_date=now.astimezone(ET).date(),
@@ -200,7 +202,7 @@ class MarketTrackingService:
                 return
 
             previous_high = tracking.highest_price
-            previous_reference = tracking.reference_protection_price
+            previous_protection = tracking.tracking_protection_price
             current_return = self.policy.return_pct(tracking.entry_price, market_price.price)
             market_date = market_price.source_timestamp.astimezone(ET).date()
             new_session = (
@@ -225,55 +227,58 @@ class MarketTrackingService:
                 tracking.lowest_at = market_price.source_timestamp
 
             if new_session and tracking.tracking_state == "OVERNIGHT_ACTIVE":
-                if market_price.price <= previous_reference:
+                if market_price.price <= previous_protection:
                     self._stop(
                         session,
                         tracking,
                         market_price,
                         current_return,
-                        reason="OVERNIGHT_GAP_REFERENCE_PROTECTION",
+                        reason="OVERNIGHT_GAP_TRACKING_PROTECTION",
                         event_type="OVERNIGHT_GAP_STOP",
-                        public_notification=False,
+                        public_notification=True,
                     )
                     await session.commit()
                     return
                 tracking.tracking_state = "ACTIVE"
 
-            hit = set(int(value) for value in tracking.milestones_hit)
-            crossed = self.policy.crossed_milestones(current_return, hit)
+            hit = set(str(value) for value in tracking.tp_levels_hit)
+            crossed = self.policy.crossed_tp_levels(current_return, hit)
             for rule in crossed:
-                hit.add(rule.return_pct)
+                hit.add(rule.label)
                 tracking.momentum_anchor_version += 1
-                event_type = "FIXED_TP_HIT" if rule.card_type == "TP" else "RUNNER_MILESTONE"
                 session.add(
                     self._event(
                         tracking,
-                        event_type=event_type,
-                        event_key=f"MILESTONE:{rule.return_pct}",
+                        event_type="FIXED_TP_HIT",
+                        event_key=f"FIXED_TP:{rule.label}",
                         market_time=market_price.source_timestamp,
                         received_at=market_price.received_at,
                         price=market_price.price,
                         return_pct=current_return,
-                        milestone_pct=rule.return_pct,
+                        tp_return_pct=rule.return_pct,
                         public_notification=True,
-                        public_card_type=rule.card_type,
-                        public_price=market_price.price,
-                        public_return_pct=current_return,
+                        public_card_type=rule.label,
+                        public_price=self.policy.price_at_return(
+                            tracking.entry_price, rule.return_pct
+                        ),
+                        public_return_pct=Decimal(rule.return_pct),
                     )
                 )
-            tracking.milestones_hit = sorted(hit)
-            new_reference, new_reference_return = self.policy.reference_for(
-                tracking.entry_price, hit
+            tracking.tp_levels_hit = [
+                rule.label for rule in self.policy.tp_levels if rule.label in hit
+            ]
+            new_protection, new_protection_return, new_protection_reason = (
+                self.policy.protection_for(tracking.entry_price, hit)
             )
-            if new_reference > tracking.reference_protection_price:
-                tracking.reference_protection_price = new_reference
-                tracking.reference_protection_return_pct = Decimal(new_reference_return)
-                tracking.reference_protection_reason = f"MILESTONE_{max(hit)}"
+            if new_protection > tracking.tracking_protection_price:
+                tracking.tracking_protection_price = new_protection
+                tracking.tracking_protection_return_pct = Decimal(new_protection_return)
+                tracking.tracking_protection_reason = new_protection_reason
                 session.add(
                     self._event(
                         tracking,
-                        event_type="REFERENCE_PROTECTION_MOVED",
-                        event_key=f"REFERENCE:{new_reference_return}",
+                        event_type="TRACKING_PROTECTION_MOVED",
+                        event_key=f"TRACKING_PROTECTION:{new_protection_return}",
                         market_time=market_price.source_timestamp,
                         received_at=market_price.received_at,
                         price=market_price.price,
@@ -301,7 +306,7 @@ class MarketTrackingService:
                 and (cooldown is None or market_price.received_at >= cooldown)
                 and tracking.momentum_anchor_version > tracking.momentum_last_event_anchor_version
                 and market_price.price < previous_high
-                and market_price.price > tracking.reference_protection_price
+                and market_price.price > tracking.tracking_protection_price
             ):
                 drawdown, _ = momentum
                 event_id = uuid.uuid4()
@@ -344,11 +349,11 @@ class MarketTrackingService:
                     },
                 ]
 
-            if market_price.price <= tracking.reference_protection_price:
+            if market_price.price <= tracking.tracking_protection_price:
                 reason = (
-                    "INITIAL_REFERENCE_PROTECTION"
-                    if not hit or tracking.reference_protection_return_pct < 0
-                    else "TRAILING_REFERENCE_PROTECTION"
+                    "INITIAL_TRACKING_PROTECTION"
+                    if not hit or tracking.tracking_protection_return_pct < 0
+                    else "TRAILING_TRACKING_PROTECTION"
                 )
                 self._stop(
                     session,
@@ -361,33 +366,6 @@ class MarketTrackingService:
                 )
             tracking.version += 1
             await session.commit()
-
-    async def current_orders(self, guild_id: int) -> list[ShortTermActiveTrade]:
-        async with self.database.session() as session:
-            rows = (
-                await session.execute(
-                    select(ShortTermTracking, Trade)
-                    .join(Trade, Trade.id == ShortTermTracking.trade_id)
-                    .where(
-                        ShortTermTracking.guild_id == guild_id,
-                        ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
-                    )
-                    .order_by(Trade.public_trade_id)
-                    .limit(25)
-                )
-            ).all()
-        return [
-            ShortTermActiveTrade(
-                public_trade_id=trade.public_trade_id,
-                ticker=trade.ticker,
-                expiry=trade.expiry,
-                strike=trade.strike,
-                option_side=trade.option_side,
-                current_price=tracking.current_price,
-                current_return_pct=tracking.current_return_pct,
-            )
-            for tracking, trade in rows
-        ]
 
     async def next_public_event(self, guild_id: int) -> TrackingEventClaim | None:
         async with self.database.session() as session:
@@ -428,6 +406,7 @@ class MarketTrackingService:
                         if event.public_card_type == "STOP_TRACKING"
                         else None
                     ),
+                    is_lotto=trade.is_lotto,
                 ),
             )
 
@@ -481,6 +460,10 @@ class MarketTrackingService:
                         received_at=now,
                         price=tracking.current_price or tracking.entry_price,
                         return_pct=tracking.current_return_pct or Decimal("0"),
+                        public_notification=True,
+                        public_card_type="STOP_TRACKING",
+                        public_price=tracking.current_price or tracking.entry_price,
+                        public_return_pct=tracking.current_return_pct or Decimal("0"),
                     )
                 )
             await session.commit()
@@ -528,7 +511,7 @@ class MarketTrackingService:
         price: Decimal,
         return_pct: Decimal,
         event_id: uuid.UUID | None = None,
-        milestone_pct: int | None = None,
+        tp_return_pct: int | None = None,
         trigger_price: Decimal | None = None,
         trigger_return: Decimal | None = None,
         drawdown_pct: Decimal | None = None,
@@ -546,7 +529,7 @@ class MarketTrackingService:
             trade_id=tracking.trade_id,
             event_key=event_key,
             event_type=event_type,
-            milestone_pct=milestone_pct,
+            tp_return_pct=tp_return_pct,
             source_market_timestamp=market_time,
             received_at=received_at,
             price=price,
@@ -556,7 +539,7 @@ class MarketTrackingService:
             high_watermark_at=tracking.highest_at,
             low_watermark_price=tracking.lowest_price,
             low_watermark_return_pct=tracking.lowest_return_pct,
-            reference_protection_price=tracking.reference_protection_price,
+            tracking_protection_price=tracking.tracking_protection_price,
             trigger_market_price=trigger_price,
             trigger_market_return_pct=trigger_return,
             drawdown_pct=drawdown_pct,

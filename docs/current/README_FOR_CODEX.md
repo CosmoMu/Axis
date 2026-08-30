@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的六份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的七份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -20,7 +20,9 @@
    GEX 计算边界。
 4. 03_AXIS_LAB_DEFERRED_SPEC.md — 未来设计，仅供边界参考，当前不得实施。
 5. 04_IMPLEMENTATION_ORDER_AND_GATES.md — 实施顺序、发布 Gate 与生产验证要求。
-6. README_FOR_CODEX.md — 本入口和文档使用规则。
+6. 05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md — 最新 Short-Term TP、LOTTO、Active View、
+   Daily Results 与 Daily Summary 覆盖规则。
+7. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -53,7 +55,7 @@
 
 - Discord Core、权限、持久化控制面板与幂等 Bootstrap
 - Signal / Swing / LEAPS / Short-Term Pipeline
-- Short-Term Automated Tracking 与 Active Order / Daily Results
+- Short-Term Automated Tracking、LOTTO 与 Daily Results；Swing / LEAPS Active Position View
 - Mentor、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控

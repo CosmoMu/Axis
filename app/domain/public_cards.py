@@ -37,6 +37,7 @@ class PublicTradeCard:
     stock_pt3: Decimal | None = None
     fib_0618: Decimal | None = None
     public_thesis: str | None = None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,7 @@ class ActivePublicTrade:
     last_public_action: str
     position_eighths: int
     avg_cost: Decimal | None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,11 +65,12 @@ class ShortTermEntryCard:
     strike: Decimal
     option_side: str
     entry_price: Decimal
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class ShortTermTrackingCard:
-    """Public TP, RUNNER, or tracking-stop boundary."""
+    """Public fixed TP, Momentum TP, or tracking-stop boundary."""
 
     public_trade_id: str
     card_type: str
@@ -78,17 +81,7 @@ class ShortTermTrackingCard:
     price: Decimal
     return_pct: Decimal
     highest_return_pct: Decimal | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ShortTermActiveTrade:
-    public_trade_id: str
-    ticker: str
-    expiry: date
-    strike: Decimal
-    option_side: str
-    current_price: Decimal | None
-    current_return_pct: Decimal | None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,14 +95,7 @@ class ShortTermDailyRow:
     tracking_end_return_pct: Decimal | None
     highest_return_pct: Decimal
     lowest_return_pct: Decimal
-
-
-@dataclass(frozen=True, slots=True)
-class ShortTermDailySummary:
-    category: str
-    session_date: date
-    active: tuple[ShortTermDailyRow, ...]
-    ended: tuple[ShortTermDailyRow, ...]
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +108,12 @@ class DailyResultRow:
     maximum_return_pct: Decimal | None = None
     maximum_drawdown_pct: Decimal | None = None
     mentor_final_return_pct: Decimal | None = None
+    displayed_result_pct: Decimal | None = None
+    tp_returns: tuple[tuple[str, Decimal], ...] = ()
+    highest_return_pct: Decimal | None = None
+    exit_label: str | None = None
+    exit_return_pct: Decimal | None = None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +138,7 @@ class DailyActiveTrade:
     reference_price: Decimal | None
     unrealized_pnl_pct: Decimal | None
     quote_time: datetime | None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +151,11 @@ class DailyClosedTrade:
     strike: Decimal
     option_side: str
     final_return_pct: Decimal | None
+    tp_returns: tuple[tuple[str, Decimal], ...] = ()
+    highest_return_pct: Decimal | None = None
+    exit_label: str | None = None
+    exit_return_pct: Decimal | None = None
+    is_lotto: bool = False
 
 
 @dataclass(frozen=True, slots=True)

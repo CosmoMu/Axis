@@ -1,17 +1,15 @@
 # AXIS Daily Market Summaries
 
-## Deferred Scope
+## Current Scope
 
-实现仍保留，但 2026-08-30 最新范围要求 `FEATURE_MOOMOO_ENABLED=false`，因此当前部署不发送
-每日行情总结。以后 Owner 明确恢复这项 Core 功能时，AXIS BOT 才会在每个美股交易日
-`16:15 ET` 向以下频道各发送一条消息：
+AXIS BOT 在每个美股交易日 `16:15 ET` 只向以下频道发送 Daily Summary：
 
-- `⚡・short-term`
 - `〽️・swing`
 - `♾️・leaps`
 
-每条消息包含该类别的 Active 收盘总结和当日 Closed 总结。价格来自本机
-Moomoo OpenD 的只读期权 snapshot；不是账户持仓或交易数据。
+每条消息包含该类别的今日关闭与当前持仓。`⚡・short-term` 不发送 Daily Summary；已停止
+追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。启用 Moomoo 时，Active 收盘参考来自本机
+OpenD 的只读期权 snapshot；不是账户持仓或交易数据。Moomoo 未启用时，不猜测 Active 行情。
 
 ## Required Runtime
 
@@ -23,8 +21,8 @@ MOOMOO_OPEND_PORT=11111
 DAILY_SUMMARY_TIME_ET=16:15
 ```
 
-启用前必须把 `FEATURE_MOOMOO_ENABLED` 改为 `true`，并重新执行完整安全验收。OpenD 与
-Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登录并监听本机端口。
+如需 Active 收盘报价，必须把 `FEATURE_MOOMOO_ENABLED` 改为 `true` 并重新执行完整安全验收。
+OpenD 与 Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登录并监听本机端口。
 
 ## Safety Rules
 
@@ -39,7 +37,7 @@ Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登录并监�
 ## Idempotency
 
 数据库唯一键为 `guild_id + category + session_date`，每条消息还有确定性的
-`EOD-ST/SW/LP-YYYYMMDD` marker。Bot 在发送前扫描频道 marker；即使 Discord 发送成功后
+`EOD-SW/LP-YYYYMMDD` marker。Bot 在发送前扫描频道 marker；即使 Discord 发送成功后
 数据库 finalize 前崩溃，重启也只会认领原消息，不会重复发布。
 
 ## Health Check
@@ -50,5 +48,5 @@ launchctl print gui/$(id -u)/com.axis.bot
 lsof -nP -iTCP:11111 -sTCP:LISTEN
 ```
 
-正常数据库 revision 为 `20260829_0008`。`market_quote_snapshots` 与
+正常数据库 revision 为 `20260830_0019`。`market_quote_snapshots` 与
 `daily_summary_publications` 在第一个真实交易日、且存在相关 Trade 后才会出现行数。

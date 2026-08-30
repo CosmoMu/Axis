@@ -11,13 +11,12 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe 仍为 Test Mode；Shor
 - [ ] 已发布 ST 订单自动写入 short_term_tracking。
 - [ ] Massive 返回真实 quote，symbol/contract、价格和 timestamp 已核对。
 - [ ] high/low watermark 在多次 quote 后正确更新。
-- [ ] TP 20% / 50% milestone 真实触发且只发一次。
-- [ ] Runner 100%–1000% milestone 真实触发且只发一次。
+- [ ] TP1–TP10 真实触发且每一级只发一次；频道中没有 Runner。
 - [ ] Fast Momentum Reversal 真实路径已验证。
-- [ ] Reference Protection / Tracking Stop 真实路径已验证。
+- [ ] Tracking Protection（-50% / Entry / 前一级 TP）与 Tracking Stop 真实路径已验证。
 - [ ] Overnight 规则与下一交易日恢复已验证。
-- [ ] Discord event、Active View 和数据库状态一致。
-- [ ] 收盘后 Active / Closed summary 与官方 Results 已验证。
+- [ ] Discord Entry / TP / 停止追踪与数据库状态一致，Short-Term 无 Active Button。
+- [ ] Short-Term 不发 Daily Summary；Swing / LEAPS Summary 与官方 Results 已验证。
 - [ ] Bot 重启恢复 tracking，且不重复 event / publication。
 - [ ] Massive 故障和恢复能够产生去重 WARNING/ERROR 与 RECOVERY。
 
@@ -51,7 +50,7 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe 仍为 Test Mode；Shor
 - [x] Public / Member / Manager / Owner / Bot 权限矩阵有自动化和 runtime verifier。
 - [x] Welcome、Membership、Results、Member Wins 和 Lobby Guide 幂等。
 - [x] Signal / Analysis Public DTO 有防泄漏测试。
-- [ ] 一套真实 Short-Term review → tracking → close 的桌面/移动端验收完成。
+- [ ] 一套真实 Short-Term review → LOTTO → tracking → 停止追踪的桌面/移动端验收完成。
 - [ ] 一套真实 Mentor Analysis Fusion / Prediction Chart 的桌面/移动端验收完成。
 - [ ] Review 发布后保留最终卡片，仅 ephemeral interaction 回执由 Discord 客户端 dismiss。
 

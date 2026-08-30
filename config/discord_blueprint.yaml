@@ -275,6 +275,5 @@ persistent_panels:
     channel_key: member_control
 
 active_button_custom_ids:
-  short_term: "axis:active:short_term:v1"
   swing: "axis:active:swing:v1"
   leaps: "axis:active:leaps:v1"

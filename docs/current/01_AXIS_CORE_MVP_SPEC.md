@@ -217,12 +217,12 @@ CANCELLED
 - 不显示 Source / Submitted By / Raw Input / Parser Confidence。
 - 更新发送新卡片，形成完整时间线。
 - 只有纠错才编辑旧卡片，并写 Audit Log。
-- 每张卡片底部固定有 `查看当前订单`。
+- Swing / LEAPS 卡片底部固定有 `查看当前持仓订单`；Short-Term 不显示按钮。
 
 ## Entry
 
 ```text
-入场 · ST-0027
+入场 · SW-0027
 
 TSLA · 09/16/2026 · 400C
 
@@ -241,13 +241,13 @@ $4.10
 TP2
 $5.00
 
-[ 查看当前订单 ]
+[ 查看当前持仓订单 ]
 ```
 
 ## First Add
 
 ```text
-第一次加仓 · ST-0027
+第一次加仓 · SW-0027
 
 TSLA · 09/16/2026 · 400C
 
@@ -269,13 +269,13 @@ $3.18
 SL
 $2.55
 
-[ 查看当前订单 ]
+[ 查看当前持仓订单 ]
 ```
 
 ## Second Add
 
 ```text
-第二次加仓 · ST-0027
+第二次加仓 · SW-0027
 
 TSLA · 09/16/2026 · 400C
 
@@ -297,13 +297,13 @@ $3.05
 SL
 $2.45
 
-[ 查看当前订单 ]
+[ 查看当前持仓订单 ]
 ```
 
 ## Third Add
 
 ```text
-第三次加仓 · ST-0027
+第三次加仓 · SW-0027
 
 TSLA · 09/16/2026 · 400C
 
@@ -325,8 +325,11 @@ $2.97
 SL
 $2.40
 
-[ 查看当前订单 ]
+[ 查看当前持仓订单 ]
 ```
+
+> Short-Term 的 TP、Runner、Active View、Daily Summary 与 Results 规则已由
+> `05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md` 覆盖。本节仅继续适用于 Swing / LEAPS。
 
 ## TP / Runner / SL / Close
 
@@ -346,7 +349,7 @@ SL
 例如：
 
 ```text
-止盈一 · ST-0027
+止盈一 · SW-0027
 
 TSLA · 09/16/2026 · 400C
 
@@ -371,17 +374,17 @@ $3.05
 下一个目标
 $5.00
 
-[ 查看当前订单 ]
+[ 查看当前持仓订单 ]
 ```
 
 ---
 
-# 10. 查看当前订单
+# 10. 查看当前持仓订单
 
-每张 Signal Card 下方都有 persistent button：
+Swing / LEAPS Signal Card 下方有 persistent button：
 
 ```text
-查看当前订单
+查看当前持仓订单
 ```
 
 按所在 Signal Channel 映射当前模式。
@@ -396,13 +399,13 @@ $5.00
 不允许进一步展开。
 
 ```text
-当前短线订单
+当前波段订单
 
-ST-0027
+SW-0027
 TSLA 09/16 400C
 止盈一 · 当前持仓 1/4 仓位
 
-ST-0031
+SW-0031
 NVDA 09/18 210C
 入场 · 当前持仓 1/8 仓位
 ```
@@ -412,7 +415,6 @@ NVDA 09/18 210C
 固定 `custom_id`：
 
 ```text
-axis:active:short_term:v1
 axis:active:swing:v1
 axis:active:leaps:v1
 ```
@@ -821,9 +823,9 @@ Short-Term 是 Signal Core 的独立交易路径：
 - 发布编号使用 `ST-XXXX`，并创建独立 `short_term_tracking` 生命周期。
 - 行情 Provider 当前为 Massive，Provider 边界不得写进 Review、Trade 或 Public DTO。
 - 每笔 Tracking 固定保存 `price_source` 与 `tracking_policy_version`，同一订单不得混用来源。
-- High / Low Watermark、固定 TP、RUNNER Milestone、Fast Momentum Reversal、Reference
-  Protection、Overnight 与 Tracking Stop 必须幂等落库。
-- `查看当前订单`、收盘后 Active / Closed Summary 与 Daily Results 只使用 Public DTO。
+- High / Low Watermark、固定 TP1–TP10、Fast Momentum Reversal、Tracking Protection、
+  Overnight 与 Tracking Stop 必须幂等落库；Short-Term 不存在 Runner。
+- Short-Term 不提供 Active View 或 Daily Summary；Daily Results 只使用 Public DTO。
 
 代码完成不等于 Live Complete；真实期权报价、自动注册、触发卡片和重启恢复必须通过
 `docs/development/LIVE_MODE_CHECKLIST.md` 才能解除 Live Gate。
@@ -885,5 +887,5 @@ Analysis、Results 或 Active Order 数据。
 - 没有数据的可选字段直接隐藏，不显示 N/A。
 - Signal Review 直接展示完整会员卡和预测图；Manager 可编辑正股点位与公开逻辑，并用
   「重新生成图片」按修改后的内容刷新图表。
-- 「查看当前订单」对 SWING / LEAPS 显示最近持仓成本；无显式均价时使用已发布入场成本。
+- 「查看当前持仓订单」对 SWING / LEAPS 显示最近持仓成本；无显式均价时使用已发布入场成本。
 - ADD / TP / RUNNER / CLOSE 的同风格视觉统一属于后续阶段，本轮不改变其交易逻辑。

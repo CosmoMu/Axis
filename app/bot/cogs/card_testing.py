@@ -11,7 +11,6 @@ from discord.ext import commands
 from app.bot.cards import (
     build_public_analysis_embed,
     build_public_trade_embed,
-    build_short_term_daily_summary_embed,
     build_short_term_entry_embed,
     build_short_term_tracking_embed,
 )
@@ -19,8 +18,6 @@ from app.bot.general_cards import risk_disclosure_embed, subscription_embed, wel
 from app.domain.public_cards import (
     PublicAnalysisCard,
     PublicTradeCard,
-    ShortTermDailyRow,
-    ShortTermDailySummary,
     ShortTermEntryCard,
     ShortTermTrackingCard,
 )
@@ -129,29 +126,9 @@ def _short_term_tracking_card(card_type: str) -> ShortTermTrackingCard:
         expiry=date(2026, 8, 31),
         strike=Decimal("500"),
         option_side="CALL",
-        price=Decimal("2.44" if card_type == "RUNNER" else "1.82"),
-        return_pct=Decimal("103" if card_type == "RUNNER" else "52"),
+        price=Decimal("1.82"),
+        return_pct=Decimal("52"),
         highest_return_pct=Decimal("136") if card_type == "STOP_TRACKING" else None,
-    )
-
-
-def _short_term_daily_summary() -> ShortTermDailySummary:
-    row = ShortTermDailyRow(
-        public_trade_id="ST-TEST",
-        ticker="NVDA",
-        expiry=date(2026, 8, 31),
-        strike=Decimal("500"),
-        option_side="CALL",
-        current_return_pct=Decimal("84"),
-        tracking_end_return_pct=None,
-        highest_return_pct=Decimal("107"),
-        lowest_return_pct=Decimal("-6"),
-    )
-    return ShortTermDailySummary(
-        category="SHORT_TERM",
-        session_date=date(2026, 8, 30),
-        active=(row,),
-        ended=(),
     )
 
 
@@ -215,13 +192,7 @@ class CardTestingCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @app_commands.guild_only()
     async def test_short_tp(self, interaction: discord.Interaction) -> None:
-        await self._send_short_term(interaction, "TP")
-
-    @app_commands.command(name="test-short-runner", description="Preview a Short-Term Runner Card")
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.guild_only()
-    async def test_short_runner(self, interaction: discord.Interaction) -> None:
-        await self._send_short_term(interaction, "RUNNER")
+        await self._send_short_term(interaction, "TP1")
 
     @app_commands.command(
         name="test-short-stop", description="Preview a Short-Term Tracking Stop Card"
@@ -230,17 +201,6 @@ class CardTestingCog(commands.Cog):
     @app_commands.guild_only()
     async def test_short_stop(self, interaction: discord.Interaction) -> None:
         await self._send_short_term(interaction, "STOP_TRACKING")
-
-    @app_commands.command(name="test-short-daily", description="Preview a Short-Term Daily Summary")
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.guild_only()
-    async def test_short_daily(self, interaction: discord.Interaction) -> None:
-        if not await self._authorize(interaction):
-            return
-        await interaction.response.send_message(
-            embed=build_short_term_daily_summary_embed(_short_term_daily_summary()),
-            view=PreviewComponentView(),
-        )
 
     @app_commands.command(name="test-signal-card", description="Preview a Signal Card safely")
     @app_commands.default_permissions(administrator=True)

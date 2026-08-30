@@ -17,7 +17,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0018。
+- Alembic revisions 0001–0019。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -41,11 +41,12 @@ LIVE_MODE_CHECKLIST.md 为准。
 - AI Category 默认识别，Manager 可通过下拉修改。
 - Mentor 和关联订单下拉。
 - Review 直接显示完整会员卡片与预测图；完整编辑覆盖期权、正股点位和公开交易逻辑。
-- 「重新生成图片」按当前已编辑内容重建预测图；删除和发布保持幂等。
+- 「重新生成图片」按当前已编辑内容重建预测图；LOTTO YES/NO、删除和发布保持幂等。
 - 乐观并发版本、审核状态和审计记录。
 - Public DTO 白名单，不显示 Mentor、来源、Market、Bid、Ask 或 Parser 信息。
 - Entry / Add / Update / TP / SL / Runner / Close。
-- 固定 persistent「查看当前订单」按钮和 ephemeral Active View；SWING / LEAPS 显示最近持仓成本。
+- SWING / LEAPS 使用固定 persistent「查看当前持仓订单」按钮和 category-scoped ephemeral
+  Active View，并显示最近持仓成本；Short-Term 不提供按钮或 Active View。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
 ## SWING / LEAPS Entry Plan Visual
@@ -72,10 +73,12 @@ LIVE_MODE_CHECKLIST.md 为准。
 - ST-XXXX 独立编号。
 - Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
 - entry_price、current_price、high/low watermark 与 policy version。
-- TP milestones：20% / 50%。
-- Runner milestones：100% / 150% / 200% / 300% / 400% / 500% / 750% / 1000%。
-- Reference Protection、Fast Momentum Reversal、Overnight、Tracking Stop。
-- milestone 幂等、Active View、category close summary 和 official daily results。
+- 固定 TP1–TP10：20% / 50% / 100% / 150% / 200% / 300% / 400% / 500% / 750% /
+  1000%；`tp_levels_hit` 保证每一级只发送一次。
+- Short-Term Runner 已删除；Fast Momentum Reversal 只发送 plain TP，不推进固定 TP 编号。
+- Tracking Protection、High / Low Watermark、Overnight 和 Tracking Stop。
+- LOTTO 持久化 display flag，不影响 tracking、TP、protection、仓位或结果计算。
+- Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
 说明：以上为实现清单；真实数据库当前未给 ST-0001 注册 tracking，Live 验收未通过。
@@ -142,7 +145,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Results / Testing / Operations
 
-- Trade Event 加权收益和幂等官方 Results。
+- Trade Event TP 收益、最高收益和幂等极简 Daily Results；Swing / LEAPS Daily Summary 保留
+  今日关闭与当前持仓。
 - Owner-only preview commands 不创建假 Trade、不写 Results。
 - ERROR / WARNING / RECOVERY 持久化告警和 fingerprint 去重。
 - 数据库只读 verifier、Discord runtime verifier、Analysis Fusion verifier 和 Stripe Test verifier。

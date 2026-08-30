@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 165 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 169 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -45,7 +45,8 @@ Signal / Trade:
 - Structured Output、router、invocation trace、missing fields 和 failure draft。
 - S-00001 / A-00001 counter、Category/Mentor/Trade select、modal edit 和并发版本。
 - Publication claim / retry / finalize、单 Draft 单 Event 和 Public DTO 防泄漏。
-- Entry / Add / TP / SL / Runner / Close、Active View 和 weighted Results。
+- Swing / LEAPS Entry / Add / TP / SL / Runner / Close、category-scoped Active View 和
+  weighted Results。
 - SWING / LEAPS ENTRY 新中文卡、短公开引用和内部长 ID 隐藏。
 - Mentor-first / AXIS-fill-missing 正股点位、真实 K 线、确定性 PNG、Fib 0.618 和
   Discord image attachment。
@@ -54,11 +55,12 @@ Signal / Trade:
 Short-Term:
 
 - 简化 Review、无 Mentor/position、ST 编号和 Massive provider abstraction。
-- Massive MarketTrackingService、固定 TP 20% / 50%、
-  Runner 100% / 150% / 200% / 300% / 400% / 500% / 750% / 1000%。
-- High / Low Watermark、Reference Protection、Fast Momentum Reversal、Overnight Tracking、
-  Tracking Stop 和 policy version。
-- Active/Closed summary、daily results、holiday/idempotency 和 restart recovery。
+- Massive MarketTrackingService、固定 TP1–TP10（20%–1000%）与单次触发。
+- High / Low Watermark、Tracking Protection、Fast Momentum Reversal、Overnight Tracking、
+  Tracking Stop 和 policy version；Momentum TP 不推进固定编号。
+- LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
+- Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
+- 极简 Daily Results 的 TP highest / no-TP tracking-end 选择、LOTTO、TP 顺序和幂等。
 
 Membership / Stripe:
 

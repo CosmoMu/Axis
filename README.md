@@ -6,11 +6,11 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 
 - Core Signal / Mentor / Member / Results: COMPLETE
 - Analysis Fusion: COMPLETE / LIVE
-- Short-Term Automated Tracking: CODE COMPLETE / LIVE E2E PENDING
+- Short-Term TP1–TP10 / LOTTO / Automated Tracking: CODE COMPLETE / LIVE E2E PENDING
 - Stripe: TEST MODE COMPLETE / LIVE PENDING
 - Production Stabilization: PARTIAL
 - AXIS LAB: DEFERRED
-- Latest automated regression: 165 passed、0 failed、0 skipped；Ruff / compileall PASS
+- Latest automated regression: 169 passed、0 failed、0 skipped；Ruff / compileall PASS
 
 ## 文档入口
 
@@ -26,6 +26,6 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 ## 下一优先级
 
 完成 Short-Term / Massive 的真实端到端验证，确认已发布订单能够注册 tracking、取得真实行情、
-触发 milestone / reversal / protection 事件，并在 Bot 重启后正确恢复。
+触发 TP1–TP10 / Momentum TP / tracking protection 事件，并在 Bot 重启后正确恢复。
 
 Secret 只允许存放在本地 .env 或部署 Secret Store，不得进入源码、日志或 Git。

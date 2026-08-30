@@ -17,7 +17,8 @@ this` 成功提示会在 4 秒后删除，错误提示在 12 秒后删除；Prev
 - `Link Order`：卡片内固定下拉菜单，只显示当前 `ACTIVE/RUNNER` 订单，用于更新类 Draft。
   暂无可选项时下拉框会禁用，不再弹出额外的临时菜单。
 - `完整编辑`：编辑操作、合约、价格、SL/TP 和仓位。
-- `会员预览`：仅对当前管理员显示，使用 Public DTO 白名单。
+- `重新生成图片`：按当前已编辑的 Swing / LEAPS 内容重建确定性交易计划图。
+- `LOTTO · YES/NO`：三种 Category 都可切换；只影响公开显示，不改变业务逻辑。
 - `确认发布`：校验发布条件、预约幂等 Publication，并发送到对应会员频道。
 - `删除`：需要二次确认，仅软删除为 `DELETED`。
 
@@ -54,9 +55,12 @@ SL | TP1 | TP2 | 当前收益%
 
 ## 发布前条件
 
-新订单需要 Mentor、已确认的分类、Ticker、Expiry、Strike、Call/Put、入场价格
+Swing / LEAPS 新订单需要 Mentor、已确认的分类、Ticker、Expiry、Strike、Call/Put、入场价格
 或区间以及操作后持仓。更新订单需要 Mentor、已关联订单、操作类型、价格或
 明确更新内容以及操作后持仓。
+
+Short-Term 只需要 Category、Ticker、Expiry、Strike、Call/Put 与 Entry Price，不选择
+Mentor、不关联订单、不填写仓位。
 
 全部平仓、完全触发 SL 或取消订单时，操作后持仓必须为 0。加仓不能降低已有
 持仓，减仓不能增加已有持仓。任何改变仓位的更新都必须填写本次操作价格。
@@ -72,10 +76,11 @@ SL | TP1 | TP2 | 当前收益%
 - Category 修改；
 - Mentor 选择；
 - 订单关联；
+- LOTTO 切换；
 - 审核通过；
 - 会员发布预约、失败与完成；
 - 软删除。
 
-发布后会创建或更新 Trade、写入唯一 Trade Event，并在卡片底部附加 persistent
-`查看当前订单`。发送后数据库回写中断时，Bot 使用 Public Footer marker 恢复原消息，
-不会重复发卡。
+发布后会创建或更新 Trade 并写入唯一 Trade Event。Swing / LEAPS 卡片附加 persistent
+`查看当前持仓订单`；Short-Term 不附加按钮。发送后数据库回写中断时，Bot 使用 Public
+Footer marker 恢复原消息，不会重复发卡。

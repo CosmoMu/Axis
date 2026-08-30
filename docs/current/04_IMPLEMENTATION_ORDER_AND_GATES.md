@@ -84,6 +84,10 @@ control panels
 
 # Stage 2 — Signal Pipeline
 
+> Short-Term 最新公开生命周期、LOTTO、Active View 和定时输出以
+> `05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md` 为准；下方 Runner / Close 描述只适用于
+> Swing / LEAPS。
+
 实现：
 
 ```text
@@ -98,7 +102,7 @@ public card builder
 trade event history
 position eighths
 SL / TP / Runner / Close
-persistent 查看当前订单
+persistent 查看当前持仓订单（仅 SWING / LEAPS）
 ```
 
 当前 Signal Model：

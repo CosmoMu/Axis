@@ -33,7 +33,6 @@ from app.domain.public_cards import ActivePublicTrade, PublicTradeCard, ShortTer
 from app.services.card_review import _plan_decimal, _public_thesis
 
 ACTIVE_CUSTOM_IDS = {
-    TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
     TradeCategory.SWING.value: "axis:active:swing:v1",
     TradeCategory.LEAPS.value: "axis:active:leaps:v1",
 }
@@ -180,6 +179,7 @@ class TradePublicationService:
             if config is None:
                 raise PublicationValidationError("GUILD_CONFIG_NOT_FOUND")
             trade = await self._resolve_trade(session, config, draft, publication)
+            trade.is_lotto = draft.is_lotto
             pending_for_trade = await session.scalar(
                 select(TradePublication.id).where(
                     TradePublication.trade_id == trade.id,
@@ -206,7 +206,7 @@ class TradePublicationService:
                         if category == TradeCategory.SHORT_TERM.value
                         else await self._next_public_ref(session, config)
                     ),
-                    custom_id=ACTIVE_CUSTOM_IDS[category],
+                    custom_id=ACTIVE_CUSTOM_IDS.get(category),
                     payload_hash=_payload_hash(card),
                     status=PublicationStatus.PENDING.value,
                     attempt_count=1,
@@ -217,7 +217,7 @@ class TradePublicationService:
             else:
                 publication.trade_id = trade.id
                 publication.channel_id = channel_id
-                publication.custom_id = ACTIVE_CUSTOM_IDS[category]
+                publication.custom_id = ACTIVE_CUSTOM_IDS.get(category)
                 if (
                     category != TradeCategory.SHORT_TERM.value
                     and not re.fullmatch(r"P-\d{4,6}", publication.public_ref or "")
@@ -445,6 +445,7 @@ class TradePublicationService:
                         last_public_action=trade.last_public_action or TradeAction.ENTRY.value,
                         position_eighths=trade.position_eighths,
                         avg_cost=trade.avg_cost or latest_cost or entry_cost,
+                        is_lotto=trade.is_lotto,
                     )
                 )
         return output
@@ -510,6 +511,7 @@ class TradePublicationService:
             sl=draft.sl,
             tp1=draft.tp1,
             tp2=draft.tp2,
+            is_lotto=draft.is_lotto,
         )
         session.add(trade)
         await session.flush()
@@ -574,6 +576,7 @@ class TradePublicationService:
                 strike=trade.strike,
                 option_side=trade.option_side,
                 entry_price=entry_price,
+                is_lotto=trade.is_lotto,
             )
         return PublicTradeCard(
             public_trade_id=trade.public_trade_id,
@@ -604,6 +607,7 @@ class TradePublicationService:
             stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
+            is_lotto=trade.is_lotto,
         )
 
     @staticmethod

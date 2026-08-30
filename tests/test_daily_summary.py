@@ -4,10 +4,11 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cards import build_daily_summary_embeds, build_short_term_daily_summary_embed
+from app.bot.cards import build_daily_results_embed, build_daily_summary_embeds
 from app.db.base import Base
 from app.db.bootstrap import seed_guild_config
 from app.db.models import (
+    DailyResultsPublication,
     DailySummaryPublication,
     MarketQuoteSnapshot,
     Mentor,
@@ -16,7 +17,7 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import OptionSide, PublicationStatus, TradeCategory, TradeState
-from app.domain.public_cards import ShortTermDailySummary
+from app.domain.public_cards import DailyResultRow, DailyResultsCard
 from app.integrations.moomoo_market_data import (
     OptionQuote,
     OptionQuoteRequest,
@@ -94,6 +95,7 @@ async def seeded_database() -> Database:
             position_eighths=2,
             max_position_eighths=2,
             avg_cost=Decimal("1.20"),
+            is_lotto=True,
         )
         closed = Trade(
             guild_id=GUILD_ID,
@@ -108,6 +110,7 @@ async def seeded_database() -> Database:
             position_eighths=0,
             max_position_eighths=1,
             closed_at=datetime(2026, 8, 28, 19, 30, tzinfo=UTC),
+            is_lotto=True,
         )
         session.add_all([active, closed])
         await session.flush()
@@ -148,9 +151,13 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
         assert market.calls == 1
         async with database.session() as session:
             assert (
-                await session.scalar(select(func.count()).select_from(DailySummaryPublication)) == 3
+                await session.scalar(select(func.count()).select_from(DailySummaryPublication)) == 2
             )
             assert await session.scalar(select(func.count()).select_from(MarketQuoteSnapshot)) == 1
+            assert (
+                await session.scalar(select(func.count()).select_from(DailyResultsPublication))
+                == 1
+            )
             payloads = list(await session.scalars(select(DailySummaryPublication.snapshot_json)))
             public_text = str(payloads)
             assert "Internal Mentor" not in public_text
@@ -158,7 +165,7 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
             assert "source" not in public_text.lower()
 
         claims = []
-        for message_id in (1001, 1002, 1003):
+        for message_id in (1001, 1002):
             claim = await service.next_publishable(GUILD_ID, SESSION_DATE)
             assert claim is not None
             claims.append(claim)
@@ -167,20 +174,24 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
 
         embeds = []
         for claim in claims:
-            if isinstance(claim.summary, ShortTermDailySummary):
-                embeds.append(build_short_term_daily_summary_embed(claim.summary))
-            else:
-                embeds.extend(build_daily_summary_embeds(claim.summary))
+            embeds.extend(build_daily_summary_embeds(claim.summary))
         all_card_text = str([embed.to_dict() for embed in embeds])
-        assert "当前/收盘参考价" in all_card_text
-        assert "浮动 +25.00%" in all_card_text
-        assert "加权最终收益 +50.00%" in all_card_text
+        assert "SWING · DAILY SUMMARY" in all_card_text
+        assert "当前 +25.00%" in all_card_text
+        assert "CLOSE +50.00%" in all_card_text
+        assert "(LOTTO)" in all_card_text
         for forbidden in ("Mentor", "source", "Bid", "Ask", "Market"):
             assert forbidden not in all_card_text
 
         async with database.session() as session:
             statuses = set(await session.scalars(select(DailySummaryPublication.status)))
             assert statuses == {PublicationStatus.PUBLISHED.value}
+
+        results = await service.next_results_publishable(GUILD_ID, SESSION_DATE)
+        assert results is not None
+        assert [row.public_trade_id for row in results.card.swing] == ["SW-0001"]
+        assert results.card.swing[0].is_lotto is True
+        assert all(row.public_trade_id != "SW-0002" for row in results.card.swing)
     finally:
         await database.dispose()
 
@@ -204,3 +215,65 @@ def test_schedule_uses_eastern_time_and_skips_weekends() -> None:
         scheduled_session_date(datetime(2026, 8, 28, 20, 15, tzinfo=UTC), "16:15") == SESSION_DATE
     )
     assert scheduled_session_date(datetime(2026, 8, 29, 21, 0, tzinfo=UTC), "16:15") is None
+
+
+def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
+    card = DailyResultsCard(
+        session_date=SESSION_DATE,
+        short_term=(
+            DailyResultRow(
+                public_trade_id="ST-0001",
+                ticker="NVDA",
+                strike=Decimal("500"),
+                option_side="CALL",
+                displayed_result_pct=Decimal("136"),
+                is_lotto=True,
+            ),
+            DailyResultRow(
+                public_trade_id="ST-0002",
+                ticker="QQQ",
+                strike=Decimal("714"),
+                option_side="CALL",
+                displayed_result_pct=Decimal("-50"),
+            ),
+        ),
+        swing=(
+            DailyResultRow(
+                public_trade_id="SW-0001",
+                ticker="SPY",
+                strike=Decimal("770"),
+                option_side="PUT",
+                tp_returns=(("TP1", Decimal("42")), ("TP2", Decimal("70"))),
+                highest_return_pct=Decimal("84"),
+            ),
+        ),
+        leaps=(
+            DailyResultRow(
+                public_trade_id="LP-0001",
+                ticker="ACHR",
+                strike=Decimal("7"),
+                option_side="CALL",
+                tp_returns=(("TP1", Decimal("51")), ("TP2", Decimal("102"))),
+                highest_return_pct=Decimal("126"),
+                is_lotto=True,
+            ),
+            DailyResultRow(
+                public_trade_id="LP-0002",
+                ticker="NVDA",
+                strike=Decimal("220"),
+                option_side="CALL",
+                exit_label="SL",
+                exit_return_pct=Decimal("-22"),
+                highest_return_pct=Decimal("8"),
+            ),
+        ),
+    )
+    rendered = str(build_daily_results_embed(card).to_dict())
+    assert "ST-0001** · NVDA 500C (LOTTO) · +136.00%" in rendered
+    assert "ST-0002** · QQQ 714C · -50.00%" in rendered
+    assert "TP1 +42.00% · TP2 +70.00% · 最高收益 +84.00%" in rendered
+    assert "TP1 +51.00% · TP2 +102.00% · 最高收益 +126.00%" in rendered
+    assert "SL -22.00% · 最高收益 +8.00%" in rendered
+    assert "Past performance does not guarantee future results." in rendered
+    for forbidden in ("Tracking End", "Maximum Drawdown", "胜率", "总计"):
+        assert forbidden not in rendered

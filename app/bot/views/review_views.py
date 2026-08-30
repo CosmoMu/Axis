@@ -34,7 +34,8 @@ def _display(value: object | None) -> str:
 def _decimal_display(value: Decimal | None) -> str:
     if value is None:
         return "-"
-    return f"{value:f}".rstrip("0").rstrip(".") or "0"
+    rendered = f"{value:f}"
+    return (rendered.rstrip("0").rstrip(".") if "." in rendered else rendered) or "0"
 
 
 def _split(raw: str, count: int) -> list[str]:
@@ -592,6 +593,17 @@ class ReviewDraftView(discord.ui.View):
         if short_term:
             buttons = (
                 ("EDIT", discord.ButtonStyle.primary, "edit", 1, self.edit),
+                (
+                    f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
+                    (
+                        discord.ButtonStyle.success
+                        if draft.is_lotto
+                        else discord.ButtonStyle.secondary
+                    ),
+                    "lotto",
+                    1,
+                    self.toggle_lotto,
+                ),
                 ("PUBLISH", discord.ButtonStyle.success, "approve", 1, self.approve),
                 ("DELETE", discord.ButtonStyle.danger, "delete", 1, self.delete),
             )
@@ -617,6 +629,17 @@ class ReviewDraftView(discord.ui.View):
                 self.regenerate_image,
             ),
             ("确认发布", discord.ButtonStyle.success, "approve", 4, self.approve),
+            (
+                f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
+                (
+                    discord.ButtonStyle.success
+                    if draft.is_lotto
+                    else discord.ButtonStyle.secondary
+                ),
+                "lotto",
+                4,
+                self.toggle_lotto,
+            ),
             ("删除", discord.ButtonStyle.danger, "delete", 4, self.delete),
         )
         for label, style, action, row, callback in buttons:
@@ -651,6 +674,24 @@ class ReviewDraftView(discord.ui.View):
             await send_temporary_ephemeral(
                 interaction,
                 "图片已根据当前卡片内容重新生成。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+    async def toggle_lotto(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.toggle_lotto(
+                self.draft.id,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                f"LOTTO 已设为 {'YES' if updated.is_lotto else 'NO'}。",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
@@ -728,16 +769,17 @@ class PublicationRetryView(discord.ui.View):
 
 class ActiveOrdersView(discord.ui.View):
     def __init__(self, controller: CardReviewCog, category: str) -> None:
+        if category not in {TradeCategory.SWING.value, TradeCategory.LEAPS.value}:
+            raise ValueError("ACTIVE_POSITION_VIEW_UNAVAILABLE")
         super().__init__(timeout=None)
         self.controller = controller
         self.category = category
         custom_id = {
-            TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
             TradeCategory.SWING.value: "axis:active:swing:v1",
             TradeCategory.LEAPS.value: "axis:active:leaps:v1",
         }[category]
         button = discord.ui.Button(
-            label="查看当前订单",
+            label="查看当前持仓订单",
             style=discord.ButtonStyle.secondary,
             custom_id=custom_id,
         )
@@ -747,12 +789,9 @@ class ActiveOrdersView(discord.ui.View):
     async def show_orders(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize_member(interaction):
             return
-        if self.category == TradeCategory.SHORT_TERM.value:
-            orders = await self.controller.tracking_service.current_orders(self.controller.guild_id)
-        else:
-            orders = await self.controller.publication_service.current_orders(
-                self.controller.guild_id, self.category
-            )
+        orders = await self.controller.publication_service.current_orders(
+            self.controller.guild_id, self.category
+        )
         await interaction.response.send_message(
             embed=build_active_orders_embed(self.category, orders),
             ephemeral=True,

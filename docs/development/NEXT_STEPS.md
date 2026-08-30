@@ -11,9 +11,9 @@ Work:
 
 - 找出 Published ST-0001 未进入 short_term_tracking 的原因。
 - 验证 Massive MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
-- 验证 High / Low Watermark、TP 20% / 50% 和全部 Runner milestones。
-- 验证 Fast Momentum Reversal、Reference Protection、Overnight Tracking 和 Tracking Stop。
-- 核对 Discord event、Active View、Daily Summary、Results 和数据库状态。
+- 验证 High / Low Watermark 与固定 TP1–TP10；确认每一级只发送一次且没有 Runner。
+- 验证 Fast Momentum Reversal、Tracking Protection、Overnight Tracking 和 Tracking Stop。
+- 核对 Discord Entry / TP / 停止追踪、Daily Results 和数据库完整历史。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。
 
 Exit criteria:
@@ -26,8 +26,9 @@ Exit criteria:
 
 Work:
 
-- 在 Desktop 和 Mobile 检查 simplified review、发布、Active View、milestone、protection、
-  close、Daily Summary 与 Results。
+- 在 Desktop 和 Mobile 检查 simplified review、LOTTO、发布、TP、protection、停止追踪与
+  Daily Results；确认 Short-Term 没有 Active Button 或 Daily Summary。
+- 检查 Swing / LEAPS「查看当前持仓订单」和 Daily Summary。
 - 确认 Short-Term 不出现 Mentor 或 Swing / LEAPS Mentor Trade Flow。
 - 验证只允许 Bot 发言的会员频道权限和 Manager 操作入口。
 - 验证发布后 Review 保留最终状态，不误删正常 Bot 卡片。

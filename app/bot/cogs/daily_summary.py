@@ -9,10 +9,8 @@ from discord.ext import commands, tasks
 from app.bot.cards import (
     build_daily_results_embed,
     build_daily_summary_embeds,
-    build_short_term_daily_summary_embed,
 )
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
-from app.domain.public_cards import ShortTermDailySummary
 from app.services.daily_summary import (
     DailySummaryError,
     DailySummaryService,
@@ -85,7 +83,7 @@ class DailySummaryCog(commands.Cog):
         if not ready:
             return
 
-        for _ in range(3):
+        for _ in range(2):
             claim = await self.service.next_publishable(self.guild_id, session_date)
             if claim is None:
                 break
@@ -102,11 +100,7 @@ class DailySummaryCog(commands.Cog):
                     raise DailySummaryError("SUMMARY_CHANNEL_NOT_MESSAGEABLE")
                 message = await send(
                     content=f"AXIS · {claim.public_ref}",
-                    embeds=(
-                        [build_short_term_daily_summary_embed(claim.summary)]
-                        if isinstance(claim.summary, ShortTermDailySummary)
-                        else build_daily_summary_embeds(claim.summary)
-                    ),
+                    embeds=build_daily_summary_embeds(claim.summary),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 await self.service.finalize(claim.publication_id, message.id)

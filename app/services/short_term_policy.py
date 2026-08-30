@@ -16,9 +16,9 @@ class ShortTermPolicyError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class MilestoneRule:
+class TpLevelRule:
+    label: str
     return_pct: int
-    card_type: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,9 +34,8 @@ class ShortTermTrackingPolicy:
     poll_seconds: int
     max_quote_age_seconds: int
     last_trade_quote_guard_pct: Decimal
-    milestones: tuple[MilestoneRule, ...]
-    initial_reference_return_pct: int
-    reference_moves: tuple[tuple[int, int], ...]
+    tp_levels: tuple[TpLevelRule, ...]
+    initial_protection_return_pct: int
     momentum_enabled: bool
     momentum_min_profit_pct: Decimal
     momentum_cooldown: timedelta
@@ -51,17 +50,11 @@ class ShortTermTrackingPolicy:
         if not isinstance(payload, dict):
             raise ShortTermPolicyError("SHORT_TERM_POLICY_INVALID")
         try:
-            milestones = tuple(
-                MilestoneRule(int(item["return_pct"]), str(item["card_type"]).upper())
-                for item in payload["milestones"]
+            tp_levels = tuple(
+                TpLevelRule(str(label).upper(), int(return_pct))
+                for label, return_pct in payload["tp_levels"].items()
             )
-            protection = payload["reference_protection"]
-            moves = tuple(
-                sorted(
-                    (int(milestone), int(reference))
-                    for milestone, reference in protection["moves"].items()
-                )
-            )
+            protection = payload["tracking_protection"]
             momentum = payload["momentum_reversal"]
             triggers = tuple(
                 MomentumTriggerRule(
@@ -76,9 +69,8 @@ class ShortTermTrackingPolicy:
                 poll_seconds=int(payload["poll_seconds"]),
                 max_quote_age_seconds=int(payload["max_quote_age_seconds"]),
                 last_trade_quote_guard_pct=_decimal(payload["last_trade_quote_guard_pct"]),
-                milestones=milestones,
-                initial_reference_return_pct=int(protection["initial_return_pct"]),
-                reference_moves=moves,
+                tp_levels=tp_levels,
+                initial_protection_return_pct=int(protection["initial_return_pct"]),
                 momentum_enabled=bool(momentum["enabled"]),
                 momentum_min_profit_pct=_decimal(momentum["min_profit_pct"]),
                 momentum_cooldown=timedelta(minutes=int(momentum["cooldown_minutes"])),
@@ -90,27 +82,25 @@ class ShortTermTrackingPolicy:
         return policy
 
     def validate(self) -> None:
-        milestone_values = [item.return_pct for item in self.milestones]
+        labels = [item.label for item in self.tp_levels]
+        return_values = [item.return_pct for item in self.tp_levels]
+        expected_labels = [f"TP{index}" for index in range(1, len(labels) + 1)]
         if (
             not self.version.startswith("ST_TRACKING_V")
             or self.price_source not in {"BID", "MID", "LAST"}
             or self.poll_seconds <= 0
             or self.max_quote_age_seconds <= 0
             or self.last_trade_quote_guard_pct <= 0
-            or milestone_values != sorted(set(milestone_values))
-            or any(item.return_pct <= 0 for item in self.milestones)
-            or any(item.card_type not in {"TP", "RUNNER"} for item in self.milestones)
-            or self.initial_reference_return_pct >= 0
+            or labels != expected_labels
+            or return_values != sorted(set(return_values))
+            or any(item.return_pct <= 0 for item in self.tp_levels)
+            or self.initial_protection_return_pct >= 0
             or any(
                 trigger.seconds <= 0 or trigger.drawdown_pct <= 0
                 for trigger in self.momentum_triggers
             )
         ):
             raise ShortTermPolicyError("SHORT_TERM_POLICY_INVALID")
-        allowed = set(milestone_values)
-        for milestone, reference in self.reference_moves:
-            if milestone not in allowed or reference < 0 or reference >= milestone:
-                raise ShortTermPolicyError("SHORT_TERM_POLICY_INVALID")
 
     @staticmethod
     def return_pct(entry_price: Decimal, price: Decimal) -> Decimal:
@@ -122,24 +112,45 @@ class ShortTermTrackingPolicy:
     def price_at_return(entry_price: Decimal, return_pct: Decimal | int) -> Decimal:
         return entry_price * (Decimal("1") + Decimal(return_pct) / Decimal("100"))
 
-    def crossed_milestones(
+    def crossed_tp_levels(
         self,
         current_return_pct: Decimal,
-        milestones_hit: set[int],
-    ) -> tuple[MilestoneRule, ...]:
+        tp_levels_hit: set[str],
+    ) -> tuple[TpLevelRule, ...]:
         return tuple(
             rule
-            for rule in self.milestones
-            if rule.return_pct not in milestones_hit
+            for rule in self.tp_levels
+            if rule.label not in tp_levels_hit
             and current_return_pct >= Decimal(rule.return_pct)
         )
 
-    def reference_for(self, entry_price: Decimal, milestones_hit: set[int]) -> tuple[Decimal, int]:
-        reference_return = self.initial_reference_return_pct
-        for milestone, candidate in self.reference_moves:
-            if milestone in milestones_hit:
-                reference_return = candidate
-        return self.price_at_return(entry_price, reference_return), reference_return
+    def protection_for(
+        self,
+        entry_price: Decimal,
+        tp_levels_hit: set[str],
+    ) -> tuple[Decimal, int, str]:
+        protection_return = self.initial_protection_return_pct
+        protection_reason = "INITIAL_TRACKING_PROTECTION"
+        highest_index = max(
+            (
+                index
+                for index, rule in enumerate(self.tp_levels)
+                if rule.label in tp_levels_hit
+            ),
+            default=-1,
+        )
+        if highest_index == 0:
+            protection_return = 0
+            protection_reason = "TP1_ENTRY_PROTECTION"
+        elif highest_index > 0:
+            previous = self.tp_levels[highest_index - 1]
+            protection_return = previous.return_pct
+            protection_reason = f"{previous.label}_PROTECTION"
+        return (
+            self.price_at_return(entry_price, protection_return),
+            protection_return,
+            protection_reason,
+        )
 
     def momentum_drawdown(
         self,

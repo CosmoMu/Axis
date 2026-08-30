@@ -80,6 +80,7 @@ async def publication_database() -> tuple[Database, TradeDraft]:
             sl=Decimal("2.55"),
             tp1=Decimal("4.10"),
             tp2=Decimal("5.00"),
+            is_lotto=True,
             position_delta_eighths=1,
             position_after_eighths=1,
             parse_payload={
@@ -142,6 +143,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert "查看当前订单" not in public_text
         assert "SL" in public_text
         assert "P-F" not in public_text
+        assert "(LOTTO)" in public_text
 
         result = await service.finalize(
             claim.publication_id,
@@ -164,6 +166,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert orders[0].avg_cost == Decimal("3.275")
         assert "当前波段订单" in active_text
         assert "最近持仓成本 $3.275" in active_text
+        assert "(LOTTO)" in active_text
         assert "Private Mentor" not in active_text
 
         async with database.session() as session:
@@ -178,6 +181,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
                 )
             ).all()
         assert trade is not None and trade.state == TradeState.ACTIVE.value
+        assert trade.is_lotto is True
         assert trade.position_eighths == trade.max_position_eighths == 1
         assert stored_draft is not None and stored_draft.status == DraftStatus.PUBLISHED.value
         assert publication is not None
@@ -349,7 +353,6 @@ async def test_update_event_changes_active_state_and_close_removes_order() -> No
 async def test_active_order_buttons_use_fixed_persistent_custom_ids() -> None:
     controller = object()
     expected = {
-        "SHORT_TERM": "axis:active:short_term:v1",
         "SWING": "axis:active:swing:v1",
         "LEAPS": "axis:active:leaps:v1",
     }
@@ -358,7 +361,9 @@ async def test_active_order_buttons_use_fixed_persistent_custom_ids() -> None:
         assert view.is_persistent()
         assert len(view.children) == 1
         assert view.children[0].custom_id == custom_id
-        assert view.children[0].label == "查看当前订单"
+        assert view.children[0].label == "查看当前持仓订单"
+    with pytest.raises(ValueError, match="ACTIVE_POSITION_VIEW_UNAVAILABLE"):
+        ActiveOrdersView(controller, "SHORT_TERM")  # type: ignore[arg-type]
 
 
 def test_roll_clears_cached_moomoo_contract_code() -> None:
@@ -431,6 +436,7 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
                 option_side="CALL",
                 entry_low=Decimal("1.20"),
                 entry_high=Decimal("1.20"),
+                is_lotto=True,
                 position_delta_eighths=None,
                 position_after_eighths=None,
                 parse_payload={},
@@ -454,6 +460,7 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
         for forbidden in ("Mentor", "SL", "TP", "仓位", "Market", "Bid", "Ask"):
             assert forbidden not in public_text
         assert "MY RISK IS NOT YOUR RISK" in public_text
+        assert "(LOTTO)" in public_text
         assert claim.claim_token is not None
         result = await publication.finalize(
             claim.publication_id,
@@ -470,18 +477,16 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
         )
         await tracker.register_trade(result.trade_id, Decimal("1.20"))
         await tracker.register_trade(result.trade_id, Decimal("1.20"))
-        active = await tracker.current_orders(GUILD_ID)
         async with database.session() as session:
             saved_trade = await session.get(Trade, result.trade_id)
             tracking_count = await session.scalar(
                 select(func.count()).select_from(ShortTermTracking)
             )
         assert saved_trade is not None
+        assert saved_trade.is_lotto is True
         assert saved_trade.mentor_id is None
         assert saved_trade.position_eighths == 0
         assert saved_trade.state == TradeState.ACTIVE.value
         assert tracking_count == 1
-        assert len(active) == 1
-        assert active[0].current_price == Decimal("1.2000")
     finally:
         await database.dispose()
