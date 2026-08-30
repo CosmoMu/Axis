@@ -159,3 +159,19 @@ def member_wins_guide_embed() -> discord.Embed:
         ),
         color=QUIET_BLACK,
     )
+
+
+def short_term_risk_notice_embed() -> discord.Embed:
+    return discord.Embed(
+        title="RISK NOTICE",
+        description=(
+            "Risk management is personal.\n\n"
+            "AXIS tracks market performance and reference protection levels.\n"
+            "Every member is responsible for their own position sizing and exits.\n\n"
+            "**MY RISK IS NOT YOUR RISK.**\n\n"
+            "AXIS 仅记录市场表现和参考保护位置，\n"
+            "实际仓位、风险管理与退出由每位会员自行决定。\n\n"
+            "仅供市场分析与教育交流，不构成投资或买卖建议。"
+        ),
+        color=QUIET_BLACK,
+    )

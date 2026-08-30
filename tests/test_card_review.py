@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.bot.cards import build_public_preview_embed, build_review_embed
-from app.bot.views.review_views import ReviewDraftView
+from app.bot.views.review_views import ReviewDraftView, ShortTermEditModal
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Mentor, SourceMessage, TradeDraft
 from app.db.session import Database
@@ -54,7 +54,7 @@ async def review_database() -> tuple[Database, TradeDraft, Mentor]:
             intent="NEW_TRADE",
             action="ENTRY",
             action_stage="NONE",
-            category_suggestion="SHORT_TERM",
+            category_suggestion="SWING",
             selected_category=None,
             ticker="GOOGL",
             expiry=date(2026, 9, 18),
@@ -81,7 +81,7 @@ def complete_edit() -> DraftEdit:
         intent="NEW_TRADE",
         action="ENTRY",
         action_stage="NONE",
-        selected_category="SHORT_TERM",
+        selected_category="SWING",
         ticker="GOOGL",
         expiry=date(2026, 9, 18),
         strike=Decimal("200"),
@@ -115,7 +115,7 @@ async def test_review_edit_mentor_and_approval_are_audited_and_versioned() -> No
             interaction_id=601,
         )
         assert edited.version == 2
-        assert edited.selected_category == "SHORT_TERM"
+        assert edited.selected_category == "SWING"
 
         with pytest.raises(ReviewConflictError):
             await service.edit(
@@ -216,7 +216,7 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
 
         assert len(selects) == 3
         assert category_select.custom_id.startswith("axis:review:category:select:")
-        assert defaults == ["SHORT_TERM"]
+        assert defaults == ["SWING"]
         assert category_select.row == 0
         assert mentor_select.custom_id.startswith("axis:review:mentor:select:")
         assert mentor_select.row == 1
@@ -333,5 +333,109 @@ async def test_delete_is_soft_idempotent_and_audited_once() -> None:
         async with database.session() as session:
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))
         assert audit_count == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position() -> None:
+    database, draft, mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        short = await service.select_category(
+            draft.id,
+            category="SHORT_TERM",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=700,
+        )
+        assert publication_missing_fields(short) == ()
+        assert short.mentor_id is None
+        assert short.position_after_eighths is None
+
+        view = ReviewDraftView(
+            SimpleNamespace(),
+            short,
+            mentor_choices=[ReviewChoice(str(mentor.id), mentor.name)],
+            trade_choices=[],
+        )
+        selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
+        buttons = [item for item in view.children if isinstance(item, discord.ui.Button)]
+        rendered = str(build_review_embed(short).to_dict())
+
+        assert len(selects) == 1
+        assert [item.label for item in buttons] == ["EDIT", "PUBLISH", "DELETE"]
+        for forbidden in (
+            "Mentor",
+            "关联订单",
+            "仓位",
+            "TP1",
+            "TP2",
+            "SL",
+            "confidence",
+            "缺失",
+        ):
+            assert forbidden not in rendered
+        assert "待审核 · SHORT-TERM" in rendered
+        assert "$1.25" in rendered
+
+        modal = ShortTermEditModal(SimpleNamespace(), short)
+        assert [item.label for item in modal.children] == [
+            "Ticker",
+            "Expiry · YYYY-MM-DD",
+            "Strike",
+            "Call / Put",
+            "Entry Price",
+        ]
+
+        approved = await service.approve(
+            draft.id,
+            expected_version=short.version,
+            actor_user_id=501,
+            interaction_id=701,
+        )
+        assert approved.status == DraftStatus.READY.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_category_switch_rebuilds_short_term_and_mentor_review_requirements() -> None:
+    database, draft, mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        short = await service.select_category(
+            draft.id,
+            category="SHORT_TERM",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=710,
+        )
+        swing = await service.select_category(
+            draft.id,
+            category="SWING",
+            expected_version=short.version,
+            actor_user_id=501,
+            interaction_id=711,
+        )
+        assert publication_missing_fields(swing) == ("mentor", "position_after_eighths")
+        swing_view = ReviewDraftView(
+            SimpleNamespace(),
+            swing,
+            mentor_choices=[ReviewChoice(str(mentor.id), mentor.name)],
+            trade_choices=[],
+        )
+        assert (
+            len([item for item in swing_view.children if isinstance(item, discord.ui.Select)]) == 3
+        )
+
+        leaps = await service.select_category(
+            draft.id,
+            category="LEAPS",
+            expected_version=swing.version,
+            actor_user_id=501,
+            interaction_id=712,
+        )
+        assert publication_missing_fields(leaps) == ("mentor", "position_after_eighths")
     finally:
         await database.dispose()

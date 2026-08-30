@@ -119,7 +119,7 @@ async def database_with_source(
 
 
 @pytest.mark.asyncio
-async def test_generation_is_idempotent_and_applies_default_position(tmp_path: Path) -> None:
+async def test_generation_is_idempotent_and_short_term_has_no_position(tmp_path: Path) -> None:
     database, store, source = await database_with_source(
         tmp_path,
         message_id=1001,
@@ -144,11 +144,11 @@ async def test_generation_is_idempotent_and_applies_default_position(tmp_path: P
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))
         assert draft is not None
         assert draft.status == DraftStatus.PENDING_REVIEW.value
-        assert draft.position_delta_eighths == 1
-        assert draft.position_after_eighths == 1
+        assert draft.position_delta_eighths is None
+        assert draft.position_after_eighths is None
         assert draft.category_suggestion == "SHORT_TERM"
         assert draft.selected_category == "SHORT_TERM"
-        assert "DEFAULT_POSITION_APPLIED" in draft.warnings
+        assert "DEFAULT_POSITION_APPLIED" not in draft.warnings
         assert draft.mentor_id is None
         assert invocation is not None
         assert invocation.workload == LlmWorkload.SIGNAL_PARSE.value
@@ -210,6 +210,7 @@ async def test_fourth_add_position_is_never_defaulted(tmp_path: Path) -> None:
             "add_stage": "FOURTH",
             "position_delta_eighths": None,
             "position_after_eighths": None,
+            "category_suggestion": "SWING",
         }
     )
     service = DraftGenerationService(

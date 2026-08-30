@@ -99,6 +99,7 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
+        bot_pin_messages: true
       - key: swing_alerts
         name: "〽️・swing"
         type: text

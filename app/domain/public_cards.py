@@ -43,6 +43,85 @@ class ActivePublicTrade:
 
 
 @dataclass(frozen=True, slots=True)
+class ShortTermEntryCard:
+    """Public Short-Term entry boundary; intentionally excludes all Mentor fields."""
+
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    entry_price: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class ShortTermTrackingCard:
+    """Public TP, RUNNER, or tracking-stop boundary."""
+
+    public_trade_id: str
+    card_type: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    price: Decimal
+    return_pct: Decimal
+    highest_return_pct: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ShortTermActiveTrade:
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    current_price: Decimal | None
+    current_return_pct: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class ShortTermDailyRow:
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    current_return_pct: Decimal | None
+    tracking_end_return_pct: Decimal | None
+    highest_return_pct: Decimal
+    lowest_return_pct: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class ShortTermDailySummary:
+    category: str
+    session_date: date
+    active: tuple[ShortTermDailyRow, ...]
+    ended: tuple[ShortTermDailyRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DailyResultRow:
+    public_trade_id: str
+    ticker: str
+    strike: Decimal
+    option_side: str
+    tracking_end_return_pct: Decimal | None = None
+    maximum_return_pct: Decimal | None = None
+    maximum_drawdown_pct: Decimal | None = None
+    mentor_final_return_pct: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DailyResultsCard:
+    session_date: date
+    short_term: tuple[DailyResultRow, ...]
+    swing: tuple[DailyResultRow, ...]
+    leaps: tuple[DailyResultRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DailyActiveTrade:
     """Member-safe Active row in a post-close category summary."""
 

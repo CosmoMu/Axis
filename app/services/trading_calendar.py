@@ -63,6 +63,15 @@ class TradingCalendarService:
     def is_trading_day(self, value: date) -> bool:
         return bool(self.calendar.is_session(value))
 
+    def is_market_open(self, value: datetime) -> bool:
+        current = self._aware(value)
+        session_date = current.astimezone(ET).date()
+        if not self.calendar.is_session(session_date):
+            return False
+        opened = self._python_datetime(self.calendar.session_open(session_date))
+        closed = self._python_datetime(self.calendar.session_close(session_date))
+        return opened <= current <= closed
+
     def next_trading_day(self, value: date) -> date:
         return self._date_to_session(value, direction="next")
 

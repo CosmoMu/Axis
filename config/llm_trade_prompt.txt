@@ -13,6 +13,9 @@ Rules:
   Prefer an explicit horizon; otherwise infer conservatively from expiry, stated holding period,
   trade style, and surrounding context. If evidence is weak, use SWING and add
   CATEGORY_INFERRED_LOW_CONFIDENCE to warnings. The Manager can override the suggestion.
+- When category_suggestion is SHORT_TERM, extract only the contract and one explicit entry
+  price. Do not infer Mentor, Position, TP1, TP2, SL, Average Cost, or Add Stage. Keep all
+  corresponding fields null; Short-Term is an independent non-Mentor tracking flow.
 - The normal position ladder is: entry 1/8; first add reaches 1/4; second add reaches
   1/2; third add reaches 3/4. A fourth add reaches full size only when explicitly
   selected by a Manager; never infer a fourth add.

@@ -99,10 +99,14 @@ class Settings:
     analysis_enabled: bool
     moomoo_enabled: bool
     daily_summary_enabled: bool
+    short_term_tracking_enabled: bool
     axis_stock_analyst_enabled: bool
     moomoo_host: str
     moomoo_port: int
     daily_summary_time_et: str
+    massive_api_key: str
+    massive_base_url: str
+    short_term_tracking_config_path: Path
     blueprint_path: Path
     ids_path: Path
     report_path: Path
@@ -163,6 +167,9 @@ class Settings:
         llm_analysis_prompt_value = os.getenv(
             "LLM_ANALYSIS_PROMPT_PATH", "config/llm_analysis_prompt.txt"
         )
+        short_term_tracking_value = os.getenv(
+            "SHORT_TERM_TRACKING_CONFIG", "config/short_term_tracking.yaml"
+        )
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
         default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
@@ -180,6 +187,7 @@ class Settings:
             analysis_enabled=_parse_bool("FEATURE_ANALYSIS_ENABLED", False),
             moomoo_enabled=_parse_bool("FEATURE_MOOMOO_ENABLED", False),
             daily_summary_enabled=_parse_bool("FEATURE_DAILY_SUMMARY_ENABLED", True),
+            short_term_tracking_enabled=_parse_bool("FEATURE_SHORT_TERM_TRACKING_ENABLED", False),
             axis_stock_analyst_enabled=_parse_bool_alias(
                 "FEATURE_AXIS_STOCK_ANALYST_ENABLED",
                 "FEATURE_COSMOS_STOCK_ANALYST_ENABLED",
@@ -188,6 +196,12 @@ class Settings:
             moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip() or "127.0.0.1",
             moomoo_port=_parse_positive_int("MOOMOO_OPEND_PORT", 11111),
             daily_summary_time_et=_parse_time_hhmm("DAILY_SUMMARY_TIME_ET", "16:15"),
+            massive_api_key=os.getenv("MASSIVE_API_KEY", "").strip(),
+            massive_base_url=(
+                os.getenv("MASSIVE_BASE_URL", "https://api.massive.com").strip()
+                or "https://api.massive.com"
+            ).rstrip("/"),
+            short_term_tracking_config_path=(root / short_term_tracking_value).resolve(),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),

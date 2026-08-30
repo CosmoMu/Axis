@@ -8,7 +8,11 @@ from contextlib import suppress
 import discord
 from discord.ext import commands, tasks
 
-from app.bot.cards import build_public_trade_embed, build_review_embed
+from app.bot.cards import (
+    build_public_trade_embed,
+    build_review_embed,
+    build_short_term_entry_embed,
+)
 from app.bot.ephemeral import ERROR_DELETE_AFTER, send_temporary_ephemeral
 from app.bot.views.review_views import (
     ActiveOrdersView,
@@ -16,6 +20,7 @@ from app.bot.views.review_views import (
     ReviewDraftView,
 )
 from app.domain.enums import DraftStatus, TradeCategory
+from app.domain.public_cards import ShortTermEntryCard
 from app.services.card_review import (
     ACTIVE_REVIEW_STATUSES,
     CardReviewService,
@@ -24,6 +29,7 @@ from app.services.card_review import (
     ReviewError,
     ReviewValidationError,
 )
+from app.services.short_term_tracking import MarketTrackingService
 from app.services.trade_publication import (
     PublicationConflictError,
     PublicationError,
@@ -41,6 +47,7 @@ class CardReviewCog(commands.Cog):
         *,
         service: CardReviewService,
         publication_service: TradePublicationService,
+        tracking_service: MarketTrackingService,
         guild_id: int,
         channel_id: int,
         manager_role_id: int,
@@ -50,6 +57,7 @@ class CardReviewCog(commands.Cog):
         self.bot = bot
         self.service = service
         self.publication_service = publication_service
+        self.tracking_service = tracking_service
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.manager_role_id = manager_role_id
@@ -207,6 +215,13 @@ class CardReviewCog(commands.Cog):
 
     async def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
         if draft.status in ACTIVE_REVIEW_STATUSES:
+            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+                return ReviewDraftView(
+                    self,
+                    draft,
+                    mentor_choices=[],
+                    trade_choices=[],
+                )
             mentor_choices, trade_choices = await asyncio.gather(
                 self.service.mentor_choices(draft.guild_id),
                 self.service.trade_choices(draft.guild_id),
@@ -260,10 +275,20 @@ class CardReviewCog(commands.Cog):
                 if any(embed.footer.text == marker for embed in candidate.embeds):
                     message = candidate
                     break
-            view = ActiveOrdersView(self, claim.card.category)
+            category = (
+                TradeCategory.SHORT_TERM.value
+                if isinstance(claim.card, ShortTermEntryCard)
+                else claim.card.category
+            )
+            view = ActiveOrdersView(self, category)
             if message is None:
+                embed = (
+                    build_short_term_entry_embed(claim.card, public_ref=claim.public_ref)
+                    if isinstance(claim.card, ShortTermEntryCard)
+                    else build_public_trade_embed(claim.card, public_ref=claim.public_ref)
+                )
                 message = await send(
-                    embed=build_public_trade_embed(claim.card, public_ref=claim.public_ref),
+                    embed=embed,
                     view=view,
                 )
             else:
@@ -276,11 +301,13 @@ class CardReviewCog(commands.Cog):
             )
             return await self.service.get(draft.id)
 
-        await self.publication_service.finalize(
+        result = await self.publication_service.finalize(
             claim.publication_id,
             claim_token=claim.claim_token,
             message_id=message.id,
         )
+        if isinstance(claim.card, ShortTermEntryCard):
+            await self.tracking_service.register_trade(result.trade_id, claim.card.entry_price)
         return await self.service.get(draft.id)
 
     async def _ensure_review_message(self, draft: ReviewDraft) -> None:

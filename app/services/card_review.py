@@ -60,6 +60,16 @@ class DraftEdit:
 
 
 @dataclass(frozen=True, slots=True)
+class ShortTermDraftEdit:
+    selected_category: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    entry_price: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class ReviewDraft:
     id: uuid.UUID
     guild_id: int
@@ -112,6 +122,19 @@ REGISTERED_REVIEW_STATUSES = {
 
 def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ...]:
     missing: list[str] = []
+    category = draft.selected_category or draft.category_suggestion
+    if category == "SHORT_TERM":
+        if draft.intent != "NEW_TRADE":
+            missing.append("intent")
+        if draft.selected_category != "SHORT_TERM":
+            missing.append("category")
+        for field in ("ticker", "expiry", "strike", "option_side"):
+            if getattr(draft, field) is None:
+                missing.append(field)
+        if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
+            missing.append("entry_price")
+        return tuple(missing)
+
     if draft.intent not in {"NEW_TRADE", "UPDATE_TRADE"}:
         missing.append("intent")
     mentor_missing = (
@@ -288,6 +311,7 @@ class CardReviewService:
                     select(Trade.id, Trade.public_trade_id, Trade.ticker, Trade.option_side)
                     .where(
                         Trade.guild_id == guild_id,
+                        Trade.category.in_(("SWING", "LEAPS")),
                         Trade.state.in_([TradeState.ACTIVE.value, TradeState.RUNNER.value]),
                     )
                     .order_by(Trade.updated_at.desc())
@@ -310,6 +334,8 @@ class CardReviewService:
     ) -> ReviewDraft:
         async with self.database.session() as session:
             draft = await self._locked_draft(session, draft_id, expected_version)
+            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+                raise ReviewValidationError("SHORT_TERM_MENTOR_FORBIDDEN")
             mentor = await session.get(Mentor, mentor_id)
             if mentor is None or mentor.guild_id != draft.guild_id or not mentor.is_active:
                 raise ReviewValidationError("MENTOR_UNAVAILABLE")
@@ -333,8 +359,10 @@ class CardReviewService:
     ) -> ReviewDraft:
         async with self.database.session() as session:
             draft = await self._locked_draft(session, draft_id, expected_version)
+            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+                raise ReviewValidationError("SHORT_TERM_TRADE_LINK_FORBIDDEN")
             trade = await session.get(Trade, trade_id)
-            if trade is None or trade.guild_id != draft.guild_id:
+            if trade is None or trade.guild_id != draft.guild_id or trade.category == "SHORT_TERM":
                 raise ReviewValidationError("TRADE_UNAVAILABLE")
             before = _audit_payload(draft)
             draft.matched_trade_id = trade.id
@@ -362,6 +390,8 @@ class CardReviewService:
                 return await self._snapshot(session, draft)
             before = _audit_payload(draft)
             draft.selected_category = category
+            if category == "SHORT_TERM":
+                self._clear_short_term_fields(draft)
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session,
@@ -370,6 +400,47 @@ class CardReviewService:
                 interaction_id,
                 "TRADE_DRAFT_CATEGORY_SELECTED",
                 before,
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def edit_short_term(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        values: ShortTermDraftEdit,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        self._validate_short_term_edit(values)
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            draft.selected_category = values.selected_category
+            draft.category_suggestion = values.selected_category
+            draft.intent = "NEW_TRADE"
+            draft.action = "ENTRY"
+            draft.action_stage = None
+            draft.ticker = values.ticker
+            draft.expiry = values.expiry
+            draft.strike = values.strike
+            draft.option_side = values.option_side
+            draft.entry_low = values.entry_price
+            draft.entry_high = values.entry_price
+            draft.action_price = None
+            draft.mentor_id = None
+            draft.matched_trade_id = None
+            draft.position_delta_eighths = None
+            draft.position_after_eighths = None
+            draft.avg_cost = None
+            draft.sl = None
+            draft.tp1 = None
+            draft.tp2 = None
+            draft.current_pnl_pct = None
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session, draft, actor_user_id, interaction_id, "SHORT_TERM_DRAFT_EDITED", before
             )
             await session.commit()
             return await self._snapshot(session, draft)
@@ -389,6 +460,8 @@ class CardReviewService:
             before = _audit_payload(draft)
             for field in DraftEdit.__dataclass_fields__:
                 setattr(draft, field, getattr(values, field))
+            if draft.selected_category == "SHORT_TERM":
+                self._clear_short_term_fields(draft)
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_EDITED", before
@@ -490,6 +563,21 @@ class CardReviewService:
         draft.version += 1
 
     @staticmethod
+    def _clear_short_term_fields(draft: TradeDraft) -> None:
+        draft.intent = "NEW_TRADE"
+        draft.action = "ENTRY"
+        draft.action_stage = None
+        draft.mentor_id = None
+        draft.matched_trade_id = None
+        draft.position_delta_eighths = None
+        draft.position_after_eighths = None
+        draft.avg_cost = None
+        draft.sl = None
+        draft.tp1 = None
+        draft.tp2 = None
+        draft.current_pnl_pct = None
+
+    @staticmethod
     def _validate_edit(values: DraftEdit) -> None:
         if values.intent not in {"NEW_TRADE", "UPDATE_TRADE"}:
             raise ReviewValidationError("INTENT_INVALID")
@@ -569,6 +657,20 @@ class CardReviewService:
             and values.position_delta_eighths != values.position_after_eighths
         ):
             raise ReviewValidationError("ENTRY_POSITION_MISMATCH")
+
+    @staticmethod
+    def _validate_short_term_edit(values: ShortTermDraftEdit) -> None:
+        if values.selected_category not in {"SHORT_TERM", "SWING", "LEAPS"}:
+            raise ReviewValidationError("CATEGORY_INVALID")
+        if values.option_side not in {"CALL", "PUT"}:
+            raise ReviewValidationError("OPTION_SIDE_INVALID")
+        if not 1 <= len(values.ticker) <= 12 or any(
+            character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for character in values.ticker
+        ):
+            raise ReviewValidationError("TICKER_INVALID")
+        for value in (values.strike, values.entry_price):
+            if not value.is_finite() or value <= 0:
+                raise ReviewValidationError("PRICE_INVALID")
 
     @staticmethod
     async def _validate_position_transition(session: AsyncSession, draft: TradeDraft) -> None:

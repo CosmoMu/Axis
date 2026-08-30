@@ -30,8 +30,8 @@ async def test_weighted_result_and_idempotent_official_publication() -> None:
             await session.flush()
             trade = Trade(
                 guild_id=GUILD_ID,
-                public_trade_id="ST-0001",
-                category="SHORT_TERM",
+                public_trade_id="SW-0001",
+                category="SWING",
                 mentor_id=mentor.id,
                 ticker="TSLA",
                 expiry=date(2026, 9, 18),

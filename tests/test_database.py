@@ -18,6 +18,7 @@ EXPECTED_TABLES = {
     "analysis_publications",
     "analysis_symbols",
     "daily_summary_publications",
+    "daily_results_publications",
     "guild_config",
     "input_code_counters",
     "mentors",
@@ -42,6 +43,9 @@ EXPECTED_TABLES = {
     "subscriptions",
     "payment_webhook_events",
     "system_alerts",
+    "short_term_tracking",
+    "short_term_tracking_events",
+    "short_term_daily_snapshots",
     "audit_logs",
     "scheduled_jobs",
 }

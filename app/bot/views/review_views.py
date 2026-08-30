@@ -19,6 +19,7 @@ from app.services.card_review import (
     ReviewChoice,
     ReviewDraft,
     ReviewValidationError,
+    ShortTermDraftEdit,
     public_preview_payload,
 )
 
@@ -210,6 +211,75 @@ class DraftEditModal(discord.ui.Modal):
             await self.controller.handle_error(interaction, exc)
 
 
+class ShortTermEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"Edit Short-Term · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:short-edit:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        entry = draft.entry_low or draft.entry_high or draft.action_price
+        self.ticker = discord.ui.TextInput(
+            label="Ticker", default=_display(draft.ticker), max_length=12
+        )
+        self.expiry = discord.ui.TextInput(
+            label="Expiry · YYYY-MM-DD", default=_display(draft.expiry), max_length=10
+        )
+        self.strike = discord.ui.TextInput(
+            label="Strike", default=_decimal_display(draft.strike), max_length=24
+        )
+        self.option_side = discord.ui.TextInput(
+            label="Call / Put", default=_display(draft.option_side), max_length=4
+        )
+        self.entry_price = discord.ui.TextInput(
+            label="Entry Price", default=_decimal_display(entry), max_length=24
+        )
+        for item in (
+            self.ticker,
+            self.expiry,
+            self.strike,
+            self.option_side,
+            self.entry_price,
+        ):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            expiry = _optional_date(self.expiry.value)
+            strike = _optional_decimal(self.strike.value)
+            entry = _optional_decimal(self.entry_price.value)
+            if expiry is None or strike is None or entry is None:
+                raise ReviewValidationError("SHORT_TERM_FIELDS_REQUIRED")
+            values = ShortTermDraftEdit(
+                selected_category="SHORT_TERM",
+                ticker=self.ticker.value.strip().upper(),
+                expiry=expiry,
+                strike=strike,
+                option_side=self.option_side.value.strip().upper(),
+                entry_price=entry,
+            )
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit_short_term(
+                self.draft.id,
+                values=values,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "Short-Term 草稿已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
 class ReviewChoiceSelect(discord.ui.Select):
     def __init__(
         self,
@@ -316,7 +386,7 @@ class CategorySelect(discord.ui.Select):
             ("长期 · LEAPS", "LEAPS", "长期或 LEAPS"),
         )
         super().__init__(
-            placeholder="Select Category",
+            placeholder=f"CATEGORY · {current or 'SELECT'}",
             min_values=1,
             max_values=1,
             options=[
@@ -367,9 +437,24 @@ class ReviewDraftView(discord.ui.View):
         self.controller = controller
         self.draft = draft
         self.add_item(CategorySelect(controller, draft))
-        self.add_item(
-            ReviewChoiceSelect(controller, draft, kind="mentor", choices=mentor_choices)
-        )
+        short_term = (draft.selected_category or draft.category_suggestion) == "SHORT_TERM"
+        if short_term:
+            buttons = (
+                ("EDIT", discord.ButtonStyle.primary, "edit", 1, self.edit),
+                ("PUBLISH", discord.ButtonStyle.success, "approve", 1, self.approve),
+                ("DELETE", discord.ButtonStyle.danger, "delete", 1, self.delete),
+            )
+            for label, style, action, row, callback in buttons:
+                button = discord.ui.Button(
+                    label=label,
+                    style=style,
+                    row=row,
+                    custom_id=f"axis:review:{action}:{draft.id.hex}:v{draft.version}",
+                )
+                button.callback = callback
+                self.add_item(button)
+            return
+        self.add_item(ReviewChoiceSelect(controller, draft, kind="mentor", choices=mentor_choices))
         self.add_item(ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices))
         buttons = (
             ("完整编辑", discord.ButtonStyle.primary, "edit", 3, self.edit),
@@ -391,7 +476,10 @@ class ReviewDraftView(discord.ui.View):
         return await self.controller.authorize(interaction)
 
     async def edit(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
+        if (self.draft.selected_category or self.draft.category_suggestion) == "SHORT_TERM":
+            await interaction.response.send_modal(ShortTermEditModal(self.controller, self.draft))
+        else:
+            await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
 
     async def preview(self, interaction: discord.Interaction) -> None:
         current = await self.controller.service.get(self.draft.id)
@@ -492,9 +580,12 @@ class ActiveOrdersView(discord.ui.View):
     async def show_orders(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize_member(interaction):
             return
-        orders = await self.controller.publication_service.current_orders(
-            self.controller.guild_id, self.category
-        )
+        if self.category == TradeCategory.SHORT_TERM.value:
+            orders = await self.controller.tracking_service.current_orders(self.controller.guild_id)
+        else:
+            orders = await self.controller.publication_service.current_orders(
+                self.controller.guild_id, self.category
+            )
         await interaction.response.send_message(
             embed=build_active_orders_embed(self.category, orders),
             ephemeral=True,

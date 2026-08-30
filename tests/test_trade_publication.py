@@ -3,17 +3,23 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cards import build_active_orders_embed, build_public_trade_embed
+from app.bot.cards import (
+    build_active_orders_embed,
+    build_public_trade_embed,
+    build_short_term_entry_embed,
+)
 from app.bot.views.review_views import ActiveOrdersView
 from app.db.base import Base
 from app.db.models import (
     AuditLog,
     GuildConfig,
     Mentor,
+    ShortTermTracking,
     SourceMessage,
     Trade,
     TradeDraft,
@@ -22,6 +28,8 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, PublicationStatus, SourceStatus, TradeState
+from app.services.short_term_policy import ShortTermTrackingPolicy
+from app.services.short_term_tracking import MarketTrackingService
 from app.services.trade_publication import TradePublicationService
 
 GUILD_ID = 1543309921066684567
@@ -62,7 +70,7 @@ async def publication_database() -> tuple[Database, TradeDraft]:
             intent="NEW_TRADE",
             action="ENTRY",
             action_stage="NONE",
-            selected_category="SHORT_TERM",
+            selected_category="SWING",
             ticker="TSLA",
             expiry=date(2026, 9, 18),
             strike=Decimal("400"),
@@ -95,7 +103,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         repeated_pending = await service.claim(draft.id, actor_user_id=302, interaction_id=402)
         assert claim.should_publish is True
         assert claim.card is not None
-        assert claim.card.public_trade_id == "ST-0001"
+        assert claim.card.public_trade_id == "SW-0001"
         assert repeated_pending.should_publish is False
         assert repeated_pending.already_published is False
         assert claim.claim_token is not None
@@ -133,11 +141,11 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert result == repeated_result
         assert repeated_claim.already_published is True
 
-        orders = await service.current_orders(GUILD_ID, "SHORT_TERM")
-        active_text = str(build_active_orders_embed("SHORT_TERM", orders).to_dict())
+        orders = await service.current_orders(GUILD_ID, "SWING")
+        active_text = str(build_active_orders_embed("SWING", orders).to_dict())
         assert len(orders) == 1
-        assert orders[0].public_trade_id == "ST-0001"
-        assert "当前短线订单" in active_text
+        assert orders[0].public_trade_id == "SW-0001"
+        assert "当前波段订单" in active_text
         assert "Private Mentor" not in active_text
 
         async with database.session() as session:
@@ -250,7 +258,7 @@ async def test_update_event_changes_active_state_and_close_removes_order() -> No
 
         add_claim = await service.claim(add_draft.id)
         assert add_claim.card is not None
-        assert add_claim.card.public_trade_id == "ST-0001"
+        assert add_claim.card.public_trade_id == "SW-0001"
         assert add_claim.card.ticker == "TSLA"
         assert add_claim.claim_token is not None
         await service.finalize(
@@ -258,11 +266,11 @@ async def test_update_event_changes_active_state_and_close_removes_order() -> No
             claim_token=add_claim.claim_token,
             message_id=702,
         )
-        active = await service.current_orders(GUILD_ID, "SHORT_TERM")
+        active = await service.current_orders(GUILD_ID, "SWING")
         assert len(active) == 1
         assert active[0].last_public_action == "ADD_FIRST"
         assert active[0].position_eighths == 2
-        assert "第一次加仓" in str(build_active_orders_embed("SHORT_TERM", active).to_dict())
+        assert "第一次加仓" in str(build_active_orders_embed("SWING", active).to_dict())
 
         async with database.session() as session:
             mentor_id = await session.scalar(select(Mentor.id).limit(1))
@@ -308,7 +316,7 @@ async def test_update_event_changes_active_state_and_close_removes_order() -> No
             claim_token=close_claim.claim_token,
             message_id=703,
         )
-        assert await service.current_orders(GUILD_ID, "SHORT_TERM") == []
+        assert await service.current_orders(GUILD_ID, "SWING") == []
         async with database.session() as session:
             trade = await session.get(Trade, entry_result.trade_id)
             event_count = await session.scalar(select(func.count()).select_from(TradeEvent))
@@ -362,3 +370,100 @@ def test_roll_clears_cached_moomoo_contract_code() -> None:
     TradePublicationService._apply_trade_update(trade, draft, after_position=2)
     assert trade.moomoo_option_code is None
     assert trade.expiry == date(2026, 9, 11)
+
+
+@pytest.mark.asyncio
+async def test_short_term_publishes_without_mentor_and_registers_independent_tracking() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    async with database.engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    try:
+        async with database.session() as session:
+            session.add(
+                GuildConfig(
+                    guild_id=GUILD_ID,
+                    short_term_channel_id=101,
+                    swing_channel_id=102,
+                    leaps_channel_id=103,
+                )
+            )
+            source = SourceMessage(
+                guild_id=GUILD_ID,
+                discord_message_id=999,
+                channel_id=202,
+                submitted_by=203,
+                raw_text="NVDA 08/31 500C 1.20",
+                status=SourceStatus.PARSED.value,
+                received_at=datetime.now(UTC),
+            )
+            session.add(source)
+            await session.flush()
+            draft = TradeDraft(
+                guild_id=GUILD_ID,
+                draft_code="S-00999",
+                source_message_id=source.id,
+                mentor_id=None,
+                status=DraftStatus.READY.value,
+                intent="NEW_TRADE",
+                action="ENTRY",
+                selected_category="SHORT_TERM",
+                ticker="NVDA",
+                expiry=date(2027, 1, 15),
+                strike=Decimal("500"),
+                option_side="CALL",
+                entry_low=Decimal("1.20"),
+                entry_high=Decimal("1.20"),
+                position_delta_eighths=None,
+                position_after_eighths=None,
+                parse_payload={},
+                missing_fields=[],
+                warnings=[],
+                reviewed_by=301,
+                version=2,
+            )
+            session.add(draft)
+            await session.commit()
+
+        publication = TradePublicationService(database)
+        claim = await publication.claim(draft.id)
+        assert claim.card is not None
+        public_text = str(
+            build_short_term_entry_embed(
+                claim.card,  # type: ignore[arg-type]
+                public_ref=claim.public_ref,
+            ).to_dict()
+        )
+        for forbidden in ("Mentor", "SL", "TP", "仓位", "Market", "Bid", "Ask"):
+            assert forbidden not in public_text
+        assert "MY RISK IS NOT YOUR RISK" in public_text
+        assert claim.claim_token is not None
+        result = await publication.finalize(
+            claim.publication_id,
+            claim_token=claim.claim_token,
+            message_id=9999,
+        )
+
+        tracker = MarketTrackingService(
+            database,
+            ShortTermTrackingPolicy.load(
+                Path(__file__).resolve().parents[1] / "config" / "short_term_tracking.yaml"
+            ),
+            None,
+        )
+        await tracker.register_trade(result.trade_id, Decimal("1.20"))
+        await tracker.register_trade(result.trade_id, Decimal("1.20"))
+        active = await tracker.current_orders(GUILD_ID)
+        async with database.session() as session:
+            saved_trade = await session.get(Trade, result.trade_id)
+            tracking_count = await session.scalar(
+                select(func.count()).select_from(ShortTermTracking)
+            )
+        assert saved_trade is not None
+        assert saved_trade.mentor_id is None
+        assert saved_trade.position_eighths == 0
+        assert saved_trade.state == TradeState.ACTIVE.value
+        assert tracking_count == 1
+        assert len(active) == 1
+        assert active[0].current_price == Decimal("1.2000")
+    finally:
+        await database.dispose()

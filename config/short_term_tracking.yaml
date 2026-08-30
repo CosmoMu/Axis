@@ -1,0 +1,38 @@
+version: ST_TRACKING_V1
+price_source: MID
+poll_seconds: 5
+max_quote_age_seconds: 120
+last_trade_quote_guard_pct: 50
+
+milestones:
+  - {return_pct: 20, card_type: TP}
+  - {return_pct: 50, card_type: TP}
+  - {return_pct: 100, card_type: RUNNER}
+  - {return_pct: 150, card_type: RUNNER}
+  - {return_pct: 200, card_type: RUNNER}
+  - {return_pct: 300, card_type: RUNNER}
+  - {return_pct: 400, card_type: RUNNER}
+  - {return_pct: 500, card_type: RUNNER}
+  - {return_pct: 750, card_type: RUNNER}
+  - {return_pct: 1000, card_type: RUNNER}
+
+reference_protection:
+  initial_return_pct: -50
+  moves:
+    50: 0
+    100: 50
+    150: 100
+    200: 150
+    300: 200
+    400: 300
+    500: 400
+    750: 500
+    1000: 750
+
+momentum_reversal:
+  enabled: true
+  min_profit_pct: 50
+  cooldown_minutes: 15
+  triggers:
+    - {seconds: 60, drawdown_pct: 10}
+    - {seconds: 180, drawdown_pct: 15}

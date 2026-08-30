@@ -27,6 +27,7 @@ GUIDE_TITLES = {
     "subscriptions": ("subscription_message_id", "AXIS MEMBERSHIP"),
     "official_results": ("results_guide_message_id", "AXIS RESULTS"),
     "member_wins": ("member_wins_guide_message_id", "COMMUNITY WINS"),
+    "short_term_alerts": ("short_term_notice_message_id", "RISK NOTICE"),
 }
 TEST_COMMANDS = {
     "test-signal-card",
@@ -38,6 +39,11 @@ TEST_COMMANDS = {
     "test-close-card",
     "test-general-card",
     "test-payment-ui",
+    "test-short-entry",
+    "test-short-tp",
+    "test-short-runner",
+    "test-short-stop",
+    "test-short-daily",
 }
 
 
@@ -120,6 +126,11 @@ async def verify() -> list[str]:
         _check(member_lounge.permissions_for(member).view_channel, "member_lounge_view", failures)
         _check(short_term.permissions_for(member).view_channel, "member_signal_view", failures)
         _check(not short_term.permissions_for(member).send_messages, "member_signal_send", failures)
+        _check(
+            short_term.permissions_for(bot_member).pin_messages,
+            "bot_short_term_pin",
+            failures,
+        )
         for key, owner_only in (
             ("system_alerts", system_alerts),
             ("card_testing", card_testing),
@@ -185,8 +196,8 @@ async def verify() -> list[str]:
                         failures,
                     )
                     _check("CANCEL MONTHLY" in labels, "cancel_monthly_button_missing", failures)
-                if channel_key == "member_wins" and matching:
-                    _check(matching[0].pinned, "member_wins_guide_not_pinned", failures)
+                if channel_key in {"member_wins", "short_term_alerts"} and matching:
+                    _check(matching[0].pinned, f"{channel_key}_guide_not_pinned", failures)
             lobby = channel("lobby")
             _check(
                 lobby.topic
@@ -221,7 +232,7 @@ def main() -> int:
     print("discord_runtime=PASS")
     print("permissions=public,member,manager,owner,bot")
     print("general_guides=idempotent")
-    print("owner_test_commands=9")
+    print("owner_test_commands=14")
     return 0
 
 

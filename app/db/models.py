@@ -110,6 +110,7 @@ class GuildConfig(TimestampMixin, Base):
     results_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     lobby_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_wins_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    short_term_notice_message_id: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class InputCodeCounter(Base):
@@ -318,8 +319,8 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     )
     public_trade_id: Mapped[str] = mapped_column(String(32), nullable=False)
     category: Mapped[str] = mapped_column(String(32), nullable=False)
-    mentor_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("mentors.id", ondelete="RESTRICT"), index=True
+    mentor_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mentors.id", ondelete="RESTRICT"), index=True, nullable=True
     )
     ticker: Mapped[str] = mapped_column(String(12), nullable=False)
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
@@ -382,6 +383,178 @@ class TradeEvent(UuidPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )
+
+
+class ShortTermTracking(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "short_term_tracking"
+    __table_args__ = (
+        UniqueConstraint("trade_id", name="short_term_tracking_trade"),
+        CheckConstraint(
+            "tracking_state IN ('ACTIVE','OVERNIGHT_ACTIVE','STOPPED')",
+            name="short_term_tracking_state",
+        ),
+        CheckConstraint("entry_price > 0", name="short_term_tracking_entry_positive"),
+        CheckConstraint("overnight_count >= 0", name="short_term_tracking_overnight_nonnegative"),
+        CheckConstraint("price_source IN ('BID','MID','LAST')", name="short_term_price_source"),
+        Index("ix_short_term_tracking_guild_state", "guild_id", "tracking_state"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    option_ticker: Mapped[str] = mapped_column(String(64), nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    current_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    current_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    highest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    highest_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    lowest_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    milestones_hit: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    momentum_tp_events: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    reference_protection_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    reference_protection_reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    tracking_state: Mapped[str] = mapped_column(String(24), nullable=False)
+    tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
+    tracking_end_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    tracking_end_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    tracking_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tracking_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    overnight_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_session_date: Mapped[date | None] = mapped_column(Date)
+    closing_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    closing_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    last_quote_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tracking_policy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    price_source: Mapped[str] = mapped_column(String(8), nullable=False)
+    momentum_anchor_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    momentum_last_event_anchor_version: Mapped[int] = mapped_column(
+        Integer, default=-1, nullable=False
+    )
+    momentum_cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consecutive_data_errors: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class ShortTermTrackingEvent(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "short_term_tracking_events"
+    __table_args__ = (
+        UniqueConstraint("tracking_id", "event_key", name="short_term_tracking_event_key"),
+        UniqueConstraint("guild_id", "public_ref", name="short_term_event_public_ref"),
+        UniqueConstraint("guild_id", "discord_message_id", name="short_term_event_message"),
+        CheckConstraint(
+            "event_type IN ('ENTRY_PUBLISHED','FIXED_TP_HIT','RUNNER_MILESTONE',"
+            "'FAST_MOMENTUM_REVERSAL','REFERENCE_PROTECTION_MOVED','TRACKING_STOPPED',"
+            "'OVERNIGHT_CARRY','OVERNIGHT_GAP_STOP')",
+            name="short_term_event_type",
+        ),
+        Index(
+            "ix_short_term_events_public_queue", "guild_id", "public_notification", "published_at"
+        ),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    tracking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("short_term_tracking.id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    event_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    milestone_pct: Mapped[int | None] = mapped_column(Integer)
+    source_market_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    high_watermark_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    high_watermark_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    high_watermark_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    low_watermark_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    low_watermark_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    trigger_market_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    trigger_market_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    drawdown_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    drawdown_duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    tracking_policy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    price_source: Mapped[str] = mapped_column(String(8), nullable=False)
+    public_notification: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    public_card_type: Mapped[str | None] = mapped_column(String(24))
+    public_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    public_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    public_ref: Mapped[str | None] = mapped_column(String(32))
+    discord_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class ShortTermDailySnapshot(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "short_term_daily_snapshots"
+    __table_args__ = (
+        UniqueConstraint("tracking_id", "session_date", name="short_term_daily_tracking_session"),
+        Index("ix_short_term_daily_guild_session", "guild_id", "session_date"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    tracking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("short_term_tracking.id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    closing_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    closing_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    highest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    reference_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    tracking_state: Mapped[str] = mapped_column(String(24), nullable=False)
+    tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class DailyResultsPublication(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "daily_results_publications"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "session_date", name="daily_results_guild_session"),
+        UniqueConstraint("guild_id", "message_id", name="daily_results_message"),
+        CheckConstraint(enum_check("status", PublicationStatus), name="daily_results_status"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    public_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TradePublication(UuidPrimaryKeyMixin, Base):

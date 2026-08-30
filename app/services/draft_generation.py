@@ -83,6 +83,10 @@ def _unique_strings(values: Any) -> list[str]:
 
 
 def _apply_position_ladder(payload: dict[str, Any]) -> None:
+    if payload.get("category_suggestion") == "SHORT_TERM":
+        payload["position_delta_eighths"] = None
+        payload["position_after_eighths"] = None
+        return
     if payload.get("position_delta_eighths") is not None:
         return
     if payload.get("position_after_eighths") is not None:
@@ -120,9 +124,13 @@ def _add_required_missing_fields(payload: dict[str, Any]) -> None:
             missing.append("option_side")
         if all(payload.get(field) is None for field in ("entry_low", "entry_high", "action_price")):
             missing.append("entry_price")
-    if payload.get("action") in {"ENTRY", "ADD"} and (
-        payload.get("position_delta_eighths") is None
-        or payload.get("position_after_eighths") is None
+    if (
+        payload.get("category_suggestion") != "SHORT_TERM"
+        and payload.get("action") in {"ENTRY", "ADD"}
+        and (
+            payload.get("position_delta_eighths") is None
+            or payload.get("position_after_eighths") is None
+        )
     ):
         missing.append("position")
     payload["missing_fields"] = list(dict.fromkeys(missing))

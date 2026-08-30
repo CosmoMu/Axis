@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cards import build_daily_summary_embeds
+from app.bot.cards import build_daily_summary_embeds, build_short_term_daily_summary_embed
 from app.db.base import Base
 from app.db.bootstrap import seed_guild_config
 from app.db.models import (
@@ -16,6 +16,7 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import OptionSide, PublicationStatus, TradeCategory, TradeState
+from app.domain.public_cards import ShortTermDailySummary
 from app.integrations.moomoo_market_data import (
     OptionQuote,
     OptionQuoteRequest,
@@ -82,8 +83,8 @@ async def seeded_database() -> Database:
         await session.flush()
         active = Trade(
             guild_id=GUILD_ID,
-            public_trade_id="ST-0001",
-            category=TradeCategory.SHORT_TERM.value,
+            public_trade_id="SW-0002",
+            category=TradeCategory.SWING.value,
             mentor_id=mentor.id,
             ticker="AAPL",
             expiry=date(2026, 9, 18),
@@ -164,13 +165,13 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
             await service.finalize(claim.publication_id, message_id)
         assert await service.next_publishable(GUILD_ID, SESSION_DATE) is None
 
-        all_card_text = str(
-            [
-                embed.to_dict()
-                for claim in claims
-                for embed in build_daily_summary_embeds(claim.summary)
-            ]
-        )
+        embeds = []
+        for claim in claims:
+            if isinstance(claim.summary, ShortTermDailySummary):
+                embeds.append(build_short_term_daily_summary_embed(claim.summary))
+            else:
+                embeds.extend(build_daily_summary_embeds(claim.summary))
+        all_card_text = str([embed.to_dict() for embed in embeds])
         assert "当前/收盘参考价" in all_card_text
         assert "浮动 +25.00%" in all_card_text
         assert "加权最终收益 +50.00%" in all_card_text

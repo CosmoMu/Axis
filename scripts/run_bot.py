@@ -25,6 +25,7 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
+from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
 from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
@@ -54,6 +55,8 @@ from app.services.membership_management import MembershipManagementService  # no
 from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
 from app.services.official_results import OfficialResultsService  # noqa: E402
+from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
+from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
 from app.services.system_alerts import SystemAlertService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
@@ -164,11 +167,32 @@ async def run() -> None:
         elif settings.analysis_enabled:
             raise ConfigurationError("Analysis 已启用但缺少 OPENAI_API_KEY。")
         daily_summary_service = None
-        if settings.moomoo_enabled and settings.daily_summary_enabled:
+        if settings.daily_summary_enabled:
             daily_summary_service = DailySummaryService(
                 database,
-                MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port),
+                (
+                    MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port)
+                    if settings.moomoo_enabled
+                    else None
+                ),
             )
+        short_term_policy = ShortTermTrackingPolicy.load(settings.short_term_tracking_config_path)
+        if settings.short_term_tracking_enabled and not settings.massive_api_key:
+            raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
+        massive_provider = (
+            MassiveMarketDataProvider(
+                api_key=settings.massive_api_key,
+                price_source=short_term_policy.price_source,
+                max_quote_age_seconds=short_term_policy.max_quote_age_seconds,
+                last_trade_quote_guard_pct=(short_term_policy.last_trade_quote_guard_pct),
+                base_url=settings.massive_base_url,
+            )
+            if settings.short_term_tracking_enabled
+            else None
+        )
+        short_term_tracking_service = MarketTrackingService(
+            database, short_term_policy, massive_provider
+        )
         calendar = TradingCalendarService()
         acknowledgements = MembershipAcknowledgementService(database)
         access_service = MembershipAccessService(database, calendar, acknowledgements)
@@ -224,6 +248,7 @@ async def run() -> None:
             draft_generation_service=draft_generation_service,
             card_review_service=CardReviewService(database),
             trade_publication_service=TradePublicationService(database),
+            short_term_tracking_service=short_term_tracking_service,
             mentor_service=MentorManagementService(database),
             membership_service=membership_service,
             membership_access_service=access_service,

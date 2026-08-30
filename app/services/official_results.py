@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.db.models import AuditLog, GuildConfig, Trade, TradeEvent, utc_now
 from app.db.session import Database
-from app.domain.enums import TradeState
+from app.domain.enums import TradeCategory, TradeState
 
 
 class ResultsError(RuntimeError):
@@ -44,6 +44,7 @@ class OfficialResultsService:
                 select(Trade.id)
                 .where(
                     Trade.guild_id == guild_id,
+                    Trade.category != TradeCategory.SHORT_TERM.value,
                     Trade.state == TradeState.CLOSED.value,
                     Trade.result_message_id.is_(None),
                 )
@@ -54,7 +55,11 @@ class OfficialResultsService:
     async def calculate(self, trade_id: uuid.UUID) -> OfficialResult:
         async with self.database.session() as session:
             trade = await session.get(Trade, trade_id)
-            if trade is None or trade.state != TradeState.CLOSED.value:
+            if (
+                trade is None
+                or trade.category == TradeCategory.SHORT_TERM.value
+                or trade.state != TradeState.CLOSED.value
+            ):
                 raise ResultsError("CLOSED_TRADE_NOT_FOUND")
             config = await session.get(GuildConfig, trade.guild_id)
             if config is None or config.results_channel_id is None:

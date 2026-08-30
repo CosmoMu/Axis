@@ -27,7 +27,7 @@ from app.domain.enums import (
     TradeCategory,
     TradeState,
 )
-from app.domain.public_cards import ActivePublicTrade, PublicTradeCard
+from app.domain.public_cards import ActivePublicTrade, PublicTradeCard, ShortTermEntryCard
 
 ACTIVE_CUSTOM_IDS = {
     TradeCategory.SHORT_TERM.value: "axis:active:short_term:v1",
@@ -65,7 +65,7 @@ class PublicationClaim:
     already_published: bool
     channel_id: int
     public_ref: str
-    card: PublicTradeCard | None
+    card: PublicTradeCard | ShortTermEntryCard | None
     message_id: int | None
 
 
@@ -83,7 +83,7 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
-def _payload_hash(card: PublicTradeCard) -> str:
+def _payload_hash(card: PublicTradeCard | ShortTermEntryCard) -> str:
     payload = {
         key: (item.isoformat() if hasattr(item, "isoformat") else str(item))
         for key, item in asdict(card).items()
@@ -315,13 +315,15 @@ class TradePublicationService:
             }:
                 raise PublicationValidationError("DRAFT_NOT_READY")
 
+            short_term = trade.category == TradeCategory.SHORT_TERM.value
             before_position = trade.position_eighths
-            after_position = draft.position_after_eighths
+            after_position = 0 if short_term else draft.position_after_eighths
             if after_position is None:
                 raise PublicationValidationError("POSITION_AFTER_REQUIRED")
             position_delta = after_position - before_position
             if (
-                draft.position_delta_eighths is not None
+                not short_term
+                and draft.position_delta_eighths is not None
                 and draft.position_delta_eighths != position_delta
             ):
                 raise PublicationValidationError("POSITION_TRANSITION_MISMATCH")
@@ -429,29 +431,33 @@ class TradePublicationService:
             if (
                 trade is None
                 or trade.guild_id != draft.guild_id
+                or trade.category == TradeCategory.SHORT_TERM.value
                 or trade.state not in {TradeState.ACTIVE.value, TradeState.RUNNER.value}
             ):
                 raise PublicationValidationError("TRADE_UNAVAILABLE")
             return trade
         if draft.intent != "NEW_TRADE":
             raise PublicationValidationError("INTENT_INVALID")
+        category = draft.selected_category or ""
         required = (
             draft.selected_category,
             draft.ticker,
             draft.expiry,
             draft.strike,
             draft.option_side,
-            draft.mentor_id,
         )
+        if category != TradeCategory.SHORT_TERM.value:
+            required = (*required, draft.mentor_id)
         if any(value is None for value in required):
             raise PublicationValidationError("DRAFT_INCOMPLETE")
-        category = draft.selected_category or ""
+        if category == TradeCategory.SHORT_TERM.value and draft.intent != "NEW_TRADE":
+            raise PublicationValidationError("SHORT_TERM_NEW_TRADE_REQUIRED")
         public_trade_id = await self._next_public_trade_id(session, config, category)
         trade = Trade(
             guild_id=draft.guild_id,
             public_trade_id=public_trade_id,
             category=category,
-            mentor_id=draft.mentor_id,
+            mentor_id=(None if category == TradeCategory.SHORT_TERM.value else draft.mentor_id),
             ticker=draft.ticker or "",
             expiry=draft.expiry,
             strike=draft.strike,
@@ -507,7 +513,19 @@ class TradePublicationService:
         return channel_id
 
     @staticmethod
-    def _public_card(draft: TradeDraft, trade: Trade) -> PublicTradeCard:
+    def _public_card(draft: TradeDraft, trade: Trade) -> PublicTradeCard | ShortTermEntryCard:
+        if trade.category == TradeCategory.SHORT_TERM.value:
+            entry_price = TradePublicationService._event_price(draft)
+            if entry_price is None or entry_price <= 0:
+                raise PublicationValidationError("SHORT_TERM_ENTRY_PRICE_REQUIRED")
+            return ShortTermEntryCard(
+                public_trade_id=trade.public_trade_id,
+                ticker=trade.ticker,
+                expiry=trade.expiry,
+                strike=trade.strike,
+                option_side=trade.option_side,
+                entry_price=entry_price,
+            )
         return PublicTradeCard(
             public_trade_id=trade.public_trade_id,
             category=trade.category,
@@ -569,6 +587,13 @@ class TradePublicationService:
             trade.moomoo_option_code = None
         if trade.opened_at is None:
             trade.opened_at = now
+        if trade.category == TradeCategory.SHORT_TERM.value:
+            trade.state = TradeState.ACTIVE.value
+            trade.closed_at = None
+            trade.position_eighths = 0
+            trade.max_position_eighths = 0
+            trade.version += 1
+            return
         if draft.action == TradeAction.CANCEL.value:
             trade.state = TradeState.CANCELLED.value
             trade.closed_at = now

@@ -37,11 +37,16 @@ COUNTED_TABLES = (
     "analysis_publications",
     "market_quote_snapshots",
     "daily_summary_publications",
+    "short_term_tracking",
+    "short_term_tracking_events",
+    "short_term_daily_snapshots",
+    "daily_results_publications",
 )
 SAFE_FEATURES = (
     "FEATURE_ANALYSIS_ENABLED",
     "FEATURE_AXIS_STOCK_ANALYST_ENABLED",
     "FEATURE_DAILY_SUMMARY_ENABLED",
+    "FEATURE_SHORT_TERM_TRACKING_ENABLED",
     "FEATURE_LAB_ENABLED",
     "FEATURE_MODEL_AB_ENABLED",
     "FEATURE_MOOMOO_ENABLED",

@@ -6,6 +6,7 @@ from app.bot.general_cards import (
     lobby_guide_embed,
     member_wins_guide_embed,
     results_guide_embed,
+    short_term_risk_notice_embed,
     subscription_embed,
     welcome_embed,
 )
@@ -61,3 +62,11 @@ def test_card_testing_previews_are_pure_dtos() -> None:
     analysis = _analysis_card()
     assert analysis.analysis_code == "TEST-A-0001"
     assert "不写入数据库" in (analysis.summary or "")
+
+
+def test_short_term_risk_notice_is_stable_and_member_safe() -> None:
+    text = str(short_term_risk_notice_embed().to_dict())
+    assert "MY RISK IS NOT YOUR RISK" in text
+    assert "Risk management is personal" in text
+    assert "实际仓位、风险管理与退出由每位会员自行决定" in text
+    assert "不构成投资或买卖建议" in text

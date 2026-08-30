@@ -12,6 +12,7 @@ from app.bot.general_cards import (
     member_wins_guide_embed,
     results_guide_embed,
     risk_disclosure_embed,
+    short_term_risk_notice_embed,
     subscription_embed,
     welcome_embed,
 )
@@ -287,6 +288,7 @@ class GeneralControlCog(commands.Cog):
                 subscription_embed(offers),
                 results_guide_embed(),
                 member_wins_guide_embed(),
+                short_term_risk_notice_embed(),
             )
             for index, embed in enumerate(cards):
                 self.public_identity.assert_public(embed.to_dict(), field=f"general_card_{index}")
@@ -317,6 +319,14 @@ class GeneralControlCog(commands.Cog):
                 "member_wins_guide_message_id",
                 "AXIS Member Wins Guide v1",
                 cards[3],
+                None,
+                pin=True,
+            )
+            await self._ensure_message(
+                self.short_term_channel_id,
+                "short_term_notice_message_id",
+                "AXIS Short-Term Risk Notice v1",
+                cards[4],
                 None,
                 pin=True,
             )
