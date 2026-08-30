@@ -11,7 +11,7 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0005`。
+- Alembic revisions `0001` 到 `0006`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
@@ -44,6 +44,14 @@
 - Entry / Add / Update / TP / SL / Runner / Close 状态流转。
 - 每张会员卡片附带固定 persistent `查看当前订单`。
 - Active View 使用 ephemeral response，只返回公开订单字段。
+
+## Mentor / Membership / Results
+
+- Persistent Mentor Control 与 Member Control 面板。
+- Mentor Registry、Aliases、启停、订单查看和 Trade Mentor 修改。
+- 单一 Membership、赠送、延期、到期取消、立即移除和手工 Role 同步。
+- Scheduled Job 到期处理和持续 Member Role reconciliation。
+- Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
 
 ## Security
 

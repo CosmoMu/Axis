@@ -1,8 +1,8 @@
 # AXIS 信号输入操作说明
 
 `📥・signal-input` 是 Manager 提交原始交易信息的唯一入口。当前运行链路完成可靠收件、
-附件验证、数据库保存、`SIGNAL_PARSE` 和 `✅・card-review`；仍不会绕过 Manager
-审核向会员频道发布卡片。
+附件验证、数据库保存、`SIGNAL_PARSE` 和 `✅・card-review`；只有 Manager 明确点击
+确认发布后才会向会员频道发卡。
 
 ## 输入与权限
 

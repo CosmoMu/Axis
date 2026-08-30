@@ -2,8 +2,7 @@
 
 ## Blocking for Gate A
 
-- Mentor Control、Member Control、Results 尚未实现。
-- 长期控制面板 Message ID 字段存在，但面板尚未创建。
+- 无。Core Gate A 已通过。
 
 ## Migration Compatibility
 
@@ -17,3 +16,4 @@
 - 当前为 macOS 本地 LaunchAgent 部署，尚无 Docker production target。
 - Analysis / LAB 频道已存在，但功能关闭；频道存在不代表业务已完成。
 - Active View 当前单次最多展示 25 个进行中订单，符合 Discord Embed field 上限。
+- Mentor / Trade 动态 Select 当前单次最多展示 25 项；超出后需要后续分页。

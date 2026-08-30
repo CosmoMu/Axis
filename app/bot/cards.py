@@ -6,6 +6,7 @@ import discord
 
 from app.domain.public_cards import ActivePublicTrade, PublicTradeCard
 from app.services.card_review import ReviewDraft, publication_missing_fields
+from app.services.official_results import OfficialResult
 
 ACCENT_GREEN = 0x86F7A8
 MUTED = 0x9A9F9B
@@ -246,4 +247,22 @@ def build_active_orders_embed(
             value=f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}",
             inline=False,
         )
+    return embed
+
+
+def build_official_result_embed(result: OfficialResult) -> discord.Embed:
+    side = {"CALL": "C", "PUT": "P"}.get(result.option_side, "?")
+    contract = (
+        f"{result.ticker} · {result.expiry.strftime('%m/%d/%Y')} · "
+        f"{_number(result.strike)}{side}"
+    )
+    value = result.final_return_pct.quantize(Decimal("0.01"))
+    rendered_return = f"{value:+f}%"
+    embed = discord.Embed(
+        title=f"已完成 · {result.public_trade_id}",
+        description=contract,
+        color=ACCENT_GREEN if value >= 0 else DANGER,
+    )
+    embed.add_field(name="加权最终收益", value=rendered_return, inline=False)
+    embed.set_footer(text=f"AXIS Result · {result.public_trade_id}")
     return embed

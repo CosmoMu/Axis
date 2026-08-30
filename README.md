@@ -4,7 +4,7 @@
 
 **Current Source of Truth:** `docs/current/`
 
-**Current Development Stage:** Stage 2 Signal Pipeline complete；Stage 3 进行中
+**Current Development Stage:** Core Stage 1–3 complete；Gate A PASS
 
 **AXIS LAB:** Deferred
 

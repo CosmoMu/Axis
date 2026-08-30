@@ -49,6 +49,11 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
     trades = Base.metadata.tables["trades"]
     drafts = Base.metadata.tables["trade_drafts"]
     assert {"position_eighths", "max_position_eighths", "version"} <= set(trades.columns.keys())
+    assert {
+        "result_message_id",
+        "final_return_pct",
+        "result_published_at",
+    } <= set(trades.columns.keys())
     assert "mentor_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert "member_panel_message_id" in Base.metadata.tables["guild_config"].columns
     assert {"review_channel_id", "review_message_id"} <= set(drafts.columns.keys())

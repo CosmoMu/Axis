@@ -6,11 +6,15 @@ from discord.ext import commands
 
 from app.bot.cogs.card_review import CardReviewCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
+from app.bot.cogs.manager_control import ManagerControlCog
 from app.bot.cogs.signal_input import SignalInputCog
 from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
 from app.services.card_review import CardReviewService
 from app.services.draft_generation import DraftGenerationService
+from app.services.membership_management import MembershipManagementService
+from app.services.mentor_management import MentorManagementService
+from app.services.official_results import OfficialResultsService
 from app.services.signal_input import SignalInputService
 from app.services.trade_publication import TradePublicationService
 
@@ -32,6 +36,9 @@ class AxisBot(commands.Bot):
         draft_generation_service: DraftGenerationService | None,
         card_review_service: CardReviewService,
         trade_publication_service: TradePublicationService,
+        mentor_service: MentorManagementService,
+        membership_service: MembershipManagementService,
+        results_service: OfficialResultsService,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -66,9 +73,22 @@ class AxisBot(commands.Bot):
             member_role_id=_required_snowflake(roles, "member"),
             owner_user_id=settings.discord_owner_user_id,
         )
+        self._manager_control_cog = ManagerControlCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            owner_user_id=settings.discord_owner_user_id,
+            manager_role_id=_required_snowflake(roles, "manager"),
+            member_role_id=_required_snowflake(roles, "member"),
+            mentor_channel_id=_required_snowflake(channels, "mentor_control"),
+            member_channel_id=_required_snowflake(channels, "member_control"),
+            mentor_service=mentor_service,
+            membership_service=membership_service,
+            results_service=results_service,
+        )
 
     async def setup_hook(self) -> None:
         await self.add_cog(self._signal_cog)
         if self._draft_worker_cog is not None:
             await self.add_cog(self._draft_worker_cog)
         await self.add_cog(self._card_review_cog)
+        await self.add_cog(self._manager_control_cog)

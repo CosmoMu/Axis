@@ -42,7 +42,7 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260829_0004` 创建 15 张业务表：
+当前 revision `20260829_0006` 使用 15 张业务表：
 
 ```text
 guild_config
@@ -66,6 +66,8 @@ scheduled_jobs
 管理员写操作所需的 actor、before/after JSON 与 Discord Interaction ID 由 `audit_logs` 保存。
 `llm_invocations` 保存实际 provider、model、workload、Prompt/Schema version、latency、
 success 与 error_type；旧调用无法证明的字段不会伪造回填。
+`trade_publications` 保存发布 claim/retry/finalize 状态；`trades` 保存官方 Results Message ID
+和加权最终收益，避免重复发布。
 
 ## 查看版本
 

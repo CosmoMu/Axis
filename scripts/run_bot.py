@@ -32,6 +32,9 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
+from app.services.membership_management import MembershipManagementService  # noqa: E402
+from app.services.mentor_management import MentorManagementService  # noqa: E402
+from app.services.official_results import OfficialResultsService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
 
@@ -91,6 +94,9 @@ async def run() -> None:
             draft_generation_service=draft_generation_service,
             card_review_service=CardReviewService(database),
             trade_publication_service=TradePublicationService(database),
+            mentor_service=MentorManagementService(database),
+            membership_service=MembershipManagementService(database),
+            results_service=OfficialResultsService(database),
         )
         async with bot:
             await bot.start(token, reconnect=True)

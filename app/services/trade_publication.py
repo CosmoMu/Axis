@@ -337,7 +337,7 @@ class TradePublicationService:
                 trade_id=trade.id,
                 action=draft.action,
                 action_stage=draft.action_stage or ActionStage.NONE.value,
-                price=draft.action_price,
+                price=self._event_price(draft),
                 position_delta_eighths=position_delta,
                 position_after_eighths=after_position,
                 avg_cost_after=draft.avg_cost if draft.avg_cost is not None else trade.avg_cost,
@@ -541,6 +541,16 @@ class TradePublicationService:
             position_after_eighths=draft.position_after_eighths or 0,
             pnl_pct=draft.current_pnl_pct,
         )
+
+    @staticmethod
+    def _event_price(draft: TradeDraft):
+        if draft.action_price is not None:
+            return draft.action_price
+        if draft.intent != "NEW_TRADE":
+            return None
+        if draft.entry_low is not None and draft.entry_high is not None:
+            return (draft.entry_low + draft.entry_high) / 2
+        return draft.entry_low if draft.entry_low is not None else draft.entry_high
 
     @staticmethod
     def _apply_trade_update(

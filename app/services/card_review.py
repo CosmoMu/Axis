@@ -560,6 +560,8 @@ class CardReviewService:
         if draft.action in {"SL", "CLOSE", "CANCEL"} and after != 0:
             raise ReviewValidationError("CLOSED_POSITION_NOT_ZERO")
         expected_delta = after - trade.position_eighths
+        if expected_delta != 0 and draft.action_price is None:
+            raise ReviewValidationError("POSITION_CHANGE_PRICE_REQUIRED")
         if (
             draft.position_delta_eighths is not None
             and draft.position_delta_eighths != expected_delta

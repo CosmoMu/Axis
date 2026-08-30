@@ -2,11 +2,13 @@
 
 **更新：** 2026-08-29
 
-**Database:** `20260829_0005`
+**Database:** `20260829_0006`
 
 **Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
 **AXIS LAB:** DEFERRED
+
+**Core Gate A:** PASS
 
 ## Stage 1 — Infrastructure: PARTIAL
 
@@ -21,7 +23,6 @@ Implemented:
 
 Missing:
 
-- Mentor / Member 长期控制面板。
 - Docker / production deployment target。
 - 完整 backup / restore 自动化。
 
@@ -44,15 +45,17 @@ Implemented:
 
 Needs migration: none after `0005`。
 
-## Stage 3 — Mentor / Member / Results: NOT STARTED
+## Stage 3 — Mentor / Member / Results: COMPLETE
 
-Implemented: 基础表和 Discord 预留频道。
+Implemented:
 
-Missing:
-
-- Mentor Control。
-- Member gift / extend / expire / revoke 与 Role sync。
-- 加权 Results 和 scheduled jobs。
+- Mentor create / rename / aliases / deactivate / reactivate / Trade reassign。
+- Mentor 与 Member 长期控制面板，Message ID 入库并重启复用。
+- Member lookup / gift / extend / cancel-at-expiry / immediate remove。
+- 7 / 30 / 90 / Lifetime / Custom duration。
+- Owner 手工 Member Role add/remove 与数据库双向同步。
+- Scheduled Job 到期、Role reconciliation 和完整 Membership Event/Audit。
+- 基于全部 position event 的 weighted Results 与幂等官方发布。
 
 ## Stage 4 — Analysis Pipeline: NOT STARTED
 
@@ -60,7 +63,7 @@ Implemented: 独立规格、Schema、Router workload 和 disabled Discord channe
 
 Missing: 所有 Analysis 数据表与业务逻辑。
 
-Gate: Gate A 通过前不得开始。
+Gate: Core Gate A 已通过；Analysis 仍保持 disabled，直到独立 Stage 4 部署完成。
 
 ## Stage 5 — Stabilization: PARTIAL
 

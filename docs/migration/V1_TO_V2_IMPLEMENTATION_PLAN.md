@@ -89,3 +89,10 @@ Migration 到此停止，不会借此开始 Analysis 或 AXIS LAB。下一开发
 - 会员发布、Trade Event、Public Card 与 persistent `查看当前订单` 已完成。
 - PostgreSQL revision `20260829_0005` 增加 publication lifecycle 与幂等约束。
 - 下一开发位置为 Stage 3：Mentor Control、Member Control、Results。
+
+## Stage 3 Continuation Record
+
+- Mentor Control、Member Control、Member Role sync 和 Scheduled expiry 已完成。
+- Weighted official Results 与幂等频道发布已完成。
+- PostgreSQL revision `20260829_0006` 增加 Results publication fields。
+- 下一位置为 Core Gate A；Gate A PASS 前不启用 Analysis。

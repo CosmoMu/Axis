@@ -263,6 +263,9 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "trades"
     __table_args__ = (
         UniqueConstraint("guild_id", "public_trade_id", name="public_trade_id_per_guild"),
+        UniqueConstraint(
+            "guild_id", "result_message_id", name="trade_result_message_per_guild"
+        ),
         CheckConstraint(enum_check("category", TradeCategory), name="trade_category"),
         CheckConstraint(enum_check("option_side", OptionSide), name="trade_option_side"),
         CheckConstraint(enum_check("state", TradeState), name="trade_state"),
@@ -299,6 +302,9 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     tp2: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    final_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    result_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 

@@ -146,6 +146,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
             stored_draft = await session.get(TradeDraft, draft.id)
             publication = await session.get(TradePublication, claim.publication_id)
             event_count = await session.scalar(select(func.count()).select_from(TradeEvent))
+            event_price = await session.scalar(select(TradeEvent.price).limit(1))
             audit_actions = (
                 await session.scalars(
                     select(AuditLog.action_type).order_by(AuditLog.created_at, AuditLog.id)
@@ -158,6 +159,7 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
         assert publication.status == PublicationStatus.PUBLISHED.value
         assert publication.message_id == 501
         assert event_count == 1
+        assert event_price == Decimal("3.275")
         assert audit_actions == ["TRADE_PUBLICATION_CLAIMED", "TRADE_PUBLISHED"]
     finally:
         await database.dispose()
