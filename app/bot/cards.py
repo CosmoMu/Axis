@@ -14,6 +14,7 @@ from app.domain.public_cards import (
     PublicAnalysisCard,
     PublicTradeCard,
 )
+from app.domain.public_identity import PublicIdentityPolicy
 from app.services.analysis_pipeline import AnalysisDraftSnapshot
 from app.services.card_review import ReviewDraft, publication_missing_fields
 from app.services.official_results import OfficialResult
@@ -21,6 +22,19 @@ from app.services.official_results import OfficialResult
 ACCENT_GREEN = 0x86F7A8
 MUTED = 0x9A9F9B
 DANGER = 0xD66A6A
+PUBLIC_IDENTITY = PublicIdentityPolicy()
+
+
+def configure_public_identity(policy: PublicIdentityPolicy) -> None:
+    """Install the single runtime policy used by every member-facing card builder."""
+    global PUBLIC_IDENTITY
+    PUBLIC_IDENTITY = policy
+
+
+def _public(embed: discord.Embed) -> discord.Embed:
+    PUBLIC_IDENTITY.assert_public(embed.to_dict(), field="public_card")
+    return embed
+
 
 ACTION_LABELS = {
     "ENTRY": "入场",
@@ -155,7 +169,7 @@ def build_public_preview_embed(card: PublicTradeCard) -> discord.Embed:
     embed = build_public_trade_embed(card)
     embed.title = f"预览 · {action_label(card)}"
     embed.set_footer(text="管理员预览 · 尚未发布")
-    return embed
+    return _public(embed)
 
 
 def build_public_trade_embed(
@@ -213,7 +227,7 @@ def build_public_trade_embed(
             embed.add_field(name=name, value=_money(value), inline=True)
     if public_ref:
         embed.set_footer(text=f"AXIS · {public_ref}")
-    return embed
+    return _public(embed)
 
 
 def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) -> discord.Embed:
@@ -225,7 +239,7 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
     embed = discord.Embed(title=title, color=ACCENT_GREEN)
     if not trades:
         embed.description = "当前没有进行中的订单。"
-        return embed
+        return _public(embed)
     for trade in trades:
         expiry = trade.expiry.strftime("%m/%d")
         side = {"CALL": "C", "PUT": "P"}.get(trade.option_side, "?")
@@ -236,7 +250,7 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
             value=f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}",
             inline=False,
         )
-    return embed
+    return _public(embed)
 
 
 def build_official_result_embed(result: OfficialResult) -> discord.Embed:
@@ -253,7 +267,7 @@ def build_official_result_embed(result: OfficialResult) -> discord.Embed:
     )
     embed.add_field(name="加权最终收益", value=rendered_return, inline=False)
     embed.set_footer(text=f"AXIS Result · {result.public_trade_id}")
-    return embed
+    return _public(embed)
 
 
 def _daily_contract(item: DailyActiveTrade | DailyClosedTrade) -> str:
@@ -314,7 +328,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
     footer = f"AXIS · {date_label} ET · 只读行情参考"
     active.set_footer(text=footer)
     closed.set_footer(text=footer)
-    return [active, closed]
+    return [_public(active), _public(closed)]
 
 
 def build_analysis_review_embed(
@@ -528,4 +542,4 @@ def build_public_analysis_embed(
     if image_filename:
         embed.set_image(url=f"attachment://{image_filename}")
     embed.set_footer(text=f"AXIS Analysis · {public_ref}")
-    return embed
+    return _public(embed)

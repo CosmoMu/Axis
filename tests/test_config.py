@@ -94,3 +94,33 @@ def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "9:05")
     assert Settings.load(Path("/tmp/axis-test")).daily_summary_time_et == "09:05"
+
+
+def test_lab_gate_requires_all_deferred_features_off() -> None:
+    configured = settings(apply_changes=False, dry_run=True)
+    configured.assert_lab_disabled()
+    with pytest.raises(ConfigurationError, match="AXIS LAB"):
+        replace(configured, moomoo_enabled=True).assert_lab_disabled()
+    with pytest.raises(ConfigurationError, match="AXIS LAB"):
+        replace(configured, lab_enabled=True).assert_lab_disabled()
+
+
+def test_stripe_requires_complete_dynamic_checkout_configuration() -> None:
+    configured = settings(apply_changes=False, dry_run=True)
+    assert not configured.stripe_configuration_ready()
+    ready = replace(
+        configured,
+        stripe_enabled=True,
+        stripe_secret_key="test-only",
+        stripe_webhook_secret="test-only",
+        stripe_success_url="https://axis.example/success",
+        stripe_cancel_url="https://axis.example/cancel",
+        stripe_portal_return_url="https://axis.example/account",
+        stripe_day_pass_product_id="prod_day_test",
+        stripe_day_pass_price_id="price_day_test",
+        stripe_monthly_product_id="prod_monthly_test",
+        stripe_monthly_price_id="price_monthly_test",
+    )
+    assert ready.stripe_configuration_ready()
+
+    assert not replace(ready, stripe_day_pass_product_id=None).stripe_configuration_ready()

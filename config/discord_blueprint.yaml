@@ -37,7 +37,7 @@ categories:
       - key: welcome
         name: "👋・welcome"
         type: text
-        topic: "AXIS 欢迎与使用说明。"
+        topic: "AXIS. Signals without the noise."
         everyone_view: true
         everyone_send: false
         member_send: false
@@ -46,7 +46,7 @@ categories:
       - key: subscriptions
         name: "💳・subscriptions"
         type: text
-        topic: "会员权益、订阅链接与订阅管理。"
+        topic: "Free Trial, Day Pass, Monthly Membership, and account management."
         everyone_view: true
         everyone_send: false
         member_send: false
@@ -55,7 +55,7 @@ categories:
       - key: official_results
         name: "📊・results"
         type: text
-        topic: "系统追踪的关闭订单和官方统计。"
+        topic: "System-tracked completed trades and official AXIS performance records."
         everyone_view: true
         everyone_send: false
         member_send: false
@@ -64,7 +64,7 @@ categories:
       - key: lobby
         name: "💬・lobby"
         type: text
-        topic: "公开交流与产品问题。"
+        topic: "Open community discussion for markets, AXIS, and general questions."
         everyone_view: true
         everyone_send: true
         member_send: true
@@ -74,7 +74,7 @@ categories:
       - key: member_wins
         name: "🏆・member-wins"
         type: text
-        topic: "会员自行分享的交易记录，不计入官方战绩。"
+        topic: "Member-submitted trades; excluded from official AXIS performance statistics."
         everyone_view: true
         everyone_send: false
         member_send: true

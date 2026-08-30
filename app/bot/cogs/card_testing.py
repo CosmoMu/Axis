@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -8,7 +9,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from app.bot.cards import build_public_analysis_embed, build_public_trade_embed
+from app.bot.general_cards import risk_disclosure_embed, subscription_embed, welcome_embed
 from app.domain.public_cards import PublicAnalysisCard, PublicTradeCard
+from app.services.membership_access import PriceSnapshot
 
 
 class PreviewComponentView(discord.ui.View):
@@ -165,3 +168,50 @@ class CardTestingCog(commands.Cog):
     @app_commands.guild_only()
     async def test_close_card(self, interaction: discord.Interaction) -> None:
         await self._send_trade(interaction, "CLOSE")
+
+    @app_commands.command(name="test-general-card", description="Preview AXIS General cards")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
+    async def test_general_card(self, interaction: discord.Interaction) -> None:
+        if not await self._authorize(interaction):
+            return
+        await interaction.response.send_message(
+            embeds=[welcome_embed(), subscription_embed(_preview_offers())],
+            view=PreviewComponentView(),
+        )
+
+    @app_commands.command(name="test-payment-ui", description="Preview risk and payment UI")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
+    async def test_payment_ui(self, interaction: discord.Interaction) -> None:
+        if not await self._authorize(interaction):
+            return
+        await interaction.response.send_message(
+            embed=risk_disclosure_embed(),
+            view=PreviewComponentView(),
+        )
+
+
+def _preview_offers() -> dict[str, PriceSnapshot]:
+    return {
+        "DAY_PASS": PriceSnapshot(
+            id=uuid.UUID("00000000-0000-4000-8000-000000000101"),
+            plan_type="DAY_PASS",
+            pricing_version="DAY_PASS_V1",
+            stripe_product_id=None,
+            stripe_price_id=None,
+            unit_amount=999,
+            currency="usd",
+            billing_interval=None,
+        ),
+        "MONTHLY": PriceSnapshot(
+            id=uuid.UUID("00000000-0000-4000-8000-000000000102"),
+            plan_type="MONTHLY",
+            pricing_version="MONTHLY_V1",
+            stripe_product_id=None,
+            stripe_price_id=None,
+            unit_amount=9999,
+            currency="usd",
+            billing_interval="month",
+        ),
+    }

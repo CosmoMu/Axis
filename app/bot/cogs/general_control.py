@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
 import discord
@@ -8,77 +9,126 @@ from discord.ext import commands, tasks
 from sqlalchemy import select
 
 from app.bot.general_cards import (
-    lobby_guide_embed,
     member_wins_guide_embed,
     results_guide_embed,
+    risk_disclosure_embed,
     subscription_embed,
     welcome_embed,
 )
 from app.db.models import GuildConfig
-from app.services.membership_payments import MembershipPaymentError, MembershipPaymentService
+from app.domain.enums import MembershipPlanType
+from app.domain.public_identity import PublicIdentityPolicy
+from app.services.membership_access import (
+    MembershipAccessError,
+    MembershipAccessService,
+    MembershipAcknowledgementService,
+    MembershipPriceCatalog,
+    PriceSnapshot,
+)
+from app.services.membership_stripe import MembershipStripeError, MembershipStripeService
 
 logger = logging.getLogger(__name__)
 
 
-class CheckoutLinkView(discord.ui.View):
-    def __init__(self, checkout_url: str) -> None:
+class LinkView(discord.ui.View):
+    def __init__(self, label: str, url: str) -> None:
         super().__init__(timeout=600)
+        self.add_item(discord.ui.Button(label=label, style=discord.ButtonStyle.link, url=url))
+
+
+class WelcomeMembershipView(discord.ui.View):
+    def __init__(self, guild_id: int, subscriptions_channel_id: int) -> None:
+        super().__init__(timeout=None)
         self.add_item(
             discord.ui.Button(
-                label="CONTINUE TO CHECKOUT",
+                label="VIEW MEMBERSHIP",
                 style=discord.ButtonStyle.link,
-                url=checkout_url,
+                url=(f"https://discord.com/channels/{guild_id}/{subscriptions_channel_id}"),
             )
         )
 
 
-class JoinAxisView(discord.ui.View):
+class RiskDisclosureView(discord.ui.View):
+    def __init__(self, controller: GeneralControlCog, plan_type: str) -> None:
+        super().__init__(timeout=600)
+        self.controller = controller
+        self.plan_type = plan_type
+        button = discord.ui.Button(
+            label="I UNDERSTAND",
+            style=discord.ButtonStyle.success,
+            custom_id=f"axis:risk:accept:{plan_type.lower()}:v1",
+        )
+        button.callback = self.accept
+        self.add_item(button)
+
+    async def accept(self, interaction: discord.Interaction) -> None:
+        if not self.controller.is_current_guild(interaction):
+            await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
+            return
+        await self.controller.acknowledgements.accept_risk(
+            self.controller.guild_id,
+            interaction.user.id,
+            interaction_id=interaction.id,
+        )
+        await self.controller.activate_plan(interaction, self.plan_type)
+
+
+class MembershipView(discord.ui.View):
     def __init__(
         self,
         controller: GeneralControlCog,
-        *,
-        customer_portal_url: str | None,
+        offers: dict[str, PriceSnapshot],
     ) -> None:
         super().__init__(timeout=None)
         self.controller = controller
-        join = discord.ui.Button(
-            label="JOIN AXIS",
-            style=discord.ButtonStyle.success,
-            custom_id="axis:membership:join:v1",
+        day = offers.get(MembershipPlanType.DAY_PASS.value)
+        monthly = offers.get(MembershipPlanType.MONTHLY.value)
+        definitions = (
+            (
+                "FREE 3-DAY TRIAL",
+                "free_trial",
+                discord.ButtonStyle.success,
+                self.free_trial,
+            ),
+            (
+                f"DAY PASS · {day.display_amount if day else 'UNAVAILABLE'}",
+                "day_pass",
+                discord.ButtonStyle.primary,
+                self.day_pass,
+            ),
+            (
+                f"MONTHLY · {monthly.display_amount if monthly else 'UNAVAILABLE'}",
+                "monthly",
+                discord.ButtonStyle.primary,
+                self.monthly,
+            ),
+            (
+                "MANAGE MEMBERSHIP",
+                "manage",
+                discord.ButtonStyle.secondary,
+                self.manage,
+            ),
         )
-        join.callback = self.join
-        self.add_item(join)
-        if customer_portal_url:
-            self.add_item(
-                discord.ui.Button(
-                    label="MANAGE MEMBERSHIP",
-                    style=discord.ButtonStyle.link,
-                    url=customer_portal_url,
-                )
+        for label, action, style, callback in definitions:
+            button = discord.ui.Button(
+                label=label[:80],
+                style=style,
+                custom_id=f"axis:membership:{action}:v2",
             )
+            button.callback = callback
+            self.add_item(button)
 
-    async def join(self, interaction: discord.Interaction) -> None:
-        if interaction.guild_id != self.controller.guild_id:
-            await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
-            return
-        try:
-            checkout = await self.controller.payment_service.create_checkout_session(
-                self.controller.guild_id,
-                interaction.user.id,
-            )
-            await interaction.response.send_message(
-                "Checkout 已绑定你的 Discord User ID。链接将在 "
-                f"{self.controller.payment_service.session_ttl_minutes} 分钟后失效。",
-                view=CheckoutLinkView(checkout.checkout_url),
-                ephemeral=True,
-            )
-        except MembershipPaymentError as exc:
-            message = (
-                "订阅入口尚未配置，请稍后再试。"
-                if exc.code == "SUBSCRIPTION_URL_NOT_CONFIGURED"
-                else "暂时无法创建 Checkout，请稍后再试。"
-            )
-            await interaction.response.send_message(message, ephemeral=True)
+    async def free_trial(self, interaction: discord.Interaction) -> None:
+        await self.controller.request_plan(interaction, "FREE_TRIAL")
+
+    async def day_pass(self, interaction: discord.Interaction) -> None:
+        await self.controller.request_plan(interaction, MembershipPlanType.DAY_PASS.value)
+
+    async def monthly(self, interaction: discord.Interaction) -> None:
+        await self.controller.request_plan(interaction, MembershipPlanType.MONTHLY.value)
+
+    async def manage(self, interaction: discord.Interaction) -> None:
+        await self.controller.manage_membership(interaction)
 
 
 class GeneralControlCog(commands.Cog):
@@ -92,10 +142,12 @@ class GeneralControlCog(commands.Cog):
         results_channel_id: int,
         lobby_channel_id: int,
         member_wins_channel_id: int,
-        results_mention: str,
-        membership_price_display: str,
-        customer_portal_url: str | None,
-        payment_service: MembershipPaymentService,
+        access_service: MembershipAccessService,
+        acknowledgements: MembershipAcknowledgementService,
+        price_catalog: MembershipPriceCatalog,
+        stripe_service: MembershipStripeService,
+        public_identity: PublicIdentityPolicy,
+        sync_role: Callable[[int, bool], Awaitable[None]],
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -104,15 +156,93 @@ class GeneralControlCog(commands.Cog):
         self.results_channel_id = results_channel_id
         self.lobby_channel_id = lobby_channel_id
         self.member_wins_channel_id = member_wins_channel_id
-        self.results_mention = results_mention
-        self.membership_price_display = membership_price_display
-        self.customer_portal_url = customer_portal_url
-        self.payment_service = payment_service
+        self.access_service = access_service
+        self.acknowledgements = acknowledgements
+        self.price_catalog = price_catalog
+        self.stripe_service = stripe_service
+        self.public_identity = public_identity
+        self.sync_role = sync_role
         self._ready = False
         self.control_loop.start()
 
     def cog_unload(self) -> None:
         self.control_loop.cancel()
+
+    def is_current_guild(self, interaction: discord.Interaction) -> bool:
+        return interaction.guild_id == self.guild_id
+
+    async def request_plan(self, interaction: discord.Interaction, plan_type: str) -> None:
+        if not self.is_current_guild(interaction):
+            await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
+            return
+        if not await self.acknowledgements.has_current_risk(interaction.user.id):
+            notice = risk_disclosure_embed()
+            self.public_identity.assert_public(notice.to_dict(), field="risk_disclosure")
+            await interaction.response.send_message(
+                embed=notice,
+                view=RiskDisclosureView(self, plan_type),
+                ephemeral=True,
+            )
+            return
+        await self.activate_plan(interaction, plan_type)
+
+    async def activate_plan(self, interaction: discord.Interaction, plan_type: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if plan_type == "FREE_TRIAL":
+                entitlement = await self.access_service.claim_free_trial(
+                    self.guild_id,
+                    interaction.user.id,
+                    interaction_id=interaction.id,
+                )
+                await self.sync_role(interaction.user.id, True)
+                await interaction.followup.send(
+                    "Free Trial 已启用。有效交易日："
+                    f"{entitlement.first_trading_day} → {entitlement.last_trading_day}；"
+                    "最后一天 23:59:59 ET 到期。",
+                    ephemeral=True,
+                )
+                return
+            checkout = await self.stripe_service.create_checkout(
+                self.guild_id,
+                interaction.user.id,
+                plan_type,
+            )
+            await interaction.followup.send(
+                "Checkout 已绑定你的 Discord 账户；付款状态只以 Stripe Webhook 为准。",
+                view=LinkView("CONTINUE TO CHECKOUT", checkout.url),
+                ephemeral=True,
+            )
+        except (MembershipAccessError, MembershipStripeError) as exc:
+            messages = {
+                "FREE_TRIAL_ALREADY_CLAIMED": "该 Discord 账户已经领取过终身一次的 Free Trial。",
+                "MONTHLY_ALREADY_ACTIVE": (
+                    "该 Discord 账户已有有效 Monthly，请使用 Manage Membership。"
+                ),
+                "STRIPE_CHECKOUT_DISABLED": "Stripe Checkout 仍处于安全禁用状态。",
+                "STRIPE_PRICE_NOT_CONFIGURED": "Stripe Price 尚未完成配置。",
+            }
+            await interaction.followup.send(
+                messages.get(exc.code, f"操作未完成：{exc.code}"),
+                ephemeral=True,
+            )
+
+    async def manage_membership(self, interaction: discord.Interaction) -> None:
+        if not self.is_current_guild(interaction):
+            await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            url = await self.stripe_service.create_customer_portal(
+                self.guild_id, interaction.user.id
+            )
+            await interaction.followup.send(
+                "使用 Stripe Customer Portal 管理 Monthly Membership。",
+                view=LinkView("OPEN CUSTOMER PORTAL", url),
+                ephemeral=True,
+            )
+        except MembershipStripeError as exc:
+            await interaction.followup.send(f"暂时无法打开 Portal：{exc.code}", ephemeral=True)
 
     @tasks.loop(seconds=30)
     async def control_loop(self) -> None:
@@ -122,49 +252,48 @@ class GeneralControlCog(commands.Cog):
             guild = self.bot.get_guild(self.guild_id)
             if guild is None:
                 return
-            icon_url = str(guild.icon.url) if guild.icon else None
-            join_view = JoinAxisView(
-                self,
-                customer_portal_url=self.customer_portal_url,
+            offers = await self.price_catalog.current_offers()
+            membership_view = MembershipView(self, offers)
+            self.bot.add_view(membership_view)
+            welcome_view = WelcomeMembershipView(
+                self.guild_id,
+                self.subscriptions_channel_id,
             )
-            self.bot.add_view(join_view)
+            cards = (
+                welcome_embed(),
+                subscription_embed(offers),
+                results_guide_embed(),
+                member_wins_guide_embed(),
+            )
+            for index, embed in enumerate(cards):
+                self.public_identity.assert_public(embed.to_dict(), field=f"general_card_{index}")
             await self._ensure_message(
                 self.welcome_channel_id,
                 "welcome_message_id",
                 "AXIS Welcome v1",
-                welcome_embed(icon_url=icon_url),
-                join_view,
+                cards[0],
+                welcome_view,
             )
             await self._ensure_message(
                 self.subscriptions_channel_id,
                 "subscription_message_id",
                 "AXIS Membership v1",
-                subscription_embed(self.membership_price_display, icon_url=icon_url),
-                join_view,
+                cards[1],
+                membership_view,
             )
             await self._ensure_message(
                 self.results_channel_id,
                 "results_guide_message_id",
                 "AXIS Results Guide v1",
-                results_guide_embed(),
+                cards[2],
                 None,
             )
-            await self._ensure_message(
-                self.lobby_channel_id,
-                "lobby_guide_message_id",
-                "AXIS Lobby Guide v1",
-                lobby_guide_embed(),
-                None,
-            )
-            wins = member_wins_guide_embed()
-            wins.description = (wins.description or "").replace(
-                "<#RESULTS_CHANNEL_ID>", self.results_mention
-            )
+            await self._remove_lobby_guide()
             await self._ensure_message(
                 self.member_wins_channel_id,
                 "member_wins_guide_message_id",
                 "AXIS Member Wins Guide v1",
-                wins,
+                cards[3],
                 None,
                 pin=True,
             )
@@ -183,17 +312,37 @@ class GeneralControlCog(commands.Cog):
     async def before_control_loop(self) -> None:
         await self.bot.wait_until_ready()
 
+    async def _remove_lobby_guide(self) -> None:
+        database = self.access_service.database
+        async with database.session() as session:
+            config = await session.get(GuildConfig, self.guild_id)
+            saved_message_id = config.lobby_guide_message_id if config else None
+        if saved_message_id is None:
+            return
+        channel = self.bot.get_channel(self.lobby_channel_id) or await self.bot.fetch_channel(
+            self.lobby_channel_id
+        )
+        with suppress(discord.NotFound, discord.Forbidden):
+            message = await channel.fetch_message(saved_message_id)
+            if self.bot.user is not None and message.author.id == self.bot.user.id:
+                await message.delete()
+        async with database.session() as session:
+            config = await session.get(GuildConfig, self.guild_id)
+            if config is not None and config.lobby_guide_message_id is not None:
+                config.lobby_guide_message_id = None
+                await session.commit()
+
     async def _ensure_message(
         self,
         channel_id: int,
         config_field: str,
-        marker: str,
+        legacy_marker: str,
         embed: discord.Embed,
         view: discord.ui.View | None,
         *,
         pin: bool = False,
     ) -> None:
-        database = self.payment_service.database
+        database = self.access_service.database
         async with database.session() as session:
             config = await session.get(GuildConfig, self.guild_id)
             saved_message_id = getattr(config, config_field) if config else None
@@ -206,7 +355,10 @@ class GeneralControlCog(commands.Cog):
             async for candidate in channel.history(limit=100):
                 if self.bot.user is None or candidate.author.id != self.bot.user.id:
                     continue
-                if any(item.footer.text == marker for item in candidate.embeds):
+                if any(
+                    item.title == embed.title or item.footer.text == legacy_marker
+                    for item in candidate.embeds
+                ):
                     message = candidate
                     break
         if message is None:
@@ -214,16 +366,7 @@ class GeneralControlCog(commands.Cog):
         else:
             await message.edit(embed=embed, view=view)
         if pin and not message.pinned:
-            try:
-                await message.pin(reason="AXIS channel guide")
-            except discord.HTTPException as exc:
-                logger.warning(
-                    "event=general_guide_pin_failed marker=%s status=%s code=%s",
-                    marker.replace(" ", "_"),
-                    exc.status,
-                    exc.code,
-                )
-                raise
+            await message.pin(reason="AXIS channel guide")
         async with database.session() as session:
             config = await session.scalar(
                 select(GuildConfig).where(GuildConfig.guild_id == self.guild_id).with_for_update()

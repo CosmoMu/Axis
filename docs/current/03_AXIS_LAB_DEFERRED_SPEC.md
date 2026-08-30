@@ -25,8 +25,8 @@ FEATURE_LAB_ENABLED=false
 FEATURE_MODEL_AB_ENABLED=false
 ```
 
-`FEATURE_MOOMOO_ENABLED` 目前可以只为 Core 每日收盘总结启用；该开关不授权本文中的
-Moomoo 扫描、账户读取或交易能力。
+本轮部署还必须保持 `FEATURE_MOOMOO_ENABLED=false`。旧 Core 每日总结实现保留但不启动；
+这不改变本文的 Deferred 状态，也不授权任何扫描、账户读取或交易能力。
 
 ---
 

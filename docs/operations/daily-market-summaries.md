@@ -1,8 +1,10 @@
 # AXIS Daily Market Summaries
 
-## Live Scope
+## Deferred Scope
 
-AXIS BOT 每个美股交易日 `16:15 ET` 在以下频道各发送一条消息：
+实现仍保留，但 2026-08-30 最新范围要求 `FEATURE_MOOMOO_ENABLED=false`，因此当前部署不发送
+每日行情总结。以后 Owner 明确恢复这项 Core 功能时，AXIS BOT 才会在每个美股交易日
+`16:15 ET` 向以下频道各发送一条消息：
 
 - `⚡・short-term`
 - `〽️・swing`
@@ -14,14 +16,15 @@ Moomoo OpenD 的只读期权 snapshot；不是账户持仓或交易数据。
 ## Required Runtime
 
 ```text
-FEATURE_MOOMOO_ENABLED=true
+FEATURE_MOOMOO_ENABLED=false
 FEATURE_DAILY_SUMMARY_ENABLED=true
 MOOMOO_OPEND_HOST=127.0.0.1
 MOOMOO_OPEND_PORT=11111
 DAILY_SUMMARY_TIME_ET=16:15
 ```
 
-OpenD 与 Python SDK 当前锁定 `10.10.7008`。OpenD 必须行情登录并监听本机端口。
+启用前必须把 `FEATURE_MOOMOO_ENABLED` 改为 `true`，并重新执行完整安全验收。OpenD 与
+Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登录并监听本机端口。
 
 ## Safety Rules
 

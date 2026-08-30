@@ -1,6 +1,6 @@
 # AXIS Environment Reference
 
-正式模板：`config/.env.example`。真实值只放本地 `.env` 或部署 Secret Store。
+正式模板：`.env.example`。真实值只放本地 `.env` 或部署 Secret Store。
 
 ## Discord
 
@@ -14,19 +14,23 @@
 
 - `DATABASE_URL`：必须使用 `postgresql+asyncpg://`。
 
-## Membership / Payment
+## Public Identity / Membership / Stripe
 
-- `MEMBERSHIP_PRICE_DISPLAY`：仅用于 Discord 展示，例如 `$XX / month`；不写死价格。
-- `SUBSCRIPTION_URL`：外部 Checkout 基础 URL。
-- `CUSTOMER_PORTAL_URL`：可选；设置后显示 `MANAGE MEMBERSHIP`。
-- `PAYMENT_PROVIDER`：provider-neutral adapter 名称，默认 `external`。
+- `PUBLIC_OPERATOR_NAME=VALE`：匿名 AXIS Brand Persona；不是专业履历。
+- `PUBLIC_IDENTITY_FORBIDDEN_TERMS`：额外的私有身份阻止词，逗号分隔。
+- `STRIPE_ENABLED=false`：只有 Test Mode E2E 与人工隐私检查完成后才可启用。
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`：只放 `.env` / Secret Store。
+- `STRIPE_SUCCESS_URL` / `STRIPE_CANCEL_URL` / `STRIPE_PORTAL_RETURN_URL`。
+- `STRIPE_DAY_PASS_PRODUCT_ID` / `STRIPE_DAY_PASS_PRICE_ID`。
+- `STRIPE_MONTHLY_PRODUCT_ID` / `STRIPE_MONTHLY_PRICE_ID`。
+- `STRIPE_DAY_PASS_PRICING_VERSION` / `STRIPE_MONTHLY_PRICING_VERSION`：必须对应
+  `membership_prices` 中的不可变版本。
 - `PAYMENT_WEBHOOK_HOST` / `PAYMENT_WEBHOOK_PORT`：Webhook listener 绑定地址。
-- `PAYMENT_WEBHOOK_SECRET`：HMAC-SHA256 Secret；只放 `.env` / Secret Store。
 - `MEMBERSHIP_SESSION_TTL_MINUTES`：Discord User ID 绑定 session 的有效期。
 
-Checkout 由 Discord interaction 先创建 `membership_session`，再将
-`discord_user_id + membership_session_id` 写入 checkout metadata。Webhook 不使用 email、
-Discord username 或显示名推断会员身份。
+Checkout 为动态 Stripe Session，metadata 包含 `discord_user_id + membership_type +
+pricing_version + membership_session_id`。Monthly 同步写入 Subscription metadata。Webhook
+验证 `Stripe-Signature`，不使用 email、username 或显示名推断身份。
 
 ## Production Alerts
 
@@ -56,8 +60,8 @@ Discord username 或显示名推断会员身份。
   `.env` 同步到文档或 Git。
 - `FEATURE_LAB_ENABLED=false`
 - `FEATURE_MODEL_AB_ENABLED=false`
-- `FEATURE_MOOMOO_ENABLED=true`：当前本机仅启用 Core 只读期权快照。
-- `FEATURE_DAILY_SUMMARY_ENABLED=true`：三个会员频道的每日收盘总结。
+- `FEATURE_MOOMOO_ENABLED=false`：本轮按最新范围关闭；不启动 Moomoo Model Scanning。
+- `FEATURE_DAILY_SUMMARY_ENABLED=true` 仍可保留配置，但 Moomoo 关闭时不会启动旧行情总结。
 - `FEATURE_AXIS_STOCK_ANALYST_ENABLED=false`：新环境安全默认；启用后单 ticker Analysis
   会调用 AXIS 自有 Stock Analyst，通过本机 Moomoo OpenD 读取日 K 并生成文字结构观察。
   当前不会生成或发布 Analysis 图片；未来 Massive API 接入另行启用。

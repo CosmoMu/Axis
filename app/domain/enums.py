@@ -117,6 +117,42 @@ class MembershipSource(StrEnum):
     IMPORT = "IMPORT"
 
 
+class MembershipPlanType(StrEnum):
+    DAY_PASS = "DAY_PASS"
+    MONTHLY = "MONTHLY"
+
+
+class EntitlementType(StrEnum):
+    FREE_TRIAL = "FREE_TRIAL"
+    DAY_PASS = "DAY_PASS"
+    MONTHLY = "MONTHLY"
+    GIFT = "GIFT"
+    MANUAL = "MANUAL"
+    MANUAL_EXTENSION = "MANUAL_EXTENSION"
+
+
+class EntitlementStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    PAST_DUE = "PAST_DUE"
+    CANCEL_AT_PERIOD_END = "CANCEL_AT_PERIOD_END"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+    REVOKED = "REVOKED"
+
+
+class MembershipExtensionType(StrEnum):
+    TRADING_DAYS = "TRADING_DAYS"
+    CALENDAR_DAYS = "CALENDAR_DAYS"
+    CALENDAR_MONTH = "CALENDAR_MONTH"
+    CUSTOM = "CUSTOM"
+
+
+class AcknowledgementDocumentType(StrEnum):
+    RISK_DISCLOSURE = "RISK_DISCLOSURE"
+    TERMS = "TERMS"
+    PRIVACY = "PRIVACY"
+
+
 class JobStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"

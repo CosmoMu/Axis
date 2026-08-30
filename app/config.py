@@ -120,6 +120,10 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    public_operator_name: str = "VALE"
+    public_identity_forbidden_terms: tuple[str, ...] = ()
+    lab_enabled: bool = False
+    model_ab_enabled: bool = False
     membership_price_display: str = "价格见支付页面"
     subscription_url: str | None = None
     customer_portal_url: str | None = None
@@ -129,6 +133,18 @@ class Settings:
     payment_webhook_secret: str = ""
     membership_session_ttl_minutes: int = 30
     system_alert_check_seconds: int = 30
+    stripe_enabled: bool = False
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_success_url: str | None = None
+    stripe_cancel_url: str | None = None
+    stripe_portal_return_url: str | None = None
+    stripe_day_pass_product_id: str | None = None
+    stripe_day_pass_price_id: str | None = None
+    stripe_day_pass_pricing_version: str = "DAY_PASS_V1"
+    stripe_monthly_product_id: str | None = None
+    stripe_monthly_price_id: str | None = None
+    stripe_monthly_pricing_version: str = "MONTHLY_V1"
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -193,6 +209,14 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            public_operator_name=(os.getenv("PUBLIC_OPERATOR_NAME", "VALE").strip() or "VALE")[:40],
+            public_identity_forbidden_terms=tuple(
+                item.strip()
+                for item in os.getenv("PUBLIC_IDENTITY_FORBIDDEN_TERMS", "").split(",")
+                if item.strip()
+            ),
+            lab_enabled=_parse_bool("FEATURE_LAB_ENABLED", False),
+            model_ab_enabled=_parse_bool("FEATURE_MODEL_AB_ENABLED", False),
             membership_price_display=(
                 os.getenv("MEMBERSHIP_PRICE_DISPLAY", "价格见支付页面").strip() or "价格见支付页面"
             ),
@@ -210,6 +234,24 @@ class Settings:
                 "MEMBERSHIP_SESSION_TTL_MINUTES", 30
             ),
             system_alert_check_seconds=_parse_positive_int("SYSTEM_ALERT_CHECK_SECONDS", 30),
+            stripe_enabled=_parse_bool("STRIPE_ENABLED", False),
+            stripe_secret_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
+            stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET", "").strip(),
+            stripe_success_url=_parse_optional_url("STRIPE_SUCCESS_URL"),
+            stripe_cancel_url=_parse_optional_url("STRIPE_CANCEL_URL"),
+            stripe_portal_return_url=_parse_optional_url("STRIPE_PORTAL_RETURN_URL"),
+            stripe_day_pass_product_id=(
+                os.getenv("STRIPE_DAY_PASS_PRODUCT_ID", "").strip() or None
+            ),
+            stripe_day_pass_price_id=(os.getenv("STRIPE_DAY_PASS_PRICE_ID", "").strip() or None),
+            stripe_day_pass_pricing_version=(
+                os.getenv("STRIPE_DAY_PASS_PRICING_VERSION", "DAY_PASS_V1").strip() or "DAY_PASS_V1"
+            ),
+            stripe_monthly_product_id=(os.getenv("STRIPE_MONTHLY_PRODUCT_ID", "").strip() or None),
+            stripe_monthly_price_id=(os.getenv("STRIPE_MONTHLY_PRICE_ID", "").strip() or None),
+            stripe_monthly_pricing_version=(
+                os.getenv("STRIPE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip() or "MONTHLY_V1"
+            ),
         )
 
     def require_token(self) -> str:
@@ -246,3 +288,23 @@ class Settings:
             raise ConfigurationError(
                 "写入已阻止：--confirm-guild-id 必须与 DISCORD_GUILD_ID 完全一致。"
             )
+
+    def assert_lab_disabled(self) -> None:
+        if self.lab_enabled or self.model_ab_enabled or self.moomoo_enabled:
+            raise ConfigurationError(
+                "当前规格禁止启动 AXIS LAB / Model A-B / Moomoo；请将三个开关保持 false。"
+            )
+
+    def stripe_configuration_ready(self) -> bool:
+        required = (
+            self.stripe_secret_key,
+            self.stripe_webhook_secret,
+            self.stripe_success_url,
+            self.stripe_cancel_url,
+            self.stripe_portal_return_url,
+            self.stripe_day_pass_product_id,
+            self.stripe_day_pass_price_id,
+            self.stripe_monthly_product_id,
+            self.stripe_monthly_price_id,
+        )
+        return self.stripe_enabled and all(required)

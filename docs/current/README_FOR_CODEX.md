@@ -1,8 +1,10 @@
 # AXIS — Codex Current Source of Truth
 
-**版本：** 2026-08-29 AXIS Current Spec v2.1  
-**状态：** 当前开发基准  
-**品牌：** `AXIS`  
+**版本：** 2026-08-30 AXIS Current Spec v2.2
+
+**状态：** 当前开发基准
+
+**品牌：** `AXIS`
 **标语：** `Signals without the noise.`
 
 > 本目录是 AXIS 项目的当前唯一 Source of Truth。Codex 后续开发、测试与 Discord Bootstrap 均以本目录为准。
@@ -14,12 +16,13 @@
 3. `02_AXIS_ANALYSIS_PIPELINE_SPEC.md` — Core 完成并通过测试后开发。
 4. `03_AXIS_LAB_DEFERRED_SPEC.md` — **暂不开发**；只保留未来设计。
 5. `04_IMPLEMENTATION_ORDER_AND_GATES.md` — 开发顺序、测试 Gate、Codex 执行要求。
-6. `config/discord_blueprint.yaml` — Discord Category / Channel / Role Blueprint。
-7. `config/model_routing.yaml` — LLM 按任务路由，不使用单一硬编码模型。
-8. `config/llm_trade_schema.json` — Signal 解析 Structured Output Schema。
-9. `config/llm_analysis_schema.json` — Analysis 解析 Structured Output Schema。
-10. `config/.env.example` — Secret 与模型路由配置模板。
-11. `assets/axis-logo.png` — 当前 AXIS Logo。
+6. `05_GENERAL_MEMBERSHIP_STRIPE_SPEC.md` — 本轮 General、Membership、Stripe 与隐私锁定。
+7. `config/discord_blueprint.yaml` — Discord Category / Channel / Role Blueprint。
+8. `config/model_routing.yaml` — LLM 按任务路由，不使用单一硬编码模型。
+9. `config/llm_trade_schema.json` — Signal 解析 Structured Output Schema。
+10. `config/llm_analysis_schema.json` — Analysis 解析 Structured Output Schema。
+11. `.env.example` — Secret、Stripe 与模型路由的正式配置模板。
+12. `assets/axis-logo.png` — 当前 AXIS Logo。
 
 ## 当前开发范围
 
@@ -43,6 +46,9 @@
 
 Owner 已在 2026-08-29 单独授权 Core 使用 Moomoo OpenD 只读期权快照，为
 `short-term` / `swing` / `leaps` 生成每日收盘总结。这不代表启动 AXIS LAB。
+
+2026-08-30 的最新补充范围要求当前部署将该能力保持关闭。代码与历史数据保留，只有
+Owner 以后明确恢复 Core 行情总结或说 `START AXIS LAB` 后再调整相应开关。
 
 `🧪・AXIS LAB` 的三个频道可以创建，但功能保持关闭。
 

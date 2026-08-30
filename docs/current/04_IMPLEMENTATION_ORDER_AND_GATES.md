@@ -14,7 +14,7 @@ config/discord_blueprint.yaml
 config/model_routing.yaml
 config/llm_trade_schema.json
 config/llm_analysis_schema.json
-config/.env.example
+.env.example
 ```
 
 仅以本包中的 AXIS 文档、配置和 Schema 作为当前 Source of Truth。
@@ -242,5 +242,12 @@ FEATURE_LAB_ENABLED=false
 FEATURE_MODEL_AB_ENABLED=false
 ```
 
-Core 的 `FEATURE_MOOMOO_ENABLED=true` 只授权每日收盘总结所需的只读期权快照，不授权
-AXIS LAB 扫描、账户访问或交易。AXIS LAB 仍只保留频道与未来 Spec。
+当前部署必须同时保持：
+
+```text
+FEATURE_LAB_ENABLED=false
+FEATURE_MODEL_AB_ENABLED=false
+FEATURE_MOOMOO_ENABLED=false
+```
+
+旧 Core 每日总结实现保留但不启动。AXIS LAB 仍只保留频道与未来 Spec。

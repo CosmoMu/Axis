@@ -18,12 +18,19 @@ from app.bot.cogs.signal_input import SignalInputCog
 from app.bot.cogs.system_alerts import SystemAlertsCog
 from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
+from app.domain.public_identity import PublicIdentityPolicy
+from app.integrations.stripe_gateway import StripeGateway
 from app.services.analysis_pipeline import AnalysisPipelineService
 from app.services.card_review import CardReviewService
 from app.services.daily_summary import DailySummaryService
 from app.services.draft_generation import DraftGenerationService
+from app.services.membership_access import (
+    MembershipAccessService,
+    MembershipAcknowledgementService,
+    MembershipPriceCatalog,
+)
 from app.services.membership_management import MembershipManagementService
-from app.services.membership_payments import MembershipPaymentService
+from app.services.membership_stripe import MembershipStripeService
 from app.services.mentor_management import MentorManagementService
 from app.services.official_results import OfficialResultsService
 from app.services.signal_input import SignalInputService
@@ -52,8 +59,12 @@ class AxisBot(commands.Bot):
         trade_publication_service: TradePublicationService,
         mentor_service: MentorManagementService,
         membership_service: MembershipManagementService,
-        membership_payment_service: MembershipPaymentService,
-        payment_provider: Any,
+        membership_access_service: MembershipAccessService,
+        membership_acknowledgements: MembershipAcknowledgementService,
+        membership_price_catalog: MembershipPriceCatalog,
+        membership_stripe_service: MembershipStripeService,
+        stripe_gateway: StripeGateway | None,
+        public_identity: PublicIdentityPolicy,
         system_alert_service: SystemAlertService,
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
@@ -113,10 +124,12 @@ class AxisBot(commands.Bot):
             results_channel_id=results_channel_id,
             lobby_channel_id=_required_snowflake(channels, "lobby"),
             member_wins_channel_id=_required_snowflake(channels, "member_wins"),
-            results_mention=f"<#{results_channel_id}>",
-            membership_price_display=settings.membership_price_display,
-            customer_portal_url=settings.customer_portal_url,
-            payment_service=membership_payment_service,
+            access_service=membership_access_service,
+            acknowledgements=membership_acknowledgements,
+            price_catalog=membership_price_catalog,
+            stripe_service=membership_stripe_service,
+            public_identity=public_identity,
+            sync_role=self._manager_control_cog.sync_member_role,
         )
         self._system_alerts_cog = SystemAlertsCog(
             self,
@@ -133,9 +146,8 @@ class AxisBot(commands.Bot):
             guild_id=settings.discord_guild_id,
             host=settings.payment_webhook_host,
             port=settings.payment_webhook_port,
-            secret=settings.payment_webhook_secret,
-            provider=payment_provider,
-            payment_service=membership_payment_service,
+            gateway=stripe_gateway,
+            payment_service=membership_stripe_service,
             sync_role=self._manager_control_cog.sync_member_role,
         )
         self._card_testing_cog = CardTestingCog(

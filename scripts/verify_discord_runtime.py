@@ -22,12 +22,11 @@ from app.db.bootstrap import load_discord_ids  # noqa: E402
 from app.db.models import GuildConfig  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-GUIDE_MARKERS = {
-    "welcome": ("welcome_message_id", "AXIS Welcome v1"),
-    "subscriptions": ("subscription_message_id", "AXIS Membership v1"),
-    "official_results": ("results_guide_message_id", "AXIS Results Guide v1"),
-    "lobby": ("lobby_guide_message_id", "AXIS Lobby Guide v1"),
-    "member_wins": ("member_wins_guide_message_id", "AXIS Member Wins Guide v1"),
+GUIDE_TITLES = {
+    "welcome": ("welcome_message_id", "AXIS"),
+    "subscriptions": ("subscription_message_id", "AXIS MEMBERSHIP"),
+    "official_results": ("results_guide_message_id", "AXIS RESULTS"),
+    "member_wins": ("member_wins_guide_message_id", "COMMUNITY WINS"),
 }
 TEST_COMMANDS = {
     "test-signal-card",
@@ -37,6 +36,8 @@ TEST_COMMANDS = {
     "test-tp-card",
     "test-runner-card",
     "test-close-card",
+    "test-general-card",
+    "test-payment-ui",
 }
 
 
@@ -139,19 +140,27 @@ async def verify() -> list[str]:
             _check(bot_permissions.manage_messages, f"bot_{key}_manage", failures)
 
         if config is not None:
-            for channel_key, (field_name, marker) in GUIDE_MARKERS.items():
+            for channel_key, (field_name, title) in GUIDE_TITLES.items():
                 guide_channel = channel(channel_key)
                 saved_id = getattr(config, field_name)
                 _check(saved_id is not None, f"{field_name}_missing", failures)
                 matching = []
                 async for message in guide_channel.history(limit=100):
-                    if any(embed.footer.text == marker for embed in message.embeds):
+                    if any(embed.title == title for embed in message.embeds):
                         matching.append(message)
                 _check(len(matching) == 1, f"{channel_key}_guide_count", failures)
                 if matching and saved_id is not None:
                     _check(matching[0].id == saved_id, f"{field_name}_mismatch", failures)
                 if channel_key == "member_wins" and matching:
                     _check(matching[0].pinned, "member_wins_guide_not_pinned", failures)
+            lobby = channel("lobby")
+            _check(
+                lobby.topic
+                == "Open community discussion for markets, AXIS, and general questions.",
+                "lobby_topic_mismatch",
+                failures,
+            )
+            _check(config.lobby_guide_message_id is None, "lobby_guide_should_be_absent", failures)
 
         application_id = client.application_id
         _check(application_id is not None, "application_id_missing", failures)
@@ -178,7 +187,7 @@ def main() -> int:
     print("discord_runtime=PASS")
     print("permissions=public,member,manager,owner,bot")
     print("general_guides=idempotent")
-    print("owner_test_commands=7")
+    print("owner_test_commands=9")
     return 0
 
 

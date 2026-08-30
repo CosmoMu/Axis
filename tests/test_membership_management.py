@@ -6,27 +6,30 @@ import pytest
 from sqlalchemy import func, select
 
 from app.db.base import Base
-from app.db.models import (
-    AuditLog,
-    GuildConfig,
-    Membership,
-    MembershipEvent,
-    ScheduledJob,
-    utc_now,
-)
+from app.db.models import AuditLog, GuildConfig, MembershipEntitlement, utc_now
 from app.db.session import Database
-from app.domain.enums import JobStatus, MembershipStatus
+from app.domain.enums import EntitlementStatus, MembershipExtensionType
+from app.services.membership_access import (
+    MembershipAccessService,
+    MembershipAcknowledgementService,
+)
 from app.services.membership_management import MembershipManagementService
+from app.services.trading_calendar import TradingCalendarService
 
 GUILD_ID = 1543309921066684567
 
 
 @pytest.mark.asyncio
-async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
+async def test_manager_actions_create_independent_entitlements_and_sync_manual_role() -> None:
     database = Database("sqlite+aiosqlite:///:memory:")
     async with database.engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
-    service = MembershipManagementService(database)
+    access = MembershipAccessService(
+        database,
+        TradingCalendarService(),
+        MembershipAcknowledgementService(database),
+    )
+    service = MembershipManagementService(database, access)
     try:
         async with database.session() as session:
             session.add(GuildConfig(guild_id=GUILD_ID))
@@ -39,16 +42,19 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
             actor_user_id=101,
             interaction_id=201,
         )
-        original_end = granted.ends_at
-        assert granted.is_active and original_end is not None
-        extended = await service.extend(
+        assert granted.is_active and granted.entitlement_count == 1
+
+        extended = await service.extend_access(
             GUILD_ID,
             granted.user_id,
-            days=7,
+            extension_type=MembershipExtensionType.TRADING_DAYS.value,
+            amount=3,
             actor_user_id=101,
             interaction_id=202,
         )
-        assert extended.ends_at == original_end + timedelta(days=7)
+        assert extended.entitlement_count == 2
+        assert "MANUAL_EXTENSION" in extended.source
+
         cancelled = await service.cancel_at_expiry(
             GUILD_ID,
             granted.user_id,
@@ -57,13 +63,14 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
             interaction_id=203,
         )
         assert cancelled.cancel_at_period_end is True
+
         removed = await service.remove(
             GUILD_ID,
             granted.user_id,
             actor_user_id=101,
             interaction_id=204,
         )
-        assert removed.status == MembershipStatus.REMOVED.value
+        assert removed.status == EntitlementStatus.REVOKED.value
         assert granted.user_id not in await service.active_user_ids(GUILD_ID)
 
         manual = await service.sync_manual_role(
@@ -80,7 +87,7 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
             actor_user_id=101,
         )
         assert manual_removed is not None
-        assert manual_removed.status == MembershipStatus.REMOVED.value
+        assert manual_removed.status == EntitlementStatus.REVOKED.value
 
         expiring = await service.grant(
             GUILD_ID,
@@ -90,32 +97,23 @@ async def test_membership_lifecycle_scheduling_and_manual_role_sync() -> None:
             interaction_id=205,
         )
         async with database.session() as session:
-            membership = await session.get(Membership, expiring.id)
-            assert membership is not None
-            membership.ends_at = utc_now() - timedelta(seconds=1)
-            job = await session.scalar(
-                select(ScheduledJob).where(
-                    ScheduledJob.dedupe_key.like(f"membership-expiry:{expiring.id}:%"),
-                    ScheduledJob.status == JobStatus.PENDING.value,
-                )
+            entitlement = await session.scalar(
+                select(MembershipEntitlement).where(MembershipEntitlement.id == expiring.id)
             )
-            assert job is not None
-            job.run_at = utc_now() - timedelta(seconds=1)
+            assert entitlement is not None
+            entitlement.ends_at = utc_now() - timedelta(seconds=1)
             await session.commit()
         expired_users = await service.process_due(GUILD_ID, actor_user_id=999)
         expired = await service.get(GUILD_ID, expiring.user_id)
         assert expired_users == [expiring.user_id]
-        assert expired is not None and expired.status == MembershipStatus.EXPIRED.value
+        assert expired is not None and expired.status == EntitlementStatus.EXPIRED.value
 
         async with database.session() as session:
-            event_count = await session.scalar(select(func.count()).select_from(MembershipEvent))
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))
-            succeeded = await session.scalar(
-                select(func.count())
-                .select_from(ScheduledJob)
-                .where(ScheduledJob.status == JobStatus.SUCCEEDED.value)
+            entitlement_count = await session.scalar(
+                select(func.count()).select_from(MembershipEntitlement)
             )
-        assert event_count == audit_count == 8
-        assert succeeded == 1
+        assert audit_count == 10
+        assert entitlement_count == 4
     finally:
         await database.dispose()

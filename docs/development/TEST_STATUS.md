@@ -2,7 +2,7 @@
 
 **日期：** 2026-08-30
 
-**结果：** 107 passed
+**结果：** 122 passed
 
 **Lint：** Ruff passed
 
@@ -26,6 +26,9 @@
 - 三种固定 `查看当前订单` custom_id 和 persistent View。
 - Mentor create/edit/toggle/reassign 与审计。
 - Membership gift/extend/cancel/remove/manual Role sync/Scheduled expiry。
+- XNYS Free Trial / Day Pass、正式休市日、带版本风险确认、终身一次 Trial 和多 Entitlement。
+- Stripe 动态 Checkout/Portal、Monthly 续费/失败/取消、重复点击、Webhook 幂等、价格快照与
+  Grandfathering；Test Mode 外部 E2E 仍由 Live Checklist 阻止上线。
 - Checkout metadata、HMAC signature、Discord User ID 绑定、payment event dedup、period-end
   cancel 与即时失效 Role decision。
 - GENERAL 单一 Membership 文案与测试 Preview DTO 无数据库依赖。
@@ -61,7 +64,10 @@
 
 Live validation：
 
-- PostgreSQL revision `20260830_0014`。
+- PostgreSQL revision `20260830_0015`。
+- 0015 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T071335Z.dump`
+  已通过 `pg_restore --list`，SHA-256
+  `c1dc2521caba1e3c44adfaf05fa4f7f09ac6ea91019cc0cac7db0841186b0e8b`。
 - 0014 前备份 `/Users/cosmomu/Desktop/Axis/var/backups/axis-20260830T062414Z.dump`
   已通过 `pg_restore --list`，SHA-256
   `c76aae4d8606a8b33b795611d1f9c04165b7e1cff9f3e6edc83fb644b6674e03`。
@@ -82,9 +88,9 @@ Live validation：
   `FEATURE_ANALYSIS_ENABLED=true` 状态部署，LaunchAgent 稳定。
 - `🧪・card-testing` ID `1543495201425723442`、`🚨・system-alerts` ID
   `1543506758692114463`；Manager 明确不可见，Owner 与 AXIS BOT 可见。
-- 五条 GENERAL Guide marker 各只有一条，数据库 Message ID 全部已 live 验证；Member Wins
-  的独立 `Pin Messages` 权限和固定说明均已通过。
-- 7 个 Owner-only test command 已同步到目标 Guild；Preview 不写正式数据库。
+- Welcome、Subscriptions、Results 与 Member Wins Guide 各只有一条；Lobby 已删除精确追踪的
+  Bot Guide 并只保留英文 Topic。数据库 Message ID、Member Wins Pin 与权限均已验证。
+- 9 个 Owner-only test command 已同步到目标 Guild；Preview 不写正式数据库。
 - `scripts/verify_discord_runtime.py` live acceptance：`discord_runtime=PASS`；Public / Member /
   Manager / Owner / Bot 权限、GENERAL 幂等消息与 Owner test commands 全部通过。
 - 第一条真实 Manager Analysis 已保留原 Source 和 Draft ID 完成重试：Source=`PARSED`、
@@ -104,6 +110,8 @@ Live validation：
 - Moomoo SDK / OpenD 均为 `10.10.7008`，`127.0.0.1:11111` quote login 可用。
 - SPY 公开测试期权的 option chain 解析与只读盘后 snapshot 均 PASS；未写数据库、未下单。
 - 周六 live acceptance 返回 `trading_session=false`，三类频道未误发。
+- 最新范围已将 `FEATURE_MOOMOO_ENABLED=false`；以上行情验证属于保留实现的历史验收，当前
+  Bot 不启动每日总结任务。
 - LaunchAgent `com.axis.moomoo-opend` 已安装，将在下次 macOS 登录加载；当前 OpenD 进程
   已运行并监听本机端口。
 

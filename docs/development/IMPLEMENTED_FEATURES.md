@@ -65,19 +65,21 @@
 
 - Persistent Mentor Control 与 Member Control 面板。
 - Mentor Registry、Aliases、启停、订单查看和 Trade Mentor 修改。
-- 单一 Membership、赠送、延期、到期取消、立即移除和手工 Role 同步。
+- 单一 Member Role；Free Trial、Day Pass、Monthly、赠送、独立延期、到期取消、立即撤销和
+  手工 Role 同步通过多 Entitlement 合并访问。
 - Scheduled Job 到期处理和持续 Member Role reconciliation。
 - Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
-- PaymentProvider 抽象、External Checkout URL metadata、HMAC webhook 与 provider event 去重。
-- ACTIVE / PAST_DUE / CANCEL_AT_PERIOD_END / EXPIRED / CANCELLED / REMOVED lifecycle；
-  period-end 之前保留 Role，到期 Job 自动移除。
+- Stripe 动态 Checkout / Portal、签名 Webhook、不可变价格快照和 provider event 幂等。
+- ACTIVE / PAST_DUE / CANCEL_AT_PERIOD_END / EXPIRED / CANCELLED / REVOKED lifecycle；任一
+  Entitlement 有效时保留 Role，PAST_DUE 重试期间不立即撤权。
 
 ## GENERAL / Owner Operations
 
-- 中文极简 Welcome 与单一 `AXIS Membership` 卡片；价格和支付/Portal URL 来自环境配置。
-- Results 只保留官方统计；Lobby 为公开聊天；Member Wins 公开可见、仅会员上传，并与官方
-  Results 明确隔离。
-- 7 个 Owner-only Card Preview 命令使用内存 DTO，不创建假 Trade、不写 Results、不发会员频道。
+- 中文极简 Welcome 与单一 `AXIS Membership` 卡片；展示价格来自数据库 Price Catalog，
+  Checkout / Portal 按 Discord User ID 动态创建。
+- Results 只保留官方统计；Lobby 仅保留英文 Topic；Member Wins 公开可见、仅会员上传，并与
+  官方 Results 明确隔离。
+- 9 个 Owner-only Card Preview 命令使用内存 DTO，不创建假 Trade、不写 Results、不发会员频道。
 - ERROR / WARNING / RECOVERY System Alert；fingerprint、first/last seen、occurrence count、
   resolved time 与通知状态持久化。
 

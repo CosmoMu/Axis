@@ -2,7 +2,7 @@
 
 **更新：** 2026-08-30
 
-**Database:** `20260830_0014`
+**Database:** `20260830_0015`
 
 **Discord Bootstrap:** `REUSE=28 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -82,24 +82,22 @@ Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到
 `FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_AXIS_STOCK_ANALYST_ENABLED=true`。Source 原图仅作为
 内部解析证据；审核和发布只发文字卡。Analysis 既有频道和处理逻辑在本轮保持不变。
 
-## Stage 5 — GENERAL / Membership / Monitoring: IMPLEMENTED
+## Stage 5 — GENERAL / Membership / Monitoring: IMPLEMENTED, STRIPE LIVE GATED
 
 Implemented:
 
-- Welcome、单一 AXIS Membership、Results guide、Lobby guide 与 Member Wins 免责声明。
-- 五条 GENERAL 控制消息 ID 入库；Bot 重启时编辑/恢复原消息，不重复发送。
-- Provider-neutral checkout session；metadata 绑定 Discord User ID 与 membership session ID。
-- HMAC webhook、event dedup、Payment → Member Role、period-end cancel、立即撤销与 Gift/Manual 共存。
-- 7 个 Owner-only Preview Command；只构建 Public DTO，不写正式 Trade / Analysis / Results。
+- 极简 Welcome、三方案 Membership、Results 与 Member Wins；Lobby 只保留英文 Topic。
+- Free Trial、Day Pass、Monthly、Gift、Manual 与 Manual Extension 独立 Entitlement。
+- XNYS 正式交易日历、风险声明版本、Trial 终身一次和多 Entitlement Role Sync。
+- Stripe 动态 Checkout、签名 Webhook、动态 Portal、event dedup 与价格快照/Grandfathering。
+- 9 个 Owner-only Preview Command；新增 General 与 Payment UI Preview。
 - Database / OpenAI / Jobs / Membership Expiry / Signal / Analysis / Discord / Moomoo 监控。
 - System Alert 持久化去重，只发送首个 ERROR/WARNING 与一次 RECOVERY。
 
 Activation boundary:
 
-- 外部 Checkout 尚未配置 `SUBSCRIPTION_URL` 与 `PAYMENT_WEBHOOK_SECRET`，因此生产
-  `JOIN AXIS` 入口安全禁用，不会出现“已付款但未加 Role”的半启用状态。
-- 配置真实 Payment Provider、公开 TLS webhook 路由并完成 sandbox payment acceptance 后，
-  才可启用收款。
+- Stripe Test Secret、Price IDs 与公开 TLS webhook 尚未配置，因此 paid Checkout 安全禁用。
+- 完成 `LIVE_MODE_CHECKLIST.md` 和 `STRIPE_PUBLIC_PRIVACY_CHECKLIST.md` 后才可启用。
 
 ## Stage 6 — Stabilization: PARTIAL
 
@@ -107,9 +105,8 @@ Implemented: LaunchAgent、错误信息脱敏、基础重试、测试、Secret s
 verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署、Moomoo
 OpenD 只读期权快照，以及三个会员频道 `16:15 ET` 的 Active / 当日 Closed 幂等总结。
 
-Live activation: `FEATURE_MOOMOO_ENABLED=true`、`FEATURE_DAILY_SUMMARY_ENABLED=true`；
-0008 已部署。周末/假日由 SPY session anchor 验证后跳过；当前 2026-08-29 为周六，所以没有
-制造 Discord 测试总结。
+本轮最新范围要求 `FEATURE_MOOMOO_ENABLED=false`；旧每日总结代码保留但不启动，不属于
+AXIS LAB 开发。
 
 Missing: off-host backup target、非生产环境完整 restore / rollback rehearsal。
 

@@ -13,6 +13,7 @@ dependencies = [
   "asyncpg>=0.30,<1",
   "certifi>=2025.8,<2027",
   "discord.py>=2.6,<3",
+  "exchange-calendars>=4.11,<5",
   "jsonschema>=4.23,<5",
   "moomoo-api==10.10.7008",
   "openai>=2.0,<3",
@@ -20,6 +21,7 @@ dependencies = [
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
   "SQLAlchemy[asyncio]>=2.0.43,<3",
+  "stripe>=12,<15",
 ]
 
 [project.optional-dependencies]

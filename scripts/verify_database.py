@@ -23,6 +23,11 @@ COUNTED_TABLES = (
     "mentors",
     "memberships",
     "membership_sessions",
+    "membership_prices",
+    "membership_acknowledgements",
+    "membership_entitlements",
+    "membership_trials",
+    "payment_events",
     "payment_webhook_events",
     "system_alerts",
     "trade_events",
@@ -81,9 +86,10 @@ async def verify() -> None:
 def main() -> int:
     try:
         asyncio.run(verify())
-    except Exception:
+    except Exception as exc:
         print(
-            "AXIS database verification failed; connection details were omitted.",
+            "AXIS database verification failed; connection details were omitted. "
+            f"error_type={type(exc).__name__}",
             file=sys.stderr,
         )
         return 2

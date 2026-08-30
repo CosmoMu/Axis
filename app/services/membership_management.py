@@ -2,20 +2,34 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     AuditLog,
     Membership,
+    MembershipEntitlement,
     MembershipEvent,
     ScheduledJob,
     utc_now,
 )
 from app.db.session import Database
-from app.domain.enums import JobStatus, MembershipSource, MembershipStatus
+from app.domain.enums import (
+    EntitlementStatus,
+    EntitlementType,
+    JobStatus,
+    MembershipExtensionType,
+)
+from app.services.membership_access import (
+    ACCESS_STATUSES,
+    AccessSnapshot,
+    MembershipAccessError,
+    MembershipAccessService,
+    MembershipAcknowledgementService,
+)
+from app.services.membership_stripe import MembershipStripeError, MembershipStripeService
+from app.services.trading_calendar import TradingCalendarService
 
 
 class MembershipError(RuntimeError):
@@ -42,41 +56,39 @@ class MembershipSnapshot:
     ends_at: datetime | None
     cancel_at_period_end: bool
     version: int
+    entitlement_count: int = 1
 
     @property
     def is_active(self) -> bool:
-        now = datetime.now(UTC)
-        end = self.ends_at
-        if end is not None and end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
-        return self.status in {
-            MembershipStatus.ACTIVE.value,
-            MembershipStatus.CANCEL_AT_PERIOD_END.value,
-        } and (end is None or end > now)
+        if self.status == EntitlementStatus.PAST_DUE.value:
+            return True
+        end = _aware(self.ends_at) if self.ends_at is not None else None
+        return self.status in ACCESS_STATUSES and (end is None or end > utc_now())
 
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
-ACTIVE_MEMBERSHIP_STATUSES = {
-    MembershipStatus.ACTIVE.value,
-    MembershipStatus.CANCEL_AT_PERIOD_END.value,
-}
-
-
 class MembershipManagementService:
-    def __init__(self, database: Database) -> None:
+    """Manager-facing compatibility adapter over the multi-entitlement access model."""
+
+    def __init__(
+        self,
+        database: Database,
+        access: MembershipAccessService | None = None,
+        stripe: MembershipStripeService | None = None,
+    ) -> None:
         self.database = database
+        self.access = access or MembershipAccessService(
+            database,
+            TradingCalendarService(),
+            MembershipAcknowledgementService(database),
+        )
+        self.stripe = stripe
 
     async def get(self, guild_id: int, user_id: int) -> MembershipSnapshot | None:
-        async with self.database.session() as session:
-            membership = await session.scalar(
-                select(Membership).where(
-                    Membership.guild_id == guild_id, Membership.user_id == user_id
-                )
-            )
-            return self._snapshot(membership) if membership is not None else None
+        return self._aggregate(await self.access.status(guild_id, user_id))
 
     async def grant(
         self,
@@ -87,53 +99,17 @@ class MembershipManagementService:
         actor_user_id: int,
         interaction_id: int | None,
     ) -> MembershipSnapshot:
-        self._validate_user_and_days(user_id, days)
-        now = utc_now()
-        async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            before = self._payload(membership) if membership is not None else None
-            if membership is None:
-                membership = Membership(
-                    guild_id=guild_id,
-                    user_id=user_id,
-                    status=MembershipStatus.ACTIVE.value,
-                    source=MembershipSource.GIFT.value,
-                    starts_at=now,
-                    ends_at=None if days is None else now + timedelta(days=days),
-                    created_by=actor_user_id,
-                )
-                session.add(membership)
-                action = "MEMBERSHIP_GRANTED"
-            else:
-                base = now
-                if (
-                    membership.status in ACTIVE_MEMBERSHIP_STATUSES
-                    and membership.ends_at is not None
-                    and _aware(membership.ends_at) > now
-                ):
-                    base = _aware(membership.ends_at)
-                membership.status = MembershipStatus.ACTIVE.value
-                membership.source = MembershipSource.GIFT.value
-                membership.starts_at = now
-                membership.ends_at = None if days is None else base + timedelta(days=days)
-                membership.cancel_at_period_end = False
-                membership.removal_reason = None
-                membership.created_by = actor_user_id
-                membership.version += 1
-                action = "MEMBERSHIP_REACTIVATED"
-            await session.flush()
-            await self._record_change(
-                session,
-                membership,
-                action=action,
+        try:
+            await self.access.grant(
+                guild_id,
+                user_id,
+                days=days,
                 actor_user_id=actor_user_id,
                 interaction_id=interaction_id,
-                before=before,
-                reason=None,
             )
-            await self._reschedule(session, membership)
-            await session.commit()
-            return self._snapshot(membership)
+        except MembershipAccessError as exc:
+            raise MembershipValidationError(exc.code) from exc
+        return self._required(await self.get(guild_id, user_id))
 
     async def extend(
         self,
@@ -144,33 +120,43 @@ class MembershipManagementService:
         actor_user_id: int,
         interaction_id: int | None,
     ) -> MembershipSnapshot:
-        self._validate_user_and_days(user_id, days)
-        now = utc_now()
-        async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
-                raise MembershipValidationError("ACTIVE_MEMBERSHIP_NOT_FOUND")
-            before = self._payload(membership)
-            if days is None:
-                membership.ends_at = None
-            elif membership.ends_at is None:
-                raise MembershipValidationError("LIFETIME_MEMBERSHIP")
-            else:
-                membership.ends_at = max(now, _aware(membership.ends_at)) + timedelta(days=days)
-            membership.cancel_at_period_end = False
-            membership.version += 1
-            await self._record_change(
-                session,
-                membership,
-                action="MEMBERSHIP_EXTENDED",
+        if days is None:
+            raise MembershipValidationError("EXTENSION_TYPE_REQUIRED")
+        return await self.extend_access(
+            guild_id,
+            user_id,
+            extension_type=MembershipExtensionType.CALENDAR_DAYS.value,
+            amount=days,
+            actor_user_id=actor_user_id,
+            interaction_id=interaction_id,
+        )
+
+    async def extend_access(
+        self,
+        guild_id: int,
+        user_id: int,
+        *,
+        extension_type: str,
+        amount: int | None,
+        actor_user_id: int,
+        interaction_id: int | None,
+        reason: str | None = None,
+        custom_expiry: datetime | None = None,
+    ) -> MembershipSnapshot:
+        try:
+            await self.access.extend(
+                guild_id,
+                user_id,
+                extension_type=extension_type,
+                amount=amount,
                 actor_user_id=actor_user_id,
                 interaction_id=interaction_id,
-                before=before,
-                reason=None,
+                reason=reason,
+                custom_expiry=custom_expiry,
             )
-            await self._reschedule(session, membership)
-            await session.commit()
-            return self._snapshot(membership)
+        except MembershipAccessError as exc:
+            raise MembershipValidationError(exc.code) from exc
+        return self._required(await self.get(guild_id, user_id))
 
     async def cancel_at_expiry(
         self,
@@ -181,34 +167,26 @@ class MembershipManagementService:
         actor_user_id: int,
         interaction_id: int | None,
     ) -> MembershipSnapshot:
-        now = utc_now()
-        async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
-                raise MembershipValidationError("ACTIVE_MEMBERSHIP_NOT_FOUND")
-            before = self._payload(membership)
-            if ends_at is not None:
-                normalized_end = _aware(ends_at)
-                if normalized_end <= now:
-                    raise MembershipValidationError("EXPIRY_MUST_BE_FUTURE")
-                membership.ends_at = normalized_end
-            if membership.ends_at is None:
-                raise MembershipValidationError("EXPIRY_REQUIRED_FOR_LIFETIME")
-            membership.status = MembershipStatus.CANCEL_AT_PERIOD_END.value
-            membership.cancel_at_period_end = True
-            membership.version += 1
-            await self._record_change(
-                session,
-                membership,
-                action="MEMBERSHIP_CANCEL_AT_EXPIRY",
+        monthly_requested = False
+        if self.stripe is not None:
+            try:
+                monthly_requested = await self.stripe.manager_cancel_monthly(
+                    guild_id, user_id, immediately=False
+                )
+            except MembershipStripeError as exc:
+                raise MembershipValidationError(exc.code) from exc
+        try:
+            await self.access.cancel_at_expiry(
+                guild_id,
+                user_id,
+                ends_at=ends_at,
                 actor_user_id=actor_user_id,
                 interaction_id=interaction_id,
-                before=before,
-                reason=None,
             )
-            await self._reschedule(session, membership)
-            await session.commit()
-            return self._snapshot(membership)
+        except MembershipAccessError as exc:
+            if not monthly_requested or exc.code != "EXPIRING_ACCESS_NOT_FOUND":
+                raise MembershipValidationError(exc.code) from exc
+        return self._required(await self.get(guild_id, user_id))
 
     async def remove(
         self,
@@ -219,30 +197,22 @@ class MembershipManagementService:
         interaction_id: int | None,
         reason: str = "manager_revoke",
     ) -> MembershipSnapshot:
-        async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            if membership is None:
-                raise MembershipValidationError("MEMBERSHIP_NOT_FOUND")
-            if membership.status == MembershipStatus.REMOVED.value:
-                return self._snapshot(membership)
-            before = self._payload(membership)
-            membership.status = MembershipStatus.REMOVED.value
-            membership.ends_at = utc_now()
-            membership.cancel_at_period_end = False
-            membership.removal_reason = reason[:500]
-            membership.version += 1
-            await self._record_change(
-                session,
-                membership,
-                action="MEMBERSHIP_REMOVED",
+        if self.stripe is not None:
+            try:
+                await self.stripe.manager_cancel_monthly(guild_id, user_id, immediately=True)
+            except MembershipStripeError as exc:
+                raise MembershipValidationError(exc.code) from exc
+        try:
+            await self.access.revoke(
+                guild_id,
+                user_id,
                 actor_user_id=actor_user_id,
                 interaction_id=interaction_id,
-                before=before,
                 reason=reason,
             )
-            await self._cancel_jobs(session, membership.id)
-            await session.commit()
-            return self._snapshot(membership)
+        except MembershipAccessError as exc:
+            raise MembershipValidationError(exc.code) from exc
+        return self._required(await self.get(guild_id, user_id))
 
     async def sync_manual_role(
         self,
@@ -253,29 +223,38 @@ class MembershipManagementService:
         actor_user_id: int,
     ) -> MembershipSnapshot | None:
         if has_role:
-            return await self._manual_add(guild_id, user_id, actor_user_id)
+            await self.access.add_manual(guild_id, user_id, actor_user_id=actor_user_id)
+            return await self.get(guild_id, user_id)
+        now = utc_now()
         async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            if membership is None or membership.status not in ACTIVE_MEMBERSHIP_STATUSES:
-                return self._snapshot(membership) if membership is not None else None
-            before = self._payload(membership)
-            membership.status = MembershipStatus.REMOVED.value
-            membership.ends_at = utc_now()
-            membership.cancel_at_period_end = False
-            membership.removal_reason = "manual_role_removed"
-            membership.version += 1
-            await self._record_change(
-                session,
-                membership,
-                action="MEMBERSHIP_ROLE_REMOVED",
-                actor_user_id=actor_user_id,
-                interaction_id=None,
-                before=before,
-                reason="manual_role_removed",
-            )
-            await self._cancel_jobs(session, membership.id)
+            rows = (
+                await session.scalars(
+                    select(MembershipEntitlement)
+                    .where(
+                        MembershipEntitlement.guild_id == guild_id,
+                        MembershipEntitlement.discord_user_id == user_id,
+                        MembershipEntitlement.entitlement_type == EntitlementType.MANUAL.value,
+                        MembershipEntitlement.status.in_(ACCESS_STATUSES),
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            for entitlement in rows:
+                entitlement.status = EntitlementStatus.REVOKED.value
+                entitlement.ends_at = now
+                entitlement.reason = "manual_role_removed"
+                entitlement.version += 1
+                session.add(
+                    AuditLog(
+                        guild_id=guild_id,
+                        actor_user_id=actor_user_id,
+                        action_type="MEMBERSHIP_ROLE_REMOVED",
+                        entity_type="membership_entitlement",
+                        entity_id=str(entitlement.id),
+                    )
+                )
             await session.commit()
-            return self._snapshot(membership)
+        return await self.get(guild_id, user_id)
 
     async def import_role_holder(
         self, guild_id: int, user_id: int, *, actor_user_id: int
@@ -283,135 +262,65 @@ class MembershipManagementService:
         existing = await self.get(guild_id, user_id)
         if existing is not None and existing.is_active:
             return existing
-        return await self._manual_add(guild_id, user_id, actor_user_id)
+        await self.access.add_manual(guild_id, user_id, actor_user_id=actor_user_id)
+        return await self.get(guild_id, user_id)
 
     async def active_user_ids(self, guild_id: int) -> set[int]:
-        now = utc_now()
-        async with self.database.session() as session:
-            rows = (
-                await session.scalars(
-                    select(Membership.user_id).where(
-                        Membership.guild_id == guild_id,
-                        Membership.status.in_(ACTIVE_MEMBERSHIP_STATUSES),
-                        (Membership.ends_at.is_(None) | (Membership.ends_at > now)),
-                    )
-                )
-            ).all()
-            return set(rows)
+        return await self.access.active_user_ids(guild_id)
 
     async def process_due(self, guild_id: int, *, actor_user_id: int) -> list[int]:
-        now = utc_now()
-        expired_users: list[int] = []
-        async with self.database.session() as session:
-            jobs = (
-                await session.scalars(
-                    select(ScheduledJob)
-                    .where(
-                        ScheduledJob.guild_id == guild_id,
-                        ScheduledJob.job_type == "MEMBERSHIP_EXPIRE",
-                        ScheduledJob.status == JobStatus.PENDING.value,
-                        ScheduledJob.run_at <= now,
-                    )
-                    .order_by(ScheduledJob.run_at, ScheduledJob.id)
-                    .with_for_update(skip_locked=True)
-                    .limit(100)
-                )
-            ).all()
-            for job in jobs:
-                job.status = JobStatus.RUNNING.value
-                job.locked_at = now
-                job.locked_by = "axis-bot"
-                job.attempts += 1
-                try:
-                    membership_id = uuid.UUID(str(job.payload.get("membership_id")))
-                except (ValueError, TypeError, AttributeError):
-                    job.status = JobStatus.FAILED.value
-                    job.last_error = "INVALID_MEMBERSHIP_ID"
-                    continue
-                membership = await session.scalar(
-                    select(Membership).where(Membership.id == membership_id).with_for_update()
-                )
-                if (
-                    membership is None
-                    or membership.guild_id != guild_id
-                    or membership.status not in ACTIVE_MEMBERSHIP_STATUSES
-                    or membership.ends_at is None
-                    or _aware(membership.ends_at) > now
-                ):
-                    job.status = JobStatus.CANCELLED.value
-                    continue
-                before = self._payload(membership)
-                membership.status = MembershipStatus.EXPIRED.value
-                membership.cancel_at_period_end = False
-                membership.version += 1
-                await self._record_change(
-                    session,
-                    membership,
-                    action="MEMBERSHIP_EXPIRED",
-                    actor_user_id=actor_user_id,
-                    interaction_id=None,
-                    before=before,
-                    reason="scheduled_expiry",
-                )
-                job.status = JobStatus.SUCCEEDED.value
-                expired_users.append(membership.user_id)
-            await session.commit()
-        return expired_users
-
-    async def _manual_add(
-        self, guild_id: int, user_id: int, actor_user_id: int
-    ) -> MembershipSnapshot:
-        async with self.database.session() as session:
-            membership = await self._locked(session, guild_id, user_id)
-            before = self._payload(membership) if membership is not None else None
-            if membership is None:
-                membership = Membership(
-                    guild_id=guild_id,
-                    user_id=user_id,
-                    status=MembershipStatus.ACTIVE.value,
-                    source=MembershipSource.MANUAL.value,
-                    starts_at=utc_now(),
-                    ends_at=None,
-                    created_by=actor_user_id,
-                )
-                session.add(membership)
-            else:
-                membership.status = MembershipStatus.ACTIVE.value
-                membership.source = MembershipSource.MANUAL.value
-                membership.starts_at = utc_now()
-                membership.ends_at = None
-                membership.cancel_at_period_end = False
-                membership.removal_reason = None
-                membership.version += 1
-            await session.flush()
-            await self._record_change(
-                session,
-                membership,
-                action="MEMBERSHIP_ROLE_ADDED",
-                actor_user_id=actor_user_id,
-                interaction_id=None,
-                before=before,
-                reason="manual_role_added",
-            )
-            await self._cancel_jobs(session, membership.id)
-            await session.commit()
-            return self._snapshot(membership)
+        return await self.access.expire_due(guild_id, actor_user_id=actor_user_id)
 
     @staticmethod
-    async def _locked(session: AsyncSession, guild_id: int, user_id: int) -> Membership | None:
-        return await session.scalar(
-            select(Membership)
-            .where(Membership.guild_id == guild_id, Membership.user_id == user_id)
-            .with_for_update()
+    def _aggregate(access: AccessSnapshot) -> MembershipSnapshot | None:
+        if not access.entitlements:
+            return None
+        active = [item for item in access.entitlements if item.is_active]
+        representative = (active or list(access.entitlements))[-1]
+        starts_at = min(item.starts_at for item in access.entitlements)
+        effective_expiry = access.effective_expiry if active else representative.ends_at
+        status = EntitlementStatus.ACTIVE.value if access.has_access else representative.status
+        if active and all(item.status == EntitlementStatus.PAST_DUE.value for item in active):
+            status = EntitlementStatus.PAST_DUE.value
+        return MembershipSnapshot(
+            id=representative.id,
+            guild_id=access.guild_id,
+            user_id=access.user_id,
+            status=status,
+            source=" + ".join(sorted({item.entitlement_type for item in active}))
+            if active
+            else representative.entitlement_type,
+            provider="stripe" if any(item.provider_subscription_id for item in active) else None,
+            provider_customer_id=next(
+                (
+                    item.provider_customer_id
+                    for item in reversed(active)
+                    if item.provider_customer_id
+                ),
+                None,
+            ),
+            provider_subscription_id=next(
+                (
+                    item.provider_subscription_id
+                    for item in reversed(active)
+                    if item.provider_subscription_id
+                ),
+                None,
+            ),
+            starts_at=starts_at,
+            ends_at=effective_expiry,
+            cancel_at_period_end=any(item.cancel_at_period_end for item in active),
+            version=max(item.version for item in access.entitlements),
+            entitlement_count=len(access.entitlements),
         )
 
     @staticmethod
-    def _validate_user_and_days(user_id: int, days: int | None) -> None:
-        if user_id <= 0:
-            raise MembershipValidationError("USER_ID_INVALID")
-        if days is not None and not 1 <= days <= 3650:
-            raise MembershipValidationError("DURATION_INVALID")
+    def _required(snapshot: MembershipSnapshot | None) -> MembershipSnapshot:
+        if snapshot is None:
+            raise MembershipValidationError("MEMBERSHIP_NOT_FOUND")
+        return snapshot
 
+    # Compatibility helpers retained for replaying pre-0015 provider events.
     @staticmethod
     def _payload(membership: Membership | None) -> dict[str, object] | None:
         if membership is None:
@@ -431,7 +340,7 @@ class MembershipManagementService:
     @classmethod
     async def _record_change(
         cls,
-        session: AsyncSession,
+        session: object,
         membership: Membership,
         *,
         action: str,
@@ -466,7 +375,7 @@ class MembershipManagementService:
         )
 
     @staticmethod
-    async def _cancel_jobs(session: AsyncSession, membership_id: uuid.UUID) -> None:
+    async def _cancel_jobs(session: object, membership_id: uuid.UUID) -> None:
         jobs = (
             await session.scalars(
                 select(ScheduledJob).where(
@@ -479,7 +388,7 @@ class MembershipManagementService:
             job.status = JobStatus.CANCELLED.value
 
     @classmethod
-    async def _reschedule(cls, session: AsyncSession, membership: Membership) -> None:
+    async def _reschedule(cls, session: object, membership: Membership) -> None:
         await cls._cancel_jobs(session, membership.id)
         if membership.ends_at is None:
             return
@@ -492,26 +401,6 @@ class MembershipManagementService:
                 run_at=membership.ends_at,
                 attempts=0,
                 max_attempts=5,
-                payload={
-                    "membership_id": str(membership.id),
-                    "user_id": membership.user_id,
-                },
+                payload={"membership_id": str(membership.id), "user_id": membership.user_id},
             )
-        )
-
-    @staticmethod
-    def _snapshot(membership: Membership) -> MembershipSnapshot:
-        return MembershipSnapshot(
-            id=membership.id,
-            guild_id=membership.guild_id,
-            user_id=membership.user_id,
-            status=membership.status,
-            source=membership.source,
-            provider=membership.provider,
-            provider_customer_id=membership.provider_customer_id,
-            provider_subscription_id=membership.provider_subscription_id,
-            starts_at=membership.starts_at,
-            ends_at=membership.ends_at,
-            cancel_at_period_end=membership.cancel_at_period_end,
-            version=membership.version,
         )

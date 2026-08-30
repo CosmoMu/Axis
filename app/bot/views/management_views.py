@@ -4,9 +4,11 @@ import re
 import uuid
 from datetime import UTC, datetime, time
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import discord
 
+from app.domain.enums import MembershipExtensionType
 from app.services.membership_management import MembershipSnapshot
 from app.services.mentor_management import MentorSnapshot, MentorTrade
 
@@ -45,10 +47,36 @@ def _expiry(raw: str) -> datetime | None:
         if "T" in value or " " in value:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         else:
-            parsed = datetime.combine(datetime.fromisoformat(value).date(), time(23, 59))
+            parsed = datetime.combine(
+                datetime.fromisoformat(value).date(),
+                time(23, 59, 59),
+                tzinfo=ZoneInfo("America/New_York"),
+            )
     except ValueError as exc:
         raise ValueError("EXPIRY_INVALID") from exc
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+
+def _extension(raw: str) -> tuple[str, int | None, datetime | None]:
+    normalized = raw.strip().upper().replace(" ", "")
+    if normalized.startswith("CUSTOM:"):
+        return (
+            MembershipExtensionType.CUSTOM.value,
+            None,
+            _expiry(normalized.split(":", 1)[1]),
+        )
+    suffixes = {
+        "T": MembershipExtensionType.TRADING_DAYS.value,
+        "C": MembershipExtensionType.CALENDAR_DAYS.value,
+        "M": MembershipExtensionType.CALENDAR_MONTH.value,
+    }
+    suffix = normalized[-1:] if normalized else ""
+    if suffix not in suffixes:
+        raise ValueError("EXTENSION_FORMAT_INVALID")
+    amount = int(normalized[:-1])
+    if amount <= 0:
+        raise ValueError("EXTENSION_AMOUNT_INVALID")
+    return suffixes[suffix], amount, None
 
 
 def mentor_embed(mentor: MentorSnapshot) -> discord.Embed:
@@ -92,6 +120,7 @@ def membership_embed(snapshot: MembershipSnapshot | None, user_id: int) -> disco
     ends_at = snapshot.ends_at
     embed.add_field(name="Status", value=snapshot.status, inline=True)
     embed.add_field(name="Source", value=snapshot.source, inline=True)
+    embed.add_field(name="Entitlements", value=str(snapshot.entitlement_count), inline=True)
     embed.add_field(
         name="Ends At",
         value=ends_at.isoformat() if ends_at is not None else "Lifetime",
@@ -429,8 +458,12 @@ class MemberDurationModal(discord.ui.Modal):
         self.action = action
         self.user = discord.ui.TextInput(label="Discord User ID 或 @mention")
         self.duration = discord.ui.TextInput(
-            label="7 / 30 / 90 / LIFETIME / Custom Days",
-            placeholder="30",
+            label=(
+                "7 / 30 / 90 / LIFETIME"
+                if action == "gift"
+                else "1T / 3T / 5T / 10T / 30C / 1M / CUSTOM"
+            ),
+            placeholder="30" if action == "gift" else "3T",
         )
         self.add_item(self.user)
         self.add_item(self.duration)
@@ -441,18 +474,24 @@ class MemberDurationModal(discord.ui.Modal):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = _user_id(self.user.value)
-            common = {
-                "days": _duration(self.duration.value),
-                "actor_user_id": interaction.user.id,
-                "interaction_id": interaction.id,
-            }
             if self.action == "gift":
                 snapshot = await self.controller.membership_service.grant(
-                    self.controller.guild_id, user_id, **common
+                    self.controller.guild_id,
+                    user_id,
+                    days=_duration(self.duration.value),
+                    actor_user_id=interaction.user.id,
+                    interaction_id=interaction.id,
                 )
             else:
-                snapshot = await self.controller.membership_service.extend(
-                    self.controller.guild_id, user_id, **common
+                extension_type, amount, custom_expiry = _extension(self.duration.value)
+                snapshot = await self.controller.membership_service.extend_access(
+                    self.controller.guild_id,
+                    user_id,
+                    extension_type=extension_type,
+                    amount=amount,
+                    custom_expiry=custom_expiry,
+                    actor_user_id=interaction.user.id,
+                    interaction_id=interaction.id,
                 )
             await self.controller.sync_member_role(user_id, snapshot.is_active)
             await interaction.followup.send(

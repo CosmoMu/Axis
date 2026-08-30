@@ -18,11 +18,13 @@ os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 import aiohttp  # noqa: E402
 import discord  # noqa: E402
 
+from app.bot.cards import configure_public_identity  # noqa: E402
 from app.bot.client import AxisBot  # noqa: E402
 from app.config import ConfigurationError, Settings  # noqa: E402
 from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
+from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
 from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
@@ -36,24 +38,31 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
     load_trade_prompt,
     load_trade_schema,
 )
-from app.integrations.payment_provider import ExternalCheckoutProvider  # noqa: E402
+from app.integrations.stripe_gateway import StripeSdkGateway  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.daily_summary import DailySummaryService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
+from app.services.membership_access import (  # noqa: E402
+    MembershipAccessService,
+    MembershipAcknowledgementService,
+    MembershipPriceCatalog,
+)
 from app.services.membership_management import MembershipManagementService  # noqa: E402
-from app.services.membership_payments import MembershipPaymentService  # noqa: E402
+from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
 from app.services.official_results import OfficialResultsService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
 from app.services.system_alerts import SystemAlertService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
+from app.services.trading_calendar import TradingCalendarService  # noqa: E402
 
 
 async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
+    settings.assert_lab_disabled()
     level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
@@ -160,15 +169,54 @@ async def run() -> None:
                 database,
                 MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port),
             )
-        payment_provider = ExternalCheckoutProvider(settings.payment_provider)
-        membership_payment_service = MembershipPaymentService(
+        calendar = TradingCalendarService()
+        acknowledgements = MembershipAcknowledgementService(database)
+        access_service = MembershipAccessService(database, calendar, acknowledgements)
+        price_catalog = MembershipPriceCatalog(database)
+        await price_catalog.bind_stripe_ids(
+            "DAY_PASS",
+            settings.stripe_day_pass_pricing_version,
+            product_id=settings.stripe_day_pass_product_id,
+            price_id=settings.stripe_day_pass_price_id,
+        )
+        await price_catalog.bind_stripe_ids(
+            "MONTHLY",
+            settings.stripe_monthly_pricing_version,
+            product_id=settings.stripe_monthly_product_id,
+            price_id=settings.stripe_monthly_price_id,
+        )
+        if settings.stripe_enabled and not settings.stripe_configuration_ready():
+            raise ConfigurationError(
+                "STRIPE_ENABLED=true，但 Test Mode Checkout/Webhook/Portal 配置不完整。"
+            )
+        stripe_gateway = (
+            StripeSdkGateway(
+                secret_key=settings.stripe_secret_key,
+                webhook_secret=settings.stripe_webhook_secret,
+                success_url=settings.stripe_success_url or "",
+                cancel_url=settings.stripe_cancel_url or "",
+                portal_return_url=settings.stripe_portal_return_url or "",
+            )
+            if settings.stripe_configuration_ready()
+            else None
+        )
+        membership_stripe_service = MembershipStripeService(
             database,
-            payment_provider,
-            subscription_url=(
-                settings.subscription_url if settings.payment_webhook_secret else None
-            ),
+            stripe_gateway,
+            calendar,
+            acknowledgements,
+            price_catalog,
             session_ttl_minutes=settings.membership_session_ttl_minutes,
         )
+        membership_service = MembershipManagementService(
+            database, access_service, membership_stripe_service
+        )
+        public_identity = PublicIdentityPolicy(
+            operator_name=settings.public_operator_name,
+            owner_user_id=settings.discord_owner_user_id,
+            additional_forbidden_terms=settings.public_identity_forbidden_terms,
+        )
+        configure_public_identity(public_identity)
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -177,9 +225,13 @@ async def run() -> None:
             card_review_service=CardReviewService(database),
             trade_publication_service=TradePublicationService(database),
             mentor_service=MentorManagementService(database),
-            membership_service=MembershipManagementService(database),
-            membership_payment_service=membership_payment_service,
-            payment_provider=payment_provider,
+            membership_service=membership_service,
+            membership_access_service=access_service,
+            membership_acknowledgements=acknowledgements,
+            membership_price_catalog=price_catalog,
+            membership_stripe_service=membership_stripe_service,
+            stripe_gateway=stripe_gateway,
+            public_identity=public_identity,
             system_alert_service=SystemAlertService(database),
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,

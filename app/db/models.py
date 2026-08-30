@@ -27,14 +27,18 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.domain.enums import (
+    AcknowledgementDocumentType,
     ActionStage,
     AnalysisDraftStatus,
     AnalysisHorizon,
     AnalysisStance,
     AnalysisType,
     DraftStatus,
+    EntitlementStatus,
+    EntitlementType,
     JobStatus,
     LlmWorkload,
+    MembershipPlanType,
     MembershipSource,
     MembershipStatus,
     OptionSide,
@@ -728,6 +732,158 @@ class MembershipEvent(UuidPrimaryKeyMixin, Base):
     )
 
 
+class MembershipPrice(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "membership_prices"
+    __table_args__ = (
+        UniqueConstraint("plan_type", "pricing_version", name="membership_price_version"),
+        UniqueConstraint("stripe_price_id", name="membership_stripe_price"),
+        CheckConstraint(enum_check("plan_type", MembershipPlanType), name="membership_price_plan"),
+        CheckConstraint("unit_amount >= 0", name="membership_price_amount_nonnegative"),
+    )
+
+    plan_type: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    pricing_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    stripe_product_id: Mapped[str | None] = mapped_column(String(255))
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255))
+    unit_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="usd", nullable=False)
+    billing_interval: Mapped[str | None] = mapped_column(String(16))
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MembershipAcknowledgement(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "membership_acknowledgements"
+    __table_args__ = (
+        UniqueConstraint(
+            "discord_user_id",
+            "document_type",
+            "document_version",
+            name="membership_acknowledgement_once",
+        ),
+        CheckConstraint(
+            enum_check("document_type", AcknowledgementDocumentType),
+            name="membership_acknowledgement_document_type",
+        ),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    document_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    document_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    discord_interaction_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class MembershipEntitlement(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "membership_entitlements"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "provider_subscription_id", name="entitlement_provider_subscription"
+        ),
+        UniqueConstraint(
+            "provider", "provider_checkout_session_id", name="entitlement_provider_checkout"
+        ),
+        CheckConstraint(enum_check("entitlement_type", EntitlementType), name="entitlement_type"),
+        CheckConstraint(enum_check("status", EntitlementStatus), name="entitlement_status"),
+        CheckConstraint(
+            "unit_amount_at_signup IS NULL OR unit_amount_at_signup >= 0",
+            name="entitlement_amount_nonnegative",
+        ),
+        Index("ix_entitlements_user_status", "guild_id", "discord_user_id", "status"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    entitlement_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    first_trading_day: Mapped[date | None] = mapped_column(Date)
+    last_trading_day: Mapped[date | None] = mapped_column(Date)
+    membership_price_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("membership_prices.id", ondelete="RESTRICT"), index=True
+    )
+    pricing_version: Mapped[str | None] = mapped_column(String(40))
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255))
+    unit_amount_at_signup: Mapped[int | None] = mapped_column(Integer)
+    currency: Mapped[str | None] = mapped_column(String(3))
+    provider: Mapped[str | None] = mapped_column(String(32))
+    provider_customer_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    provider_subscription_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    provider_checkout_session_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source_entitlement_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("membership_entitlements.id", ondelete="SET NULL"), index=True
+    )
+    granted_by_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    extension_type: Mapped[str | None] = mapped_column(String(24))
+    extension_amount: Mapped[int | None] = mapped_column(Integer)
+    old_effective_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    new_effective_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class MembershipTrial(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "membership_trials"
+    __table_args__ = (
+        UniqueConstraint("discord_user_id", "trial_type", name="membership_trial_lifetime_once"),
+        CheckConstraint("trading_days_granted > 0", name="membership_trial_days_positive"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    trial_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    trading_days_granted: Mapped[int] = mapped_column(Integer, nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_trading_day: Mapped[date] = mapped_column(Date, nullable=False)
+    last_trading_day: Mapped[date] = mapped_column(Date, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    entitlement_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("membership_entitlements.id", ondelete="RESTRICT"), unique=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class PaymentEvent(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "payment_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_event_id", name="payment_event_provider_id"),
+        Index("ix_payment_events_user_created", "discord_user_id", "created_at"),
+    )
+
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    discord_user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    membership_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("membership_entitlements.id", ondelete="SET NULL"), index=True
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 class Subscription(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "subscriptions"
     __table_args__ = (
@@ -759,6 +915,13 @@ class MembershipSession(Base):
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    membership_type: Mapped[str | None] = mapped_column(String(24))
+    pricing_version: Mapped[str | None] = mapped_column(String(40))
+    membership_price_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("membership_prices.id", ondelete="RESTRICT"), index=True
+    )
+    provider_checkout_session_id: Mapped[str | None] = mapped_column(String(255), unique=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )

@@ -109,5 +109,6 @@ Migration 到此停止，不会借此开始 Analysis 或 AXIS LAB。下一开发
 
 - Owner 单独要求 Short-term / Swing / Leaps 每个交易日收盘后的 Active + Closed 总结。
 - PostgreSQL revision `20260829_0008` 增加只读行情 snapshot 与幂等 publication。
-- `FEATURE_MOOMOO_ENABLED=true` 只用于 Core snapshot，不代表启动 AXIS LAB。
+- 该历史阶段曾启用 Core snapshot；最新部署范围已将 `FEATURE_MOOMOO_ENABLED=false`，旧代码
+  保留但不启动，也不代表启动 AXIS LAB。
 - 78 项自动化测试、Moomoo 只读 live acceptance 与周末不误发检查均通过。
