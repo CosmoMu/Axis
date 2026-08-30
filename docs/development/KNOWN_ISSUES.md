@@ -4,10 +4,10 @@
 
 - 无。Core Gate A 已通过。
 
-## Live Analysis Gate
+## Live Analysis
 
-- Automated Gate B 已通过；live activation 仍等待 Owner 单独授权 `analysis-input` 的文字与
-  图片发送给 OpenAI。当前 `FEATURE_ANALYSIS_ENABLED=false`。
+- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。尚未为了验收制造
+  虚假市场观点；第一条真实 Manager 输入需要观察 Discord → OpenAI → Review 的生产链路。
 
 ## Migration Compatibility
 
@@ -20,6 +20,6 @@
 - Python 3.12 下 discord.py 依赖会产生 `audioop` Python 3.13 removal warning。
 - 当前生产形态仍是 macOS 本地 LaunchAgent；Dockerfile / Compose 是部署基础，不含集中
   监控、托管 Secret 或 off-host backup。
-- Analysis 代码已完成但 live feature gate 关闭；AXIS LAB 频道只预留且业务未开始。
+- Analysis 已启用；AXIS LAB 频道只预留且业务未开始。
 - Active View 当前单次最多展示 25 个进行中订单，符合 Discord Embed field 上限。
 - Mentor / Trade 动态 Select 当前单次最多展示 25 项；超出后需要后续分页。

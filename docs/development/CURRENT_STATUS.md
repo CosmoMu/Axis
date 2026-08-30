@@ -57,7 +57,7 @@ Implemented:
 - Scheduled Job 到期、Role reconciliation 和完整 Membership Event/Audit。
 - 基于全部 position event 的 weighted Results 与幂等官方发布。
 
-## Stage 4 — Analysis Pipeline: CODE COMPLETE / LIVE DISABLED
+## Stage 4 — Analysis Pipeline: COMPLETE / LIVE ENABLED
 
 Implemented:
 
@@ -71,16 +71,17 @@ Implemented:
 - Discord send failure 保留归档并支持 persistent retry。
 - Automated Gate B：PASS。
 
-Live gate: 0007 与代码已部署，但 `FEATURE_ANALYSIS_ENABLED=false`。Owner 先前只授权
-`signal-input` 发往 OpenAI；`analysis-input` 是独立数据出口，必须单独明确授权后才能启用。
+Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到 OpenAI；0007 与代码
+已部署，`FEATURE_ANALYSIS_ENABLED=true`。最终 Discord dry-run 为
+`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`，服务器修改为 0。
 
 ## Stage 5 — Stabilization: PARTIAL
 
 Implemented: LaunchAgent、错误信息脱敏、基础重试、测试、Secret scan、只读 DB health check、
 verified custom-format backup、双确认 restore 工具、Dockerfile / Compose 基础部署。
 
-Missing: live Analysis acceptance、off-host backup target、生产监控告警、非生产环境完整 restore /
-rollback rehearsal。
+Missing: 第一条真实 Manager Analysis 的生产链路观察、off-host backup target、生产监控告警、
+非生产环境完整 restore / rollback rehearsal。
 
 ## AXIS LAB — DEFERRED
 

@@ -35,11 +35,11 @@ Discord 发送失败时，Mentor Analysis 和 Public Snapshot 已安全归档，
 
 ## Feature Gate
 
-当前本机保持：
+Owner 已对 `analysis-input` 的 OpenAI 数据出口作出独立明确授权，当前本机为：
 
 ```text
-FEATURE_ANALYSIS_ENABLED=false
+FEATURE_ANALYSIS_ENABLED=true
 ```
 
-启用前必须取得 Owner 对 `analysis-input` 文字和图片发送到 OpenAI API 的独立明确授权。
-该授权不影响 AXIS LAB；LAB 三个开关继续为 false。
+该授权不影响 AXIS LAB；LAB 三个开关继续为 false。不要为了健康检查制造虚假市场观点；
+用第一条真实 Manager 输入观察 intake、parse、review 和 trace。

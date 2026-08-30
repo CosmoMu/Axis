@@ -4,8 +4,8 @@
 
 **Current Source of Truth:** `docs/current/`
 
-**Current Development Stage:** Core Stage 1–3 complete；Gate A PASS；Analysis code +
-automated Gate B complete，live feature gate disabled pending independent data-egress approval
+**Current Development Stage:** Core Stage 1–3 complete；Gate A PASS；Analysis + automated
+Gate B complete and live enabled
 
 **AXIS LAB:** Deferred
 

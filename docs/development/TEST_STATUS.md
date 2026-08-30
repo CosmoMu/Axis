@@ -50,7 +50,9 @@ Live validation：
 - Bot `manage_roles / send_messages / read_message_history` 权限均为 true。
 - Mentor Panel ID `1543434235761791018`，重启前后不变，频道 marker count=1。
 - Member Panel ID `1543434237733241001`，重启前后不变，频道 marker count=1。
-- 0007 代码已在 `FEATURE_ANALYSIS_ENABLED=false` 状态部署，LaunchAgent 稳定。
-- Analysis live activation 等待 Owner 对 `analysis-input` → OpenAI 数据出口的独立明确授权。
+- Owner 已独立授权 `analysis-input` → OpenAI；0007 代码已在
+  `FEATURE_ANALYSIS_ENABLED=true` 状态部署，LaunchAgent 稳定。
+- 启用后 Discord dry-run：`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`，修改为 0。
+- 未制造虚假市场观点；第一条真实 Manager 输入将作为生产链路观察样本。
 
 已知唯一 warning：discord.py 间接依赖 `audioop`，与 AXIS 业务测试无关。

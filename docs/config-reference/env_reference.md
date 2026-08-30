@@ -33,8 +33,9 @@
 ## Features
 
 - `FEATURE_SIGNAL_ENABLED=true`
-- `FEATURE_ANALYSIS_ENABLED=false`，Gate A 与自动 Gate B 已通过；在 Owner 单独授权
-  `analysis-input` 内容发送给 OpenAI 前仍保持关闭。
+- `FEATURE_ANALYSIS_ENABLED=false` 是新环境的安全模板默认值。当前本机已取得 Owner 对
+  `analysis-input` → OpenAI 的单独授权，因此实际 Secret 环境中为 `true`；不要把真实
+  `.env` 同步到文档或 Git。
 - `FEATURE_LAB_ENABLED=false`
 - `FEATURE_MODEL_AB_ENABLED=false`
 - `FEATURE_MOOMOO_ENABLED=false`

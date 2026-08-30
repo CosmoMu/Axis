@@ -54,7 +54,7 @@
 - Scheduled Job 到期处理和持续 Member Role reconciliation。
 - Trade Event 加权收益、关闭订单自动 Results 发布和 Message marker 恢复。
 
-## Analysis（code complete / live disabled）
+## Analysis（complete / live enabled）
 
 - Signal / Analysis Source queue 隔离。
 - Text / image / multi-image `ANALYSIS_PARSE` 与 `ANALYSIS_REWRITE`。

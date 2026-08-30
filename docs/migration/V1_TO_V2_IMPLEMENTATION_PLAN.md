@@ -102,5 +102,5 @@ Migration 到此停止，不会借此开始 Analysis 或 AXIS LAB。下一开发
 - Core Gate A 已通过，Analysis 独立 Domain 与 automated Gate B 已完成。
 - PostgreSQL revision `20260829_0007` 增加 Analysis Draft / Revision / Archive / Publication。
 - 69 项自动化测试通过，0007 代码已以 Analysis disabled 状态部署。
-- Live enable 等待 Owner 对 `analysis-input` → OpenAI 的独立数据出口授权。
+- Owner 已单独授权 `analysis-input` → OpenAI，Analysis 已 live enabled。
 - AXIS LAB 未开始，三个相关 feature flag 继续为 false。
