@@ -53,6 +53,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 - ENTRY / STARTER ENTRY 使用新的中文结构化交易卡。
 - 期权 Premium 与正股计划点位严格分开。
 - Mentor 点位优先，AXIS Stock Analyst 只补 Current、Starter、Add Zone、SL、PT 和 Fib 缺项。
+- 每张有效的 SWING / LEAPS ENTRY 卡至少显示 PT1、PT2 两个目标：优先使用真实技术位；仅有
+  一个可靠目标时用首段空间的 1.272 延展补第二目标；完全没有目标时只允许基于真实日 K 的
+  ATR 生成两档目标。
 - 自动补 PT 必须沿交易方向严格递进；不得把低于 PT1 的 CALL 目标补成 PT2/PT3，PUT 反之。
 - 基于真实日 K 的确定性 PNG，不使用图片生成模型，不生成假 K 线。
 - 黑色背景、K 线、EMA20、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、

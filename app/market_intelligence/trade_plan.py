@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, replace
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
 from typing import Protocol
 
 from app.domain.public_cards import PublicTradeCard
 from app.market_intelligence.stock_analyst.engine import analyze_stock
-from app.market_intelligence.stock_analyst.indicators import ema_series
+from app.market_intelligence.stock_analyst.indicators import average_true_range, ema_series
 from app.market_intelligence.stock_analyst.market_data import StockMarketDataError
 from app.market_intelligence.stock_analyst.models import DailyBar, StockAnalysis, StockMarketBundle
 
@@ -34,13 +34,22 @@ class SwingLeapsTradePlanService:
 
     async def prepare(self, card: PublicTradeCard) -> TradePlanArtifact:
         mentor_provenance = _mentor_provenance(card)
-        if (
-            self.provider is None
-            or card.category not in {"SWING", "LEAPS"}
-            or card.action != "ENTRY"
-            or not card.ticker
-        ):
-            return TradePlanArtifact(card, None, mentor_provenance)
+        eligible = (
+            card.category in {"SWING", "LEAPS"}
+            and card.action == "ENTRY"
+            and bool(card.ticker)
+        )
+        if eligible:
+            fallback_card, fallback_provenance = _ensure_minimum_targets(
+                card,
+                anchor=card.current_stock or card.starter,
+                bars=(),
+            )
+            fallback_provenance = mentor_provenance | fallback_provenance
+        else:
+            fallback_card, fallback_provenance = card, mentor_provenance
+        if self.provider is None or not eligible:
+            return TradePlanArtifact(fallback_card, None, fallback_provenance)
         try:
             bundle = await self.provider.fetch(card.ticker)
             analysis = await asyncio.to_thread(
@@ -59,7 +68,7 @@ class SwingLeapsTradePlanService:
             )
             return TradePlanArtifact(enriched, chart, provenance)
         except (StockMarketDataError, ValueError, OSError, RuntimeError):
-            return TradePlanArtifact(card, None, mentor_provenance)
+            return TradePlanArtifact(fallback_card, None, fallback_provenance)
 
 
 def _decimal(value: float) -> Decimal:
@@ -161,6 +170,95 @@ def _fill_directional_targets(
     return targets, provenance
 
 
+def _target_at_distance(anchor: Decimal, distance: float, *, put: bool) -> Decimal:
+    value = float(anchor) - distance if put else float(anchor) + distance
+    return Decimal(str(max(value, 0.0001))).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )
+
+
+def _ensure_minimum_targets(
+    card: PublicTradeCard,
+    *,
+    anchor: Decimal | None,
+    bars: tuple[DailyBar, ...],
+    targets: list[Decimal | None] | None = None,
+) -> tuple[PublicTradeCard, dict[str, str]]:
+    """Guarantee two directional targets when a defensible price basis exists.
+
+    One supplied/technical target is extended at 1.272 of its move from the
+    entry anchor. With no target, real daily ATR is required and supplies two
+    volatility-scaled objectives. Explicit values are never overwritten.
+    """
+
+    resolved = list(
+        targets
+        if targets is not None
+        else (card.stock_pt1, card.stock_pt2, card.stock_pt3)
+    )
+    if sum(value is not None for value in resolved) >= 2 or anchor is None:
+        return (
+            replace(
+                card,
+                stock_pt1=resolved[0],
+                stock_pt2=resolved[1],
+                stock_pt3=resolved[2],
+            ),
+            {},
+        )
+
+    put = card.option_side == "PUT"
+    provenance: dict[str, str] = {}
+    present = [(index, value) for index, value in enumerate(resolved) if value is not None]
+
+    if present:
+        index, target = present[0]
+        assert target is not None
+        move = float(anchor - target if put else target - anchor)
+        if move <= 0:
+            return (
+                replace(
+                    card,
+                    stock_pt1=resolved[0],
+                    stock_pt2=resolved[1],
+                    stock_pt3=resolved[2],
+                ),
+                {},
+            )
+        if index == 0:
+            resolved[1] = _target_at_distance(anchor, move * 1.272, put=put)
+            provenance["stock_pt2"] = "AXIS_1.272_EXTENSION"
+        elif index == 1:
+            resolved[0] = _target_at_distance(anchor, move / 1.272, put=put)
+            provenance["stock_pt1"] = "AXIS_1.272_EXTENSION"
+        else:
+            resolved[0] = _target_at_distance(anchor, move / 1.618, put=put)
+            resolved[1] = _target_at_distance(anchor, move / 1.272, put=put)
+            provenance["stock_pt1"] = "AXIS_1.618_EXTENSION"
+            provenance["stock_pt2"] = "AXIS_1.272_EXTENSION"
+    elif bars:
+        ordered = tuple(sorted(bars, key=lambda item: item.timestamp))
+        highs = tuple(item.high for item in ordered)
+        lows = tuple(item.low for item in ordered)
+        closes = tuple(item.close for item in ordered)
+        atr = max(average_true_range(highs, lows, closes), float(anchor) * 0.02)
+        resolved[0] = _target_at_distance(anchor, atr * 1.5, put=put)
+        resolved[1] = _target_at_distance(anchor, atr * 2.5, put=put)
+        provenance["stock_pt1"] = "STOCK_ANALYST_ATR"
+        provenance["stock_pt2"] = "STOCK_ANALYST_ATR"
+
+    return (
+        replace(
+            card,
+            stock_pt1=resolved[0],
+            stock_pt2=resolved[1],
+            stock_pt3=resolved[2],
+        ),
+        provenance,
+    )
+
+
 def _axis_add_zone(
     card: PublicTradeCard,
     analysis: StockAnalysis,
@@ -241,6 +339,14 @@ def resolve_entry_plan(
 
     targets, target_provenance = _fill_directional_targets(card, analysis, current)
     provenance.update(target_provenance)
+    target_card, minimum_target_provenance = _ensure_minimum_targets(
+        card,
+        anchor=current,
+        bars=bars,
+        targets=targets,
+    )
+    targets = [target_card.stock_pt1, target_card.stock_pt2, target_card.stock_pt3]
+    provenance.update(minimum_target_provenance)
 
     add_low, add_high, add_provenance = _axis_add_zone(card, analysis, float(current))
     provenance.update(add_provenance)

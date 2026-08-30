@@ -158,10 +158,64 @@ def test_axis_never_backfills_a_later_pt_below_explicit_mentor_pt1() -> None:
     resolved, provenance = resolve_entry_plan(card, analysis, bars)
 
     assert resolved.stock_pt1 == Decimal("7.40")
-    assert resolved.stock_pt2 is None
+    assert resolved.stock_pt2 == Decimal("7.75")
     assert resolved.stock_pt3 is None
-    assert "stock_pt2" not in provenance
+    assert provenance["stock_pt2"] == "AXIS_1.272_EXTENSION"
     assert "stock_pt3" not in provenance
+
+
+@pytest.mark.parametrize("option_side", ["CALL", "PUT"])
+def test_axis_uses_real_atr_to_create_two_targets_when_none_are_supplied(
+    option_side: str,
+) -> None:
+    bars = _bars()
+    base = analyze_stock("IGV", bars, sector_etf="SPY")
+    analysis = replace(
+        base,
+        resistance_levels=(),
+        support_levels=(),
+        scenarios=tuple(replace(item, targets=()) for item in base.scenarios),
+    )
+    card = replace(
+        _card(complete_plan=False),
+        option_side=option_side,
+        current_stock=Decimal("109.27"),
+        starter=Decimal("109.05"),
+        stock_pt1=None,
+        stock_pt2=None,
+        stock_pt3=None,
+    )
+
+    resolved, provenance = resolve_entry_plan(card, analysis, bars)
+
+    assert resolved.stock_pt1 is not None
+    assert resolved.stock_pt2 is not None
+    if option_side == "PUT":
+        assert resolved.stock_pt2 < resolved.stock_pt1 < resolved.current_stock
+    else:
+        assert resolved.current_stock < resolved.stock_pt1 < resolved.stock_pt2
+    assert provenance["stock_pt1"] == "STOCK_ANALYST_ATR"
+    assert provenance["stock_pt2"] == "STOCK_ANALYST_ATR"
+
+
+@pytest.mark.asyncio
+async def test_plan_service_keeps_two_targets_when_market_data_is_unavailable() -> None:
+    card = replace(
+        _card(complete_plan=False),
+        current_stock=Decimal("6.10"),
+        starter=Decimal("6.10"),
+        stock_pt1=Decimal("7.40"),
+        stock_pt2=None,
+        stock_pt3=None,
+    )
+
+    artifact = await SwingLeapsTradePlanService(None).prepare(card)
+
+    assert artifact.card.stock_pt1 == Decimal("7.40")
+    assert artifact.card.stock_pt2 == Decimal("7.75")
+    assert artifact.card.stock_pt3 is None
+    assert artifact.provenance["stock_pt1"] == "MENTOR_INPUT"
+    assert artifact.provenance["stock_pt2"] == "AXIS_1.272_EXTENSION"
 
 
 def test_deterministic_chart_contains_all_supported_plan_labels() -> None:

@@ -873,6 +873,9 @@ Analysis、Results 或 Active Order 数据。
 - 正股计划点位与期权 Premium 分开：Current Stock、Starter、Add Zone、Stock SL、
   Stock PT1 / PT2 / PT3 与 Fib 0.618 不得复用 option entry / option TP / option SL。
 - Mentor 明确点位永远优先；AXIS Stock Analyst 只补 Mentor 缺失字段。
+- 有可靠价格基准的 SWING / LEAPS ENTRY 至少显示 PT1、PT2：先选真实技术位；仅有一个目标
+  时按该目标相对当前价/Starter 基准的 1.272 延展补第二目标；没有目标时必须取得真实日 K
+  后才可按 ATR 生成两档目标，取数失败不得凭空生成点位。
 - 自动补齐的 PT 必须沿交易方向严格递进；CALL 的 PT2/PT3 必须高于前一目标，PUT 反之。
 - 系统 Fib 0.618 只在真实可识别的近期 swing range 上确定性计算；不可靠时隐藏。
 - 图采用深黑背景、真实 K 线、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、

@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 162 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 165 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -152,4 +152,4 @@ Short-Term verifier evidence:
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 162 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 165 项测试结果。
