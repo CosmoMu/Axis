@@ -82,9 +82,13 @@ class Settings:
     analysis_enabled: bool
     moomoo_enabled: bool
     daily_summary_enabled: bool
+    cosmos_stock_analyst_enabled: bool
     moomoo_host: str
     moomoo_port: int
     daily_summary_time_et: str
+    cosmos_runtime_root: Path
+    cosmos_python_path: Path | None
+    cosmos_query_timeout_seconds: int
     blueprint_path: Path
     ids_path: Path
     report_path: Path
@@ -139,10 +143,27 @@ class Settings:
             analysis_enabled=_parse_bool("FEATURE_ANALYSIS_ENABLED", False),
             moomoo_enabled=_parse_bool("FEATURE_MOOMOO_ENABLED", False),
             daily_summary_enabled=_parse_bool("FEATURE_DAILY_SUMMARY_ENABLED", True),
+            cosmos_stock_analyst_enabled=_parse_bool(
+                "FEATURE_COSMOS_STOCK_ANALYST_ENABLED", False
+            ),
             moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip()
             or "127.0.0.1",
             moomoo_port=_parse_positive_int("MOOMOO_OPEND_PORT", 11111),
             daily_summary_time_et=_parse_time_hhmm("DAILY_SUMMARY_TIME_ET", "16:15"),
+            cosmos_runtime_root=Path(
+                os.getenv(
+                    "COSMOS_RUNTIME_ROOT",
+                    str(Path.home() / "Library/Application Support/CosmosPilot"),
+                )
+            ).expanduser().resolve(),
+            cosmos_python_path=(
+                Path(value).expanduser().resolve()
+                if (value := os.getenv("COSMOS_PYTHON_PATH", "").strip())
+                else None
+            ),
+            cosmos_query_timeout_seconds=_parse_positive_int(
+                "COSMOS_QUERY_TIMEOUT_SECONDS", 180
+            ),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),

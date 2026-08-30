@@ -19,6 +19,7 @@
     "risks",
     "market_conditions",
     "related_symbols",
+    "source_projection",
     "confidence",
     "missing_fields",
     "warnings"
@@ -175,6 +176,34 @@
         "pattern": "^[A-Za-z0-9.\\-]{1,12}$"
       },
       "uniqueItems": true
+    },
+    "source_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "attachment_index",
+        "evidence"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "attachment_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "evidence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        }
+      }
     },
     "confidence": {
       "type": "number",

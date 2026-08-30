@@ -15,12 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.models import AnalysisDraft, SourceMessage  # noqa: E402
 from app.db.session import Database  # noqa: E402
-from app.domain.enums import (  # noqa: E402
-    AnalysisDraftStatus,
-    LlmWorkload,
-    SourceKind,
-    SourceStatus,
-)
+from app.domain.enums import AnalysisDraftStatus, LlmWorkload, SourceKind  # noqa: E402
 from app.integrations.cosmos_stock_analyst import CosmosStockAnalystClient  # noqa: E402
 from app.integrations.model_router import ModelRouter  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
@@ -32,7 +27,7 @@ from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 
 
-async def retry(message_id: int, settings_root: Path) -> int:
+async def refresh(message_id: int, settings_root: Path) -> int:
     settings = Settings.load(settings_root)
     database = Database(settings.require_database_url())
     parsers: list[OpenAIAnalysisParser] = []
@@ -50,14 +45,17 @@ async def retry(message_id: int, settings_root: Path) -> int:
                 )
             ).one_or_none()
         if row is None:
-            print("Analysis retry stopped: failed draft was not found.", file=sys.stderr)
+            print("Analysis refresh stopped: draft was not found.", file=sys.stderr)
             return 2
         source, draft = row
-        if (
-            source.status != SourceStatus.FAILED.value
-            or draft.status != AnalysisDraftStatus.PARSE_FAILED.value
-        ):
-            print("Analysis retry stopped: draft is not parse-failed.", file=sys.stderr)
+        if draft.status not in {
+            AnalysisDraftStatus.PENDING_REVIEW.value,
+            AnalysisDraftStatus.PARSE_FAILED.value,
+        }:
+            print("Analysis refresh stopped: draft is immutable.", file=sys.stderr)
+            return 2
+        if not settings.cosmos_stock_analyst_enabled:
+            print("Analysis refresh stopped: Cosmos Stock Analyst is disabled.", file=sys.stderr)
             return 2
 
         router = ModelRouter.load(
@@ -75,10 +73,10 @@ async def retry(message_id: int, settings_root: Path) -> int:
         parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)
         rewrite_route = router.resolve(LlmWorkload.ANALYSIS_REWRITE)
         if parse_route.structured_output is None or rewrite_route.structured_output is None:
-            print("Analysis retry stopped: structured schema is missing.", file=sys.stderr)
+            print("Analysis refresh stopped: structured schema is missing.", file=sys.stderr)
             return 2
-        prompt = load_analysis_prompt(settings.llm_analysis_prompt_path)
         schema = load_analysis_schema(parse_route.structured_output)
+        prompt = load_analysis_prompt(settings.llm_analysis_prompt_path)
         parsers = [
             OpenAIAnalysisParser(
                 api_key=settings.require_openai_api_key(),
@@ -102,29 +100,28 @@ async def retry(message_id: int, settings_root: Path) -> int:
             parsers[0],
             parsers[1],
             schema,
-            (
-                CosmosStockAnalystClient(
-                    runtime_root=settings.cosmos_runtime_root,
-                    bridge_script=PROJECT_ROOT / "scripts/query_cosmos_stock_analyst.py",
-                    python_path=settings.cosmos_python_path,
-                    timeout_seconds=settings.cosmos_query_timeout_seconds,
-                    max_chart_bytes=settings.max_attachment_bytes,
-                )
-                if settings.cosmos_stock_analyst_enabled
-                else None
+            CosmosStockAnalystClient(
+                runtime_root=settings.cosmos_runtime_root,
+                bridge_script=PROJECT_ROOT / "scripts/query_cosmos_stock_analyst.py",
+                python_path=settings.cosmos_python_path,
+                timeout_seconds=settings.cosmos_query_timeout_seconds,
+                max_chart_bytes=settings.max_attachment_bytes,
             ),
         )
         updated = await service.rewrite(
             draft.id,
-            "重新识别原始 Analysis；忽略之前的失败占位草稿。",
+            "重新识别原始观点及图片是否画有明确的未来预测路径；保留原观点，并合并当前 "
+            "Cosmos Market Stock Analyst 数据。",
             actor_user_id=source.submitted_by,
             interaction_id=None,
         )
         print(f"message_id={message_id}")
         print(f"draft_code={updated.draft_code}")
         print(f"draft_status={updated.status}")
+        print(f"revision={updated.revision}")
+        print(f"chart_source={updated.chart_source or 'NONE'}")
         print(f"review_message_id={updated.review_message_id}")
-        return 0 if updated.status == AnalysisDraftStatus.PENDING_REVIEW.value else 2
+        return 0
     finally:
         for parser in parsers:
             await parser.client.close()
@@ -132,14 +129,16 @@ async def retry(message_id: int, settings_root: Path) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Retry one parse-failed AXIS Analysis draft.")
+    parser = argparse.ArgumentParser(
+        description="Refresh one editable AXIS Analysis with current Cosmos context."
+    )
     parser.add_argument("--message-id", type=int, required=True)
     parser.add_argument("--settings-root", type=Path, default=PROJECT_ROOT)
     args = parser.parse_args()
     try:
-        return asyncio.run(retry(args.message_id, args.settings_root.resolve()))
+        return asyncio.run(refresh(args.message_id, args.settings_root.resolve()))
     except Exception:
-        print("Analysis retry failed; sensitive details were omitted.", file=sys.stderr)
+        print("Analysis refresh failed; sensitive details were omitted.", file=sys.stderr)
         return 2
 
 

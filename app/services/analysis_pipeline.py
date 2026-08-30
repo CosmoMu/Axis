@@ -38,6 +38,11 @@ from app.domain.enums import (
     SourceStatus,
 )
 from app.domain.public_cards import PublicAnalysisCard
+from app.integrations.cosmos_stock_analyst import (
+    CosmosStockAnalystClient,
+    CosmosStockAnalystError,
+    merge_cosmos_analysis,
+)
 from app.integrations.openai_analysis_parser import (
     AnalysisParseError,
     AnalysisParseResult,
@@ -72,6 +77,7 @@ class AnalysisDraftSnapshot:
     review_message_id: int | None
     revision: int
     version: int
+    chart_source: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +99,22 @@ class AnalysisArchiveResult:
     message_id: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class AnalysisMedia:
+    filename: str
+    content_type: str
+    data: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisEnrichment:
+    payload: dict[str, Any]
+    cosmos_context: dict[str, Any]
+    chart_source: str | None
+    source_attachment_id: uuid.UUID | None
+    generated_chart_png: bytes | None
+
+
 EDITABLE = {
     AnalysisDraftStatus.PENDING_REVIEW.value,
     AnalysisDraftStatus.PARSE_FAILED.value,
@@ -107,12 +129,14 @@ class AnalysisPipelineService:
         parse_parser: OpenAIAnalysisParser,
         rewrite_parser: OpenAIAnalysisParser,
         schema: dict[str, Any],
+        cosmos_client: CosmosStockAnalystClient | None = None,
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
         self.parse_parser = parse_parser
         self.rewrite_parser = rewrite_parser
         self.validator = Draft202012Validator(schema)
+        self.cosmos_client = cosmos_client
 
     async def process_next(self) -> AnalysisGenerationResult | None:
         async with self.database.session() as session:
@@ -160,10 +184,19 @@ class AnalysisPipelineService:
                 source.discord_message_id,
             )
         try:
+            attachment_rows = await self._attachment_rows(source_id)
             result = await self.parse_parser.parse(
-                raw_text=snapshot[1], attachments=await self._attachments(source_id)
+                raw_text=snapshot[1],
+                attachments=await self._parser_attachments(attachment_rows),
             )
-            return await self._persist_generation(source_id, snapshot, result, failed=False)
+            enrichment = await self._enrich(result.payload, attachment_rows)
+            return await self._persist_generation(
+                source_id,
+                snapshot,
+                result,
+                failed=False,
+                enrichment=enrichment,
+            )
         except (AnalysisParseError, AttachmentStorageError) as exc:
             trace = exc.trace if isinstance(exc, AnalysisParseError) else None
             error_code = (
@@ -187,6 +220,7 @@ class AnalysisPipelineService:
                     payload=self._failure_payload(error_code), trace=fallback_trace
                 ),
                 failed=True,
+                enrichment=None,
             )
 
     async def next_unposted(self, guild_id: int) -> AnalysisDraftSnapshot | None:
@@ -320,12 +354,14 @@ class AnalysisPipelineService:
             current = dict(draft.normalized_json)
             source_id = source.id
             raw_text = source.raw_text
+        attachment_rows = await self._attachment_rows(source_id)
         result = await self.rewrite_parser.parse(
             raw_text=raw_text,
-            attachments=await self._attachments(source_id),
+            attachments=await self._parser_attachments(attachment_rows),
             rewrite_instruction=instruction,
             current_payload=current,
         )
+        enrichment = await self._enrich(result.payload, attachment_rows)
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
             source = await session.get(SourceMessage, draft.source_message_id)
@@ -337,9 +373,9 @@ class AnalysisPipelineService:
             # needs the referenced invocation row flushed before dependent FK updates.
             await session.flush()
             draft.llm_invocation_id = invocation.id
-            draft.normalized_json = result.payload
-            draft.missing_fields = list(result.payload.get("missing_fields", []))
-            draft.warnings = list(result.payload.get("warnings", []))
+            await self._apply_enrichment(draft, enrichment)
+            draft.missing_fields = list(enrichment.payload.get("missing_fields", []))
+            draft.warnings = list(enrichment.payload.get("warnings", []))
             draft.reviewed_by = actor_user_id
             draft.status = AnalysisDraftStatus.PENDING_REVIEW.value
             source.status = SourceStatus.PARSED.value
@@ -349,7 +385,7 @@ class AnalysisPipelineService:
                 AnalysisDraftRevision(
                     draft_id=draft.id,
                     revision=draft.revision,
-                    normalized_json=result.payload,
+                    normalized_json=enrichment.payload,
                     llm_invocation_id=invocation.id,
                     instruction=instruction[:64],
                     created_by=actor_user_id,
@@ -526,11 +562,20 @@ class AnalysisPipelineService:
         result: AnalysisParseResult,
         *,
         failed: bool,
+        enrichment: AnalysisEnrichment | None,
     ) -> AnalysisGenerationResult:
         guild_id, _, actor, channel_id, message_id = source_snapshot
         invocation = self._invocation(guild_id, source_id, result.trace)
+        draft_id = uuid.uuid4()
+        effective = enrichment or AnalysisEnrichment(
+            payload=result.payload,
+            cosmos_context={},
+            chart_source=None,
+            source_attachment_id=None,
+            generated_chart_png=None,
+        )
         draft = AnalysisDraft(
-            id=uuid.uuid4(),
+            id=draft_id,
             guild_id=guild_id,
             draft_code=f"AN-D-{uuid.uuid4().hex[:8].upper()}",
             source_message_id=source_id,
@@ -540,11 +585,23 @@ class AnalysisPipelineService:
                 if failed
                 else AnalysisDraftStatus.PENDING_REVIEW.value
             ),
-            normalized_json=result.payload,
-            missing_fields=list(result.payload.get("missing_fields", [])),
-            warnings=list(result.payload.get("warnings", [])),
-            parser_confidence=Decimal(str(result.payload.get("confidence", 0))),
+            normalized_json=effective.payload,
+            cosmos_context_json=effective.cosmos_context,
+            missing_fields=list(effective.payload.get("missing_fields", [])),
+            warnings=list(effective.payload.get("warnings", [])),
+            parser_confidence=Decimal(str(effective.payload.get("confidence", 0))),
+            chart_source=effective.chart_source,
+            chart_source_attachment_id=effective.source_attachment_id,
         )
+        if effective.generated_chart_png is not None:
+            stored = await self.attachment_store.write_generated_png(
+                guild_id=guild_id,
+                artifact_id=draft_id,
+                data=effective.generated_chart_png,
+            )
+            draft.chart_storage_key = stored.storage_key
+            draft.chart_checksum_sha256 = stored.checksum_sha256
+            draft.chart_content_type = stored.content_type
         async with self.database.session() as session:
             source = await session.get(SourceMessage, source_id)
             if source is None:
@@ -567,15 +624,18 @@ class AnalysisPipelineService:
                 draft = existing
         return AnalysisGenerationResult(draft.draft_code, channel_id, message_id, failed)
 
-    async def _attachments(self, source_id: uuid.UUID) -> list[ParserAttachment]:
+    async def _attachment_rows(self, source_id: uuid.UUID) -> list[SourceAttachment]:
         async with self.database.session() as session:
-            rows = (
-                await session.scalars(
-                    select(SourceAttachment)
-                    .where(SourceAttachment.source_message_id == source_id)
-                    .order_by(SourceAttachment.created_at, SourceAttachment.id)
-                )
-            ).all()
+            rows = await session.scalars(
+                select(SourceAttachment)
+                .where(SourceAttachment.source_message_id == source_id)
+                .order_by(SourceAttachment.created_at, SourceAttachment.id)
+            )
+            return list(rows.all())
+
+    async def _parser_attachments(
+        self, rows: list[SourceAttachment]
+    ) -> list[ParserAttachment]:
         output = []
         for row in rows:
             if row.storage_key is None or row.checksum_sha256 is None:
@@ -589,6 +649,111 @@ class AnalysisPipelineService:
                 )
             )
         return output
+
+    async def _attachments(self, source_id: uuid.UUID) -> list[ParserAttachment]:
+        return await self._parser_attachments(await self._attachment_rows(source_id))
+
+    async def _enrich(
+        self,
+        payload: dict[str, Any],
+        attachment_rows: list[SourceAttachment],
+    ) -> AnalysisEnrichment:
+        enriched = dict(payload)
+        warnings = list(enriched.get("warnings", []))
+        source_attachment_id = None
+        projection = enriched.get("source_projection")
+        if isinstance(projection, dict) and projection.get("present") is True:
+            index = projection.get("attachment_index")
+            if isinstance(index, int) and 0 <= index < len(attachment_rows):
+                source_attachment_id = attachment_rows[index].id
+            else:
+                warnings.append("SOURCE_PROJECTION_ATTACHMENT_INVALID")
+
+        context: dict[str, Any] = {}
+        generated_chart = None
+        symbols = enriched.get("symbols")
+        eligible = (
+            self.cosmos_client is not None
+            and enriched.get("analysis_type") == AnalysisType.TICKER.value
+            and isinstance(symbols, list)
+            and len(symbols) == 1
+            and isinstance(symbols[0], str)
+        )
+        if eligible:
+            try:
+                cosmos = await self.cosmos_client.query(  # type: ignore[union-attr]
+                    symbols[0], include_chart=source_attachment_id is None
+                )
+                context = cosmos.context
+                enriched = merge_cosmos_analysis(enriched, context)
+                if source_attachment_id is None:
+                    generated_chart = cosmos.chart_png
+            except CosmosStockAnalystError:
+                warnings.append("COSMOS_STOCK_ANALYST_UNAVAILABLE")
+        warnings.extend(enriched.get("warnings", []))
+        enriched["warnings"] = list(dict.fromkeys(warnings))
+        return AnalysisEnrichment(
+            payload=enriched,
+            cosmos_context=context,
+            chart_source=(
+                "SOURCE"
+                if source_attachment_id is not None
+                else "COSMOS"
+                if generated_chart is not None
+                else None
+            ),
+            source_attachment_id=source_attachment_id,
+            generated_chart_png=generated_chart,
+        )
+
+    async def _apply_enrichment(
+        self, draft: AnalysisDraft, enrichment: AnalysisEnrichment
+    ) -> None:
+        draft.normalized_json = enrichment.payload
+        draft.cosmos_context_json = enrichment.cosmos_context
+        draft.chart_source = enrichment.chart_source
+        draft.chart_source_attachment_id = enrichment.source_attachment_id
+        draft.chart_storage_key = None
+        draft.chart_checksum_sha256 = None
+        draft.chart_content_type = None
+        if enrichment.generated_chart_png is not None:
+            stored = await self.attachment_store.write_generated_png(
+                guild_id=draft.guild_id,
+                artifact_id=uuid.uuid5(draft.id, f"revision-{draft.revision + 1}"),
+                data=enrichment.generated_chart_png,
+            )
+            draft.chart_storage_key = stored.storage_key
+            draft.chart_checksum_sha256 = stored.checksum_sha256
+            draft.chart_content_type = stored.content_type
+
+    async def media_for_draft(self, draft_id: uuid.UUID) -> AnalysisMedia | None:
+        async with self.database.session() as session:
+            draft = await session.get(AnalysisDraft, draft_id)
+            if draft is None or draft.chart_source is None:
+                return None
+            if draft.chart_source == "SOURCE":
+                row = await session.get(SourceAttachment, draft.chart_source_attachment_id)
+                if row is None or not row.storage_key or not row.checksum_sha256:
+                    raise AttachmentStorageError("analysis source media metadata missing")
+                storage_key = row.storage_key
+                checksum = row.checksum_sha256
+                content_type = row.content_type
+            else:
+                if not draft.chart_storage_key or not draft.chart_checksum_sha256:
+                    raise AttachmentStorageError("analysis generated media metadata missing")
+                storage_key = draft.chart_storage_key
+                checksum = draft.chart_checksum_sha256
+                content_type = draft.chart_content_type or "image/png"
+        data = await self.attachment_store.read_verified(storage_key, checksum)
+        extension = {
+            "image/jpeg": ".jpg",
+            "image/webp": ".webp",
+        }.get(content_type, ".png")
+        return AnalysisMedia(
+            filename=f"axis-analysis{extension}",
+            content_type=content_type,
+            data=data,
+        )
 
     @staticmethod
     def _invocation(
@@ -639,6 +804,7 @@ class AnalysisPipelineService:
             review_message_id=draft.review_message_id,
             revision=draft.revision,
             version=draft.version,
+            chart_source=draft.chart_source,
         )
 
     @staticmethod
@@ -800,6 +966,11 @@ class AnalysisPipelineService:
             "risks": [],
             "market_conditions": [],
             "related_symbols": [],
+            "source_projection": {
+                "present": False,
+                "attachment_index": None,
+                "evidence": None,
+            },
             "confidence": 0,
             "missing_fields": ["manual_review"],
             "warnings": [error],

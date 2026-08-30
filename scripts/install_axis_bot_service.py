@@ -50,7 +50,12 @@ def _deploy_runtime() -> None:
         )
     (RUNTIME_ROOT / "scripts").mkdir(parents=True, exist_ok=True)
     (RUNTIME_ROOT / "config").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PROJECT_ROOT / "scripts" / "run_bot.py", RUNTIME_ROOT / "scripts")
+    for filename in (
+        "run_bot.py",
+        "query_cosmos_stock_analyst.py",
+        "refresh_analysis_enrichment.py",
+    ):
+        shutil.copy2(PROJECT_ROOT / "scripts" / filename, RUNTIME_ROOT / "scripts")
     shutil.copy2(source_ids, RUNTIME_ROOT / "config" / "discord_ids.json")
     for filename in (
         "model_routing.yaml",

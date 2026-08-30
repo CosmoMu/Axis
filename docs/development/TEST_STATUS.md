@@ -2,7 +2,7 @@
 
 **日期：** 2026-08-30
 
-**结果：** 84 passed
+**结果：** 87 passed
 
 **Lint：** Ruff passed
 
@@ -42,6 +42,9 @@
 - Archive-only、Archive + Publish、failure / retry / finalize 幂等。
 - 同 Mentor / symbol 的新 Source 创建独立 Analysis，旧归档不变。
 - Analysis Public DTO 不包含 Mentor、Source、AI、LLM 或 confidence。
+- 明确 Source 预测路径优先于 Cosmos 生成图；没有预测路径时保存新生成 Cosmos 图。
+- 审核/发布 media 使用 checksum 验证，Source Attachment ID 精确绑定，不按 ticker 扫旧图。
+- Cosmos-generated Draft rewrite 使用 revision-scoped storage key，可安全替换图片而不覆盖旧文件。
 - 数据库备份命令不在 argv 暴露密码，Docker context 排除 `.env`。
 - Moomoo option chain 精确合约解析，不手工构造期权代码。
 - 交易日/周末判定、三类每日总结、Active/Closed 加权收益与数据库幂等。
@@ -49,7 +52,7 @@
 
 Live validation：
 
-- PostgreSQL revision `20260829_0008`。
+- PostgreSQL revision `20260830_0009`。
 - 迁移前后 Source=1、Draft=1，数据未丢失。
 - Analysis 新表初始行数均为 0；Core 数据保持原行数。
 - Discord final dry-run：`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`。
@@ -66,6 +69,11 @@ Live validation：
 - PostgreSQL Invocation → Draft 显式 Flush 顺序已 live 验证，外键 `23503` 不再复现。
 - 修复后的 Analysis Strict Schema 已由 OpenAI 真实最小请求验证通过，模型仍为
   `gpt-5.6-terra`。
+- Cosmos AAPL 真实 bridge 验证：数据截至 2026-08-28，生成 73,746-byte 模型路径图；
+  Cosmos renderer unit tests PASS。
+- Source 路线 no-chart 真实验证：`chart_is_none=True`、Cosmos 新增图片数 `0`。
+- 第二条真实 Analysis 已在原 Draft/Review Message 上刷新为 r2，LLM 判定 `chart_source=SOURCE`；
+  Discord API 返回同一 footer 且 embed image 为 `cdn.discordapp.com/.../axis-analysis.png`。
 - Moomoo SDK / OpenD 均为 `10.10.7008`，`127.0.0.1:11111` quote login 可用。
 - SPY 公开测试期权的 option chain 解析与只读盘后 snapshot 均 PASS；未写数据库、未下单。
 - 周六 live acceptance 返回 `trading_session=false`，三类频道未误发。

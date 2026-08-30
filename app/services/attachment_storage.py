@@ -39,6 +39,15 @@ class StoredAttachment:
     checksum_sha256: str
 
 
+@dataclass(frozen=True, slots=True)
+class StoredGeneratedImage:
+    display_filename: str
+    content_type: str
+    size_bytes: int
+    storage_key: str
+    checksum_sha256: str
+
+
 _MIME_TO_EXTENSION = {
     "image/png": ".png",
     "image/jpeg": ".jpg",
@@ -153,6 +162,39 @@ class LocalAttachmentStore:
         if hashlib.sha256(data).hexdigest() != checksum_sha256:
             raise AttachmentStorageError("attachment checksum differs")
         return data
+
+    async def write_generated_png(
+        self,
+        *,
+        guild_id: int,
+        artifact_id: uuid.UUID,
+        data: bytes,
+        filename: str = "axis-analysis.png",
+    ) -> StoredGeneratedImage:
+        if not data or len(data) > self.max_bytes:
+            raise AttachmentStorageError("generated image size is invalid")
+        if _detected_extension(data) != ".png":
+            raise AttachmentStorageError("generated image type is invalid")
+        checksum = hashlib.sha256(data).hexdigest()
+        storage_key = f"{guild_id}/generated-analysis/{artifact_id.hex}.png"
+        path = self.root / storage_key
+        prepared = PreparedAttachment(
+            discord_attachment_id=0,
+            display_filename=_display_filename(filename),
+            content_type="image/png",
+            size_bytes=len(data),
+            extension=".png",
+            checksum_sha256=checksum,
+            data=data,
+        )
+        await asyncio.to_thread(self._write_atomic, path, prepared)
+        return StoredGeneratedImage(
+            display_filename=prepared.display_filename,
+            content_type=prepared.content_type,
+            size_bytes=prepared.size_bytes,
+            storage_key=storage_key,
+            checksum_sha256=checksum,
+        )
 
     def _write_atomic(self, path: Path, attachment: PreparedAttachment) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

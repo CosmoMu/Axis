@@ -6,8 +6,10 @@
 
 ## Live Analysis
 
-- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。尚未为了验收制造
-  虚假市场观点；第一条真实 Manager 输入需要观察 Discord → OpenAI → Review 的生产链路。
+- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。真实
+  Discord → OpenAI → Cosmos → Review 图片链路已验证。
+- 0009 不回写已经归档/发布的历史 Analysis；旧 AAPL snapshot 保持不可变。新的或仍可编辑的
+  Draft 才使用 Source/Cosmos 图片选择规则。
 
 ## Migration Compatibility
 

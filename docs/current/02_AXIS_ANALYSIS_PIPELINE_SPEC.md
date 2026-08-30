@@ -127,7 +127,11 @@ catalysts
 risks
 market_conditions
 related_symbols
+source_projection (internal media selection only)
 ```
+
+Ticker Analysis 额外保存当前 Cosmos Market Stock Analyst context。它来自截至当时的日 K、
+板块相对强度、结构价位、OHLCV 资金流代理和模型情景，不覆盖 Manager 原始 thesis。
 
 ## Public Card Snapshot
 
@@ -282,6 +286,8 @@ Manager input
 -> save Raw Source
 -> OpenAI API / ANALYSIS_PARSE
 -> Structured Output validation
+-> Cosmos Market Stock Analyst context merge (single-ticker only)
+-> choose explicit source forecast image; otherwise generate current Cosmos model-path chart
 -> Analysis Draft
 -> 📝・analysis-review
 -> Manager chooses Mentor
@@ -405,6 +411,8 @@ Manager 可重试发布。
 - 不写 Parser Confidence。
 - 不创建 Thread。
 - null 字段整段不显示。
+- 可附带一张已审核 Analysis visual：输入图已有明确未来预测路径时沿用该图，否则使用
+  本次 Cosmos Stock Analyst 生成图。不得公开 Source 元数据或未选中的原始附件。
 
 例：
 
@@ -450,6 +458,10 @@ analysis_key_levels
 analysis_points
 analysis_publications
 ```
+
+`analysis_drafts` 额外保存 `cosmos_context_json`、图片来源（`SOURCE` / `COSMOS`）、
+Source Attachment 引用或 AXIS 本地生成图的 storage key + SHA-256。审核与发布从同一记录
+读取图片，重复 worker / retry 不创建第二张 Discord 卡片。
 
 继续复用：
 
@@ -524,6 +536,9 @@ Technical Features
 [ ] Text Analysis -> Draft
 [ ] Image Analysis -> Draft
 [ ] Multiple Image Analysis -> Draft
+[ ] 明确输入预测路径 -> 审核与发布沿用该 Source 图片
+[ ] 无输入预测路径 -> 生成当前 Cosmos model-path 图片
+[ ] 不扫描或按 ticker 复用 Cosmos 历史图片
 [ ] MARKET / TICKER / SECTOR / MACRO 均可处理
 [ ] 无明确方向时不会强行判断
 [ ] 无明确价格时不会编价格

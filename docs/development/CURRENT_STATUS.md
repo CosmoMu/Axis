@@ -1,8 +1,8 @@
 # AXIS Current Development Status
 
-**更新：** 2026-08-29
+**更新：** 2026-08-30
 
-**Database:** `20260829_0008`
+**Database:** `20260830_0009`
 
 **Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
@@ -69,10 +69,15 @@ Implemented:
 - Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。
 - Member Lounge 无 Thread 的 Public Card 白名单。
 - Discord send failure 保留归档并支持 persistent retry。
+- 单 ticker 合并当前 Cosmos Market Stock Analyst 数据；Source 已有明确预测路径则沿用，
+  否则生成 CosmosPilot 风格模型情景图。
+- 审核卡与会员发布卡共享同一份 checksum 校验 visual，不扫描或复用 Cosmos 历史图。
 - Automated Gate B：PASS。
 
 Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到 OpenAI；0007 与代码
-已部署，`FEATURE_ANALYSIS_ENABLED=true`。最终 Discord dry-run 为
+已部署，`FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_COSMOS_STOCK_ANALYST_ENABLED=true`。
+第二条真实 Source 已原地刷新到 r2，明确输入预测路径被正确选择为 `SOURCE`，同一个 Discord
+审核 Message ID 已显示 CDN 托管图片。最终 Discord dry-run 为
 `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`，服务器修改为 0。
 
 ## Stage 5 — Stabilization: PARTIAL
@@ -85,7 +90,7 @@ Live activation: `FEATURE_MOOMOO_ENABLED=true`、`FEATURE_DAILY_SUMMARY_ENABLED=
 0008 已部署。周末/假日由 SPY session anchor 验证后跳过；当前 2026-08-29 为周六，所以没有
 制造 Discord 测试总结。
 
-Missing: 第一条真实 Manager Analysis 的生产链路观察、off-host backup target、生产监控告警、
+Missing: off-host backup target、生产监控告警、
 非生产环境完整 restore / rollback rehearsal。
 
 ## AXIS LAB — DEFERRED

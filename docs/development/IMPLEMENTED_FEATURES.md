@@ -11,13 +11,14 @@
 
 ## Database
 
-- Alembic revisions `0001` 到 `0008`。
+- Alembic revisions `0001` 到 `0009`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
 - Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
 - Analysis Draft / Revision / immutable Archive / children / Publication 独立表。
 - Trade Moomoo option code cache、只读 quote snapshot 与 daily summary publication 表。
+- Analysis Cosmos context、Source/Cosmos chart provenance 与本地 checksum media storage。
 
 ## Signal
 
@@ -66,6 +67,9 @@
 - MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
 - Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
 - 无 Thread 的 Member Lounge Public Card 和失败重试。
+- 单 ticker 观点合并 Cosmos Market Stock Analyst 当前结构数据；输入已有明确预测线时
+  沿用输入图，否则生成 CosmosPilot 风格的当前模型情景图。
+- Analysis 审核卡与会员卡共用同一份 checksum 校验图片，不扫描 Cosmos 历史图片目录。
 
 ## Operations
 
@@ -80,6 +84,7 @@
 ## Security
 
 - Secret 不进入 Git 或日志。
-- Public DTO 排除 Mentor、Source、原图、提交人和 Parser 信息。
+- Public DTO 排除 Mentor、Source 元数据、提交人和 Parser 信息；只允许 Manager 审核过的
+  单张 Analysis visual 随会员卡发布。
 - Manager 无 Discord Administrator / Manage Roles。
 - AXIS LAB 功能关闭；Moomoo 仅用于 Core 只读行情，不访问账户或交易接口。

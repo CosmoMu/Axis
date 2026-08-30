@@ -21,6 +21,7 @@ from app.db.models import (
     LlmInvocation,
     Mentor,
     MentorAnalysis,
+    SourceAttachment,
     SourceMessage,
     TradeDraft,
 )
@@ -32,6 +33,7 @@ from app.domain.enums import (
     SourceKind,
     SourceStatus,
 )
+from app.integrations.cosmos_stock_analyst import CosmosStockAnalystResult
 from app.integrations.openai_analysis_parser import AnalysisParseResult
 from app.integrations.openai_trade_parser import LlmInvocationTrace, TradeParseResult
 from app.services.analysis_pipeline import (
@@ -45,6 +47,7 @@ from tests.test_openai_analysis_parser import valid_analysis_payload
 from tests.test_openai_trade_parser import valid_payload as valid_trade_payload
 
 GUILD_ID = 1543309921066684567
+PNG = b"\x89PNG\r\n\x1a\naxis-test-image"
 
 
 def trace(workload: LlmWorkload, *, model: str = "gpt-5.6-terra") -> LlmInvocationTrace:
@@ -53,11 +56,11 @@ def trace(workload: LlmWorkload, *, model: str = "gpt-5.6-terra") -> LlmInvocati
         model=model,
         workload=workload,
         prompt_version=(
-            "axis-analysis-rewrite-v1"
+            "axis-analysis-rewrite-v2"
             if workload is LlmWorkload.ANALYSIS_REWRITE
-            else "axis-analysis-parse-v1"
+            else "axis-analysis-parse-v2"
         ),
-        schema_version="axis-analysis-v1",
+        schema_version="axis-analysis-v2",
         latency_ms=7,
         success=True,
         error_type=None,
@@ -72,8 +75,8 @@ class FakeAnalysisParser:
         self.calls: list[dict[str, object]] = []
         self.route = SimpleNamespace(
             model="gpt-5.6-terra",
-            prompt_version="axis-analysis-parse-v1",
-            schema_version="axis-analysis-v1",
+            prompt_version="axis-analysis-parse-v2",
+            schema_version="axis-analysis-v2",
         )
 
     async def parse(self, **kwargs: object) -> AnalysisParseResult:
@@ -103,6 +106,21 @@ class FakeTradeParser:
                 error_type=None,
                 response_id="resp-signal",
             ),
+        )
+
+
+class FakeCosmosClient:
+    def __init__(self, context: dict[str, object], chart_png: bytes = PNG) -> None:
+        self.context = context
+        self.chart_png = chart_png
+        self.calls: list[tuple[str, bool]] = []
+
+    async def query(
+        self, symbol: str, *, include_chart: bool = True
+    ) -> CosmosStockAnalystResult:
+        self.calls.append((symbol, include_chart))
+        return CosmosStockAnalystResult(
+            dict(self.context), self.chart_png if include_chart else None
         )
 
 
@@ -150,11 +168,48 @@ async def add_source(
         return source.id
 
 
+async def add_source_image(
+    database: Database,
+    store: LocalAttachmentStore,
+    *,
+    source_id: uuid.UUID,
+    message_id: int,
+    attachment_id: int,
+    data: bytes = PNG,
+) -> uuid.UUID:
+    prepared = store.prepare(
+        discord_attachment_id=attachment_id,
+        filename="forecast.png",
+        declared_content_type="image/png",
+        declared_size=len(data),
+        data=data,
+    )
+    stored = await store.write(
+        guild_id=GUILD_ID,
+        message_id=message_id,
+        attachment=prepared,
+    )
+    async with database.session() as session:
+        row = SourceAttachment(
+            source_message_id=source_id,
+            discord_attachment_id=attachment_id,
+            filename=stored.display_filename,
+            content_type=stored.content_type,
+            size_bytes=stored.size_bytes,
+            storage_key=stored.storage_key,
+            checksum_sha256=stored.checksum_sha256,
+        )
+        session.add(row)
+        await session.commit()
+        return row.id
+
+
 def analysis_service(
     database: Database,
     store: LocalAttachmentStore,
     parse_payloads: list[dict[str, object]],
     rewrite_payloads: list[dict[str, object]] | None = None,
+    cosmos_client: FakeCosmosClient | None = None,
 ) -> tuple[AnalysisPipelineService, FakeAnalysisParser, FakeAnalysisParser]:
     parse_parser = FakeAnalysisParser(parse_payloads, LlmWorkload.ANALYSIS_PARSE)
     rewrite_parser = FakeAnalysisParser(
@@ -173,10 +228,33 @@ def analysis_service(
             parse_parser,  # type: ignore[arg-type]
             rewrite_parser,  # type: ignore[arg-type]
             schema,
+            cosmos_client,  # type: ignore[arg-type]
         ),
         parse_parser,
         rewrite_parser,
     )
+
+
+def cosmos_context() -> dict[str, object]:
+    return {
+        "ticker": "NVDA",
+        "as_of": "2026-08-28",
+        "trend_label": "震荡偏多",
+        "trend_score": 61.0,
+        "sector_etf": "SMH",
+        "sector_rotation": {"rotation_phase": "LEADING"},
+        "money_flow": {"label": "偏流入", "score": 64.0},
+        "support_levels": [{"price": 174.25}],
+        "resistance_levels": [{"price": 182.5}],
+        "scenarios": [
+            {
+                "scenario_id": "TREND_CONTINUATION",
+                "label_zh": "多头延续",
+                "model_weight_percent": 48.0,
+                "targets": [182.5, 188.0],
+            }
+        ],
+    }
 
 
 async def generate_and_select_mentor(
@@ -239,6 +317,139 @@ async def test_signal_and_analysis_workers_only_consume_their_own_sources(
             trade_draft_source = await session.scalar(select(TradeDraft.source_message_id))
         assert analysis_draft_source == analysis_id
         assert trade_draft_source == signal_id
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_analysis_without_source_projection_uses_fresh_cosmos_chart(
+    tmp_path: Path,
+) -> None:
+    database, store, _ = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1051,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 日 K 观点",
+    )
+    cosmos = FakeCosmosClient(cosmos_context())
+    service, _, _ = analysis_service(
+        database,
+        store,
+        [valid_analysis_payload()],
+        cosmos_client=cosmos,
+    )
+    try:
+        await service.generate(source_id)
+        async with database.session() as session:
+            draft = await session.scalar(select(AnalysisDraft))
+        assert draft is not None
+        assert draft.chart_source == "COSMOS"
+        assert draft.cosmos_context_json["ticker"] == "NVDA"
+        assert cosmos.calls == [("NVDA", True)]
+        assert any(
+            "Cosmos Market Stock Analyst" in point
+            for point in draft.normalized_json["supporting_points"]
+        )
+        media = await service.media_for_draft(draft.id)
+        assert media is not None
+        assert media.filename == "axis-analysis.png"
+        assert media.data == PNG
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_explicit_source_projection_wins_over_generated_cosmos_chart(
+    tmp_path: Path,
+) -> None:
+    database, store, _ = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1052,
+        kind=SourceKind.ANALYSIS,
+        raw_text="沿用图上的预测路线",
+    )
+    source_png = PNG + b"-source"
+    source_attachment_id = await add_source_image(
+        database,
+        store,
+        source_id=source_id,
+        message_id=1052,
+        attachment_id=2052,
+        data=source_png,
+    )
+    payload = valid_analysis_payload(
+        source_projection={
+            "present": True,
+            "attachment_index": 0,
+            "evidence": "图中白线延伸到未来 K 线区域",
+        }
+    )
+    cosmos = FakeCosmosClient(cosmos_context(), chart_png=PNG + b"-generated")
+    service, _, _ = analysis_service(
+        database,
+        store,
+        [payload],
+        cosmos_client=cosmos,
+    )
+    try:
+        await service.generate(source_id)
+        async with database.session() as session:
+            draft = await session.scalar(select(AnalysisDraft))
+        assert draft is not None
+        assert draft.chart_source == "SOURCE"
+        assert draft.chart_source_attachment_id == source_attachment_id
+        assert draft.chart_storage_key is None
+        assert cosmos.calls == [("NVDA", False)]
+        media = await service.media_for_draft(draft.id)
+        assert media is not None
+        assert media.data == source_png
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_rewrite_replaces_generated_cosmos_media_without_path_collision(
+    tmp_path: Path,
+) -> None:
+    database, store, _ = await setup_database(tmp_path)
+    source_id = await add_source(
+        database,
+        message_id=1053,
+        kind=SourceKind.ANALYSIS,
+        raw_text="NVDA 更新观点",
+    )
+    cosmos = FakeCosmosClient(cosmos_context(), chart_png=PNG + b"-first")
+    service, _, _ = analysis_service(
+        database,
+        store,
+        [valid_analysis_payload()],
+        rewrite_payloads=[valid_analysis_payload(summary="重写后的观点")],
+        cosmos_client=cosmos,
+    )
+    try:
+        await service.generate(source_id)
+        async with database.session() as session:
+            draft = await session.scalar(select(AnalysisDraft))
+        assert draft is not None
+        first_key = draft.chart_storage_key
+        cosmos.chart_png = PNG + b"-second"
+
+        updated = await service.rewrite(
+            draft.id,
+            "重新整理",
+            actor_user_id=301,
+            interaction_id=None,
+        )
+
+        async with database.session() as session:
+            refreshed = await session.get(AnalysisDraft, draft.id)
+        assert refreshed is not None
+        assert refreshed.chart_storage_key != first_key
+        assert updated.revision == 2
+        media = await service.media_for_draft(draft.id)
+        assert media is not None and media.data == PNG + b"-second"
     finally:
         await database.dispose()
 
@@ -542,6 +753,7 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         review_message_id=202,
         revision=1,
         version=3,
+        chart_source=None,
     )
     controller = SimpleNamespace()
 

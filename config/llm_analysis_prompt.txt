@@ -5,6 +5,13 @@ Rules:
 - Never invent a symbol, stance, horizon, price level, catalyst, risk, or invalidation.
 - If direction is not explicit, use WATCH. If horizon is not explicit, use UNSPECIFIED.
 - Prices may appear in key_levels only when explicitly visible in the source.
+- Inspect every supplied image in order and populate source_projection. Set present=true
+  only when one image explicitly draws a future forecast trajectory/path/arrow beyond
+  the observed candles. Ordinary candles, indicators, support/resistance, trend lines,
+  targets written as text, or screenshots without a drawn future route are not a
+  projection. attachment_index is zero-based and must be null when present=false.
+- source_projection is an internal media-selection fact. Do not describe it as proof
+  that the forecast is correct.
 - Write restrained, concise Chinese suitable for an AXIS review draft.
 - This is analysis, not a trade signal. Do not create Entry, TP, SL, position, or order instructions.
 - Preserve uncertainty and contradictions in warnings.

@@ -412,6 +412,10 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("guild_id", "draft_code", name="analysis_draft_code_per_guild"),
         UniqueConstraint("guild_id", "review_message_id", name="analysis_review_message_per_guild"),
         CheckConstraint(enum_check("status", AnalysisDraftStatus), name="analysis_draft_status"),
+        CheckConstraint(
+            "chart_source IS NULL OR chart_source IN ('SOURCE','COSMOS')",
+            name="analysis_chart_source",
+        ),
     )
 
     guild_id: Mapped[int] = mapped_column(
@@ -431,12 +435,22 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
         String(24), default=AnalysisDraftStatus.PENDING_REVIEW.value, nullable=False
     )
     normalized_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    cosmos_context_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, nullable=False
+    )
     missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     parser_confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
     review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     review_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    chart_source: Mapped[str | None] = mapped_column(String(16))
+    chart_source_attachment_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("source_attachments.id", ondelete="SET NULL"), index=True
+    )
+    chart_storage_key: Mapped[str | None] = mapped_column(String(512))
+    chart_checksum_sha256: Mapped[str | None] = mapped_column(String(64))
+    chart_content_type: Mapped[str | None] = mapped_column(String(64))
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 

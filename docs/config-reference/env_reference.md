@@ -40,6 +40,17 @@
 - `FEATURE_MODEL_AB_ENABLED=false`
 - `FEATURE_MOOMOO_ENABLED=true`：当前本机仅启用 Core 只读期权快照。
 - `FEATURE_DAILY_SUMMARY_ENABLED=true`：三个会员频道的每日收盘总结。
+- `FEATURE_COSMOS_STOCK_ANALYST_ENABLED=false`：新环境安全默认；启用后单 ticker Analysis
+  会调用同机 CosmosPilot runtime，合并当前分析并生成缺失的预测路径图。
+
+## Cosmos Stock Analyst Bridge
+
+- `COSMOS_RUNTIME_ROOT`：本机 CosmosPilot runtime 根目录。
+- `COSMOS_PYTHON_PATH`：可选；默认使用 runtime 内 `.venv/bin/python`。
+- `COSMOS_QUERY_TIMEOUT_SECONDS=180`：一次当前股票分析的最大等待时间。
+
+AXIS 不读取、复制或记录 Cosmos Secret；bridge 子进程只从 Cosmos runtime 自己的 `.env`
+加载配置，返回结构化分析与本次新生成图片。
 
 ## Moomoo Core Read-only Market Data
 

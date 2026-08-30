@@ -23,6 +23,7 @@ from app.config import ConfigurationError, Settings  # noqa: E402
 from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
+from app.integrations.cosmos_stock_analyst import CosmosStockAnalystClient  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
 from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
@@ -139,6 +140,18 @@ async def run() -> None:
                         prompt=analysis_prompt,
                     ),
                     analysis_schema,
+                    (
+                        CosmosStockAnalystClient(
+                            runtime_root=settings.cosmos_runtime_root,
+                            bridge_script=PROJECT_ROOT
+                            / "scripts/query_cosmos_stock_analyst.py",
+                            python_path=settings.cosmos_python_path,
+                            timeout_seconds=settings.cosmos_query_timeout_seconds,
+                            max_chart_bytes=settings.max_attachment_bytes,
+                        )
+                        if settings.cosmos_stock_analyst_enabled
+                        else None
+                    ),
                 )
         elif settings.analysis_enabled:
             raise ConfigurationError("Analysis 已启用但缺少 OPENAI_API_KEY。")

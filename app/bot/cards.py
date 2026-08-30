@@ -323,7 +323,9 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
     return [active, closed]
 
 
-def build_analysis_review_embed(draft: AnalysisDraftSnapshot) -> discord.Embed:
+def build_analysis_review_embed(
+    draft: AnalysisDraftSnapshot, *, image_filename: str | None = None
+) -> discord.Embed:
     payload = draft.normalized
     type_label = {
         "MARKET": "市场观察",
@@ -353,13 +355,20 @@ def build_analysis_review_embed(draft: AnalysisDraftSnapshot) -> discord.Embed:
         embed.add_field(name="失效条件", value=str(payload["invalidation"])[:1024], inline=False)
     if draft.warnings:
         embed.add_field(name="Warnings", value="\n".join(draft.warnings)[:1024], inline=False)
+    if image_filename:
+        embed.set_image(url=f"attachment://{image_filename}")
     embed.set_footer(
         text=f"AXIS Analysis Draft ID: {draft.id} · r{draft.revision} · v{draft.version}"
     )
     return embed
 
 
-def build_public_analysis_embed(card: PublicAnalysisCard, *, public_ref: str) -> discord.Embed:
+def build_public_analysis_embed(
+    card: PublicAnalysisCard,
+    *,
+    public_ref: str,
+    image_filename: str | None = None,
+) -> discord.Embed:
     type_label = {
         "MARKET": "市场观察",
         "TICKER": "标的观察",
@@ -418,5 +427,7 @@ def build_public_analysis_embed(card: PublicAnalysisCard, *, public_ref: str) ->
         embed.add_field(name="相关观察", value=", ".join(card.related_symbols), inline=False)
     observed = card.observed_at.astimezone(ZoneInfo("America/Toronto"))
     embed.add_field(name="时间", value=observed.strftime("%m/%d · %H:%M ET"), inline=False)
+    if image_filename:
+        embed.set_image(url=f"attachment://{image_filename}")
     embed.set_footer(text=f"AXIS Analysis · {public_ref}")
     return embed

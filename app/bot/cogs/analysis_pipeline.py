@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 
 import discord
@@ -213,8 +214,26 @@ class AnalysisPipelineCog(commands.Cog):
                 message = candidate
                 break
         view = AnalysisReviewView(self, draft)
+        media = await self.service.media_for_draft(draft.id)
+        image_filename = media.filename if media else None
+        embed = build_analysis_review_embed(draft, image_filename=image_filename)
         if message is None:
-            message = await channel.send(embed=build_analysis_review_embed(draft), view=view)
+            if media:
+                message = await channel.send(
+                    embed=embed,
+                    view=view,
+                    file=discord.File(io.BytesIO(media.data), filename=media.filename),
+                )
+            else:
+                message = await channel.send(embed=embed, view=view)
+        elif media:
+            await message.edit(
+                embed=embed,
+                view=view,
+                attachments=[
+                    discord.File(io.BytesIO(media.data), filename=media.filename)
+                ],
+            )
         saved = await self.service.attach_review_message(
             draft.id, channel_id=self.review_channel_id, message_id=message.id
         )
@@ -227,7 +246,16 @@ class AnalysisPipelineCog(commands.Cog):
             draft.review_channel_id or self.review_channel_id
         ) or await self.bot.fetch_channel(draft.review_channel_id or self.review_channel_id)
         message = await channel.fetch_message(draft.review_message_id)
-        await message.edit(embed=build_analysis_review_embed(draft), view=self._view(draft))
+        media = await self.service.media_for_draft(draft.id)
+        image_filename = media.filename if media else None
+        attachments = (
+            [discord.File(io.BytesIO(media.data), filename=media.filename)] if media else []
+        )
+        await message.edit(
+            embed=build_analysis_review_embed(draft, image_filename=image_filename),
+            view=self._view(draft),
+            attachments=attachments,
+        )
 
     async def archive_interaction(
         self, interaction: discord.Interaction, draft: AnalysisDraftSnapshot, *, publish: bool
@@ -267,6 +295,13 @@ class AnalysisPipelineCog(commands.Cog):
         )
         marker = f"AXIS Analysis · {result.public_ref}"
         message = None
+        media = await self.service.media_for_draft(result.draft.id)
+        image_filename = media.filename if media else None
+        embed = build_public_analysis_embed(
+            result.card,
+            public_ref=result.public_ref,
+            image_filename=image_filename,
+        )
         try:
             async for candidate in channel.history(limit=200):
                 if (
@@ -277,8 +312,19 @@ class AnalysisPipelineCog(commands.Cog):
                     message = candidate
                     break
             if message is None:
-                message = await channel.send(
-                    embed=build_public_analysis_embed(result.card, public_ref=result.public_ref)
+                if media:
+                    message = await channel.send(
+                        embed=embed,
+                        file=discord.File(io.BytesIO(media.data), filename=media.filename),
+                    )
+                else:
+                    message = await channel.send(embed=embed)
+            elif media:
+                await message.edit(
+                    embed=embed,
+                    attachments=[
+                        discord.File(io.BytesIO(media.data), filename=media.filename)
+                    ],
                 )
         except discord.HTTPException:
             return await self.service.fail_publication(result.publication_id, "DISCORD_SEND_FAILED")
