@@ -9,16 +9,17 @@ LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・signal-review` 发布一�
 
 - `Select Category`：LLM 根据持有周期、到期日和输入语境预选短线、波段或长期；
   Manager 只需在判断不正确时直接用卡片顶部的下拉框修改。
-- `选择 Mentor`：只显示当前有效 Mentor，不使用 LLM 自动分配。
-- `选择订单`：只显示当前 `ACTIVE/RUNNER` 订单，用于更新类 Draft。
+- `Select Mentor`：卡片内固定下拉菜单，只显示当前有效 Mentor，不使用 LLM 自动分配。
+- `Link Order`：卡片内固定下拉菜单，只显示当前 `ACTIVE/RUNNER` 订单，用于更新类 Draft。
+  暂无可选项时下拉框会禁用，不再弹出额外的临时菜单。
 - `完整编辑`：编辑操作、合约、价格、SL/TP 和仓位。
 - `会员预览`：仅对当前管理员显示，使用 Public DTO 白名单。
 - `确认发布`：校验发布条件、预约幂等 Publication，并发送到对应会员频道。
 - `删除`：需要二次确认，仅软删除为 `DELETED`。
 
-审核卡片使用紧凑布局，把合约、价格/风控、仓位和审核状态合并显示。常用 Category
-下拉与操作按钮都在同一张 persistent message 上；Bot 重启或草稿更新时原地刷新，
-不会额外发送一组控制面板。
+审核卡片使用紧凑布局，把合约、价格/风控、仓位和审核状态合并显示。Category、Mentor
+和关联订单三个下拉框与操作按钮都在同一张 persistent message 上；Bot 重启或草稿更新
+时原地刷新，不会额外发送一组控制面板。
 
 ## 编辑表单
 

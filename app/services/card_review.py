@@ -85,7 +85,9 @@ class ReviewDraft:
     position_after_eighths: int | None
     current_pnl_pct: Decimal | None
     mentor_hint: str | None
+    mentor_id: uuid.UUID | None
     mentor_name: str | None
+    matched_trade_id: uuid.UUID | None
     matched_trade_code: str | None
     parser_confidence: Decimal | None
     missing_fields: tuple[str, ...]
@@ -652,7 +654,9 @@ class CardReviewService:
             position_after_eighths=draft.position_after_eighths,
             current_pnl_pct=draft.current_pnl_pct,
             mentor_hint=draft.mentor_hint,
+            mentor_id=draft.mentor_id,
             mentor_name=mentor_name,
+            matched_trade_id=draft.matched_trade_id,
             matched_trade_code=matched_trade_code,
             parser_confidence=draft.parser_confidence,
             missing_fields=tuple(draft.missing_fields),

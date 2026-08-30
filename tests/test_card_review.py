@@ -17,6 +17,7 @@ from app.domain.enums import DraftStatus, SourceStatus
 from app.services.card_review import (
     CardReviewService,
     DraftEdit,
+    ReviewChoice,
     ReviewConflictError,
     ReviewValidationError,
     public_preview_payload,
@@ -198,20 +199,36 @@ async def test_category_select_changes_only_category_and_is_audited() -> None:
 
 @pytest.mark.asyncio
 async def test_review_view_starts_with_category_select_and_embed_is_compact() -> None:
-    database, draft, _ = await review_database()
+    database, draft, mentor = await review_database()
     service = CardReviewService(database)
     try:
         snapshot = await service.get(draft.id)
-        view = ReviewDraftView(SimpleNamespace(), snapshot)
-        category_select = next(
-            item for item in view.children if isinstance(item, discord.ui.Select)
+        view = ReviewDraftView(
+            SimpleNamespace(),
+            snapshot,
+            mentor_choices=[ReviewChoice(str(mentor.id), mentor.name, "Code: VIN")],
+            trade_choices=[],
         )
+        selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
+        category_select, mentor_select, trade_select = selects
         defaults = [option.value for option in category_select.options if option.default]
         embed = build_review_embed(snapshot)
 
+        assert len(selects) == 3
         assert category_select.custom_id.startswith("axis:review:category:select:")
         assert defaults == ["SHORT_TERM"]
         assert category_select.row == 0
+        assert mentor_select.custom_id.startswith("axis:review:mentor:select:")
+        assert mentor_select.row == 1
+        assert mentor_select.disabled is False
+        assert trade_select.custom_id.startswith("axis:review:trade:select:")
+        assert trade_select.row == 2
+        assert trade_select.disabled is True
+        assert all(
+            getattr(item, "custom_id", "").split(":")[2] not in {"mentor", "trade"}
+            for item in view.children
+            if isinstance(item, discord.ui.Button)
+        )
         assert len(embed.fields) <= 4
         assert "GOOGL" in (embed.description or "")
     finally:

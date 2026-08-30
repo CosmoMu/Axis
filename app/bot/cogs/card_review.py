@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from contextlib import suppress
@@ -148,7 +149,7 @@ class CardReviewCog(commands.Cog):
             return
         try:
             message = await fetch_message(draft.review_message_id)
-            view = self._review_view(draft)
+            view = await self._review_view(draft)
             await message.edit(embed=build_review_embed(draft), view=view)
             if view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)
@@ -192,14 +193,23 @@ class CardReviewCog(commands.Cog):
         for category in TradeCategory:
             self.bot.add_view(ActiveOrdersView(self, category.value))
         for draft in await self.service.registered(self.guild_id):
-            view = self._review_view(draft)
+            view = await self._review_view(draft)
             if draft.review_message_id is not None and view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)
                 await self.refresh(draft)
 
-    def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
+    async def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
         if draft.status in ACTIVE_REVIEW_STATUSES:
-            return ReviewDraftView(self, draft)
+            mentor_choices, trade_choices = await asyncio.gather(
+                self.service.mentor_choices(draft.guild_id),
+                self.service.trade_choices(draft.guild_id),
+            )
+            return ReviewDraftView(
+                self,
+                draft,
+                mentor_choices=mentor_choices,
+                trade_choices=trade_choices,
+            )
         if draft.status == DraftStatus.PUBLISH_FAILED.value:
             return PublicationRetryView(self, draft)
         return None
@@ -284,7 +294,7 @@ class CardReviewCog(commands.Cog):
                 existing = message
                 break
 
-        view = ReviewDraftView(self, draft)
+        view = await self._review_view(draft)
         if existing is None:
             existing = await send(embed=build_review_embed(draft), view=view)
         else:
@@ -294,4 +304,6 @@ class CardReviewCog(commands.Cog):
             channel_id=self.channel_id,
             message_id=existing.id,
         )
-        self.bot.add_view(ReviewDraftView(self, saved), message_id=existing.id)
+        saved_view = await self._review_view(saved)
+        if saved_view is not None:
+            self.bot.add_view(saved_view, message_id=existing.id)

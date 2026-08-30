@@ -213,20 +213,29 @@ class ReviewChoiceSelect(discord.ui.Select):
         self.controller = controller
         self.draft = draft
         self.kind = kind
-        options = [
-            discord.SelectOption(
-                label=choice.label[:100],
-                value=choice.value,
-                description=choice.description[:100] if choice.description else None,
-            )
-            for choice in choices
-        ]
-        label = "选择 Mentor" if kind == "mentor" else "选择当前订单"
+        current_id = draft.mentor_id if kind == "mentor" else draft.matched_trade_id
+        current_label = draft.mentor_name if kind == "mentor" else draft.matched_trade_code
+        label = "Select Mentor" if kind == "mentor" else "Link Order"
+        if choices:
+            options = [
+                discord.SelectOption(
+                    label=choice.label[:100],
+                    value=choice.value,
+                    description=choice.description[:100] if choice.description else None,
+                    default=current_id is not None and choice.value == str(current_id),
+                )
+                for choice in choices
+            ]
+        else:
+            empty_label = "No active Mentor" if kind == "mentor" else "No active order"
+            options = [discord.SelectOption(label=empty_label, value=f"none-{kind}")]
         super().__init__(
-            placeholder=label,
+            placeholder=(f"{label} · {current_label}" if current_label else label)[:150],
             min_values=1,
             max_values=1,
             options=options,
+            disabled=not choices,
+            row=1 if kind == "mentor" else 2,
             custom_id=f"axis:review:{kind}:select:{draft.id.hex}:v{draft.version}",
         )
 
@@ -253,19 +262,6 @@ class ReviewChoiceSelect(discord.ui.Select):
             await interaction.followup.send("选择已保存。", ephemeral=True)
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
-
-
-class ReviewChoiceView(discord.ui.View):
-    def __init__(
-        self,
-        controller: CardReviewCog,
-        draft: ReviewDraft,
-        *,
-        kind: str,
-        choices: list[ReviewChoice],
-    ) -> None:
-        super().__init__(timeout=180)
-        self.add_item(ReviewChoiceSelect(controller, draft, kind=kind, choices=choices))
 
 
 class ConfirmDeleteView(discord.ui.View):
@@ -338,18 +334,27 @@ class CategorySelect(discord.ui.Select):
 
 
 class ReviewDraftView(discord.ui.View):
-    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+    def __init__(
+        self,
+        controller: CardReviewCog,
+        draft: ReviewDraft,
+        *,
+        mentor_choices: list[ReviewChoice],
+        trade_choices: list[ReviewChoice],
+    ) -> None:
         super().__init__(timeout=None)
         self.controller = controller
         self.draft = draft
         self.add_item(CategorySelect(controller, draft))
+        self.add_item(
+            ReviewChoiceSelect(controller, draft, kind="mentor", choices=mentor_choices)
+        )
+        self.add_item(ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices))
         buttons = (
-            ("Mentor", discord.ButtonStyle.secondary, "mentor", 1, self.select_mentor),
-            ("关联订单", discord.ButtonStyle.secondary, "trade", 1, self.select_trade),
-            ("完整编辑", discord.ButtonStyle.primary, "edit", 1, self.edit),
-            ("会员预览", discord.ButtonStyle.secondary, "preview", 1, self.preview),
-            ("确认发布", discord.ButtonStyle.success, "approve", 2, self.approve),
-            ("删除", discord.ButtonStyle.danger, "delete", 2, self.delete),
+            ("完整编辑", discord.ButtonStyle.primary, "edit", 3, self.edit),
+            ("会员预览", discord.ButtonStyle.secondary, "preview", 3, self.preview),
+            ("确认发布", discord.ButtonStyle.success, "approve", 4, self.approve),
+            ("删除", discord.ButtonStyle.danger, "delete", 4, self.delete),
         )
         for label, style, action, row, callback in buttons:
             button = discord.ui.Button(
@@ -363,31 +368,6 @@ class ReviewDraftView(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return await self.controller.authorize(interaction)
-
-    async def select_mentor(self, interaction: discord.Interaction) -> None:
-        choices = await self.controller.service.mentor_choices(self.draft.guild_id)
-        if not choices:
-            await interaction.response.send_message(
-                "当前没有可用 Mentor，请先在 Mentor 管理阶段创建。",
-                ephemeral=True,
-            )
-            return
-        await interaction.response.send_message(
-            "请选择 Mentor：",
-            view=ReviewChoiceView(self.controller, self.draft, kind="mentor", choices=choices),
-            ephemeral=True,
-        )
-
-    async def select_trade(self, interaction: discord.Interaction) -> None:
-        choices = await self.controller.service.trade_choices(self.draft.guild_id)
-        if not choices:
-            await interaction.response.send_message("当前没有可关联的活跃订单。", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            "请选择订单：",
-            view=ReviewChoiceView(self.controller, self.draft, kind="trade", choices=choices),
-            ephemeral=True,
-        )
 
     async def edit(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
