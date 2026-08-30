@@ -89,8 +89,11 @@ class PublicAnalysisCard:
     title: str | None
     summary: str | None
     core_thesis: str | None
+    why_now: tuple[str, ...]
     supporting_points: tuple[str, ...]
+    engine_observations: tuple[str, ...]
     key_levels: tuple[dict[str, object], ...]
+    projection_path: tuple[dict[str, object], ...]
     invalidation: str | None
     catalysts: tuple[str, ...]
     risks: tuple[str, ...]

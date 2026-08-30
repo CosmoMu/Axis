@@ -29,13 +29,16 @@ def valid_analysis_payload(**updates: object) -> dict[str, object]:
         "title": "NVDA 观察",
         "summary": "价格正在测试图中明确标注的区域。",
         "core_thesis": "仅观察原图中出现的趋势与位置。",
+        "why_now": ["输入指出价格正在测试关键区域"],
         "supporting_points": ["原图显示价格维持在支撑上方"],
+        "engine_observations": [],
         "key_levels": [
             {
                 "symbol": "NVDA",
                 "level_type": "WATCH",
                 "price": None,
                 "note": "原文未提供明确价格",
+                "source": "INPUT",
             }
         ],
         "invalidation": None,
@@ -47,6 +50,7 @@ def valid_analysis_payload(**updates: object) -> dict[str, object]:
             "present": False,
             "attachment_index": None,
             "evidence": None,
+            "path_points": [],
         },
         "confidence": 0.82,
         "missing_fields": ["explicit_price"],
@@ -97,8 +101,8 @@ async def test_analysis_parser_uses_strict_schema_and_multiple_images() -> None:
     assert result.payload["symbols"] == ["NVDA"]
     assert result.payload["key_levels"][0]["price"] is None  # type: ignore[index]
     assert result.trace.workload is LlmWorkload.ANALYSIS_PARSE
-    assert result.trace.prompt_version == "axis-analysis-parse-v2"
-    assert result.trace.schema_version == "axis-analysis-v2"
+    assert result.trace.prompt_version == "axis-analysis-parse-v5"
+    assert result.trace.schema_version == "axis-analysis-v4"
     assert responses.kwargs is not None
     assert responses.kwargs["store"] is False
     assert responses.kwargs["reasoning"] == {"effort": "medium"}
@@ -117,6 +121,7 @@ async def test_analysis_parser_uses_strict_schema_and_multiple_images() -> None:
     assert content[1]["image_url"].startswith("data:image/png;base64,")
     assert content[2]["image_url"].startswith("data:image/jpeg;base64,")
     assert result.payload["source_projection"]["present"] is False  # type: ignore[index]
+    assert result.payload["source_projection"]["path_points"] == []  # type: ignore[index]
 
 
 @pytest.mark.asyncio
@@ -162,4 +167,7 @@ def test_analysis_prompt_forbids_invention_and_trade_instructions() -> None:
     assert "Never invent" in prompt
     assert "explicitly visible" in prompt
     assert "Do not create Entry, TP, SL, position, or order instructions" in prompt
-    assert "future forecast trajectory/path/arrow" in prompt
+    assert "ordered future price path" in prompt
+    assert "never infer a missing numeric price" in prompt
+    assert "why_now" in prompt
+    assert "engine_observations must always be an empty array" in prompt

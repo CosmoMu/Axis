@@ -93,16 +93,13 @@ class CardReviewCog(commands.Cog):
                 user.id == guild.owner_id
                 or user.id == self.owner_user_id
                 or bool(
-                    {self.manager_role_id, self.member_role_id}
-                    & {role.id for role in user.roles}
+                    {self.manager_role_id, self.member_role_id} & {role.id for role in user.roles}
                 )
             )
         )
         if allowed:
             return True
-        await interaction.response.send_message(
-            "该功能仅对 AXIS 会员开放。", ephemeral=True
-        )
+        await interaction.response.send_message("该功能仅对 AXIS 会员开放。", ephemeral=True)
         return False
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
@@ -198,6 +195,7 @@ class CardReviewCog(commands.Cog):
             view = self._review_view(draft)
             if draft.review_message_id is not None and view is not None:
                 self.bot.add_view(view, message_id=draft.review_message_id)
+                await self.refresh(draft)
 
     def _review_view(self, draft: ReviewDraft) -> discord.ui.View | None:
         if draft.status in ACTIVE_REVIEW_STATUSES:
@@ -248,9 +246,7 @@ class CardReviewCog(commands.Cog):
             view = ActiveOrdersView(self, claim.card.category)
             if message is None:
                 message = await send(
-                    embed=build_public_trade_embed(
-                        claim.card, public_ref=claim.public_ref
-                    ),
+                    embed=build_public_trade_embed(claim.card, public_ref=claim.public_ref),
                     view=view,
                 )
             else:
@@ -279,14 +275,12 @@ class CardReviewCog(commands.Cog):
         if send is None or history is None:
             return
 
-        marker = f"AXIS Draft ID: {draft.id}"
+        marker = f"AXIS Signal · {draft.draft_code}"
         existing = None
         async for message in history(limit=100):
             if self.bot.user is None or message.author.id != self.bot.user.id:
                 continue
-            if any(
-                embed.footer.text and marker in embed.footer.text for embed in message.embeds
-            ):
+            if any(embed.footer.text and marker in embed.footer.text for embed in message.embeds):
                 existing = message
                 break
 

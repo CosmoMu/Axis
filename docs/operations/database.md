@@ -42,10 +42,11 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0009` 使用 24 张业务表：
+当前 revision `20260830_0011` 使用 25 张业务表：
 
 ```text
 guild_config
+input_code_counters
 mentors
 mentor_aliases
 source_messages
@@ -79,8 +80,13 @@ success 与 error_type；旧调用无法证明的字段不会伪造回填。
 和加权最终收益，避免重复发布。
 Analysis 使用独立的 Draft、Revision、不可变 Mentor Analysis、child records 与 Publication，
 不会复用或更新 Trade Domain；`source_messages.source_kind` 隔离两个处理队列。
-`analysis_drafts` 的 Cosmos context 与图片来源/storage checksum 字段让审核卡和会员卡读取
-同一份已批准图片；0009 不修改已经归档的历史 Analysis snapshot。
+`analysis_drafts.market_context_json` 保存 AXIS 自有 Market Intelligence 的当时快照；历史图片
+来源/storage checksum 字段仅保留兼容，当前文字卡不生成或发布图片。0010 不修改已经归档的
+历史 Analysis snapshot。`analysis_key_levels.source` 与 `analysis_points.source` 区分 `INPUT`
+和 `AXIS_STOCK_ANALYST`；`mentor_analyses.why_now_json` 专门保存为什么现在关注，供未来
+Model A 训练与评估。
+`input_code_counters` 在同一数据库事务内分别分配 Signal `S-00001` 与 Analysis `A-00001`
+形式的 Manager-facing 顺序号；UUID 仍是内部主键。
 `market_quote_snapshots` 保存 Moomoo 只读盘后参考价；`daily_summary_publications` 以
 Guild、类别与交易日唯一，保存公开快照和 Discord 发布状态。
 

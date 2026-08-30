@@ -26,6 +26,7 @@ from app.integrations.openai_trade_parser import (
     TradeParseResult,
 )
 from app.services.attachment_storage import AttachmentStorageError, LocalAttachmentStore
+from app.services.input_codes import next_input_code
 
 
 class TradeParser(Protocol):
@@ -198,12 +199,8 @@ class DraftGenerationService:
                 parse_result=parse_result,
             )
         except (AttachmentStorageError, TradeParseError) as exc:
-            reason_code = (
-                exc.code if isinstance(exc, TradeParseError) else "ATTACHMENT_READ_FAILED"
-            )
-            failure_trace = (
-                (exc.trace or parse_trace) if isinstance(exc, TradeParseError) else None
-            )
+            reason_code = exc.code if isinstance(exc, TradeParseError) else "ATTACHMENT_READ_FAILED"
+            failure_trace = (exc.trace or parse_trace) if isinstance(exc, TradeParseError) else None
             return await self._persist_failure(
                 source_message_id=source_message_id,
                 source_snapshot=source_snapshot,
@@ -276,6 +273,7 @@ class DraftGenerationService:
             source = await session.get(SourceMessage, source_message_id)
             if source is None:
                 raise LookupError("source message does not exist")
+            draft.draft_code = await next_input_code(session, guild_id, "SIGNAL")
             source.status = SourceStatus.PARSED.value
             session.add(invocation)
             # Flush the referenced row before inserting the draft that points to it.
@@ -353,6 +351,7 @@ class DraftGenerationService:
             source = await session.get(SourceMessage, source_message_id)
             if source is None:
                 raise LookupError("source message does not exist")
+            draft.draft_code = await next_input_code(session, guild_id, "SIGNAL")
             source.status = SourceStatus.FAILED.value
             if invocation is not None:
                 session.add(invocation)
@@ -411,9 +410,7 @@ class DraftGenerationService:
             provider_response_id=trace.response_id,
         )
 
-    async def _existing_result(
-        self, source_message_id: uuid.UUID
-    ) -> DraftGenerationResult | None:
+    async def _existing_result(self, source_message_id: uuid.UUID) -> DraftGenerationResult | None:
         async with self.database.session() as session:
             row = (
                 await session.execute(
@@ -443,7 +440,7 @@ class DraftGenerationService:
         return TradeDraft(
             id=uuid.uuid4(),
             guild_id=guild_id,
-            draft_code=f"D-{source_message_id.hex[:12].upper()}",
+            draft_code="S-PENDING",
             source_message_id=source_message_id,
             matched_trade_id=None,
             mentor_id=None,

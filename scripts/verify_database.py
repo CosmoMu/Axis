@@ -16,6 +16,7 @@ from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
 COUNTED_TABLES = (
+    "input_code_counters",
     "source_messages",
     "trade_drafts",
     "trades",
@@ -31,7 +32,7 @@ COUNTED_TABLES = (
 )
 SAFE_FEATURES = (
     "FEATURE_ANALYSIS_ENABLED",
-    "FEATURE_COSMOS_STOCK_ANALYST_ENABLED",
+    "FEATURE_AXIS_STOCK_ANALYST_ENABLED",
     "FEATURE_DAILY_SUMMARY_ENABLED",
     "FEATURE_LAB_ENABLED",
     "FEATURE_MODEL_AB_ENABLED",

@@ -6,10 +6,12 @@
 
 ## Live Analysis
 
-- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。真实
-  Discord → OpenAI → Cosmos → Review 图片链路已验证。
-- 0009 不回写已经归档/发布的历史 Analysis；旧 AAPL snapshot 保持不可变。新的或仍可编辑的
-  Draft 才使用 Source/Cosmos 图片选择规则。
+- Owner 已单独授权 Analysis 数据出口，`FEATURE_ANALYSIS_ENABLED=true`。当前链路只发布文字卡；
+  Source 图片仍可发送给 OpenAI 作为 input 证据，但不会转发到审核或会员频道。
+- 已归档/发布的历史 Analysis snapshot 保持不可变；旧 Draft 的 `SOURCE` / `COSMOS` 图片枚举
+  继续只读兼容。Massive API 图片 provider/renderer 尚未接入。
+- AXIS GEX Explorer 当前只有引擎和单元测试，尚未连接 Moomoo option chain、数据库、频道或
+  定时任务；这是有意的默认关闭状态。
 
 ## Migration Compatibility
 

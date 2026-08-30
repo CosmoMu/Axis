@@ -15,6 +15,7 @@ dependencies = [
   "jsonschema>=4.23,<5",
   "moomoo-api==10.10.7008",
   "openai>=2.0,<3",
+  "Pillow>=11.3,<13",
   "python-dotenv>=1.0,<2",
   "PyYAML>=6.0,<7",
   "SQLAlchemy[asyncio]>=2.0.43,<3",

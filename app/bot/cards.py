@@ -151,7 +151,9 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
     if draft.warnings:
         embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
     confidence = _number(draft.parser_confidence)
-    embed.set_footer(text=f"AXIS Draft ID: {draft.id} · v{draft.version} · confidence {confidence}")
+    embed.set_footer(
+        text=f"AXIS Signal · {draft.draft_code} · v{draft.version} · confidence {confidence}"
+    )
     return embed
 
 
@@ -310,9 +312,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 if trade.final_return_pct is None
                 else f"加权最终收益 {trade.final_return_pct:+.2f}%"
             )
-            lines.append(
-                f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n{result}"
-            )
+            lines.append(f"**{trade.public_trade_id}** · {_daily_contract(trade)}\n{result}")
         if len(summary.closed) > 15:
             lines.append(f"另有 {len(summary.closed) - 15} 个今日 Closed 订单。")
         closed.description = "\n\n".join(lines)
@@ -351,6 +351,56 @@ def build_analysis_review_embed(
     embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=False)
     if payload.get("core_thesis"):
         embed.add_field(name="核心观点", value=str(payload["core_thesis"])[:1024], inline=False)
+    if payload.get("why_now"):
+        embed.add_field(
+            name="为什么现在关注",
+            value="\n".join(f"• {item}" for item in payload["why_now"])[:1024],
+            inline=False,
+        )
+    if payload.get("supporting_points"):
+        embed.add_field(
+            name="综合依据",
+            value="\n".join(f"• {item}" for item in payload["supporting_points"])[:1024],
+            inline=False,
+        )
+    if payload.get("engine_observations"):
+        embed.add_field(
+            name="AXIS 结构观察",
+            value="\n".join(f"• {item}" for item in payload["engine_observations"])[:1024],
+            inline=False,
+        )
+    levels = []
+    for level in payload.get("key_levels", []):
+        if not isinstance(level, dict):
+            continue
+        price = level.get("price")
+        note = level.get("note")
+        if price is not None or note:
+            levels.append(
+                f"{level.get('level_type', 'WATCH')}: "
+                f"{price if price is not None else ''} {note or ''}".strip()
+            )
+    if levels:
+        embed.add_field(name="路径与关键位", value="\n".join(levels)[:1024], inline=False)
+    projection = payload.get("source_projection")
+    route = projection.get("path_points") if isinstance(projection, dict) else None
+    if isinstance(route, list) and route:
+        route_lines = []
+        for index, point in enumerate(route[:12], start=1):
+            if not isinstance(point, dict):
+                continue
+            price = point.get("price")
+            route_lines.append(
+                f"P{index} · {point.get('direction', 'FLAT')}"
+                + (f" · ${float(price):,.2f}" if isinstance(price, (int, float)) else "")
+                + (f" · {point['label']}" if point.get("label") else "")
+            )
+        if route_lines:
+            embed.add_field(
+                name="预测路径（文字）",
+                value=" → \n".join(route_lines)[:1024],
+                inline=False,
+            )
     if payload.get("invalidation"):
         embed.add_field(name="失效条件", value=str(payload["invalidation"])[:1024], inline=False)
     if draft.warnings:
@@ -358,7 +408,7 @@ def build_analysis_review_embed(
     if image_filename:
         embed.set_image(url=f"attachment://{image_filename}")
     embed.set_footer(
-        text=f"AXIS Analysis Draft ID: {draft.id} · r{draft.revision} · v{draft.version}"
+        text=f"AXIS Analysis · {draft.draft_code} · r{draft.revision} · v{draft.version}"
     )
     return embed
 
@@ -398,10 +448,22 @@ def build_public_analysis_embed(
     embed.add_field(name="观察周期", value=horizon, inline=True)
     if card.core_thesis:
         embed.add_field(name="核心逻辑", value=card.core_thesis[:1024], inline=False)
+    if card.why_now:
+        embed.add_field(
+            name="为什么现在关注",
+            value="\n".join(f"• {item}" for item in card.why_now)[:1024],
+            inline=False,
+        )
     if card.supporting_points:
         embed.add_field(
             name="观察依据",
             value="\n".join(f"• {item}" for item in card.supporting_points)[:1024],
+            inline=False,
+        )
+    if card.engine_observations:
+        embed.add_field(
+            name="AXIS 结构观察",
+            value="\n".join(f"• {item}" for item in card.engine_observations)[:1024],
             inline=False,
         )
     levels = []
@@ -410,11 +472,23 @@ def build_public_analysis_embed(
         note = level.get("note")
         if price is not None or note:
             price_text = price if price is not None else ""
-            levels.append(
-                f"{level.get('level_type')}: {price_text} {note or ''}".strip()
-            )
+            levels.append(f"{level.get('level_type')}: {price_text} {note or ''}".strip())
     if levels:
         embed.add_field(name="关注位置", value="\n".join(levels)[:1024], inline=False)
+    if card.projection_path:
+        route_lines = []
+        for index, point in enumerate(card.projection_path[:12], start=1):
+            price = point.get("price")
+            route_lines.append(
+                f"P{index} · {point.get('direction', 'FLAT')}"
+                + (f" · ${float(price):,.2f}" if isinstance(price, (int, float)) else "")
+                + (f" · {point['label']}" if point.get("label") else "")
+            )
+        embed.add_field(
+            name="预测路径（文字）",
+            value=" → \n".join(route_lines)[:1024],
+            inline=False,
+        )
     if card.invalidation:
         embed.add_field(name="失效条件", value=card.invalidation[:1024], inline=False)
     if card.risks:

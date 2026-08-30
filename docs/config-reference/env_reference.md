@@ -40,17 +40,17 @@
 - `FEATURE_MODEL_AB_ENABLED=false`
 - `FEATURE_MOOMOO_ENABLED=true`：当前本机仅启用 Core 只读期权快照。
 - `FEATURE_DAILY_SUMMARY_ENABLED=true`：三个会员频道的每日收盘总结。
-- `FEATURE_COSMOS_STOCK_ANALYST_ENABLED=false`：新环境安全默认；启用后单 ticker Analysis
-  会调用同机 CosmosPilot runtime，合并当前分析并生成缺失的预测路径图。
+- `FEATURE_AXIS_STOCK_ANALYST_ENABLED=false`：新环境安全默认；启用后单 ticker Analysis
+  会调用 AXIS 自有 Stock Analyst，通过本机 Moomoo OpenD 读取日 K 并生成文字结构观察。
+  当前不会生成或发布 Analysis 图片；未来 Massive API 接入另行启用。
 
-## Cosmos Stock Analyst Bridge
+## AXIS Market Intelligence
 
-- `COSMOS_RUNTIME_ROOT`：本机 CosmosPilot runtime 根目录。
-- `COSMOS_PYTHON_PATH`：可选；默认使用 runtime 内 `.venv/bin/python`。
-- `COSMOS_QUERY_TIMEOUT_SECONDS=180`：一次当前股票分析的最大等待时间。
+- `AXIS Stock Analyst`：当前已接 Analysis Pipeline。
+- `AXIS GEX Explorer`：当前只提供可复用纯计算引擎，未建频道、未自动发布。
 
-AXIS 不读取、复制或记录 Cosmos Secret；bridge 子进程只从 Cosmos runtime 自己的 `.env`
-加载配置，返回结构化分析与本次新生成图片。
+两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
+仓库。旧 `FEATURE_COSMOS_STOCK_ANALYST_ENABLED` 仅保留一版配置兼容，新环境不得继续使用。
 
 ## Moomoo Core Read-only Market Data
 
@@ -58,8 +58,8 @@ AXIS 不读取、复制或记录 Cosmos Secret；bridge 子进程只从 Cosmos r
 - `MOOMOO_OPEND_PORT=11111`
 - `DAILY_SUMMARY_TIME_ET=16:15`
 
-以上配置不包含 Moomoo 账户 Secret。OpenD 必须保持行情登录；AXIS 不调用账户、持仓、
-订单、交易解锁或下单接口。
+以上配置不包含 Moomoo 账户 Secret。OpenD 必须保持行情登录；Stock Analyst 只读日 K，
+Core 只读期权行情；AXIS 不调用账户、持仓、订单、交易解锁或下单接口。
 
 ## Local Storage / Runtime
 

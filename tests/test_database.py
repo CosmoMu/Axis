@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     "analysis_symbols",
     "daily_summary_publications",
     "guild_config",
+    "input_code_counters",
     "mentors",
     "mentor_aliases",
     "source_messages",

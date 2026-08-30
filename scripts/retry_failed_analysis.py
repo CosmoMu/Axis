@@ -21,13 +21,13 @@ from app.domain.enums import (  # noqa: E402
     SourceKind,
     SourceStatus,
 )
-from app.integrations.cosmos_stock_analyst import CosmosStockAnalystClient  # noqa: E402
 from app.integrations.model_router import ModelRouter  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
     load_analysis_prompt,
     load_analysis_schema,
 )
+from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 
@@ -103,14 +103,11 @@ async def retry(message_id: int, settings_root: Path) -> int:
             parsers[1],
             schema,
             (
-                CosmosStockAnalystClient(
-                    runtime_root=settings.cosmos_runtime_root,
-                    bridge_script=PROJECT_ROOT / "scripts/query_cosmos_stock_analyst.py",
-                    python_path=settings.cosmos_python_path,
-                    timeout_seconds=settings.cosmos_query_timeout_seconds,
-                    max_chart_bytes=settings.max_attachment_bytes,
+                AxisStockAnalystService(
+                    host=settings.moomoo_host,
+                    port=settings.moomoo_port,
                 )
-                if settings.cosmos_stock_analyst_enabled
+                if settings.axis_stock_analyst_enabled
                 else None
             ),
         )

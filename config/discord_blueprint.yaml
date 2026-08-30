@@ -204,6 +204,17 @@ categories:
         manager_attach: true
         manager_manage_messages: true
         bot_send: true
+      - key: card_testing
+        name: "🧪・card-testing"
+        type: text
+        topic: "AXIS Manager 测试卡片专用频道；不得在会员正式频道做开发测试。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        manager_manage_messages: true
+        bot_send: true
 
   - key: lab
     name: "🧪・AXIS LAB"

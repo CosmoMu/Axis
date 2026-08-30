@@ -2,9 +2,9 @@
 
 **更新：** 2026-08-30
 
-**Database:** `20260830_0009`
+**Database:** `20260830_0011`
 
-**Discord Bootstrap:** `REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`
+**Discord Bootstrap:** `REUSE=27 / CREATE=0 / UPDATE=0 / BLOCK=0`
 
 **AXIS LAB:** DEFERRED
 
@@ -17,7 +17,8 @@ Implemented:
 - Python 3.12 / discord.py / SQLAlchemy / Alembic / PostgreSQL。
 - Secret-only configuration、safe LaunchAgent deployment。
 - Discord inventory、dry-run、三重 Apply Gate、saved-ID reconciliation。
-- 19 个 v2 Channel、Manager / Member Role 与权限。
+- 20 个 v2 Channel、Manager / Member Role 与权限；包含 Manager-only
+  `🧪・card-testing`。
 - Workload Model Router 和 LLM invocation trace schema。
 - Persistent Card Review Views。
 
@@ -69,16 +70,18 @@ Implemented:
 - Raw / Normalized / Public Snapshot 与模型、Prompt、Schema revision trace。
 - Member Lounge 无 Thread 的 Public Card 白名单。
 - Discord send failure 保留归档并支持 persistent retry。
-- 单 ticker 合并当前 Cosmos Market Stock Analyst 数据；Source 已有明确预测路径则沿用，
-  否则生成 CosmosPilot 风格模型情景图。
-- 审核卡与会员发布卡共享同一份 checksum 校验 visual，不扫描或复用 Cosmos 历史图。
+- 单 ticker 合并 AXIS Stock Analyst 文字结构数据；输入路线/点位转为“预测路径（文字）”。
+  引擎失败时只保留 LLM 对 input 的忠实整理，不阻塞草稿。当前不生成或发布 Analysis 图片，
+  后续 Massive API 从 provider/renderer 接点扩展。
+- Manager-facing 草稿编号改为 Signal `S-00001` / Analysis `A-00001` 独立顺序号。
+- `why_now`、输入/引擎点位来源与引擎观察单独归档，供未来 Model A 训练。
+- AXIS GEX Explorer 纯计算引擎已内置，默认不建频道、不自动发布。
 - Automated Gate B：PASS。
 
-Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到 OpenAI；0007 与代码
-已部署，`FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_COSMOS_STOCK_ANALYST_ENABLED=true`。
-第二条真实 Source 已原地刷新到 r2，明确输入预测路径被正确选择为 `SOURCE`，同一个 Discord
-审核 Message ID 已显示 CDN 托管图片。最终 Discord dry-run 为
-`REUSE=26 / CREATE=0 / UPDATE=0 / BLOCK=0`，服务器修改为 0。
+Live activation: Owner 已单独授权 `analysis-input` 文字和图片发送到 OpenAI；
+`FEATURE_ANALYSIS_ENABLED=true`、`FEATURE_AXIS_STOCK_ANALYST_ENABLED=true`。Source 原图仅作为
+内部解析证据；审核和发布只发文字卡。最终 Discord dry-run 为
+`REUSE=27 / CREATE=0 / UPDATE=0 / BLOCK=0`，服务器修改为 0。
 
 ## Stage 5 — Stabilization: PARTIAL
 

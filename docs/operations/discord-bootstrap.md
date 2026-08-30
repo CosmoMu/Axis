@@ -54,6 +54,9 @@ DRY_RUN=false
 完成后立即把 `.env` 恢复为 `APPLY_CHANGES=false`、`DRY_RUN=true`，并再次运行 dry-run。
 重复运行不应出现 `CREATE`；非项目资源不得出现在 `UPDATE` 或 `BLOCK` 的目标中。
 
+当前蓝图为 4 个 Category、20 个 Channel。`🧪・card-testing` 只对 Manager 可见并允许
+Manager/Bot 发言，用于测试卡片，不得把开发测试发送到会员正式频道。
+
 ## 品牌命名更新
 
 需要更新已登记的 AXIS Role、Category 或 Channel 名称时，先执行：

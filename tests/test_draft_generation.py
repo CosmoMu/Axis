@@ -134,6 +134,7 @@ async def test_generation_is_idempotent_and_applies_default_position(tmp_path: P
         assert first.disposition is DraftGenerationDisposition.CREATED
         assert second.disposition is DraftGenerationDisposition.EXISTING
         assert first.draft_code == second.draft_code
+        assert first.draft_code == "S-00001"
         assert fake_parser.calls == 1
         async with database.session() as session:
             draft = await session.scalar(select(TradeDraft))

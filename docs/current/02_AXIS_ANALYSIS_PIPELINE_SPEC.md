@@ -120,17 +120,19 @@ time_horizon
 title
 summary
 core_thesis
+why_now
 supporting_points
+engine_observations
 key_levels
 invalidation
 catalysts
 risks
 market_conditions
 related_symbols
-source_projection (internal media selection only)
+source_projection (internal route evidence + ordered path_points only)
 ```
 
-Ticker Analysis 额外保存当前 Cosmos Market Stock Analyst context。它来自截至当时的日 K、
+Ticker Analysis 额外保存当前 AXIS Stock Analyst context。它来自截至当时的 Moomoo 日 K、
 板块相对强度、结构价位、OHLCV 资金流代理和模型情景，不覆盖 Manager 原始 thesis。
 
 ## Public Card Snapshot
@@ -286,8 +288,9 @@ Manager input
 -> save Raw Source
 -> OpenAI API / ANALYSIS_PARSE
 -> Structured Output validation
--> Cosmos Market Stock Analyst context merge (single-ticker only)
--> choose explicit source forecast image; otherwise generate current Cosmos model-path chart
+-> AXIS Stock Analyst context merge (single-ticker only)
+-> convert explicit input route/levels to text
+-> if Stock Analyst fails, keep the LLM input interpretation only
 -> Analysis Draft
 -> 📝・analysis-review
 -> Manager chooses Mentor
@@ -298,7 +301,7 @@ Manager input
 Draft 示例：
 
 ```text
-待审核观点 · AN-D1042
+待审核观点 · A-00001
 
 类型
 标的观点
@@ -411,8 +414,8 @@ Manager 可重试发布。
 - 不写 Parser Confidence。
 - 不创建 Thread。
 - null 字段整段不显示。
-- 可附带一张已审核 Analysis visual：输入图已有明确未来预测路径时沿用该图，否则使用
-  本次 Cosmos Stock Analyst 生成图。不得公开 Source 元数据或未选中的原始附件。
+- 当前只发布文字卡；输入图只提供内部路径/点位证据，不得直接公开 Source 原图、Source
+  元数据或其他附件。
 
 例：
 
@@ -459,9 +462,11 @@ analysis_points
 analysis_publications
 ```
 
-`analysis_drafts` 额外保存 `cosmos_context_json`、图片来源（`SOURCE` / `COSMOS`）、
-Source Attachment 引用或 AXIS 本地生成图的 storage key + SHA-256。审核与发布从同一记录
-读取图片，重复 worker / retry 不创建第二张 Discord 卡片。
+`analysis_drafts` 额外保存 `market_context_json`、可选 Source Attachment 路径证据引用，以及
+历史图片兼容字段。当前 worker 不生成或发布图片；`SOURCE` / `COSMOS` 枚举只为旧 Draft
+兼容保留。`mentor_analyses.why_now_json`、
+`analysis_key_levels.source` 和 `analysis_points.source` 提供 Model A 训练 provenance。审核与
+发布从同一已批准 snapshot 读取文字，重复 worker / retry 不创建第二张 Discord 卡片。
 
 继续复用：
 
@@ -536,9 +541,14 @@ Technical Features
 [ ] Text Analysis -> Draft
 [ ] Image Analysis -> Draft
 [ ] Multiple Image Analysis -> Draft
-[ ] 明确输入预测路径 -> 审核与发布沿用该 Source 图片
-[ ] 无输入预测路径 -> 生成当前 Cosmos model-path 图片
-[ ] 不扫描或按 ticker 复用 Cosmos 历史图片
+[ ] 输入图预测路径 -> 提取路径/可读点位并生成文字预测路径
+[ ] 文字有序点位 -> 按输入顺序生成文字预测路径
+[ ] 只有输入路径形状 -> 保留方向顺序，LLM 不补数字
+[ ] Stock Analyst 成功 -> 合并当前文字结构观察
+[ ] Stock Analyst 失败 -> 只保留 LLM input 卡片
+[ ] Source 原图不直接进入审核或会员发布
+[ ] 归档区分 INPUT / AXIS_STOCK_ANALYST 点位和观察依据
+[ ] why_now 作为独立训练字段保存
 [ ] MARKET / TICKER / SECTOR / MACRO 均可处理
 [ ] 无明确方向时不会强行判断
 [ ] 无明确价格时不会编价格

@@ -38,18 +38,20 @@ from app.domain.enums import (
     SourceStatus,
 )
 from app.domain.public_cards import PublicAnalysisCard
-from app.integrations.cosmos_stock_analyst import (
-    CosmosStockAnalystClient,
-    CosmosStockAnalystError,
-    merge_cosmos_analysis,
-)
 from app.integrations.openai_analysis_parser import (
     AnalysisParseError,
     AnalysisParseResult,
     OpenAIAnalysisParser,
 )
 from app.integrations.openai_trade_parser import LlmInvocationTrace, ParserAttachment
+from app.market_intelligence.stock_analyst import (
+    AxisStockAnalystError,
+    AxisStockAnalystService,
+    merge_stock_analysis,
+    sanitize_input_analysis,
+)
 from app.services.attachment_storage import AttachmentStorageError, LocalAttachmentStore
+from app.services.input_codes import next_input_code
 
 
 class AnalysisError(RuntimeError):
@@ -109,7 +111,7 @@ class AnalysisMedia:
 @dataclass(frozen=True, slots=True)
 class AnalysisEnrichment:
     payload: dict[str, Any]
-    cosmos_context: dict[str, Any]
+    market_context: dict[str, Any]
     chart_source: str | None
     source_attachment_id: uuid.UUID | None
     generated_chart_png: bytes | None
@@ -129,14 +131,14 @@ class AnalysisPipelineService:
         parse_parser: OpenAIAnalysisParser,
         rewrite_parser: OpenAIAnalysisParser,
         schema: dict[str, Any],
-        cosmos_client: CosmosStockAnalystClient | None = None,
+        stock_analyst: AxisStockAnalystService | None = None,
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
         self.parse_parser = parse_parser
         self.rewrite_parser = rewrite_parser
         self.validator = Draft202012Validator(schema)
-        self.cosmos_client = cosmos_client
+        self.stock_analyst = stock_analyst
 
     async def process_next(self) -> AnalysisGenerationResult | None:
         async with self.database.session() as session:
@@ -437,6 +439,7 @@ class AnalysisPipelineService:
                 title=payload.get("title"),
                 summary=payload.get("summary"),
                 core_thesis=payload.get("core_thesis"),
+                why_now_json=list(payload.get("why_now", [])),
                 invalidation=payload.get("invalidation"),
                 sector=payload.get("sector"),
                 normalized_json=payload,
@@ -569,7 +572,7 @@ class AnalysisPipelineService:
         draft_id = uuid.uuid4()
         effective = enrichment or AnalysisEnrichment(
             payload=result.payload,
-            cosmos_context={},
+            market_context={},
             chart_source=None,
             source_attachment_id=None,
             generated_chart_png=None,
@@ -577,7 +580,7 @@ class AnalysisPipelineService:
         draft = AnalysisDraft(
             id=draft_id,
             guild_id=guild_id,
-            draft_code=f"AN-D-{uuid.uuid4().hex[:8].upper()}",
+            draft_code="A-PENDING",
             source_message_id=source_id,
             llm_invocation_id=invocation.id,
             status=(
@@ -586,7 +589,7 @@ class AnalysisPipelineService:
                 else AnalysisDraftStatus.PENDING_REVIEW.value
             ),
             normalized_json=effective.payload,
-            cosmos_context_json=effective.cosmos_context,
+            market_context_json=effective.market_context,
             missing_fields=list(effective.payload.get("missing_fields", [])),
             warnings=list(effective.payload.get("warnings", [])),
             parser_confidence=Decimal(str(effective.payload.get("confidence", 0))),
@@ -606,6 +609,7 @@ class AnalysisPipelineService:
             source = await session.get(SourceMessage, source_id)
             if source is None:
                 raise AnalysisValidationError("SOURCE_NOT_FOUND")
+            draft.draft_code = await next_input_code(session, guild_id, "ANALYSIS")
             source.status = SourceStatus.FAILED.value if failed else SourceStatus.PARSED.value
             session.add(invocation)
             # Flush the referenced row before inserting the draft that points to it.
@@ -633,9 +637,7 @@ class AnalysisPipelineService:
             )
             return list(rows.all())
 
-    async def _parser_attachments(
-        self, rows: list[SourceAttachment]
-    ) -> list[ParserAttachment]:
+    async def _parser_attachments(self, rows: list[SourceAttachment]) -> list[ParserAttachment]:
         output = []
         for row in rows:
             if row.storage_key is None or row.checksum_sha256 is None:
@@ -658,7 +660,7 @@ class AnalysisPipelineService:
         payload: dict[str, Any],
         attachment_rows: list[SourceAttachment],
     ) -> AnalysisEnrichment:
-        enriched = dict(payload)
+        enriched = sanitize_input_analysis(payload)
         warnings = list(enriched.get("warnings", []))
         source_attachment_id = None
         projection = enriched.get("source_projection")
@@ -670,10 +672,9 @@ class AnalysisPipelineService:
                 warnings.append("SOURCE_PROJECTION_ATTACHMENT_INVALID")
 
         context: dict[str, Any] = {}
-        generated_chart = None
         symbols = enriched.get("symbols")
         eligible = (
-            self.cosmos_client is not None
+            self.stock_analyst is not None
             and enriched.get("analysis_type") == AnalysisType.TICKER.value
             and isinstance(symbols, list)
             and len(symbols) == 1
@@ -681,36 +682,27 @@ class AnalysisPipelineService:
         )
         if eligible:
             try:
-                cosmos = await self.cosmos_client.query(  # type: ignore[union-attr]
-                    symbols[0], include_chart=source_attachment_id is None
+                result = await self.stock_analyst.query(  # type: ignore[union-attr]
+                    symbols[0],
+                    include_chart=False,
                 )
-                context = cosmos.context
-                enriched = merge_cosmos_analysis(enriched, context)
-                if source_attachment_id is None:
-                    generated_chart = cosmos.chart_png
-            except CosmosStockAnalystError:
-                warnings.append("COSMOS_STOCK_ANALYST_UNAVAILABLE")
+                context = result.context
+                enriched = merge_stock_analysis(enriched, context)
+            except AxisStockAnalystError:
+                warnings.append("AXIS_STOCK_ANALYST_UNAVAILABLE")
         warnings.extend(enriched.get("warnings", []))
         enriched["warnings"] = list(dict.fromkeys(warnings))
         return AnalysisEnrichment(
             payload=enriched,
-            cosmos_context=context,
-            chart_source=(
-                "SOURCE"
-                if source_attachment_id is not None
-                else "COSMOS"
-                if generated_chart is not None
-                else None
-            ),
+            market_context=context,
+            chart_source=None,
             source_attachment_id=source_attachment_id,
-            generated_chart_png=generated_chart,
+            generated_chart_png=None,
         )
 
-    async def _apply_enrichment(
-        self, draft: AnalysisDraft, enrichment: AnalysisEnrichment
-    ) -> None:
+    async def _apply_enrichment(self, draft: AnalysisDraft, enrichment: AnalysisEnrichment) -> None:
         draft.normalized_json = enrichment.payload
-        draft.cosmos_context_json = enrichment.cosmos_context
+        draft.market_context_json = enrichment.market_context
         draft.chart_source = enrichment.chart_source
         draft.chart_source_attachment_id = enrichment.source_attachment_id
         draft.chart_storage_key = None
@@ -835,6 +827,17 @@ class AnalysisPipelineService:
 
     @staticmethod
     def _public_card(analysis: MentorAnalysis, payload: dict[str, Any]) -> PublicAnalysisCard:
+        projection = payload.get("source_projection")
+        raw_path = projection.get("path_points") if isinstance(projection, dict) else []
+        projection_path = tuple(
+            {
+                "direction": item.get("direction"),
+                "price": item.get("price"),
+                "label": item.get("label"),
+            }
+            for item in raw_path
+            if isinstance(item, dict)
+        )
         return PublicAnalysisCard(
             analysis_code=analysis.analysis_code,
             analysis_type=payload["analysis_type"],
@@ -845,8 +848,11 @@ class AnalysisPipelineService:
             title=payload.get("title"),
             summary=payload.get("summary"),
             core_thesis=payload.get("core_thesis"),
+            why_now=tuple(payload.get("why_now", [])),
             supporting_points=tuple(payload.get("supporting_points", [])),
+            engine_observations=tuple(payload.get("engine_observations", [])),
             key_levels=tuple(payload.get("key_levels", [])),
+            projection_path=projection_path,
             invalidation=payload.get("invalidation"),
             catalysts=tuple(payload.get("catalysts", [])),
             risks=tuple(payload.get("risks", [])),
@@ -899,10 +905,13 @@ class AnalysisPipelineService:
                     level_type=level["level_type"],
                     price=level.get("price"),
                     note=level.get("note"),
+                    source=level.get("source", "INPUT"),
                 )
             )
         for point_type, key in (
+            ("WHY_NOW", "why_now"),
             ("SUPPORTING", "supporting_points"),
+            ("ENGINE_OBSERVATION", "engine_observations"),
             ("CATALYST", "catalysts"),
             ("RISK", "risks"),
             ("MARKET_CONDITION", "market_conditions"),
@@ -914,6 +923,7 @@ class AnalysisPipelineService:
                         point_type=point_type,
                         position=position,
                         content=content,
+                        source=("AXIS_STOCK_ANALYST" if key == "engine_observations" else "INPUT"),
                     )
                 )
 

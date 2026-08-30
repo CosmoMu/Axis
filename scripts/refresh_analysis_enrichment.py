@@ -16,13 +16,13 @@ from app.config import Settings  # noqa: E402
 from app.db.models import AnalysisDraft, SourceMessage  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import AnalysisDraftStatus, LlmWorkload, SourceKind  # noqa: E402
-from app.integrations.cosmos_stock_analyst import CosmosStockAnalystClient  # noqa: E402
 from app.integrations.model_router import ModelRouter  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
     load_analysis_prompt,
     load_analysis_schema,
 )
+from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 
@@ -54,8 +54,8 @@ async def refresh(message_id: int, settings_root: Path) -> int:
         }:
             print("Analysis refresh stopped: draft is immutable.", file=sys.stderr)
             return 2
-        if not settings.cosmos_stock_analyst_enabled:
-            print("Analysis refresh stopped: Cosmos Stock Analyst is disabled.", file=sys.stderr)
+        if not settings.axis_stock_analyst_enabled:
+            print("Analysis refresh stopped: AXIS Stock Analyst is disabled.", file=sys.stderr)
             return 2
 
         router = ModelRouter.load(
@@ -100,18 +100,15 @@ async def refresh(message_id: int, settings_root: Path) -> int:
             parsers[0],
             parsers[1],
             schema,
-            CosmosStockAnalystClient(
-                runtime_root=settings.cosmos_runtime_root,
-                bridge_script=PROJECT_ROOT / "scripts/query_cosmos_stock_analyst.py",
-                python_path=settings.cosmos_python_path,
-                timeout_seconds=settings.cosmos_query_timeout_seconds,
-                max_chart_bytes=settings.max_attachment_bytes,
+            AxisStockAnalystService(
+                host=settings.moomoo_host,
+                port=settings.moomoo_port,
             ),
         )
         updated = await service.rewrite(
             draft.id,
             "重新识别原始观点及图片是否画有明确的未来预测路径；保留原观点，并合并当前 "
-            "Cosmos Market Stock Analyst 数据。",
+            "AXIS Stock Analyst 数据，并单独保留为什么现在关注。",
             actor_user_id=source.submitted_by,
             interaction_id=None,
         )
@@ -130,15 +127,19 @@ async def refresh(message_id: int, settings_root: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Refresh one editable AXIS Analysis with current Cosmos context."
+        description="Refresh one editable Analysis with current AXIS Stock Analyst context."
     )
     parser.add_argument("--message-id", type=int, required=True)
     parser.add_argument("--settings-root", type=Path, default=PROJECT_ROOT)
     args = parser.parse_args()
     try:
         return asyncio.run(refresh(args.message_id, args.settings_root.resolve()))
-    except Exception:
-        print("Analysis refresh failed; sensitive details were omitted.", file=sys.stderr)
+    except Exception as exc:
+        print(
+            "Analysis refresh failed; sensitive details were omitted. "
+            f"error_type={type(exc).__name__}",
+            file=sys.stderr,
+        )
         return 2
 
 

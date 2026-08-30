@@ -502,7 +502,7 @@ parse_latency_ms
 内部 Draft Card 可显示：
 
 ```text
-待审核订单 · D-1042
+待审核订单 · S-00001
 
 识别操作
 第二次加仓

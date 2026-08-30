@@ -12,7 +12,9 @@
     "title",
     "summary",
     "core_thesis",
+    "why_now",
     "supporting_points",
+    "engine_observations",
     "key_levels",
     "invalidation",
     "catalysts",
@@ -90,7 +92,21 @@
       ],
       "maxLength": 3000
     },
+    "why_now": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
     "supporting_points": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "engine_observations": {
       "type": "array",
       "items": {
         "type": "string",
@@ -106,7 +122,8 @@
           "symbol",
           "level_type",
           "price",
-          "note"
+          "note",
+          "source"
         ],
         "properties": {
           "symbol": {
@@ -137,6 +154,13 @@
               "null"
             ],
             "maxLength": 500
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "INPUT",
+              "AXIS_STOCK_ANALYST"
+            ]
           }
         }
       }
@@ -183,7 +207,8 @@
       "required": [
         "present",
         "attachment_index",
-        "evidence"
+        "evidence",
+        "path_points"
       ],
       "properties": {
         "present": {
@@ -202,6 +227,56 @@
             "null"
           ],
           "maxLength": 300
+        },
+        "path_points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sequence",
+              "direction",
+              "price",
+              "label",
+              "source"
+            ],
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "START",
+                  "UP",
+                  "DOWN",
+                  "FLAT"
+                ]
+              },
+              "price": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "exclusiveMinimum": 0
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 80
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "TEXT",
+                  "IMAGE"
+                ]
+              }
+            }
+          }
         }
       }
     },

@@ -23,7 +23,6 @@ from app.config import ConfigurationError, Settings  # noqa: E402
 from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
-from app.integrations.cosmos_stock_analyst import CosmosStockAnalystClient  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
 from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
@@ -37,6 +36,7 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
     load_trade_prompt,
     load_trade_schema,
 )
+from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
@@ -141,15 +141,11 @@ async def run() -> None:
                     ),
                     analysis_schema,
                     (
-                        CosmosStockAnalystClient(
-                            runtime_root=settings.cosmos_runtime_root,
-                            bridge_script=PROJECT_ROOT
-                            / "scripts/query_cosmos_stock_analyst.py",
-                            python_path=settings.cosmos_python_path,
-                            timeout_seconds=settings.cosmos_query_timeout_seconds,
-                            max_chart_bytes=settings.max_attachment_bytes,
+                        AxisStockAnalystService(
+                            host=settings.moomoo_host,
+                            port=settings.moomoo_port,
                         )
-                        if settings.cosmos_stock_analyst_enabled
+                        if settings.axis_stock_analyst_enabled
                         else None
                     ),
                 )

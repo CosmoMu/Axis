@@ -27,6 +27,7 @@ def _deploy_runtime() -> None:
         dirs_exist_ok=True,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
+    (RUNTIME_ROOT / "app/integrations/cosmos_stock_analyst.py").unlink(missing_ok=True)
     runtime_venv = RUNTIME_ROOT / ".venv"
     source_venv = PROJECT_ROOT / ".venv"
     if not runtime_venv.exists():
@@ -52,10 +53,10 @@ def _deploy_runtime() -> None:
     (RUNTIME_ROOT / "config").mkdir(parents=True, exist_ok=True)
     for filename in (
         "run_bot.py",
-        "query_cosmos_stock_analyst.py",
         "refresh_analysis_enrichment.py",
     ):
         shutil.copy2(PROJECT_ROOT / "scripts" / filename, RUNTIME_ROOT / "scripts")
+    (RUNTIME_ROOT / "scripts/query_cosmos_stock_analyst.py").unlink(missing_ok=True)
     shutil.copy2(source_ids, RUNTIME_ROOT / "config" / "discord_ids.json")
     for filename in (
         "model_routing.yaml",

@@ -8,17 +8,20 @@
 - AXIS Role/Category/Channel 受控 rename；未知资源不修改。
 - macOS LaunchAgent `com.axis.bot`。
 - Manager-only `🤫・quiet-profits`。
+- Manager-only `🧪・card-testing`，用于测试卡片。
 
 ## Database
 
-- Alembic revisions `0001` 到 `0009`。
+- Alembic revisions `0001` 到 `0011`。
 - Signal、Trade、Mentor、Membership、Audit、Scheduled Job 基础表。
 - `trade_publications` 命名迁移保留原表数据。
 - `llm_invocations` 和 Trade Draft invocation 关联。
 - Publication claim / retry / finalize 状态和 Draft/Event 唯一约束。
 - Analysis Draft / Revision / immutable Archive / children / Publication 独立表。
 - Trade Moomoo option code cache、只读 quote snapshot 与 daily summary publication 表。
-- Analysis Cosmos context、Source/Cosmos chart provenance 与本地 checksum media storage。
+- Analysis Market Intelligence context、Source evidence 与历史 media 兼容字段。
+- Model A 训练字段：`why_now_json`、Analysis Point / Key Level source provenance。
+- `input_code_counters` 事务分配 Signal / Analysis 独立的短顺序号。
 
 ## Signal
 
@@ -67,9 +70,10 @@
 - MARKET / TICKER / SECTOR / MACRO 与禁止臆造事实/价格。
 - Raw / Normalized / Public Snapshot、模型、Prompt、Schema 完整 trace。
 - 无 Thread 的 Member Lounge Public Card 和失败重试。
-- 单 ticker 观点合并 Cosmos Market Stock Analyst 当前结构数据；输入已有明确预测线时
-  沿用输入图，否则生成 CosmosPilot 风格的当前模型情景图。
-- Analysis 审核卡与会员卡共用同一份 checksum 校验图片，不扫描 Cosmos 历史图片目录。
+- 单 ticker 观点合并 AXIS Stock Analyst 当前文字结构数据；输入已有预测路线/有序点位时转换为
+  “预测路径（文字）”。Stock Analyst 失败时使用 LLM input 卡片继续审核。
+- Analysis 审核卡与会员卡当前只发布文字；Source 原图只作内部解析证据。
+- `AXIS GEX Explorer` 纯计算引擎已内置，保留未来 Moomoo option chain / Discord 频道接点。
 
 ## Operations
 
@@ -84,7 +88,6 @@
 ## Security
 
 - Secret 不进入 Git 或日志。
-- Public DTO 排除 Mentor、Source 元数据、提交人和 Parser 信息；只允许 Manager 审核过的
-  单张 Analysis visual 随会员卡发布。
+- Public DTO 排除 Mentor、Source 元数据、提交人和 Parser 信息；当前 Analysis 不发布图片。
 - Manager 无 Discord Administrator / Manage Roles。
 - AXIS LAB 功能关闭；Moomoo 仅用于 Core 只读行情，不访问账户或交易接口。

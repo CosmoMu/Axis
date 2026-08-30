@@ -465,14 +465,11 @@ def build_plan(
                         "role_name",
                         role_spec.key,
                         role_spec.name,
-                        f"重命名已登记 AXIS Role：{saved_role.name!r} → "
-                        f"{role_spec.name!r}。",
+                        f"重命名已登记 AXIS Role：{saved_role.name!r} → {role_spec.name!r}。",
                         saved_role.id,
                     )
                 )
-                forbidden = sorted(
-                    {"administrator", "manage_roles"} & set(saved_role.permissions)
-                )
+                forbidden = sorted({"administrator", "manage_roles"} & set(saved_role.permissions))
                 if forbidden:
                     actions.append(
                         PlanAction(
@@ -804,10 +801,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 19:
-        warnings.append(
-            f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS v2.1 当前规格预期 19 个。"
-        )
+    if blueprint.channel_count != 20:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 20 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

@@ -23,6 +23,12 @@ def _parse_bool(name: str, default: bool) -> bool:
     raise ConfigurationError(f"{name} 必须是 true 或 false。")
 
 
+def _parse_bool_alias(name: str, legacy_name: str, default: bool) -> bool:
+    if os.getenv(name) is not None:
+        return _parse_bool(name, default)
+    return _parse_bool(legacy_name, default)
+
+
 def _parse_optional_int(name: str) -> int | None:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -82,13 +88,10 @@ class Settings:
     analysis_enabled: bool
     moomoo_enabled: bool
     daily_summary_enabled: bool
-    cosmos_stock_analyst_enabled: bool
+    axis_stock_analyst_enabled: bool
     moomoo_host: str
     moomoo_port: int
     daily_summary_time_et: str
-    cosmos_runtime_root: Path
-    cosmos_python_path: Path | None
-    cosmos_query_timeout_seconds: int
     blueprint_path: Path
     ids_path: Path
     report_path: Path
@@ -119,9 +122,7 @@ class Settings:
         ids_value = os.getenv("DISCORD_IDS_PATH", "config/discord_ids.json")
         report_value = os.getenv("DISCORD_DRY_RUN_REPORT", "var/discord/dry-run.json")
         attachment_value = os.getenv("ATTACHMENT_STORAGE_PATH", "var/attachments")
-        llm_routing_value = os.getenv(
-            "LLM_ROUTING_CONFIG", "config/model_routing.yaml"
-        )
+        llm_routing_value = os.getenv("LLM_ROUTING_CONFIG", "config/model_routing.yaml")
         llm_prompt_value = os.getenv("LLM_PROMPT_PATH", "config/llm_trade_prompt.txt")
         llm_analysis_prompt_value = os.getenv(
             "LLM_ANALYSIS_PROMPT_PATH", "config/llm_analysis_prompt.txt"
@@ -143,34 +144,19 @@ class Settings:
             analysis_enabled=_parse_bool("FEATURE_ANALYSIS_ENABLED", False),
             moomoo_enabled=_parse_bool("FEATURE_MOOMOO_ENABLED", False),
             daily_summary_enabled=_parse_bool("FEATURE_DAILY_SUMMARY_ENABLED", True),
-            cosmos_stock_analyst_enabled=_parse_bool(
-                "FEATURE_COSMOS_STOCK_ANALYST_ENABLED", False
+            axis_stock_analyst_enabled=_parse_bool_alias(
+                "FEATURE_AXIS_STOCK_ANALYST_ENABLED",
+                "FEATURE_COSMOS_STOCK_ANALYST_ENABLED",
+                False,
             ),
-            moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip()
-            or "127.0.0.1",
+            moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip() or "127.0.0.1",
             moomoo_port=_parse_positive_int("MOOMOO_OPEND_PORT", 11111),
             daily_summary_time_et=_parse_time_hhmm("DAILY_SUMMARY_TIME_ET", "16:15"),
-            cosmos_runtime_root=Path(
-                os.getenv(
-                    "COSMOS_RUNTIME_ROOT",
-                    str(Path.home() / "Library/Application Support/CosmosPilot"),
-                )
-            ).expanduser().resolve(),
-            cosmos_python_path=(
-                Path(value).expanduser().resolve()
-                if (value := os.getenv("COSMOS_PYTHON_PATH", "").strip())
-                else None
-            ),
-            cosmos_query_timeout_seconds=_parse_positive_int(
-                "COSMOS_QUERY_TIMEOUT_SECONDS", 180
-            ),
             blueprint_path=root / "config" / "discord_blueprint.yaml",
             ids_path=(root / ids_value).resolve(),
             report_path=(root / report_value).resolve(),
             attachment_storage_path=(root / attachment_value).resolve(),
-            max_attachment_bytes=_parse_positive_int(
-                "MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
-            ),
+            max_attachment_bytes=_parse_positive_int("MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024),
             llm_provider=os.getenv("LLM_PROVIDER", "openai").strip().lower(),
             openai_api_key=preferred_openai_key or legacy_openai_key,
             llm_routing_path=(root / llm_routing_value).resolve(),
@@ -179,9 +165,7 @@ class Settings:
             llm_signal_repair_model_override=(
                 os.getenv("LLM_SIGNAL_REPAIR_MODEL", "").strip() or None
             ),
-            llm_analysis_model_override=(
-                os.getenv("LLM_ANALYSIS_MODEL", "").strip() or None
-            ),
+            llm_analysis_model_override=(os.getenv("LLM_ANALYSIS_MODEL", "").strip() or None),
             llm_analysis_rewrite_model_override=(
                 os.getenv("LLM_ANALYSIS_REWRITE_MODEL", "").strip() or None
             ),
