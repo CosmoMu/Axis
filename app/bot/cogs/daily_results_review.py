@@ -91,6 +91,15 @@ class DailyResultsReviewCog(commands.Cog):
     @results_loop.before_loop
     async def before_results_loop(self) -> None:
         await self.bot.wait_until_ready()
+        try:
+            latest_review_id = await self.service.latest_review_id(self.guild_id)
+            if latest_review_id is not None:
+                await self.ensure_review_message(latest_review_id)
+        except Exception as exc:
+            logger.warning(
+                "event=latest_results_review_restore_failed error_type=%s",
+                type(exc).__name__,
+            )
 
     async def ensure_review_message(self, review_id: uuid.UUID) -> None:
         review = await self.service.get_review(review_id)

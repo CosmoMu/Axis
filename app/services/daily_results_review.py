@@ -119,6 +119,7 @@ def _display_line(item: DailyResultsItem) -> str:
     if item.category == TradeCategory.SHORT_TERM.value:
         side = "C" if payload["option_side"] == "CALL" else "P"
         return (
+            f"{payload['public_trade_id']} · "
             f"{payload['ticker']} {_number(payload['strike'])}{side} "
             f"{_percent(item.display_result_pct)}"
         )
@@ -394,6 +395,18 @@ class DailyResultsReviewService:
                 .order_by(DailyResultsReview.trading_date)
             )
             return tuple(rows)
+
+    async def latest_review_id(self, guild_id: int) -> uuid.UUID | None:
+        async with self.database.session() as session:
+            return await session.scalar(
+                select(DailyResultsReview.id)
+                .where(DailyResultsReview.guild_id == guild_id)
+                .order_by(
+                    DailyResultsReview.trading_date.desc(),
+                    DailyResultsReview.created_at.desc(),
+                )
+                .limit(1)
+            )
 
     async def due_review_ids(self, guild_id: int, now: datetime) -> tuple[uuid.UUID, ...]:
         current = now if now.tzinfo is not None else now.replace(tzinfo=UTC)

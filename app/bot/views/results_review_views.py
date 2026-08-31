@@ -25,7 +25,6 @@ class ResultsReviewView(discord.ui.View):
         self.review_id = review_id
         definitions = (
             ("MANAGE TRADES", "manage", discord.ButtonStyle.secondary, self.manage, False),
-            ("EDIT CARD", "edit", discord.ButtonStyle.secondary, self.edit, locked),
             ("PREVIEW", "preview", discord.ButtonStyle.primary, self.preview, False),
             ("PUBLISH NOW", "publish", discord.ButtonStyle.success, self.publish, locked),
         )
@@ -41,9 +40,6 @@ class ResultsReviewView(discord.ui.View):
 
     async def manage(self, interaction: discord.Interaction) -> None:
         await self.controller.open_manage(interaction, self.review_id)
-
-    async def edit(self, interaction: discord.Interaction) -> None:
-        await self.controller.open_edit_card(interaction, self.review_id)
 
     async def preview(self, interaction: discord.Interaction) -> None:
         await self.controller.show_preview(interaction, self.review_id)

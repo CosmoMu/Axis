@@ -48,8 +48,8 @@ behavior not named here remains unchanged.
 - Results publishes one `AXIS DAILY RESULTS` card with SHORT-TERM, SWING, and LEAPS sections.
 - Every Short-Term trade displays that trading day's `highest_return_pct`, whether it stopped that
   day or remains under tracking. Current return and tracking-end return stay internal.
-- Short-Term result lines contain only the option code and return, for example
-  `MU 970C +52.94%`; public `ST-XXXX` IDs and LOTTO labels are omitted from this section.
+- Short-Term result lines contain the order ID, option code, and return, for example
+  `ST-0001 · MU 970C +52.94%`; LOTTO labels are omitted from this section.
 - Closed Swing/LEAPS trades list realized TP event returns in numeric TP order and the highest
   recorded return. An SL close lists SL return and highest return.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are
@@ -61,8 +61,8 @@ behavior not named here remains unchanged.
   Close 使用当日真实 close time。
 - Eligible Items 包含当天 STOPPED Short-Term、收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的全部
   Short-Term，以及当天 CLOSED Swing / LEAPS，默认全部 Included；Loss Trade 不自动隐藏。
-- `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、EDIT CARD、
-  PREVIEW 与 PUBLISH NOW。
+- `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、PREVIEW
+  与 PUBLISH NOW；不显示 EDIT CARD。
 - Exclude / Re-Include 只改变当天公开快照，保存 actor、time、reason 与 before/after Audit，
   永不删除 Trade、Event、Tracking、Mentor Dataset 或内部历史。
 - 普通 Edit 只修改 Public Display。收益纠错必须走 Correct Result，保存 original、corrected、
