@@ -48,8 +48,8 @@ behavior not named here remains unchanged.
 - Results publishes one `AXIS DAILY RESULTS` card with SHORT-TERM, SWING, and LEAPS sections.
 - Every Short-Term trade displays that trading day's `highest_return_pct`, whether it stopped that
   day or remains under tracking. Current return and tracking-end return stay internal.
-- Short-Term result lines contain the order ID, option code, and return, for example
-  `ST-0001 · MU 970C +52.94%`; LOTTO labels are omitted from this section.
+- Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
+  `ST-0001 · MU 08/31 970C +52.94%`; LOTTO labels are omitted from this section.
 - Closed Swing/LEAPS trades list realized TP event returns in numeric TP order and the highest
   recorded return. An SL close lists SL return and highest return.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are

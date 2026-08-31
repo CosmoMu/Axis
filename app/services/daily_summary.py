@@ -234,6 +234,8 @@ def _serialize_results(card: DailyResultsCard) -> dict[str, Any]:
         for key, value in asdict(item).items():
             if isinstance(value, Decimal):
                 output[key] = str(value)
+            elif isinstance(value, date):
+                output[key] = value.isoformat()
             elif key == "tp_returns":
                 output[key] = [[label, str(return_pct)] for label, return_pct in value]
             else:
@@ -256,6 +258,11 @@ def _deserialize_results(payload: dict[str, Any]) -> DailyResultsCard:
                 ticker=str(item["ticker"]),
                 strike=Decimal(str(item["strike"])),
                 option_side=str(item["option_side"]),
+                expiry=(
+                    date.fromisoformat(str(item["expiry"]))
+                    if item.get("expiry")
+                    else None
+                ),
                 tracking_end_return_pct=_optional_decimal(item.get("tracking_end_return_pct")),
                 maximum_return_pct=_optional_decimal(item.get("maximum_return_pct")),
                 maximum_drawdown_pct=_optional_decimal(item.get("maximum_drawdown_pct")),
@@ -604,6 +611,7 @@ class DailySummaryService:
                             ticker=row.ticker,
                             strike=row.strike,
                             option_side=row.option_side,
+                            expiry=row.expiry,
                             tracking_end_return_pct=row.tracking_end_return_pct,
                             maximum_return_pct=row.highest_return_pct,
                             maximum_drawdown_pct=row.lowest_return_pct,

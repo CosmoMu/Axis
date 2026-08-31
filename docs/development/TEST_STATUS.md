@@ -78,7 +78,8 @@ Short-Term:
 - Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
-- 极简 Daily Results 的全量 Short-Term 当天 highest-return、ST 订单号、TP 顺序和幂等。
+- 极简 Daily Results 的全量 Short-Term 当天 highest-return、ST 订单号、Ticker、到期日、
+  TP 顺序和幂等。
 
 Daily Results Review:
 

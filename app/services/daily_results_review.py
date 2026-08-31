@@ -111,16 +111,35 @@ def _contract(payload: dict[str, object]) -> str:
     return f"{payload['ticker']} {_number(payload['strike'])}{side}{lotto}"
 
 
+def _short_term_result_contract(payload: dict[str, object]) -> str:
+    side = "C" if payload["option_side"] == "CALL" else "P"
+    expiry_value = payload.get("expiry")
+    expiry = ""
+    if expiry_value:
+        try:
+            expiry = date.fromisoformat(str(expiry_value)).strftime("%m/%d")
+        except ValueError:
+            expiry = ""
+    return " ".join(
+        part
+        for part in (
+            str(payload["ticker"]),
+            expiry,
+            f"{_number(payload['strike'])}{side}",
+        )
+        if part
+    )
+
+
 def _display_line(item: DailyResultsItem) -> str:
     if item.display_text_override:
         return item.display_text_override.strip()
     payload = item.snapshot_json
     head = f"{payload['public_trade_id']} · {_contract(payload)}"
     if item.category == TradeCategory.SHORT_TERM.value:
-        side = "C" if payload["option_side"] == "CALL" else "P"
         return (
             f"{payload['public_trade_id']} · "
-            f"{payload['ticker']} {_number(payload['strike'])}{side} "
+            f"{_short_term_result_contract(payload)} "
             f"{_percent(item.display_result_pct)}"
         )
     corrected = item.original_result_pct is not None
@@ -704,6 +723,7 @@ class DailyResultsReviewService:
         return {
             "public_trade_id": trade.public_trade_id,
             "ticker": trade.ticker,
+            "expiry": trade.expiry.isoformat(),
             "strike": str(trade.strike),
             "option_side": trade.option_side,
             "is_lotto": trade.is_lotto,

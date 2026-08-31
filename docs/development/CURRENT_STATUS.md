@@ -116,7 +116,7 @@ Implemented:
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」。
 - Results：当天停止与收盘时仍在追踪的全部 Short-Term 一并进入 Review；所有 Short-Term
   统一显示当天 highest return。公开行只保留类似
-  `ST-0001 · MU 970C +52.94%` 的订单号、合约代码与收益率。
+  `ST-0001 · MU 08/31 970C +52.94%` 的订单号、Ticker、到期日、合约代码与收益率。
 
 Remaining: 完成真实 Massive quote、TP、reversal/protection、Discord 事件、重启恢复和
 Daily Results E2E。

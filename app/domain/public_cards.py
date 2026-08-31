@@ -104,6 +104,7 @@ class DailyResultRow:
     ticker: str
     strike: Decimal
     option_side: str
+    expiry: date | None = None
     tracking_end_return_pct: Decimal | None = None
     maximum_return_pct: Decimal | None = None
     maximum_drawdown_pct: Decimal | None = None

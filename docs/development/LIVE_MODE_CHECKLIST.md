@@ -20,7 +20,8 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [ ] Overnight 规则与下一交易日恢复已验证。
 - [ ] Discord Entry / TP / 停止追踪与数据库状态一致，Short-Term 无 Active Button。
 - [ ] Short-Term 不发 Daily Summary；官方 Results 同时包含今日停止与仍在追踪的 Short-Term，
-  且公开行显示 ST 订单号、合约代码和收益率；Swing / LEAPS Summary 与官方 Results 已验证。
+  且公开行显示 ST 订单号、Ticker、到期日、合约代码和收益率；Swing / LEAPS Summary 与官方
+  Results 已验证。
 - [ ] Bot 重启恢复 tracking，且不重复 event / publication。
 - [ ] Massive 故障和恢复能够产生去重 WARNING/ERROR 与 RECOVERY。
 

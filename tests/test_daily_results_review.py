@@ -239,8 +239,8 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
         assert short_active.display_result_pct == Decimal("20.0000")
         rendered = str(first.snapshot)
-        assert "ST-0001 · NVDA 200C +136%" in rendered
-        assert "ST-0002 · QQQ 714C +20%" in rendered
+        assert "ST-0001 · NVDA 08/28 200C +136%" in rendered
+        assert "ST-0002 · QQQ 08/28 714C +20%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
         async with database.session() as session:
             assert await session.scalar(select(func.count()).select_from(DailyResultsReview)) == 1
@@ -291,7 +291,7 @@ async def test_display_edit_and_result_correction_do_not_modify_trade() -> None:
         item = next(item for item in review.items if item.public_trade_id == "ST-0001")
         await service.edit_item_display(
             item.id,
-            display_text="ST-0001 · NVDA 200C +140%",
+            display_text="ST-0001 · NVDA 08/28 200C +140%",
             actor_user_id=99,
         )
         await service.correct_result(
@@ -406,14 +406,14 @@ def test_results_review_view_and_public_card_are_minimal() -> None:
         "title": "AXIS DAILY RESULTS",
         "trading_date": "2026-08-28",
         "sections": [
-            {"label": "SHORT-TERM", "lines": ["ST-0001 · NVDA 200C +136%"]},
+            {"label": "SHORT-TERM", "lines": ["ST-0001 · NVDA 08/28 200C +136%"]},
             {"label": "SWING", "lines": []},
             {"label": "LEAPS", "lines": []},
         ],
         "footer": "Past performance does not guarantee future results.",
     }
     rendered = str(build_daily_results_snapshot_embed(snapshot, review=False).to_dict())
-    assert "ST-0001 · NVDA 200C +136%" in rendered
+    assert "ST-0001 · NVDA 08/28 200C +136%" in rendered
     assert "Past performance does not guarantee future results." in rendered
     for forbidden in ("Win Rate", "Closed Count", "Winner Count", "Average Return"):
         assert forbidden not in rendered

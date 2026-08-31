@@ -605,8 +605,10 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
                 f"{'C' if row.option_side == 'CALL' else 'P'}{lotto}"
             )
             if label == "SHORT-TERM":
+                expiry = row.expiry.strftime("%m/%d") if row.expiry is not None else ""
                 lines.append(
-                    f"{row.public_trade_id} · {row.ticker} {_number(row.strike)}"
+                    f"{row.public_trade_id} · {row.ticker} "
+                    f"{expiry + ' ' if expiry else ''}{_number(row.strike)}"
                     f"{'C' if row.option_side == 'CALL' else 'P'} "
                     f"{_percent(row.displayed_result_pct)}"
                 )
