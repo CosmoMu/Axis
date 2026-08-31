@@ -11,7 +11,7 @@
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS
 - Database verifier: PASS
-- Discord runtime verifier: FAIL — `public_wins_send` permission drift；apply 被 Discord 403 拒绝
+- Discord runtime verifier: PASS
 - Analysis Fusion verifier: PASS
 - Stripe Test setup verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe Test external E2E verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
@@ -140,9 +140,9 @@ Feature flags:
 
 Discord:
 
-- discord_runtime=FAIL（唯一失败 `public_wins_send`）
-- Bootstrap dry-run=REUSE 29 / UPDATE 1 / CREATE 0 / BLOCK 0；目标更新仅为 member-wins
-  `@everyone` send/attach deny；apply 因 Bot 权限不足未写入。
+- discord_runtime=PASS
+- Bootstrap dry-run=REUSE 29 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
+- Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent
 - owner test commands=13

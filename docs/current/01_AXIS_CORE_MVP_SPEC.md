@@ -107,7 +107,8 @@ Member
 - `subscriptions`：所有人只读，Bot 发布收费链接 / 管理订阅入口。
 - `results`：所有人只读，Bot 发布官方战绩。
 - `lobby`：所有人可聊天。
-- `member-wins`：默认所有人可查看；只有 Member 可发言 / 上传，Manager 可管理。
+- `member-wins`：所有人可查看、发言和上传战绩截图；Manager 可管理。该频道内容不进入 AXIS
+  官方 Results。
 
 ## MEMBERS
 

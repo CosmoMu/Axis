@@ -76,7 +76,8 @@ categories:
         type: text
         topic: "Member-submitted trades; excluded from official AXIS performance statistics."
         everyone_view: true
-        everyone_send: false
+        everyone_send: true
+        everyone_attach: true
         member_send: true
         member_attach: true
         manager_send: true

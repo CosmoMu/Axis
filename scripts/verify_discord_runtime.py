@@ -119,8 +119,13 @@ async def verify() -> list[str]:
         _check(lobby.permissions_for(everyone).send_messages, "public_lobby_send", failures)
         _check(member_wins.permissions_for(everyone).view_channel, "public_wins_view", failures)
         _check(
-            not member_wins.permissions_for(everyone).send_messages,
+            member_wins.permissions_for(everyone).send_messages,
             "public_wins_send",
+            failures,
+        )
+        _check(
+            member_wins.permissions_for(everyone).attach_files,
+            "public_wins_attach",
             failures,
         )
         _check(member_wins.permissions_for(member).send_messages, "member_wins_send", failures)

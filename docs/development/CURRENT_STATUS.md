@@ -49,9 +49,8 @@ Remaining: 生产故障演练与长期运行观测。
 
 Tests: Blueprint、权限矩阵、unknown-resource safety、重启恢复和只读 runtime verifier。
 
-Production status: Bot 正在目标 Guild 运行。2026-08-31 只读验证发现唯一权限漂移：
-`member-wins` 的 `@everyone` 可发消息/附件；严格 Bootstrap apply 被 Discord 403 拒绝，未发生
-写入。需要 Owner 临时授权或在 UI 手动修复后复验。
+Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最新规则向所有人开放发言
+和截图上传；服务器现状已符合 Blueprint，不需要 Discord 写入。
 
 ## Signal Pipeline — COMPLETE
 

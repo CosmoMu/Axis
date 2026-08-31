@@ -129,6 +129,8 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     manager_lounge = desired_channel_permissions(channels["manager_lounge"])
     card_testing = desired_channel_permissions(channels["card_testing"])
     system_alerts = desired_channel_permissions(channels["system_alerts"])
+    assert member_wins["everyone"]["send_messages"] is True
+    assert member_wins["everyone"]["attach_files"] is True
     assert member_wins["member"]["attach_files"] is True
     assert member_wins["manager"]["manage_messages"] is True
     assert member_wins["bot"]["pin_messages"] is True

@@ -42,18 +42,6 @@ payment 有历史成功证据，但以下 Live 条件未完成：
 当前 `STRIPE_ENABLED=false`、`PAYMENTS_ENABLED=false`，旧 Test listener 已禁用。在 Live
 Checklist 全部签字前不得切换为 Live billing。
 
-## P1 — member-wins 权限漂移需要人工授权修复
-
-2026-08-31 只读 Discord verifier 和 Bootstrap dry-run 确认唯一漂移：`🏆・member-wins` 的
-`@everyone` 实际可发消息/附件，而 Blueprint 要求 `send=false / attach=false`，Member 仍可发。
-Bootstrap apply 被 Discord 403 拒绝，AXIS BOT 当前缺少修改该 overwrite 的权限。没有创建、
-删除、移动或重命名资源，也没有发生部分写入。
-
-下一步由 Server Owner 临时授予 Bot 足够的 Manage Channels 权限后重跑严格 Bootstrap，或在
-Discord UI 手动把该频道 `@everyone` 的 Send Messages / Attach Files 设为 deny，再运行
-`scripts/verify_discord_runtime.py`。此问题与 Stripe 代码无关，但当前 Discord runtime verifier
-不能标记 PASS。
-
 ## P1 — Production backup / restore 不完整
 
 本地已有经过 pg_restore --list 验证的 custom-format backup，但没有 off-host 备份证明，

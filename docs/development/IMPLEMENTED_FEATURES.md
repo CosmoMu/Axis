@@ -127,6 +127,7 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 ## GENERAL
 
 - Welcome、Membership、Results、Member Wins 和 Lobby Topic。
+- Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。
 - 公开 Membership 卡片使用数据库 Price Catalog。
 - Member Wins 与官方 Results 隔离。
