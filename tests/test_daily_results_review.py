@@ -236,10 +236,10 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         short = next(item for item in first.items if item.public_trade_id == "ST-0001")
         assert short.display_result_pct == Decimal("136.0000")
         short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
-        assert short_active.display_result_pct == Decimal("12.0000")
+        assert short_active.display_result_pct == Decimal("20.0000")
         rendered = str(first.snapshot)
         assert "NVDA 200C +136%" in rendered
-        assert "QQQ 714C +12%" in rendered
+        assert "QQQ 714C +20%" in rendered
         assert "ST-0001" not in rendered
         assert "ST-0002" not in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered

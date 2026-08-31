@@ -114,8 +114,8 @@ Implemented:
 - Tracking Stop。
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」。
-- Results：当天停止与收盘时仍在追踪的全部 Short-Term 一并进入 Review；停止订单显示既有
-  highest / tracking-end 结果，仍在追踪订单显示 current return。公开行只保留类似
+- Results：当天停止与收盘时仍在追踪的全部 Short-Term 一并进入 Review；所有 Short-Term
+  统一显示当天 highest return。公开行只保留类似
   `MU 970C +52.94%` 的合约代码与收益率，不显示 ST 订单号。
 
 Remaining: 完成真实 Massive quote、TP、reversal/protection、Discord 事件、重启恢复和

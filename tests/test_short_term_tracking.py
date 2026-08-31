@@ -344,7 +344,7 @@ async def test_overnight_gap_publishes_stop_and_enters_next_daily_results() -> N
 
 
 @pytest.mark.asyncio
-async def test_daily_result_uses_tracking_end_when_no_tp_was_triggered() -> None:
+async def test_daily_result_uses_daily_high_even_when_no_tp_was_triggered() -> None:
     database, service, tracking = await registered_service()
     at = datetime(2026, 8, 28, 18, 0, tzinfo=UTC)
     try:
@@ -357,6 +357,6 @@ async def test_daily_result_uses_tracking_end_when_no_tp_was_triggered() -> None
         row = claim.card.short_term[0]
         assert row.tracking_end_return_pct == Decimal("-51.0000")
         assert row.maximum_return_pct == Decimal("0.0000")
-        assert row.displayed_result_pct == Decimal("-51.0000")
+        assert row.displayed_result_pct == Decimal("0.0000")
     finally:
         await database.dispose()

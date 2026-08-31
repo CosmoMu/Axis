@@ -262,22 +262,12 @@ class DailyResultsReviewService:
                 await session.flush()
                 order = 0
                 for tracking, trade in tracking_rows:
-                    has_tp = bool(tracking.tp_levels_hit or tracking.momentum_tp_events)
-                    displayed = (
-                        tracking.current_return_pct
-                        if tracking.tracking_state in ACTIVE_SHORT_TERM_STATES
-                        else (
-                            tracking.highest_return_pct
-                            if has_tp
-                            else tracking.tracking_end_return_pct
-                        )
-                    )
                     session.add(
                         DailyResultsItem(
                             review_id=review.id,
                             trade_id=trade.id,
                             category=TradeCategory.SHORT_TERM.value,
-                            display_result_pct=displayed,
+                            display_result_pct=tracking.highest_return_pct,
                             included=True,
                             display_order=order,
                             snapshot_json=self._trade_payload(trade),

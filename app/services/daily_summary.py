@@ -596,14 +596,8 @@ class DailySummaryService:
                     )
                 )
             if not self.results_review_enabled and results_existing is None:
-                tracking_by_public_id = {
-                    trade.public_trade_id: tracking for tracking, trade in tracking_rows
-                }
                 short_result_rows = []
                 for row in short_term_rows:
-                    tracking = tracking_by_public_id[row.public_trade_id]
-                    has_take_profit = bool(tracking.tp_levels_hit or tracking.momentum_tp_events)
-                    is_active = tracking.tracking_state in {"ACTIVE", "OVERNIGHT_ACTIVE"}
                     short_result_rows.append(
                         DailyResultRow(
                             public_trade_id=row.public_trade_id,
@@ -613,15 +607,7 @@ class DailySummaryService:
                             tracking_end_return_pct=row.tracking_end_return_pct,
                             maximum_return_pct=row.highest_return_pct,
                             maximum_drawdown_pct=row.lowest_return_pct,
-                            displayed_result_pct=(
-                                row.current_return_pct
-                                if is_active
-                                else (
-                                    row.highest_return_pct
-                                    if has_take_profit
-                                    else row.tracking_end_return_pct
-                                )
-                            ),
+                            displayed_result_pct=row.highest_return_pct,
                             is_lotto=row.is_lotto,
                         )
                     )

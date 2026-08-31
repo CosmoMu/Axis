@@ -114,7 +114,7 @@ Protection、Momentum、Overnight 或 price-source policy，不在 Production �
 - [ ] Exclude 只改变 Public Daily Results；Trade、Event、Mentor、Tracking、Audit 全部保留。
 - [ ] Publish Now 与 `16:15 ET` Scheduled Publish 不重复。
 - [ ] Final Snapshot 与 Discord Message ID 保存。
-- [ ] Short-Term 使用 highest-if-TP / tracking-end-if-no-TP。
+- [ ] 全部 Short-Term Results 使用当天 highest return。
 - [ ] Swing / LEAPS 显示 TP / SL 与最高收益，不显示 Daily Totals。
 
 ## Category Daily Summary
@@ -152,4 +152,3 @@ Stripe、Free Trial、Day Pass、Monthly、Member Role、Grandfather Pricing、C
 Membership Controls 和 Payment E2E 只能在白天 Gate 完成后，作为独立工作流开始。白天证据不
 完整时不提前混入 Payment；晚上开始前仍需读取当时实际状态，不把历史 Test payment 当成新的
 Live acceptance。
-
