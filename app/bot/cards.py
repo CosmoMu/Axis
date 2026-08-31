@@ -140,6 +140,21 @@ def _draft_entry_price(draft: ReviewDraft) -> Decimal | None:
     return draft.entry_low if draft.entry_low is not None else draft.entry_high
 
 
+def _review_warning(warning: str) -> str:
+    return {
+        "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE": (
+            "行情补全：输入未识别到入场价，已填入当前期权参考价，请审核。"
+        ),
+        "CURRENT_OPTION_QUOTE_UNAVAILABLE": (
+            "行情补全失败：当前期权参考价不可用，请手动填写。"
+        ),
+    }.get(warning, warning)
+
+
+def _review_warnings(warnings: tuple[str, ...]) -> str:
+    return "\n".join(_review_warning(warning) for warning in warnings)[:1024]
+
+
 def build_review_embed(draft: ReviewDraft) -> discord.Embed:
     if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
         return build_short_term_review_embed(draft)
@@ -199,7 +214,7 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
         review_lines.append("缺失：" + "、".join(missing))
     embed.add_field(name="审核", value="\n".join(review_lines), inline=False)
     if draft.warnings:
-        embed.add_field(name="解析警告", value="\n".join(draft.warnings)[:1024], inline=False)
+        embed.add_field(name="解析警告", value=_review_warnings(draft.warnings), inline=False)
     if draft.expiry_input:
         embed.add_field(
             name="Internal · Expiry Resolution",
@@ -259,7 +274,7 @@ def build_short_term_review_embed(draft: ReviewDraft) -> discord.Embed:
             inline=False,
         )
     if draft.warnings:
-        embed.add_field(name="Warnings", value="\n".join(draft.warnings)[:1024], inline=False)
+        embed.add_field(name="Warnings", value=_review_warnings(draft.warnings), inline=False)
     embed.set_footer(text=f"AXIS Signal · {draft.draft_code} · v{draft.version}")
     return embed
 

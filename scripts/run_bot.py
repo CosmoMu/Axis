@@ -152,6 +152,7 @@ async def run() -> None:
                 attachment_store,
                 parser,
                 contract_resolver,
+                massive_provider,
             )
             if settings.analysis_enabled:
                 analysis_parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)

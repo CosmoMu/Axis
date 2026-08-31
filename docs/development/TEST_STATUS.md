@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 208 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 211 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -55,6 +55,8 @@ Signal / Trade:
 
 - Text、image、multi-image、Discord forward、真实文件签名和拒绝输入审计。
 - Structured Output、router、invocation trace、missing fields 和 failure draft。
+- 新建 ENTRY 完全缺价时使用已验证合约的当前 Massive 期权参考价补入 Review；报价失败保留
+  可编辑草稿；任何已识别输入价格绝不被覆盖；内部保存 price source 与行情时间戳。
 - S-00001 / A-00001 counter、Category/Mentor/Trade select、modal edit 和并发版本。
 - Publication claim / retry / finalize、单 Draft 单 Event 和 Public DTO 防泄漏。
 - Swing / LEAPS Entry / Add / TP / SL / Runner / Close、category-scoped Active View 和

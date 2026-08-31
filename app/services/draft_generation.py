@@ -20,6 +20,7 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, SourceKind, SourceStatus
+from app.integrations.massive_market_data import MarketDataProvider, MarketPriceRequest
 from app.integrations.openai_trade_parser import (
     LlmInvocationTrace,
     ParserAttachment,
@@ -257,11 +258,13 @@ class DraftGenerationService:
         attachment_store: LocalAttachmentStore,
         parser: TradeParser,
         contract_resolver: OptionContractResolver | None = None,
+        market_data_provider: MarketDataProvider | None = None,
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
         self.parser = parser
         self.contract_resolver = contract_resolver
+        self.market_data_provider = market_data_provider
 
     async def process_next(self) -> DraftGenerationResult | None:
         async with self.database.session() as session:
@@ -316,6 +319,7 @@ class DraftGenerationService:
             payload = dict(parse_result.payload)
             _prepare_signal_payload(payload, source_snapshot[1])
             await self._resolve_expiry(payload)
+            await self._fill_missing_entry_price(payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)
             return await self._persist_success(
@@ -367,6 +371,70 @@ class DraftGenerationService:
             )
         )
         _apply_expiry_resolution(payload, result)
+
+    async def _fill_missing_entry_price(self, payload: dict[str, Any]) -> None:
+        """Fill a completely missing ENTRY premium from a validated live option quote."""
+
+        if self.market_data_provider is None:
+            return
+        if payload.get("intent") != "NEW_TRADE" or payload.get("action") != "ENTRY":
+            return
+        if any(
+            payload.get(field) is not None
+            for field in ("entry_low", "entry_high", "action_price")
+        ):
+            return
+        if payload.get("contract_validation_status") != ContractValidationStatus.VALID.value:
+            return
+        underlying = str(payload.get("ticker") or "").strip().upper()
+        underlying = underlying.removeprefix("US.").removeprefix("$")
+        option_ticker = str(payload.get("option_contract_code") or "").strip().upper()
+        if not underlying or not option_ticker:
+            return
+
+        request_key = f"signal-entry:{underlying}:{option_ticker}"
+        try:
+            prices = await self.market_data_provider.fetch_prices(
+                (MarketPriceRequest(request_key, underlying, option_ticker),)
+            )
+            quote = next((item for item in prices if item.key == request_key), None)
+            if quote is None or quote.price <= 0 or not quote.price.is_finite():
+                raise ValueError("CURRENT_OPTION_QUOTE_UNAVAILABLE")
+        except Exception as exc:
+            code = str(getattr(exc, "code", "CURRENT_OPTION_QUOTE_UNAVAILABLE"))[:64]
+            payload["_market_entry_price"] = {
+                "status": "UNAVAILABLE",
+                "error_code": code,
+            }
+            warnings = _unique_strings(payload.get("warnings"))
+            warnings.append("CURRENT_OPTION_QUOTE_UNAVAILABLE")
+            payload["warnings"] = list(dict.fromkeys(warnings))
+            return
+
+        price = str(quote.price)
+        payload["entry_low"] = price
+        payload["entry_high"] = price
+        payload["action_price"] = None
+        payload["missing_fields"] = [
+            field
+            for field in _unique_strings(payload.get("missing_fields"))
+            if field != "entry_price"
+        ]
+        payload["_market_entry_price"] = {
+            "status": "FILLED",
+            "option_ticker": quote.option_ticker,
+            "price": price,
+            "price_source": quote.price_source,
+            "source_timestamp": quote.source_timestamp.isoformat(),
+            "received_at": quote.received_at.isoformat(),
+            "market_status": quote.market_status,
+        }
+        warnings = _unique_strings(payload.get("warnings"))
+        warnings = [
+            warning for warning in warnings if warning != "CURRENT_OPTION_QUOTE_UNAVAILABLE"
+        ]
+        warnings.append("ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE")
+        payload["warnings"] = list(dict.fromkeys(warnings))
 
     async def _load_attachments(self, source_message_id: uuid.UUID) -> list[ParserAttachment]:
         async with self.database.session() as session:

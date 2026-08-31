@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
+from app.bot.cards import build_review_embed
 from app.db.base import Base
 from app.db.models import (
     AuditLog,
@@ -18,12 +19,18 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, LlmWorkload, SourceStatus
+from app.integrations.massive_market_data import (
+    MarketDataProviderError,
+    MarketPrice,
+    MarketPriceRequest,
+)
 from app.integrations.openai_trade_parser import (
     LlmInvocationTrace,
     TradeParseError,
     TradeParseResult,
 )
 from app.services.attachment_storage import LocalAttachmentStore
+from app.services.card_review import CardReviewService
 from app.services.draft_generation import (
     DraftGenerationDisposition,
     DraftGenerationService,
@@ -191,6 +198,32 @@ class FastSignalCatalog:
         return ()
 
 
+class DraftPriceProvider(FastSignalCatalog):
+    def __init__(self, *, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        self.price_requests: list[MarketPriceRequest] = []
+
+    async def fetch_prices(
+        self, requests: tuple[MarketPriceRequest, ...]
+    ) -> tuple[MarketPrice, ...]:
+        self.price_requests.extend(requests)
+        if self.error_code is not None:
+            raise MarketDataProviderError(self.error_code)
+        now = datetime.now(UTC)
+        return tuple(
+            MarketPrice(
+                key=request.key,
+                option_ticker=request.option_ticker,
+                price=Decimal("0.55"),
+                price_source="MID",
+                source_timestamp=now,
+                received_at=now,
+                market_status="open",
+            )
+            for request in requests
+        )
+
+
 @pytest.mark.asyncio
 async def test_short_term_fast_input_resolves_and_persists_zero_dte(tmp_path: Path) -> None:
     raw = "SPY 775C .48"
@@ -232,6 +265,169 @@ async def test_short_term_fast_input_resolves_and_persists_zero_dte(tmp_path: Pa
         assert draft.contract_validation_status == "VALID"
         assert draft.option_contract_code == "O:SPY"
         assert draft.entry_low == Decimal("0.4800")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_missing_entry_price_is_filled_from_current_option_quote(tmp_path: Path) -> None:
+    raw = "SPY 775C"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1007,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "SPY",
+            "strike": 775,
+            "entry_low": None,
+            "entry_high": None,
+            "action_price": None,
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+            "missing_fields": ["entry_price"],
+        }
+    )
+    provider = DraftPriceProvider()
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(
+            payload=payload,
+            expected_attachment_count=0,
+            expected_raw_text=raw,
+        ),
+        OptionContractResolver(provider),
+        provider,
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.entry_low == Decimal("0.5500")
+        assert draft.entry_high == Decimal("0.5500")
+        assert "entry_price" not in draft.missing_fields
+        assert "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE" in draft.warnings
+        metadata = draft.parse_payload["_market_entry_price"]
+        assert metadata["status"] == "FILLED"
+        assert metadata["option_ticker"] == "O:SPY"
+        assert metadata["price"] == "0.55"
+        assert metadata["price_source"] == "MID"
+        assert metadata["market_status"] == "open"
+        assert metadata["source_timestamp"]
+        assert metadata["received_at"]
+        assert len(provider.price_requests) == 1
+        assert provider.price_requests[0].underlying == "SPY"
+        review = await CardReviewService(database).get(draft.id)
+        rendered = str(build_review_embed(review).to_dict())
+        assert "$0.55" in rendered
+        assert "已填入当前期权参考价，请审核" in rendered
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_quote_failure_keeps_review_draft_editable_and_price_missing(tmp_path: Path) -> None:
+    raw = "SPY 775C"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1008,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "SPY",
+            "strike": 775,
+            "entry_low": None,
+            "entry_high": None,
+            "action_price": None,
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+            "missing_fields": ["entry_price"],
+        }
+    )
+    provider = DraftPriceProvider(error_code="MASSIVE_QUOTE_STALE")
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(
+            payload=payload,
+            expected_attachment_count=0,
+            expected_raw_text=raw,
+        ),
+        OptionContractResolver(provider),
+        provider,
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.status == DraftStatus.PENDING_REVIEW.value
+        assert draft.entry_low is None and draft.entry_high is None
+        assert "entry_price" in draft.missing_fields
+        assert "CURRENT_OPTION_QUOTE_UNAVAILABLE" in draft.warnings
+        assert draft.parse_payload["_market_entry_price"] == {
+            "status": "UNAVAILABLE",
+            "error_code": "MASSIVE_QUOTE_STALE",
+        }
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_market_quote_never_overrides_an_explicit_entry_price(tmp_path: Path) -> None:
+    raw = "SPY 775C .48"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1009,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "SPY",
+            "strike": 775,
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+        }
+    )
+    provider = DraftPriceProvider()
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(
+            payload=payload,
+            expected_attachment_count=0,
+            expected_raw_text=raw,
+        ),
+        OptionContractResolver(provider),
+        provider,
+    )
+    try:
+        await service.generate(source.id)
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.entry_low == Decimal("0.4800")
+        assert draft.entry_high == Decimal("0.4800")
+        assert provider.price_requests == []
+        assert "_market_entry_price" not in draft.parse_payload
     finally:
         await database.dispose()
 

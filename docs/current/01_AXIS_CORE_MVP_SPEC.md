@@ -456,6 +456,13 @@ LLM 只能生成 Draft，绝不直接发布。
 
 缺失字段返回 `null` / `missing_fields`，不能猜。
 
+对于 `NEW_TRADE / ENTRY`，如果 Parser 完全没有识别到期权入场价，但 Ticker、Expiry、Strike、
+Call/Put 已通过 Option Chain 验证，系统必须从 Massive 读取一次当前期权参考价并同时填入
+`entry_low / entry_high` 后送入 Signal Review。该补全不得覆盖任何输入或 Parser 已识别的价格；
+内部保存合约、price source 与行情时间戳，Review 显示“行情补全、请审核”，Public Card 不显示
+Provider、Market、Bid 或 Ask。行情不可用或过期时继续保留 `entry_price` 缺失并要求 Manager
+手动填写，不得猜价，也不得因此把完整 Parse 降级成失败草稿。
+
 Mentor 必须由 Manager 明确选择。
 
 ---

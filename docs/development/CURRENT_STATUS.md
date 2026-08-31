@@ -58,7 +58,9 @@ Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最�
 ## Signal Pipeline — COMPLETE
 
 Implemented: signal-input 文字、图片、多图和转发输入；Structured Output；S-00001 编号；
-Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication。
+Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication；新建
+ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
+已识别价格。行情失败时保留手工审核，不影响草稿生成。
 
 Remaining: 持续真实使用观察，不需要架构重做。
 
