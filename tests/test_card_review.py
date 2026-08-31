@@ -16,10 +16,14 @@ from app.bot.cards import (
 )
 from app.bot.cogs.card_review import CardReviewCog
 from app.bot.views.review_views import (
-    EntryPlanEditModal,
+    ContractEditModal,
     ExpirySelect,
     ReviewDraftView,
     ShortTermEditModal,
+    StockStructureEditModal,
+    SwingEditMenuView,
+    TargetsLogicEditModal,
+    TradeValuesEditModal,
 )
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Mentor, SourceMessage, TradeDraft
@@ -278,7 +282,7 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
         assert len(embed.fields) <= 4
         assert "GOOGL" in (embed.description or "")
         assert [item.label for item in buttons] == [
-            "完整编辑",
+            "编辑必填项",
             "重新生成图片",
             "确认发布",
             "LOTTO · NO",
@@ -289,13 +293,52 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
         assert "止盈目标" in str(complete.to_dict())
         assert "审核信息" in str(complete.to_dict())
 
-        modal = EntryPlanEditModal(SimpleNamespace(), snapshot, public_preview_payload(snapshot))
-        assert [item.label for item in modal.children] == [
-            "Ticker | YYYY-MM-DD | Strike | CALL/PUT",
-            "期权入场低 | 入场高 | 持仓成本 | 仓位",
-            "当前股价 | Starter | Add低 | Add高",
-            "正股SL | PT1 | PT2 | PT3 | Fib 0.618",
-            "会员卡片交易逻辑（可留空）",
+        menu = SwingEditMenuView(SimpleNamespace(), snapshot)
+        menu_selects = [item for item in menu.children if isinstance(item, discord.ui.Select)]
+        menu_buttons = [item for item in menu.children if isinstance(item, discord.ui.Button)]
+        assert len(menu_selects) == 1
+        assert [item.label for item in menu_buttons] == [
+            "编辑合约",
+            "价格 / 仓位",
+            "正股结构",
+            "目标 / 逻辑",
+        ]
+
+        contract_modal = ContractEditModal(SimpleNamespace(), snapshot)
+        assert [item.text for item in contract_modal.children] == [
+            "Ticker",
+            "Expiry",
+            "Strike",
+            "Call / Put",
+        ]
+        assert isinstance(contract_modal.children[-1].component, discord.ui.Select)
+
+        values_modal = TradeValuesEditModal(SimpleNamespace(), snapshot)
+        assert [item.text for item in values_modal.children] == [
+            "入场价",
+            "入场价上限",
+            "当前平均成本",
+            "期权 SL",
+            "操作后总持仓",
+        ]
+        assert isinstance(values_modal.children[-1].component, discord.ui.Select)
+
+        structure_modal = StockStructureEditModal(SimpleNamespace(), snapshot)
+        assert [item.text for item in structure_modal.children] == [
+            "当前股价",
+            "Starter",
+            "Add Zone 下限",
+            "Add Zone 上限",
+            "正股 SL",
+        ]
+
+        target_modal = TargetsLogicEditModal(SimpleNamespace(), snapshot)
+        assert [item.text for item in target_modal.children] == [
+            "正股 PT1",
+            "正股 PT2",
+            "正股 PT3",
+            "Fib 0.618",
+            "会员卡片交易逻辑",
         ]
     finally:
         await database.dispose()
@@ -823,5 +866,90 @@ async def test_category_switch_rebuilds_short_term_and_mentor_review_requirement
             interaction_id=712,
         )
         assert publication_missing_fields(leaps) == ("mentor", "position_after_eighths")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_operation_select_sets_clear_defaults_and_is_audited() -> None:
+    database, draft, _mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        add = await service.select_operation(
+            draft.id,
+            intent="UPDATE_TRADE",
+            action="ADD",
+            action_stage="FIRST",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=801,
+        )
+        assert add.intent == "UPDATE_TRADE"
+        assert add.action == "ADD"
+        assert add.action_stage == "FIRST"
+        assert add.position_after_eighths == 2
+        assert publication_missing_fields(add) == (
+            "mentor",
+            "matched_trade",
+            "action_price",
+        )
+
+        entry = await service.select_operation(
+            draft.id,
+            intent="NEW_TRADE",
+            action="ENTRY",
+            action_stage="NONE",
+            expected_version=add.version,
+            actor_user_id=501,
+            interaction_id=802,
+        )
+        assert entry.position_delta_eighths == 1
+        assert entry.position_after_eighths == 1
+        assert publication_missing_fields(entry) == ("mentor", "category")
+        async with database.session() as session:
+            actions = list(await session.scalars(select(AuditLog.action_type)))
+        assert actions == [
+            "TRADE_DRAFT_OPERATION_SELECTED",
+            "TRADE_DRAFT_OPERATION_SELECTED",
+        ]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_incomplete_add_lists_each_required_value_separately() -> None:
+    database, draft, mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        snapshot = await service.get(draft.id)
+        incomplete = replace(
+            snapshot,
+            intent="UPDATE_TRADE",
+            action="ADD",
+            action_stage=None,
+            selected_category="SWING",
+            mentor_id=mentor.id,
+            mentor_name=mentor.name,
+            matched_trade_id=None,
+            matched_trade_code=None,
+            action_price=None,
+            avg_cost=Decimal("1.75"),
+            position_delta_eighths=None,
+            position_after_eighths=None,
+        )
+        assert publication_missing_fields(incomplete) == (
+            "matched_trade",
+            "add_stage",
+            "action_price",
+            "position_after_eighths",
+        )
+        rendered = str(build_review_embed(incomplete).to_dict())
+        for label in (
+            "关联已有订单",
+            "第几次加仓",
+            "本次操作价格",
+            "操作后总持仓",
+        ):
+            assert label in rendered
     finally:
         await database.dispose()

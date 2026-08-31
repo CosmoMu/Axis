@@ -60,7 +60,9 @@ Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最�
 Implemented: signal-input 文字、图片、多图和转发输入；Structured Output；S-00001 编号；
 Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication；新建
 ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
-已识别价格。行情失败时保留手工审核，不影响草稿生成。
+已识别价格。行情失败时保留手工审核，不影响草稿生成。Swing / LEAPS 编辑已改为分区向导：
+订单类型、Call / Put、仓位等固定值使用下拉菜单，每个输入框只填写一个数据，发布阻塞项使用
+中文逐项显示。
 
 Remaining: 持续真实使用观察，不需要架构重做。
 

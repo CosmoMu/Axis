@@ -20,7 +20,9 @@ from app.services.card_review import (
     ReviewDraft,
     ReviewValidationError,
     ShortTermDraftEdit,
+    missing_field_labels,
     public_preview_payload,
+    publication_missing_fields,
 )
 
 if TYPE_CHECKING:
@@ -93,6 +95,42 @@ def _optional_eighths(raw: str) -> int | None:
         return int(value)
     except ValueError as exc:
         raise ReviewValidationError("POSITION_INVALID") from exc
+
+
+def _edit_values(draft: ReviewDraft, **changes: object) -> DraftEdit:
+    values: dict[str, object] = {
+        "intent": draft.intent,
+        "action": draft.action,
+        "action_stage": draft.action_stage,
+        "selected_category": draft.selected_category,
+        "ticker": draft.ticker,
+        "expiry": draft.expiry,
+        "strike": draft.strike,
+        "option_side": draft.option_side,
+        "entry_low": draft.entry_low,
+        "entry_high": draft.entry_high,
+        "action_price": draft.action_price,
+        "avg_cost": draft.avg_cost,
+        "sl": draft.sl,
+        "tp1": draft.tp1,
+        "tp2": draft.tp2,
+        "current_pnl_pct": draft.current_pnl_pct,
+        "position_delta_eighths": draft.position_delta_eighths,
+        "position_after_eighths": draft.position_after_eighths,
+        "current_stock": draft.current_stock,
+        "starter": draft.starter,
+        "add_zone_low": draft.add_zone_low,
+        "add_zone_high": draft.add_zone_high,
+        "stock_sl": draft.stock_sl,
+        "stock_pt1": draft.stock_pt1,
+        "stock_pt2": draft.stock_pt2,
+        "stock_pt3": draft.stock_pt3,
+        "fib_0618": draft.fib_0618,
+        "public_thesis": draft.public_thesis,
+        "replace_plan": False,
+    }
+    values.update(changes)
+    return DraftEdit(**values)  # type: ignore[arg-type]
 
 
 class DraftEditModal(discord.ui.Modal):
@@ -359,6 +397,497 @@ class EntryPlanEditModal(discord.ui.Modal):
             )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
+
+
+def _text_field(
+    *,
+    text: str,
+    default: str,
+    required: bool = False,
+    description: str | None = None,
+    placeholder: str | None = None,
+    paragraph: bool = False,
+    max_length: int = 100,
+) -> tuple[discord.ui.TextInput, discord.ui.Label]:
+    component = discord.ui.TextInput(
+        default=default,
+        required=required,
+        placeholder=placeholder,
+        style=discord.TextStyle.paragraph if paragraph else discord.TextStyle.short,
+        max_length=max_length,
+    )
+    return component, discord.ui.Label(
+        text=text,
+        description=description,
+        component=component,
+    )
+
+
+def _position_options(current: int | None) -> list[discord.SelectOption]:
+    labels = (
+        "0 · 清仓",
+        "1 · 1/8 仓位",
+        "2 · 1/4 仓位",
+        "3 · 3/8 仓位",
+        "4 · 1/2 仓位",
+        "5 · 5/8 仓位",
+        "6 · 3/4 仓位",
+        "7 · 7/8 仓位",
+        "8 · 满仓",
+    )
+    return [
+        discord.SelectOption(label=label, value=str(value), default=value == current)
+        for value, label in enumerate(labels)
+    ]
+
+
+class ContractEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"编辑合约 · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:contract:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        self.ticker, ticker_label = _text_field(
+            text="Ticker",
+            default=_display(draft.ticker),
+            required=True,
+            description="只填写股票代码，例如 HIMS",
+            max_length=12,
+        )
+        self.expiry, expiry_label = _text_field(
+            text="Expiry",
+            default=_display(draft.expiry),
+            required=True,
+            description="只填写一个日期",
+            placeholder="YYYY-MM-DD",
+            max_length=10,
+        )
+        self.strike, strike_label = _text_field(
+            text="Strike",
+            default=_decimal_display(draft.strike),
+            required=True,
+            description="只填写行权价，例如 35",
+            max_length=24,
+        )
+        self.option_side = discord.ui.Select(
+            placeholder="选择 CALL 或 PUT",
+            min_values=1,
+            max_values=1,
+            required=True,
+            options=[
+                discord.SelectOption(
+                    label="CALL",
+                    value="CALL",
+                    default=draft.option_side == "CALL",
+                ),
+                discord.SelectOption(
+                    label="PUT",
+                    value="PUT",
+                    default=draft.option_side == "PUT",
+                ),
+            ],
+        )
+        for item in (
+            ticker_label,
+            expiry_label,
+            strike_label,
+            discord.ui.Label(text="Call / Put", component=self.option_side),
+        ):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            side = str(self.option_side.values[0]).upper()
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=_edit_values(
+                    self.draft,
+                    ticker=(
+                        value.upper()
+                        if (value := _optional_text(self.ticker.value))
+                        else None
+                    ),
+                    expiry=_optional_date(self.expiry.value),
+                    strike=_optional_decimal(self.strike.value),
+                    option_side=side,
+                ),
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "合约已保存；发布时会再次验证 Option Chain。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class TradeValuesEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"编辑价格与仓位 · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:values:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        self.is_entry = draft.intent == "NEW_TRADE" and draft.action == "ENTRY"
+        action_requires_price = draft.action in {
+            "ADD",
+            "TP1",
+            "TP2",
+            "PARTIAL_SL",
+            "SL",
+            "CLOSE",
+            "ROLL",
+        }
+        if self.is_entry:
+            primary_default = _decimal_display(draft.entry_low or draft.avg_cost)
+            secondary_default = (
+                _decimal_display(draft.entry_high)
+                if draft.entry_high is not None and draft.entry_high != draft.entry_low
+                else ""
+            )
+            self.primary, primary_label = _text_field(
+                text="入场价",
+                default=primary_default,
+                required=True,
+                description="必填；只有一个价格时填这里",
+                max_length=24,
+            )
+            self.secondary, secondary_label = _text_field(
+                text="入场价上限",
+                default=secondary_default,
+                description="可选；不是区间时留空",
+                max_length=24,
+            )
+            self.average, average_label = _text_field(
+                text="当前平均成本",
+                default=_decimal_display(draft.avg_cost),
+                description="可选；留空时系统使用入场价",
+                max_length=24,
+            )
+            self.risk, risk_label = _text_field(
+                text="期权 SL",
+                default=_decimal_display(draft.sl),
+                description="可选",
+                max_length=24,
+            )
+        else:
+            self.primary, primary_label = _text_field(
+                text="本次操作价格",
+                default=_decimal_display(draft.action_price),
+                required=action_requires_price,
+                description="加仓、止盈或平仓时必须填写",
+                max_length=24,
+            )
+            self.secondary, secondary_label = _text_field(
+                text="操作后平均成本",
+                default=_decimal_display(draft.avg_cost),
+                description="可选；例如加仓后均价",
+                max_length=24,
+            )
+            self.average, average_label = _text_field(
+                text="新 SL",
+                default=_decimal_display(draft.sl),
+                description="可选",
+                max_length=24,
+            )
+            self.risk, risk_label = _text_field(
+                text="下一个目标",
+                default=_decimal_display(draft.tp1),
+                description="可选",
+                max_length=24,
+            )
+        self.position = discord.ui.Select(
+            placeholder="选择操作后的总持仓",
+            min_values=1,
+            max_values=1,
+            required=True,
+            options=_position_options(draft.position_after_eighths),
+        )
+        for item in (
+            primary_label,
+            secondary_label,
+            average_label,
+            risk_label,
+            discord.ui.Label(
+                text="操作后总持仓",
+                description="选择完成本次操作后的仓位，不是本次增减量",
+                component=self.position,
+            ),
+        ):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            position_after = int(str(self.position.values[0]))
+            if self.is_entry:
+                entry_low = _optional_decimal(self.primary.value)
+                if entry_low is None:
+                    raise ReviewValidationError("ENTRY_PRICE_REQUIRED")
+                values = _edit_values(
+                    self.draft,
+                    entry_low=entry_low,
+                    entry_high=_optional_decimal(self.secondary.value) or entry_low,
+                    action_price=None,
+                    avg_cost=_optional_decimal(self.average.value),
+                    sl=_optional_decimal(self.risk.value),
+                    position_delta_eighths=position_after,
+                    position_after_eighths=position_after,
+                )
+            else:
+                values = _edit_values(
+                    self.draft,
+                    action_price=_optional_decimal(self.primary.value),
+                    avg_cost=_optional_decimal(self.secondary.value),
+                    sl=_optional_decimal(self.average.value),
+                    tp1=_optional_decimal(self.risk.value),
+                    position_delta_eighths=None,
+                    position_after_eighths=position_after,
+                )
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=values,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "价格和操作后总持仓已保存。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class StockStructureEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"编辑正股结构 · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:structure:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        fields = (
+            ("当前股价", "current", draft.current_stock),
+            ("Starter", "starter", draft.starter),
+            ("Add Zone 下限", "add_low", draft.add_zone_low),
+            ("Add Zone 上限", "add_high", draft.add_zone_high),
+            ("正股 SL", "stock_sl", draft.stock_sl),
+        )
+        for label_text, attribute, value in fields:
+            component, label = _text_field(
+                text=label_text,
+                default=_decimal_display(value),
+                description="可选；一个框只填写一个价格",
+                max_length=24,
+            )
+            setattr(self, attribute, component)
+            self.add_item(label)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=_edit_values(
+                    self.draft,
+                    current_stock=_optional_decimal(self.current.value),
+                    starter=_optional_decimal(self.starter.value),
+                    add_zone_low=_optional_decimal(self.add_low.value),
+                    add_zone_high=_optional_decimal(self.add_high.value),
+                    stock_sl=_optional_decimal(self.stock_sl.value),
+                    replace_plan=True,
+                ),
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "正股结构已保存。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class TargetsLogicEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(
+            title=f"编辑目标与逻辑 · {draft.draft_code}"[:45],
+            timeout=300,
+            custom_id=f"axis:review:targets:{draft.id.hex}:v{draft.version}",
+        )
+        self.controller = controller
+        self.draft = draft
+        self.pt1, pt1_label = _text_field(
+            text="正股 PT1", default=_decimal_display(draft.stock_pt1), max_length=24
+        )
+        self.pt2, pt2_label = _text_field(
+            text="正股 PT2", default=_decimal_display(draft.stock_pt2), max_length=24
+        )
+        self.pt3, pt3_label = _text_field(
+            text="正股 PT3", default=_decimal_display(draft.stock_pt3), max_length=24
+        )
+        self.fib, fib_label = _text_field(
+            text="Fib 0.618", default=_decimal_display(draft.fib_0618), max_length=24
+        )
+        self.thesis, thesis_label = _text_field(
+            text="会员卡片交易逻辑",
+            default=draft.public_thesis or "",
+            description="可选；不要填写 Mentor 或来源",
+            paragraph=True,
+            max_length=600,
+        )
+        for item in (pt1_label, pt2_label, pt3_label, fib_label, thesis_label):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=_edit_values(
+                    self.draft,
+                    stock_pt1=_optional_decimal(self.pt1.value),
+                    stock_pt2=_optional_decimal(self.pt2.value),
+                    stock_pt3=_optional_decimal(self.pt3.value),
+                    fib_0618=_optional_decimal(self.fib.value),
+                    public_thesis=_optional_text(self.thesis.value),
+                    replace_plan=True,
+                ),
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "目标和交易逻辑已保存，可重新生成图片。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+_OPERATION_OPTIONS = (
+    ("作为新订单发布", "NEW_TRADE:ENTRY:NONE", "没有可关联旧单时使用"),
+    ("第一次加仓", "UPDATE_TRADE:ADD:FIRST", "操作后默认 1/4 仓位"),
+    ("第二次加仓", "UPDATE_TRADE:ADD:SECOND", "操作后默认 1/2 仓位"),
+    ("第三次加仓", "UPDATE_TRADE:ADD:THIRD", "操作后默认 3/4 仓位"),
+    ("第四次加仓", "UPDATE_TRADE:ADD:FOURTH", "操作后默认满仓"),
+    ("订单更新", "UPDATE_TRADE:UPDATE:NONE", "只更新成本、SL 或目标"),
+    ("止盈一", "UPDATE_TRADE:TP1:NONE", "部分止盈"),
+    ("止盈二", "UPDATE_TRADE:TP2:NONE", "部分止盈"),
+    ("保留尾仓", "UPDATE_TRADE:RUNNER:NONE", "进入 Runner"),
+    ("部分触发 SL", "UPDATE_TRADE:PARTIAL_SL:NONE", "部分减仓"),
+    ("触发 SL", "UPDATE_TRADE:SL:NONE", "操作后默认清仓"),
+    ("全部平仓", "UPDATE_TRADE:CLOSE:NONE", "操作后默认清仓"),
+    ("取消订单", "UPDATE_TRADE:CANCEL:NONE", "操作后默认清仓"),
+    ("滚仓", "UPDATE_TRADE:ROLL:NONE", "关联原订单后更换合约"),
+)
+
+
+class OperationSelect(discord.ui.Select):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        self.controller = controller
+        self.draft_id = draft.id
+        current = f"{draft.intent}:{draft.action}:{draft.action_stage or 'NONE'}"
+        super().__init__(
+            placeholder="先选择这张卡片要做什么",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label=label,
+                    value=value,
+                    description=description,
+                    default=value == current,
+                )
+                for label, value, description in _OPERATION_OPTIONS
+            ],
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            await interaction.response.defer(ephemeral=True)
+            current = await self.controller.service.get(self.draft_id)
+            intent, action, stage = self.values[0].split(":", maxsplit=2)
+            updated = await self.controller.service.select_operation(
+                current.id,
+                intent=intent,
+                action=action,
+                action_stage=stage,
+                expected_version=current.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "订单类型已保存；主审核卡片已刷新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class SwingEditMenuView(discord.ui.View):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(timeout=300)
+        self.controller = controller
+        self.draft_id = draft.id
+        self.add_item(OperationSelect(controller, draft))
+
+    async def _current(self, interaction: discord.Interaction) -> ReviewDraft | None:
+        if not await self.controller.authorize(interaction):
+            return None
+        return await self.controller.service.get(self.draft_id)
+
+    @discord.ui.button(label="编辑合约", style=discord.ButtonStyle.primary, row=1)
+    async def contract(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if draft := await self._current(interaction):
+            await interaction.response.send_modal(ContractEditModal(self.controller, draft))
+
+    @discord.ui.button(label="价格 / 仓位", style=discord.ButtonStyle.primary, row=1)
+    async def values(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if draft := await self._current(interaction):
+            await interaction.response.send_modal(TradeValuesEditModal(self.controller, draft))
+
+    @discord.ui.button(label="正股结构", style=discord.ButtonStyle.secondary, row=1)
+    async def structure(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if draft := await self._current(interaction):
+            await interaction.response.send_modal(StockStructureEditModal(self.controller, draft))
+
+    @discord.ui.button(label="目标 / 逻辑", style=discord.ButtonStyle.secondary, row=1)
+    async def targets(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if draft := await self._current(interaction):
+            await interaction.response.send_modal(TargetsLogicEditModal(self.controller, draft))
 
 
 class ShortTermEditModal(discord.ui.Modal):
@@ -712,7 +1241,7 @@ class ReviewDraftView(discord.ui.View):
                 ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices)
             )
         buttons = (
-            ("完整编辑", discord.ButtonStyle.primary, "edit", 3, self.edit),
+            ("编辑必填项", discord.ButtonStyle.primary, "edit", 3, self.edit),
             (
                 "重新生成图片",
                 discord.ButtonStyle.secondary,
@@ -750,12 +1279,18 @@ class ReviewDraftView(discord.ui.View):
     async def edit(self, interaction: discord.Interaction) -> None:
         if (self.draft.selected_category or self.draft.category_suggestion) == "SHORT_TERM":
             await interaction.response.send_modal(ShortTermEditModal(self.controller, self.draft))
-        elif self.draft.intent == "NEW_TRADE" and self.draft.action == "ENTRY":
-            await interaction.response.send_modal(
-                EntryPlanEditModal(self.controller, self.draft, self.preview_card)
-            )
         else:
-            await interaction.response.send_modal(DraftEditModal(self.controller, self.draft))
+            missing = missing_field_labels(publication_missing_fields(self.draft))
+            await interaction.response.send_message(
+                (
+                    f"**编辑向导 · {self.draft.draft_code}**\n"
+                    "先用下拉菜单选择订单类型，再按区域编辑。每个输入框只填写一个值。\n"
+                    f"当前发布前必须补齐：{'、'.join(missing) if missing else '无'}"
+                ),
+                view=SwingEditMenuView(self.controller, self.draft),
+                ephemeral=True,
+                delete_after=300,
+            )
 
     async def regenerate_image(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)

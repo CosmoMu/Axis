@@ -34,6 +34,7 @@ from app.services.card_review import (
     ReviewDraft,
     ReviewError,
     ReviewValidationError,
+    missing_field_labels,
     public_preview_payload,
 )
 from app.services.short_term_tracking import MarketTrackingService
@@ -135,7 +136,9 @@ class CardReviewCog(commands.Cog):
                 await self.refresh(await self.service.get(draft_id))
         elif isinstance(exc, ReviewValidationError):
             if exc.missing_fields:
-                message = "无法确认，还缺少：" + "、".join(exc.missing_fields)
+                message = "无法发布，请先补齐：" + "、".join(
+                    missing_field_labels(exc.missing_fields)
+                )
             elif exc.code == "CONTRACT_NOT_FOUND":
                 message = "Contract not found. 请选择 Expiry，或编辑 Strike / Side。"
             elif exc.code == "OPTION_CHAIN_UNAVAILABLE":

@@ -160,6 +160,29 @@ REGISTERED_REVIEW_STATUSES = {
     DraftStatus.PUBLISH_FAILED.value,
 }
 
+MISSING_FIELD_LABELS = {
+    "intent": "订单类型",
+    "category": "Category",
+    "ticker": "Ticker",
+    "expiry": "Expiry",
+    "strike": "Strike",
+    "option_side": "Call / Put",
+    "contract": "有效期权合约",
+    "entry_price": "入场价",
+    "mentor": "Mentor",
+    "matched_trade": "关联已有订单",
+    "action": "本次操作",
+    "add_stage": "第几次加仓",
+    "action_price": "本次操作价格",
+    "update_content": "至少一项订单更新",
+    "position_after_eighths": "操作后总持仓",
+    "manual_review": "手动检查",
+}
+
+
+def missing_field_labels(fields: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(MISSING_FIELD_LABELS.get(field, field) for field in fields)
+
 
 def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ...]:
     missing: list[str] = []
@@ -222,7 +245,17 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             missing.append("matched_trade")
         if draft.action in {"", "UNKNOWN"}:
             missing.append("action")
-        if all(
+        if draft.action == "ADD" and draft.action_stage not in {
+            "FIRST",
+            "SECOND",
+            "THIRD",
+            "FOURTH",
+        }:
+            missing.append("add_stage")
+        if draft.action in {"ADD", "TP1", "TP2", "PARTIAL_SL", "SL", "CLOSE", "ROLL"}:
+            if draft.action_price is None:
+                missing.append("action_price")
+        elif all(
             value is None
             for value in (
                 draft.action_price,
@@ -690,6 +723,82 @@ class CardReviewService:
             )
         return updated
 
+    async def select_operation(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        intent: str,
+        action: str,
+        action_stage: str | None,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        if intent not in {"NEW_TRADE", "UPDATE_TRADE"}:
+            raise ReviewValidationError("INTENT_INVALID")
+        if intent == "NEW_TRADE":
+            if action != "ENTRY" or action_stage not in {None, "NONE"}:
+                raise ReviewValidationError("OPERATION_INVALID")
+            action_stage = "NONE"
+        elif action not in {
+            "ADD",
+            "UPDATE",
+            "TP1",
+            "TP2",
+            "RUNNER",
+            "PARTIAL_SL",
+            "SL",
+            "CLOSE",
+            "CANCEL",
+            "ROLL",
+        }:
+            raise ReviewValidationError("ACTION_INVALID")
+        elif action == "ADD" and action_stage not in {
+            "FIRST",
+            "SECOND",
+            "THIRD",
+            "FOURTH",
+        }:
+            raise ReviewValidationError("ADD_STAGE_REQUIRED")
+        elif action != "ADD":
+            action_stage = "NONE"
+
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            was_new_entry = draft.intent == "NEW_TRADE" and draft.action == "ENTRY"
+            draft.intent = intent
+            draft.action = action
+            draft.action_stage = action_stage
+            if intent == "NEW_TRADE":
+                draft.matched_trade_id = None
+                if not was_new_entry or draft.position_after_eighths is None:
+                    draft.position_delta_eighths = 1
+                    draft.position_after_eighths = 1
+            elif action == "ADD":
+                suggested_after = {
+                    "FIRST": 2,
+                    "SECOND": 4,
+                    "THIRD": 6,
+                    "FOURTH": 8,
+                }[action_stage]
+                draft.position_delta_eighths = None
+                draft.position_after_eighths = suggested_after
+            elif action in {"SL", "CLOSE", "CANCEL"}:
+                draft.position_delta_eighths = None
+                draft.position_after_eighths = 0
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session,
+                draft,
+                actor_user_id,
+                interaction_id,
+                "TRADE_DRAFT_OPERATION_SELECTED",
+                before,
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
     async def edit_short_term(
         self,
         draft_id: uuid.UUID,
@@ -1139,13 +1248,6 @@ class CardReviewService:
             raise ReviewValidationError("ACTION_INVALID")
         if values.action_stage not in {None, "NONE", "FIRST", "SECOND", "THIRD", "FOURTH"}:
             raise ReviewValidationError("ACTION_STAGE_INVALID")
-        if values.action == "ADD" and values.action_stage not in {
-            "FIRST",
-            "SECOND",
-            "THIRD",
-            "FOURTH",
-        }:
-            raise ReviewValidationError("ADD_STAGE_REQUIRED")
         if values.action != "ADD" and values.action_stage not in {None, "NONE"}:
             raise ReviewValidationError("ACTION_STAGE_INVALID")
         if values.selected_category not in {None, "SHORT_TERM", "SWING", "LEAPS"}:

@@ -21,7 +21,11 @@ from app.domain.public_cards import (
 )
 from app.domain.public_identity import PublicIdentityPolicy
 from app.services.analysis_pipeline import AnalysisDraftSnapshot
-from app.services.card_review import ReviewDraft, publication_missing_fields
+from app.services.card_review import (
+    ReviewDraft,
+    missing_field_labels,
+    publication_missing_fields,
+)
 from app.services.official_results import OfficialResult
 
 ACCENT_GREEN = 0x86F7A8
@@ -211,7 +215,7 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
     ]
     missing = publication_missing_fields(draft)
     if missing:
-        review_lines.append("缺失：" + "、".join(missing))
+        review_lines.append("发布前必须补齐：" + "、".join(missing_field_labels(missing)))
     embed.add_field(name="审核", value="\n".join(review_lines), inline=False)
     if draft.warnings:
         embed.add_field(name="解析警告", value=_review_warnings(draft.warnings), inline=False)
