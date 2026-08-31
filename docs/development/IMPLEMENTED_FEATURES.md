@@ -85,7 +85,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Tracking Protection（+10% / +20% 后保本，+50% 起保护前一级 TP）、High / Low Watermark、
   Overnight 和 Tracking Stop。
 - LOTTO 持久化 display flag，不影响 tracking、TP、protection、仓位或结果计算。
-- Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。
+- Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。Swing / LEAPS
+  Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
 说明：Soft Open Reset 后正式 Short-Term 与 tracking 均为 0，下一笔为 ST-0001；真实 Massive

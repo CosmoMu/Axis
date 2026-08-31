@@ -10,31 +10,28 @@ AXIS BOT 在每个美股交易日 `16:15 ET` 只向以下频道发送 Daily Summ
 每条消息包含该类别的今日关闭与当前持仓。`⚡・short-term` 不发送 Daily Summary；已停止
 追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。Daily Results 先进入
 `📋・results-review`，不再由 Daily Summary job 直接发布；完整流程见
-`docs/operations/daily-results-review.md`。启用 Moomoo 时，Active 收盘参考来自本机
-OpenD 的只读期权 snapshot；不是账户持仓或交易数据。Moomoo 未启用时，不猜测 Active 行情。
+`docs/operations/daily-results-review.md`。Active 收益只使用 Massive 对应期权合约在该交易日的
+正式 Daily OHLC `close`，不使用盘后实时价、Bid、Ask、Mid 或最后 snapshot。
 
 ## Required Runtime
 
 ```text
-FEATURE_MOOMOO_ENABLED=false
 FEATURE_DAILY_SUMMARY_ENABLED=true
-MOOMOO_OPEND_HOST=127.0.0.1
-MOOMOO_OPEND_PORT=11111
+MASSIVE_API_KEY=<secret in .env only>
 DAILY_SUMMARY_TIME_ET=16:15
 ```
 
-如需 Active 收盘报价，必须把 `FEATURE_MOOMOO_ENABLED` 改为 `true` 并重新执行完整安全验收。
-OpenD 与 Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登录并监听本机端口。
+`MASSIVE_API_KEY` 只从 `.env` / Secret Manager 读取，不写入源码、日志或 Git。
 
 ## Safety Rules
 
-- 只调用 global state、option chain 和 market snapshot。
-- 期权代码由到期日、行权价与 Call/Put 精确解析并缓存。
+- 只调用 Massive Options Daily Aggregate OHLC 只读端点。
+- 期权代码由 Ticker、到期日、行权价与 Call/Put 确定性生成。
 - 不调用账户、资金、持仓、订单、unlock 或交易接口。
-- 不显示 Market、Bid 或 Ask；会员只看到当前/收盘参考价与行情时间。
-- SPY snapshot 日期不等于当天时视为周末/假日，不发送。
-- OpenD 全局失败时不发布不完整总结，Bot 每分钟重试。
-- 单个合约无法解析时只将该订单标记为行情暂不可用，不猜测价格。
+- 不显示 Market、Bid 或 Ask；会员只看到正式收盘价及其相对最近持仓成本的收益。
+- Trading Calendar 决定交易日；绝不拿其他日期的 bar 代替当日收盘价。
+- Massive 鉴权或限流失败时不发布不完整总结，Bot 每分钟重试。
+- 单个合约当日没有合格成交 bar 时只标记为收盘行情暂不可用，不猜测价格。
 
 ## Idempotency
 
@@ -47,7 +44,6 @@ OpenD 与 Python SDK 当前锁定 `10.10.7008`；启用时 OpenD 必须行情登
 ```bash
 .venv/bin/python scripts/verify_database.py
 launchctl print gui/$(id -u)/com.axis.bot
-lsof -nP -iTCP:11111 -sTCP:LISTEN
 ```
 
 正常数据库 revision 为 `20260830_0022`。`market_quote_snapshots` 与

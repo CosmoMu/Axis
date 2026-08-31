@@ -555,14 +555,21 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
 
     active_lines: list[str] = []
     for trade in summary.active[:12]:
-        current = (
-            "行情暂不可用"
+        close_result = (
+            "收盘行情暂不可用"
             if trade.unrealized_pnl_pct is None
-            else f"当前 {trade.unrealized_pnl_pct:+.2f}%"
+            else (
+                f"收盘 {trade.unrealized_pnl_pct:+.2f}%"
+                + (
+                    f" · 收盘价 {_money(trade.reference_price)}"
+                    if trade.reference_price is not None
+                    else ""
+                )
+            )
         )
         active_lines.append(
             f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-            f"{current} · 当前持仓 {_position(trade.position_eighths)}"
+            f"{close_result} · 当前持仓 {_position(trade.position_eighths)}"
             + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
         )
     if len(summary.active) > 12:
@@ -572,7 +579,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
         value=("\n\n".join(active_lines) or "当前没有进行中的订单。")[:1024],
         inline=False,
     )
-    embed.set_footer(text=f"AXIS · {date_label} ET · 收盘参考")
+    embed.set_footer(text=f"AXIS · {date_label} ET · 正式收盘价")
     return [_public(embed)]
 
 

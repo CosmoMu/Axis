@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 215 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 219 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -78,6 +78,7 @@ Short-Term:
 - Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
+- Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
 - 极简 Daily Results 的全量 Short-Term 全追踪周期最高价收益、ST 订单号升序、Ticker、到期日、
   合约代码和幂等。
 

@@ -30,8 +30,14 @@ SESSION_DATE = date(2026, 8, 28)
 
 
 class FakeMarketData:
-    def __init__(self, *, is_trading_session: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        is_trading_session: bool = True,
+        price_type: str = "CLOSE",
+    ) -> None:
         self.is_trading_session = is_trading_session
+        self.price_type = price_type
         self.calls = 0
 
     async def fetch_post_close(
@@ -47,6 +53,7 @@ class FakeMarketData:
                 instrument_code="US.AAPL260918C200000",
                 last_price=Decimal("1.50"),
                 quote_time=datetime(2026, 8, 28, 20, 5, tzinfo=UTC),
+                price_type=self.price_type,
             )
             for request in requests
         )
@@ -55,6 +62,7 @@ class FakeMarketData:
             market_state="AFTER_HOURS_BEGIN",
             is_trading_session=self.is_trading_session,
             quotes=quotes,
+            provider="MASSIVE",
         )
 
 
@@ -176,7 +184,7 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
             embeds.extend(build_daily_summary_embeds(claim.summary))
         all_card_text = str([embed.to_dict() for embed in embeds])
         assert "SWING · DAILY SUMMARY" in all_card_text
-        assert "当前 +25.00%" in all_card_text
+        assert "收盘 +25.00% · 收盘价 $1.5" in all_card_text
         assert "CLOSE +50.00%" in all_card_text
         assert "(LOTTO)" in all_card_text
         for forbidden in ("Mentor", "source", "Bid", "Ask", "Market"):
@@ -204,6 +212,29 @@ async def test_non_trading_day_does_not_create_summaries() -> None:
         async with database.session() as session:
             count = await session.scalar(select(func.count()).select_from(DailySummaryPublication))
             assert count == 0
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_realtime_last_price_never_substitutes_official_close() -> None:
+    database = await seeded_database()
+    service = DailySummaryService(database, FakeMarketData(price_type="LAST"))
+    try:
+        assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
+        async with database.session() as session:
+            publication = await session.scalar(
+                select(DailySummaryPublication).where(
+                    DailySummaryPublication.category == TradeCategory.SWING.value
+                )
+            )
+            assert publication is not None
+            active = publication.snapshot_json["active"]
+            assert active[0]["reference_price"] is None
+            assert active[0]["unrealized_pnl_pct"] is None
+            assert await session.scalar(
+                select(func.count()).select_from(MarketQuoteSnapshot)
+            ) == 0
     finally:
         await database.dispose()
 

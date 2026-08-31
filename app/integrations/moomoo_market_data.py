@@ -35,6 +35,7 @@ class OptionQuote:
     last_price: Decimal | None
     quote_time: datetime | None
     error_code: str | None = None
+    price_type: str = "LAST"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,7 @@ class PostCloseQuoteBatch:
     market_state: str
     is_trading_session: bool
     quotes: tuple[OptionQuote, ...]
+    provider: str = "UNKNOWN"
 
 
 class PostCloseMarketData(Protocol):
@@ -133,6 +135,7 @@ class MoomooMarketDataClient:
                     market_state=market_state,
                     is_trading_session=False,
                     quotes=(),
+                    provider="MOOMOO",
                 )
 
             resolved: dict[str, str] = {}
@@ -193,6 +196,7 @@ class MoomooMarketDataClient:
                 market_state=market_state,
                 is_trading_session=True,
                 quotes=tuple(quotes),
+                provider="MOOMOO",
             )
         except MarketDataError:
             raise

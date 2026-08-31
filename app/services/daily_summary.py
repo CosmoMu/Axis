@@ -413,6 +413,9 @@ class DailySummaryService:
                 return False
             quotes = {quote.key: quote for quote in batch.quotes}
             market_state = batch.market_state
+            market_provider = batch.provider
+        else:
+            market_provider = "UNAVAILABLE"
         events_by_trade: dict[uuid.UUID, list[TradeEvent]] = {}
         for event in events:
             events_by_trade.setdefault(event.trade_id, []).append(event)
@@ -444,7 +447,11 @@ class DailySummaryService:
                 if trade.category != category:
                     continue
                 quote = quotes.get(str(trade.id))
-                reference = quote.last_price if quote is not None else None
+                reference = (
+                    quote.last_price
+                    if quote is not None and quote.price_type == "CLOSE"
+                    else None
+                )
                 pnl = None
                 if reference is not None and trade.avg_cost is not None and trade.avg_cost > 0:
                     pnl = ((reference - trade.avg_cost) / trade.avg_cost) * Decimal("100")
@@ -503,10 +510,15 @@ class DailySummaryService:
                 if quote is None:
                     continue
                 current = await session.get(Trade, trade.id)
-                if current is not None and quote.instrument_code:
+                if (
+                    current is not None
+                    and quote.instrument_code
+                    and market_provider == "MOOMOO"
+                ):
                     current.moomoo_option_code = quote.instrument_code
                 if (
-                    quote.last_price is None
+                    quote.price_type != "CLOSE"
+                    or quote.last_price is None
                     or quote.quote_time is None
                     or not quote.instrument_code
                 ):
@@ -523,7 +535,7 @@ class DailySummaryService:
                             guild_id=guild_id,
                             trade_id=trade.id,
                             session_date=session_date,
-                            provider="MOOMOO",
+                            provider=market_provider,
                             instrument_code=quote.instrument_code,
                             last_price=quote.last_price,
                             market_state=market_state,

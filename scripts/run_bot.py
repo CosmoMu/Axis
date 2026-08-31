@@ -25,9 +25,9 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
+from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
-from app.integrations.moomoo_market_data import MoomooMarketDataClient  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
     load_analysis_prompt,
@@ -208,8 +208,11 @@ async def run() -> None:
             daily_summary_service = DailySummaryService(
                 database,
                 (
-                    MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port)
-                    if settings.moomoo_enabled
+                    MassiveClosingPriceClient(
+                        api_key=settings.massive_api_key,
+                        base_url=settings.massive_base_url,
+                    )
+                    if settings.massive_api_key
                     else None
                 ),
                 results_review_enabled=settings.results_review_enabled,

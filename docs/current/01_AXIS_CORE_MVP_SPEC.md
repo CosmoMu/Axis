@@ -673,17 +673,17 @@ Active 收盘总结
 今日 Closed 总结
 ```
 
-Core 只允许通过本地 Moomoo OpenD 获取只读美股期权快照：
+Active Summary 只允许通过 Massive Options Daily Aggregate 获取该交易日正式收盘价：
 
 ```text
-期权代码必须由 underlying + expiry + strike + Call/Put 在 option chain 精确解析
-不得手工拼接期权代码
+期权代码必须由 underlying + expiry + strike + Call/Put 确定性生成
+必须读取当日 Daily OHLC close，不得使用盘后实时 snapshot 或其他日期 bar
 不得读取账户、资金、持仓或订单
 不得 unlock trade、下单、改单或撤单
 ```
 
-会员只显示 `当前/收盘参考价`、行情时间与基于 `avg_cost` 的浮动收益；不显示
-`Market / Bid / Ask`。行情不可用时显示不可用，不得猜测或沿用无时间信息的价格。
+会员只显示正式收盘价与基于 `avg_cost` 的收盘收益；不显示 `Market / Bid / Ask`。
+行情不可用时显示不可用，不得猜测或沿用其他日期或无时间信息的价格。
 
 每日发布以 `guild + category + session_date` 唯一，Discord marker 与数据库状态共同防止
 重启或重试时重复发送。周末、假日以及无法确认交易日时不发布。
