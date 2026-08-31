@@ -26,7 +26,7 @@ Work:
 - 验证 Fast Momentum Reversal、Tracking Protection、Overnight Tracking 和 Tracking Stop。
 - 核对 Discord Entry / TP / 停止追踪、Daily Results 和数据库完整历史。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。
-- 在第一天存在 Eligible stopped/closed trade 时，验证收盘后 `📋・results-review` Draft、默认
+- 在存在 Eligible stopped / active / closed trade 时，验证收盘后 `📋・results-review` Draft、默认
   Include、Manager Review 与 `16:15 ET` 单次公开发布；保留数据库与 Discord 证据。
 
 Exit criteria:

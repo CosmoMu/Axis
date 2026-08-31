@@ -26,6 +26,7 @@ from app.services.daily_summary import _trade_result_details, _weighted_return
 from app.services.trading_calendar import TradingCalendarService
 
 DEFAULT_SECTION_ORDER = ("SHORT_TERM", "SWING", "LEAPS")
+ACTIVE_SHORT_TERM_STATES = ("ACTIVE", "OVERNIGHT_ACTIVE")
 SECTION_LABELS = {
     "SHORT_TERM": "SHORT-TERM",
     "SWING": "SWING",
@@ -116,7 +117,11 @@ def _display_line(item: DailyResultsItem) -> str:
     payload = item.snapshot_json
     head = f"{payload['public_trade_id']} · {_contract(payload)}"
     if item.category == TradeCategory.SHORT_TERM.value:
-        return f"{head} {_percent(item.display_result_pct)}"
+        side = "C" if payload["option_side"] == "CALL" else "P"
+        return (
+            f"{payload['ticker']} {_number(payload['strike'])}{side} "
+            f"{_percent(item.display_result_pct)}"
+        )
     corrected = item.original_result_pct is not None
     details = []
     if corrected:
@@ -200,9 +205,16 @@ class DailyResultsReviewService:
                         .join(Trade, Trade.id == ShortTermTracking.trade_id)
                         .where(
                             ShortTermTracking.guild_id == guild_id,
-                            ShortTermTracking.tracking_state == "STOPPED",
-                            ShortTermTracking.tracking_ended_at >= start,
-                            ShortTermTracking.tracking_ended_at < end,
+                            (
+                                ShortTermTracking.tracking_state.in_(
+                                    ACTIVE_SHORT_TERM_STATES
+                                )
+                                | (
+                                    (ShortTermTracking.tracking_state == "STOPPED")
+                                    & (ShortTermTracking.tracking_ended_at >= start)
+                                    & (ShortTermTracking.tracking_ended_at < end)
+                                )
+                            ),
                         )
                         .order_by(Trade.public_trade_id)
                     )
@@ -252,7 +264,13 @@ class DailyResultsReviewService:
                 for tracking, trade in tracking_rows:
                     has_tp = bool(tracking.tp_levels_hit or tracking.momentum_tp_events)
                     displayed = (
-                        tracking.highest_return_pct if has_tp else tracking.tracking_end_return_pct
+                        tracking.current_return_pct
+                        if tracking.tracking_state in ACTIVE_SHORT_TERM_STATES
+                        else (
+                            tracking.highest_return_pct
+                            if has_tp
+                            else tracking.tracking_end_return_pct
+                        )
                     )
                     session.add(
                         DailyResultsItem(

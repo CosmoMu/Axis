@@ -78,12 +78,14 @@ Short-Term:
 - Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
-- 极简 Daily Results 的 TP highest / no-TP tracking-end 选择、LOTTO、TP 顺序和幂等。
+- 极简 Daily Results 的 stopped TP-highest / no-TP tracking-end、active current-return、无公开
+  ST 订单号、TP 顺序和幂等。
 
 Daily Results Review:
 
 - 实际 Market Close + delay 与 Early Close；Public Publish 时间固定为可配置 `16:15 ET`。
-- 一个 Trading Date 一个 Draft；默认包含所有 Ended Trade，Active Trade 排除。
+- 一个 Trading Date 一个 Draft；默认包含当天停止及仍在追踪的全部 Short-Term 和已关闭的
+  Swing / LEAPS。
 - Short-Term、Swing、LEAPS 展示规则与 LOTTO。
 - Exclude with Reason / Re-Include 不删除 Trade 或 Event history。
 - Display Edit 不修改 Trade；Correct Result、Public Correction 与 actor/before/after Audit。

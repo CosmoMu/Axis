@@ -153,8 +153,8 @@ async def review_database() -> Database:
                     trade_id=short_active.id,
                     option_ticker="O:QQQ260828C00714000",
                     entry_price=Decimal("1"),
-                    current_price=Decimal("1.2"),
-                    current_return_pct=Decimal("20"),
+                    current_price=Decimal("1.12"),
+                    current_return_pct=Decimal("12"),
                     highest_price=Decimal("1.2"),
                     highest_return_pct=Decimal("20"),
                     highest_at=ENDED_AT,
@@ -219,7 +219,7 @@ async def review_database() -> Database:
 
 
 @pytest.mark.asyncio
-async def test_prepare_review_is_idempotent_and_excludes_active_trades() -> None:
+async def test_prepare_review_includes_active_and_today_stopped_short_term() -> None:
     database = await review_database()
     service = DailyResultsReviewService(database)
     try:
@@ -228,18 +228,24 @@ async def test_prepare_review_is_idempotent_and_excludes_active_trades() -> None
         assert first.id == second.id
         assert {item.public_trade_id for item in first.items} == {
             "ST-0001",
+            "ST-0002",
             "SW-0001",
             "LP-0001",
         }
         assert all(item.included for item in first.items)
         short = next(item for item in first.items if item.public_trade_id == "ST-0001")
         assert short.display_result_pct == Decimal("136.0000")
+        short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
+        assert short_active.display_result_pct == Decimal("12.0000")
         rendered = str(first.snapshot)
-        assert "(LOTTO)" in rendered
+        assert "NVDA 200C +136%" in rendered
+        assert "QQQ 714C +12%" in rendered
+        assert "ST-0001" not in rendered
+        assert "ST-0002" not in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
         async with database.session() as session:
             assert await session.scalar(select(func.count()).select_from(DailyResultsReview)) == 1
-            assert await session.scalar(select(func.count()).select_from(DailyResultsItem)) == 3
+            assert await session.scalar(select(func.count()).select_from(DailyResultsItem)) == 4
     finally:
         await database.dispose()
 
@@ -286,7 +292,7 @@ async def test_display_edit_and_result_correction_do_not_modify_trade() -> None:
         item = next(item for item in review.items if item.public_trade_id == "ST-0001")
         await service.edit_item_display(
             item.id,
-            display_text="ST-0001 · NVDA 200C (LOTTO) +140%",
+            display_text="NVDA 200C +140%",
             actor_user_id=99,
         )
         await service.correct_result(
@@ -402,14 +408,15 @@ def test_results_review_view_and_public_card_are_minimal() -> None:
         "title": "AXIS DAILY RESULTS",
         "trading_date": "2026-08-28",
         "sections": [
-            {"label": "SHORT-TERM", "lines": ["ST-0001 · NVDA 200C +136%"]},
+            {"label": "SHORT-TERM", "lines": ["NVDA 200C +136%"]},
             {"label": "SWING", "lines": []},
             {"label": "LEAPS", "lines": []},
         ],
         "footer": "Past performance does not guarantee future results.",
     }
     rendered = str(build_daily_results_snapshot_embed(snapshot, review=False).to_dict())
-    assert "ST-0001 · NVDA 200C +136%" in rendered
+    assert "NVDA 200C +136%" in rendered
+    assert "ST-0001" not in rendered
     assert "Past performance does not guarantee future results." in rendered
     for forbidden in ("Win Rate", "Closed Count", "Winner Count", "Average Return"):
         assert forbidden not in rendered

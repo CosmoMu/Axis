@@ -166,7 +166,7 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 ## Daily Results Review
 
 - 实际 XNYS Close + 可配置延迟后生成每日唯一 Draft，Early Close 使用真实收盘时间。
-- 当天 STOPPED Short-Term 与 CLOSED Swing / LEAPS 默认 Included；Active Trade 自动排除，
+- 当天 STOPPED 与仍在追踪的全部 Short-Term，以及 CLOSED Swing / LEAPS 默认 Included；
   亏损交易不会被自动隐藏。
 - Manager / Owner 可 Manage Trades、Exclude with Reason、Re-Include、Edit Display、Correct
   Result、Preview、Publish Now；普通 Edit 不修改 Trade History。
@@ -174,8 +174,9 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
   Dataset 或内部 Performance。
 - `16:15 ET` scheduled publish 与 Publish Now 共用幂等 claim；发布后普通操作锁定，Final
   Snapshot 不可变，Public Correction 另记 Audit。
-- Short-Term 按 TP 是否触发选择 highest 或 tracking-end；Swing / LEAPS 显示 TP / SL 与最高
-  收益；LOTTO 全程保留。Daily Results 不显示 totals。
+- Short-Term 已停止订单按 TP 是否触发选择 highest 或 tracking-end，仍在追踪订单使用收盘
+  current return；公开行只显示合约代码和收益率，不显示 ST 订单号。Swing / LEAPS 显示 TP /
+  SL 与最高收益；Daily Results 不显示 totals。
 - Results Review 不影响 Swing / LEAPS Daily Summary；Short-Term 继续不发 Daily Summary。
 
 ## Soft Open Reset / Production Boundary

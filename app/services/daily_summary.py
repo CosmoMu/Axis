@@ -409,7 +409,7 @@ class DailySummaryService:
         for event in events:
             events_by_trade.setdefault(event.trade_id, []).append(event)
 
-        short_term_ended: list[ShortTermDailyRow] = []
+        short_term_rows: list[ShortTermDailyRow] = []
         for tracking, trade in tracking_rows:
             row = ShortTermDailyRow(
                 public_trade_id=trade.public_trade_id,
@@ -423,8 +423,7 @@ class DailySummaryService:
                 lowest_return_pct=tracking.lowest_return_pct,
                 is_lotto=trade.is_lotto,
             )
-            if tracking.tracking_state not in {"ACTIVE", "OVERNIGHT_ACTIVE"}:
-                short_term_ended.append(row)
+            short_term_rows.append(row)
 
         summaries: list[DailyCategorySummary] = []
         for category in (TradeCategory.SWING.value, TradeCategory.LEAPS.value):
@@ -601,9 +600,10 @@ class DailySummaryService:
                     trade.public_trade_id: tracking for tracking, trade in tracking_rows
                 }
                 short_result_rows = []
-                for row in short_term_ended:
+                for row in short_term_rows:
                     tracking = tracking_by_public_id[row.public_trade_id]
                     has_take_profit = bool(tracking.tp_levels_hit or tracking.momentum_tp_events)
+                    is_active = tracking.tracking_state in {"ACTIVE", "OVERNIGHT_ACTIVE"}
                     short_result_rows.append(
                         DailyResultRow(
                             public_trade_id=row.public_trade_id,
@@ -614,9 +614,13 @@ class DailySummaryService:
                             maximum_return_pct=row.highest_return_pct,
                             maximum_drawdown_pct=row.lowest_return_pct,
                             displayed_result_pct=(
-                                row.highest_return_pct
-                                if has_take_profit
-                                else row.tracking_end_return_pct
+                                row.current_return_pct
+                                if is_active
+                                else (
+                                    row.highest_return_pct
+                                    if has_take_profit
+                                    else row.tracking_end_return_pct
+                                )
                             ),
                             is_lotto=row.is_lotto,
                         )

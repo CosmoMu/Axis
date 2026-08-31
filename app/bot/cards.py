@@ -606,7 +606,9 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
             )
             if label == "SHORT-TERM":
                 lines.append(
-                    f"**{row.public_trade_id}** · {contract} · {_percent(row.displayed_result_pct)}"
+                    f"{row.ticker} {_number(row.strike)}"
+                    f"{'C' if row.option_side == 'CALL' else 'P'} "
+                    f"{_percent(row.displayed_result_pct)}"
                 )
             else:
                 lines.append(
