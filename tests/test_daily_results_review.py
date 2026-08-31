@@ -128,7 +128,7 @@ async def review_database() -> Database:
                     current_price=Decimal("2.36"),
                     current_return_pct=Decimal("136"),
                     highest_price=Decimal("2.36"),
-                    highest_return_pct=Decimal("136"),
+                    highest_return_pct=Decimal("130"),
                     highest_at=ENDED_AT,
                     lowest_price=Decimal("0.5"),
                     lowest_return_pct=Decimal("-50"),
@@ -156,7 +156,7 @@ async def review_database() -> Database:
                     current_price=Decimal("1.12"),
                     current_return_pct=Decimal("12"),
                     highest_price=Decimal("1.2"),
-                    highest_return_pct=Decimal("20"),
+                    highest_return_pct=Decimal("19"),
                     highest_at=ENDED_AT,
                     lowest_price=Decimal("1"),
                     lowest_return_pct=Decimal("0"),
@@ -242,6 +242,26 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         assert "ST-0001 · NVDA 08/28 200C +136%" in rendered
         assert "ST-0002 · QQQ 08/28 714C +20%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
+        async with database.session() as session:
+            stored_items = list(
+                await session.scalars(
+                    select(DailyResultsItem).where(DailyResultsItem.review_id == first.id)
+                )
+            )
+            next(
+                item for item in stored_items if item.snapshot_json["public_trade_id"] == "ST-0001"
+            ).display_order = 100
+            next(
+                item for item in stored_items if item.snapshot_json["public_trade_id"] == "ST-0002"
+            ).display_order = -100
+            await session.commit()
+        reordered = await service.get_review(first.id)
+        reordered_rendered = str(reordered.snapshot)
+        assert reordered_rendered.index("ST-0001") < reordered_rendered.index("ST-0002")
+        short_ids = [
+            item.public_trade_id for item in reordered.items if item.category == "SHORT_TERM"
+        ]
+        assert short_ids == ["ST-0001", "ST-0002"]
         async with database.session() as session:
             assert await session.scalar(select(func.count()).select_from(DailyResultsReview)) == 1
             assert await session.scalar(select(func.count()).select_from(DailyResultsItem)) == 4

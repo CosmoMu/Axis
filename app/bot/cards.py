@@ -45,6 +45,13 @@ def _public(embed: discord.Embed) -> discord.Embed:
     return embed
 
 
+def _public_trade_sort_key(public_trade_id: str) -> tuple[str, int, str]:
+    match = re.fullmatch(r"([A-Z]+)-(\d+)", public_trade_id)
+    if match is None:
+        return public_trade_id, 2**31 - 1, public_trade_id
+    return match.group(1), int(match.group(2)), public_trade_id
+
+
 ACTION_LABELS = {
     "ENTRY": "入场",
     "UPDATE": "订单更新",
@@ -598,7 +605,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
         ("LEAPS", card.leaps),
     ):
         lines: list[str] = []
-        for row in rows[:10]:
+        for row in sorted(rows, key=lambda item: _public_trade_sort_key(item.public_trade_id))[:10]:
             lotto = " (LOTTO)" if row.is_lotto else ""
             contract = (
                 f"{row.ticker} {_number(row.strike)}"

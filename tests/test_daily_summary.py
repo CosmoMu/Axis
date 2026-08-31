@@ -238,6 +238,14 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
         session_date=SESSION_DATE,
         short_term=(
             DailyResultRow(
+                public_trade_id="ST-0002",
+                ticker="QQQ",
+                strike=Decimal("714"),
+                option_side="CALL",
+                expiry=SESSION_DATE,
+                displayed_result_pct=Decimal("-50"),
+            ),
+            DailyResultRow(
                 public_trade_id="ST-0001",
                 ticker="NVDA",
                 strike=Decimal("500"),
@@ -245,14 +253,6 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
                 expiry=SESSION_DATE,
                 displayed_result_pct=Decimal("136"),
                 is_lotto=True,
-            ),
-            DailyResultRow(
-                public_trade_id="ST-0002",
-                ticker="QQQ",
-                strike=Decimal("714"),
-                option_side="CALL",
-                expiry=SESSION_DATE,
-                displayed_result_pct=Decimal("-50"),
             ),
         ),
         swing=(
@@ -289,6 +289,7 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
     rendered = str(build_daily_results_embed(card).to_dict())
     assert "ST-0001 · NVDA 08/28 500C +136.00%" in rendered
     assert "ST-0002 · QQQ 08/28 714C -50.00%" in rendered
+    assert rendered.index("ST-0001") < rendered.index("ST-0002")
     assert "TP1 +42.00% · TP2 +70.00% · 最高收益 +84.00%" in rendered
     assert "TP1 +51.00% · TP2 +102.00% · 最高收益 +126.00%" in rendered
     assert "SL -22.00% · 最高收益 +8.00%" in rendered

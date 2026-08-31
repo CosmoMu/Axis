@@ -114,7 +114,7 @@ Protection、Momentum、Overnight 或 price-source policy，不在 Production �
 - [ ] Exclude 只改变 Public Daily Results；Trade、Event、Mentor、Tracking、Audit 全部保留。
 - [ ] Publish Now 与 `16:15 ET` Scheduled Publish 不重复。
 - [ ] Final Snapshot 与 Discord Message ID 保存。
-- [ ] 全部 Short-Term Results 使用当天 highest return。
+- [ ] 全部 Short-Term Results 使用完整追踪周期最高价相对入场价计算的收益，并按订单号升序。
 - [ ] Swing / LEAPS 显示 TP / SL 与最高收益，不显示 Daily Totals。
 
 ## Category Daily Summary

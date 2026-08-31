@@ -28,9 +28,10 @@ RESULTS_TIMEZONE=America/New_York
 6. 未经人工操作时，`16:15 ET` 仍自动发布所有默认 Included Items。
 7. Publish Now 后 Scheduled Job 只认领已有 Public Message，不重复发送。
 
-Short-Term 有 Fixed TP 或 Momentum TP 时显示 `highest_return_pct`；没有 TP 时显示
-`tracking_end_return_pct`。Swing / LEAPS 显示 TP / SL event 与最高收益。LOTTO 始终附加
-`(LOTTO)`。Public Card 不显示 totals、win rate、average return 或 closed count。
+Short-Term 始终使用完整追踪周期内的 `highest_price` 相对 `entry_price` 重新计算公开收益，
+不使用当前价、停止价或单日快照，并按订单号数字升序显示。Swing / LEAPS 显示 TP / SL
+event 与最高收益。Public Card 不显示 totals、win rate、average return 或 closed count；
+Short-Term Results 不显示 LOTTO 标签。
 
 ## Manager Actions
 

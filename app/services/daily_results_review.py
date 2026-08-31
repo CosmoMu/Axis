@@ -23,6 +23,7 @@ from app.db.models import (
 from app.db.session import Database
 from app.domain.enums import TradeCategory, TradeState
 from app.services.daily_summary import _trade_result_details, _weighted_return
+from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.trading_calendar import TradingCalendarService
 
 DEFAULT_SECTION_ORDER = ("SHORT_TERM", "SWING", "LEAPS")
@@ -129,6 +130,24 @@ def _short_term_result_contract(payload: dict[str, object]) -> str:
         )
         if part
     )
+
+
+def _public_trade_sort_key(item: DailyResultsItem) -> tuple[str, int, str]:
+    public_trade_id = str(item.snapshot_json.get("public_trade_id", ""))
+    match = re.fullmatch(r"([A-Z]+)-(\d+)", public_trade_id)
+    if match is None:
+        return public_trade_id, 2**31 - 1, public_trade_id
+    return match.group(1), int(match.group(2)), public_trade_id
+
+
+def _review_item_sort_key(item: DailyResultsItem) -> tuple[int, str, int, str]:
+    category_rank = {
+        TradeCategory.SHORT_TERM.value: 0,
+        TradeCategory.SWING.value: 1,
+        TradeCategory.LEAPS.value: 2,
+    }.get(item.category, 3)
+    prefix, number, public_trade_id = _public_trade_sort_key(item)
+    return category_rank, prefix, number, public_trade_id
 
 
 def _display_line(item: DailyResultsItem) -> str:
@@ -282,12 +301,16 @@ class DailyResultsReviewService:
                 await session.flush()
                 order = 0
                 for tracking, trade in tracking_rows:
+                    peak_return_pct = ShortTermTrackingPolicy.return_pct(
+                        tracking.entry_price,
+                        tracking.highest_price,
+                    )
                     session.add(
                         DailyResultsItem(
                             review_id=review.id,
                             trade_id=trade.id,
                             category=TradeCategory.SHORT_TERM.value,
-                            display_result_pct=tracking.highest_return_pct,
+                            display_result_pct=peak_return_pct,
                             included=True,
                             display_order=order,
                             snapshot_json=self._trade_payload(trade),
@@ -380,6 +403,7 @@ class DailyResultsReviewService:
                 )
             )
             snapshot = self._snapshot(review, items, public=False)
+            sorted_items = sorted(items, key=_review_item_sort_key)
             return ResultsReviewView(
                 id=review.id,
                 trading_date=review.trading_date,
@@ -390,7 +414,7 @@ class DailyResultsReviewService:
                 review_message_id=review.discord_review_message_id,
                 public_message_id=review.discord_public_message_id,
                 snapshot=snapshot,
-                items=tuple(self._item_view(item) for item in items),
+                items=tuple(self._item_view(item) for item in sorted_items),
                 locked=review.final_snapshot is not None,
             )
 
@@ -758,9 +782,15 @@ class DailyResultsReviewService:
         sections = []
         for category in order:
             lines = []
-            for item in items:
-                if item.category != category or (public and not item.included):
-                    continue
+            category_items = sorted(
+                (
+                    item
+                    for item in items
+                    if item.category == category and (item.included or not public)
+                ),
+                key=_public_trade_sort_key,
+            )
+            for item in category_items:
                 marker = "" if public else ("✓ " if item.included else "✕ ")
                 lines.append(marker + _display_line(item))
             sections.append(

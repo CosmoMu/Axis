@@ -38,6 +38,7 @@ from app.integrations.moomoo_market_data import (
     OptionQuoteRequest,
     PostCloseMarketData,
 )
+from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.trading_calendar import TradingCalendarService
 
 ET = ZoneInfo("America/New_York")
@@ -418,6 +419,10 @@ class DailySummaryService:
 
         short_term_rows: list[ShortTermDailyRow] = []
         for tracking, trade in tracking_rows:
+            peak_return_pct = ShortTermTrackingPolicy.return_pct(
+                tracking.entry_price,
+                tracking.highest_price,
+            )
             row = ShortTermDailyRow(
                 public_trade_id=trade.public_trade_id,
                 ticker=trade.ticker,
@@ -426,7 +431,7 @@ class DailySummaryService:
                 option_side=trade.option_side,
                 current_return_pct=tracking.current_return_pct,
                 tracking_end_return_pct=tracking.tracking_end_return_pct,
-                highest_return_pct=tracking.highest_return_pct,
+                highest_return_pct=peak_return_pct,
                 lowest_return_pct=tracking.lowest_return_pct,
                 is_lotto=trade.is_lotto,
             )

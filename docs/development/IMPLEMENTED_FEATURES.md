@@ -174,9 +174,9 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
   Dataset 或内部 Performance。
 - `16:15 ET` scheduled publish 与 Publish Now 共用幂等 claim；发布后普通操作锁定，Final
   Snapshot 不可变，Public Correction 另记 Audit。
-- 全部 Short-Term Results 统一使用当天 highest return；公开行显示 ST 订单号、Ticker、
-  到期日、合约代码和收益率。Swing / LEAPS 显示 TP / SL 与最高收益；Daily Results 不显示
-  totals。
+- 全部 Short-Term Results 统一使用完整追踪周期内的期权最高价相对入场价计算收益；不使用
+  当前价、停止价或单日快照。公开行显示 ST 订单号、Ticker、到期日、合约代码和收益率，
+  并按订单号数字升序排列。Swing / LEAPS 显示 TP / SL 与最高收益；Daily Results 不显示 totals。
 - Results Review 不影响 Swing / LEAPS Daily Summary；Short-Term 继续不发 Daily Summary。
 
 ## Soft Open Reset / Production Boundary
