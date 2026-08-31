@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 225 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 228 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -100,6 +100,10 @@ Membership / Stripe:
   不调用 TradingCalendarService、终身一次、已有访问不消耗、默认无 DM。
 - Day Pass 保持 1 XNYS Trading Day；Trial 有效时阻止 Day Pass checkout，但允许 Monthly。
 - Welcome-first Category / Channel 顺序、公开入口、会员区隐藏和 Persistent Card 文案/按钮。
+- Welcome 极简卡固定提供 `START 7-DAY FREE TRIAL` 交互按钮与 `VIEW MEMBERSHIP` 链接；
+  Trial 按钮先检查 active access / lifetime claim，再进入带 `I UNDERSTAND` 的 Risk Disclosure。
+- 已使用 Trial 时仅返回 Membership 导流且不会重复授权；已有 active access 时不消耗终身一次资格；
+  确认后通过 MembershipAccessService 创建 $0 entitlement 并同步 Member Role，不调用 Stripe。
 - Checkout / Portal、webhook signature、dedup、Price snapshot / Grandfathering。
 - renewal、failure、cancel-at-period-end、PAST_DUE 与 provider event ordering。
 - Test / Live config fallback rejection、environment-scoped Price/Entitlement/Session/Event。
@@ -162,8 +166,10 @@ Discord:
 - Bootstrap dry-run=REUSE 29 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
-- Welcome / Membership 持久卡片已显示 7 Calendar Days、No Card / No Auto-Renewal、
-  Day Pass 1 Trading Day、START FREE TRIAL 与 MANAGE MEMBERSHIP；同标题消息各只有一条。
+- Welcome 持久卡片已精简并显示 7 天完整会员体验、No Card / No Automatic Renewal、
+  `MY RISK IS NOT YOUR RISK`，底部只有 `START 7-DAY FREE TRIAL` 与 `VIEW MEMBERSHIP`。
+- Membership 持久卡片继续显示 Free Trial 7 Calendar Days、Day Pass 1 Trading Day、Monthly、
+  START FREE TRIAL 与 MANAGE MEMBERSHIP；Welcome / Membership 同标题消息各只有一条。
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent

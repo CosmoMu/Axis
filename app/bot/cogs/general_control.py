@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from sqlalchemy import select
 
 from app.bot.general_cards import (
+    free_trial_used_embed,
     member_wins_guide_embed,
     results_guide_embed,
     risk_disclosure_embed,
@@ -37,16 +38,31 @@ class LinkView(discord.ui.View):
         self.add_item(discord.ui.Button(label=label, style=discord.ButtonStyle.link, url=url))
 
 
-class WelcomeMembershipView(discord.ui.View):
-    def __init__(self, guild_id: int, subscriptions_channel_id: int) -> None:
+class WelcomeView(discord.ui.View):
+    def __init__(self, controller: GeneralControlCog) -> None:
         super().__init__(timeout=None)
+        self.controller = controller
+        if controller.free_trial_enabled:
+            trial = discord.ui.Button(
+                label=f"START {controller.free_trial_calendar_days}-DAY FREE TRIAL",
+                style=discord.ButtonStyle.success,
+                custom_id="axis:welcome:free_trial:v1",
+            )
+            trial.callback = self.free_trial
+            self.add_item(trial)
         self.add_item(
             discord.ui.Button(
                 label="VIEW MEMBERSHIP",
                 style=discord.ButtonStyle.link,
-                url=(f"https://discord.com/channels/{guild_id}/{subscriptions_channel_id}"),
+                url=(
+                    f"https://discord.com/channels/{controller.guild_id}/"
+                    f"{controller.subscriptions_channel_id}"
+                ),
             )
         )
+
+    async def free_trial(self, interaction: discord.Interaction) -> None:
+        await self.controller.request_plan(interaction, "FREE_TRIAL")
 
 
 class RiskDisclosureView(discord.ui.View):
@@ -55,9 +71,7 @@ class RiskDisclosureView(discord.ui.View):
         self.controller = controller
         self.plan_type = plan_type
         button = discord.ui.Button(
-            label=(
-                "I UNDERSTAND & START" if plan_type == "FREE_TRIAL" else "I UNDERSTAND & CONTINUE"
-            ),
+            label="I UNDERSTAND",
             style=discord.ButtonStyle.success,
             custom_id=f"axis:risk:accept:{plan_type.lower()}:v1",
         )
@@ -203,10 +217,20 @@ class GeneralControlCog(commands.Cog):
                 self.guild_id,
                 interaction.user.id,
             )
+            if state == "USED":
+                await interaction.response.send_message(
+                    embed=free_trial_used_embed(),
+                    view=LinkView(
+                        "VIEW MEMBERSHIP",
+                        f"https://discord.com/channels/{self.guild_id}/"
+                        f"{self.subscriptions_channel_id}",
+                    ),
+                    ephemeral=True,
+                )
+                return
             ineligible_messages = {
                 "DISABLED": "Free Trial 目前未开放。",
-                "USED": "该 Discord 账户已经领取过终身一次的 Free Trial。",
-                "ACCESS_ACTIVE": "你已有有效访问权限；本次不会消耗 Free Trial。",
+                "ACCESS_ACTIVE": "You already have active AXIS member access.",
             }
             if state != "ELIGIBLE":
                 await interaction.response.send_message(
@@ -306,10 +330,8 @@ class GeneralControlCog(commands.Cog):
             offers = await self.price_catalog.current_offers()
             membership_view = MembershipView(self, offers)
             self.bot.add_view(membership_view)
-            welcome_view = WelcomeMembershipView(
-                self.guild_id,
-                self.subscriptions_channel_id,
-            )
+            welcome_view = WelcomeView(self)
+            self.bot.add_view(welcome_view)
             cards = (
                 welcome_embed(
                     self.guild_id,

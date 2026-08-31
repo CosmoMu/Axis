@@ -224,28 +224,56 @@ async def verify() -> list[str]:
                     _check(matching[0].id == saved_id, f"{field_name}_mismatch", failures)
                 if channel_key == "welcome" and matching:
                     payload = str(matching[0].embeds[0].to_dict())
-                    _check("NO ACCESS" in payload, "welcome_no_access_missing", failures)
-                    _check("7 个自然日" in payload, "welcome_trial_calendar_copy_missing", failures)
+                    _check("START HERE" not in payload, "welcome_navigation_not_removed", failures)
+                    _check("NO ACCESS" not in payload, "welcome_no_access_not_removed", failures)
+                    _check("7 天完整会员体验" in payload, "welcome_trial_copy_missing", failures)
                     _check("无需信用卡" in payload, "welcome_trial_no_card_missing", failures)
                     _check("不会自动续费" in payload, "welcome_trial_no_renew_missing", failures)
-                    for linked_key in (
-                        "subscriptions",
-                        "official_results",
-                        "lobby",
-                        "member_wins",
-                        "short_term_alerts",
-                        "swing_alerts",
-                        "leaps_alerts",
-                        "member_chat",
-                    ):
-                        expected_url = (
-                            f"https://discord.com/channels/{guild.id}/{channel_ids[linked_key]}"
-                        )
-                        _check(
-                            expected_url in payload,
-                            f"welcome_{linked_key}_link_missing",
-                            failures,
-                        )
+                    _check(
+                        "MY RISK IS NOT YOUR RISK" in payload,
+                        "welcome_personal_risk_copy_missing",
+                        failures,
+                    )
+                    components = [
+                        component
+                        for row in matching[0].components
+                        for component in getattr(row, "children", ())
+                    ]
+                    labels = [getattr(component, "label", None) for component in components]
+                    _check(
+                        labels == ["START 7-DAY FREE TRIAL", "VIEW MEMBERSHIP"],
+                        "welcome_buttons_mismatch",
+                        failures,
+                    )
+                    trial_button = next(
+                        (
+                            component
+                            for component in components
+                            if getattr(component, "label", None) == "START 7-DAY FREE TRIAL"
+                        ),
+                        None,
+                    )
+                    membership_button = next(
+                        (
+                            component
+                            for component in components
+                            if getattr(component, "label", None) == "VIEW MEMBERSHIP"
+                        ),
+                        None,
+                    )
+                    _check(
+                        getattr(trial_button, "custom_id", None)
+                        == "axis:welcome:free_trial:v1",
+                        "welcome_trial_interaction_missing",
+                        failures,
+                    )
+                    _check(
+                        getattr(membership_button, "url", None)
+                        == f"https://discord.com/channels/{guild.id}/"
+                        f"{channel_ids['subscriptions']}",
+                        "welcome_membership_link_mismatch",
+                        failures,
+                    )
                 if channel_key == "subscriptions" and matching:
                     payload = str(matching[0].embeds[0].to_dict())
                     labels = {
@@ -261,6 +289,11 @@ async def verify() -> list[str]:
                     _check("7 Calendar Days" in payload, "trial_calendar_days_missing", failures)
                     _check("3 Trading Days" not in payload, "legacy_trial_copy_present", failures)
                     _check("1 Trading Day" in payload, "day_pass_trading_day_missing", failures)
+                    _check(
+                        "No card required. No automatic renewal." in payload,
+                        "trial_payment_copy_missing",
+                        failures,
+                    )
                     _check("START FREE TRIAL" in labels, "start_trial_button_missing", failures)
                     _check(
                         "MANAGE MEMBERSHIP" in labels,

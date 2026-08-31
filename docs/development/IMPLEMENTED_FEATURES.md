@@ -139,8 +139,12 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 - Welcome、Membership、Results、Member Wins 和 Lobby Topic；Welcome 是第一个公共 AXIS
   Category 的第一个频道，Persistent Card 是默认 onboarding 入口。
+- Welcome 使用 Minimal / Clean / Premium 内容，只保留品牌、7 天体验、四项会员内容与风险提示；
+  Persistent `START 7-DAY FREE TRIAL` 直接进入 AXIS 资格与 Risk 流程，`VIEW MEMBERSHIP` 跳转
+  subscriptions，不使用公开 Trial URL。
 - Welcome / Membership 明确展示 `7 Calendar Days` Free Trial、无需信用卡、不自动续费，
-  并把 Day Pass 单独标为 `1 Trading Day`。
+  并把 Day Pass 单独标为 `1 Trading Day`；Risk Disclosure 使用 `I UNDERSTAND` 并包含
+  `MY RISK IS NOT YOUR RISK`。
 - Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。
 - 公开 Membership 卡片使用数据库 Price Catalog。

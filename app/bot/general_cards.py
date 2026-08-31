@@ -10,18 +10,6 @@ AXIS_GREEN = 0x86F7A8
 QUIET_BLACK = 0x111411
 
 
-def _channel_link(
-    guild_id: int | None,
-    channel_ids: Mapping[str, int] | None,
-    key: str,
-    label: str,
-) -> str:
-    channel_id = channel_ids.get(key) if channel_ids is not None else None
-    if guild_id is None or channel_id is None:
-        return f"**{label}**"
-    return f"[{label}](https://discord.com/channels/{guild_id}/{channel_id})"
-
-
 def welcome_embed(
     guild_id: int | None = None,
     channel_ids: Mapping[str, int] | None = None,
@@ -29,52 +17,34 @@ def welcome_embed(
     free_trial_calendar_days: int = 7,
     free_trial_enabled: bool = True,
 ) -> discord.Embed:
-    def link(key: str, label: str) -> str:
-        return _channel_link(guild_id, channel_ids, key, label)
+    del guild_id, channel_ids
+    trial_copy = (
+        f"首次加入 AXIS，\n可获得 **{free_trial_calendar_days} 天完整会员体验**。\n\n"
+        "无需信用卡。\n不会自动续费。"
+        if free_trial_enabled
+        else "Free Trial 当前未开放；你仍可在 Membership 页面查看其他访问方式。"
+    )
 
     embed = discord.Embed(
         title="WELCOME TO AXIS",
-        description=(
-            "**Signals without the noise.**\n\n欢迎来到 AXIS。请从这里开始；点击频道名称即可前往。"
-        ),
+        description=f"**Signals without the noise.**\n\n{trial_copy}",
         color=AXIS_GREEN,
     )
     embed.add_field(
-        name="1️⃣ START HERE",
+        name="会员内容",
         value=(
-            f"{link('subscriptions', '💳・subscriptions')} — 领取 Free Trial 或开通会员\n"
-            f"{link('official_results', '📊・results')} — AXIS 官方系统战绩\n"
-            f"{link('lobby', '💬・lobby')} — 市场交流与一般问题\n"
-            f"{link('member_wins', '🏆・member-wins')} — 会员投稿与社区战绩"
-        ),
-        inline=False,
-    )
-    if free_trial_enabled:
-        embed.add_field(
-            name="🎟️ NEW MEMBER FREE TRIAL",
-            value=(
-                f"新会员可主动领取 **{free_trial_calendar_days} 个自然日**完整 Member 访问权限。\n"
-                "从领取时刻连续计算，周末与美国市场休市日也计入。\n"
-                "无需信用卡，不会自动续费；每个 Discord 账户仅可领取一次。"
-            ),
-            inline=False,
-        )
-    embed.add_field(
-        name="2️⃣ MEMBER ACCESS",
-        value=(
-            f"{link('short_term_alerts', '⚡・short-term')} — 短线信号\n"
-            f"{link('swing_alerts', '〽️・swing')} — 波段信号\n"
-            f"{link('leaps_alerts', '♾️・leaps')} — 长期与 LEAPS 信号\n"
-            f"{link('member_chat', '🛋️・member-lounge')} — 会员分析与交流"
+            "⚡ Short-Term\n"
+            "〽️ Swing\n"
+            "♾️ LEAPS\n"
+            "🛋️ Member Lounge"
         ),
         inline=False,
     )
     embed.add_field(
-        name="🔒 NO ACCESS?",
+        name="风险提示",
         value=(
-            "如果会员频道显示 **No Access**，请先前往 "
-            f"{link('subscriptions', '💳・subscriptions')} 开通访问。\n"
-            "Free Trial、Day Pass 与 Monthly 获得相同的 Member 频道权限。"
+            "仅供市场分析与教育交流，不构成投资或买卖建议。\n\n"
+            "**MY RISK IS NOT YOUR RISK.**"
         ),
         inline=False,
     )
@@ -99,7 +69,8 @@ def subscription_embed(
     embed.add_field(
         name="FREE TRIAL",
         value=(
-            f"{free_trial_calendar_days} Calendar Days\n$0\n\nNo card required. No auto-renewal."
+            f"{free_trial_calendar_days} Calendar Days\n$0\n\n"
+            "No card required. No automatic renewal."
             if free_trial_enabled
             else "Temporarily unavailable."
         ),
@@ -148,7 +119,19 @@ def risk_disclosure_embed() -> discord.Embed:
             "过去表现不代表未来结果。\n\n"
             "用户应根据自身情况独立判断并自行承担所有交易风险。\n\n"
             "AXIS 不管理会员资金，不代表会员执行交易，不提供针对个人财务状况的"
-            "个性化投资建议。"
+            "个性化投资建议。\n\n"
+            "**MY RISK IS NOT YOUR RISK.**"
+        ),
+        color=QUIET_BLACK,
+    )
+
+
+def free_trial_used_embed() -> discord.Embed:
+    return discord.Embed(
+        title="AXIS FREE TRIAL",
+        description=(
+            "你的免费体验已经使用过。\n\n"
+            "你可以前往 Membership 页面继续访问 AXIS。"
         ),
         color=QUIET_BLACK,
     )

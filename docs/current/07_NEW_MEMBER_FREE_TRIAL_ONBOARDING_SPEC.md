@@ -41,9 +41,11 @@ The persistent Welcome and Membership cards must distinguish:
 - `Day Pass — 1 Trading Day` — U.S. equity calendar; weekends and holidays do not count.
 - `Monthly` — automatic monthly renewal until canceled.
 
-Controls are `START FREE TRIAL`, Day Pass, Monthly, and `MANAGE MEMBERSHIP`. Risk acknowledgement
-precedes activation. Customer-facing text remains Chinese-primary and includes the education-only,
-non-investment-advice notice.
+Welcome 只保留品牌说明、7 天体验、四项会员内容和风险提示，不再展示完整频道导航或
+`NO ACCESS` 说明。底部固定两个按钮：交互按钮 `START 7-DAY FREE TRIAL` 直接进入资格检查与
+Risk Disclosure 流程，链接按钮 `VIEW MEMBERSHIP` 前往 `💳・subscriptions`。Membership 页面
+继续提供 Trial、Day Pass、Monthly 和 `MANAGE MEMBERSHIP`。Risk acknowledgement 的确认按钮
+为 `I UNDERSTAND`；公开及风险文案包含 `MY RISK IS NOT YOUR RISK`。
 
 ## Configuration
 

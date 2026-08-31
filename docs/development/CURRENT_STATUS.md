@@ -165,12 +165,15 @@ Implemented: 终身一次、版本化风险确认、领取时刻起连续 7 个 
 休市日计入、领取时固化 duration/expiry、加入 Guild 不自动领取、已有访问不消耗 Trial、
 Trial 期间阻止 Day Pass 但允许 Monthly，以及多 Entitlement 汇总后的 Member Role 同步。
 `TradingCalendarService` 不参与 Free Trial；Day Pass 的一交易日逻辑保持不变。旧 Trial 通过
-0025 migration 保留历史 `TRADING_DAY` duration 与原到期时间，不追溯改期。
+0025 migration 保留历史 `TRADING_DAY` duration 与原到期时间，不追溯改期。Welcome 已简化为
+品牌、7 天体验、会员内容与风险提示，并提供 Persistent `START 7-DAY FREE TRIAL` 交互按钮及
+`VIEW MEMBERSHIP` 链接；重复领取会返回 `AXIS FREE TRIAL` 状态卡和 Membership 跳转。
 
 Remaining: Production 新用户真实领取、7×24 小时到期和 Discord Role reconciliation 时钟演练。
 
-Tests: 周末、美国市场休市日、严格 7 天、禁止调用交易日历、重复申请、已有访问不消耗、
-Trial/Day Pass checkout 边界、到期和多 Entitlement。
+Tests: Welcome 双按钮与回调、Risk Disclosure、无 Stripe Trial 激活、Role sync、周末、美国市场
+休市日、严格 7 天、禁止调用交易日历、重复申请、已有访问不消耗、Trial/Day Pass checkout
+边界、到期和多 Entitlement。
 
 Production status: 代码、数据库 migration、Welcome-first 顺序与持久卡片已部署并通过 runtime
 验证；Reset 已清除开发阶段 Trial。现有历史 claim 不被重算。
