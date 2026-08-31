@@ -3,11 +3,19 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AuditLog, Mentor, MentorAlias, Trade
+from app.db.models import (
+    AnalysisDraft,
+    AuditLog,
+    Mentor,
+    MentorAlias,
+    MentorAnalysis,
+    Trade,
+    TradeDraft,
+)
 from app.db.session import Database
 from app.domain.enums import TradeState
 
@@ -193,6 +201,59 @@ class MentorManagementService:
                 )
                 await session.commit()
             return await self._snapshot(session, mentor)
+
+    async def delete(
+        self,
+        mentor_id: uuid.UUID,
+        *,
+        actor_user_id: int,
+        interaction_id: int | None,
+    ) -> None:
+        async with self.database.session() as session:
+            mentor = await session.scalar(
+                select(Mentor).where(Mentor.id == mentor_id).with_for_update()
+            )
+            if mentor is None:
+                raise MentorValidationError("MENTOR_NOT_FOUND")
+            association_queries = (
+                select(func.count())
+                .select_from(TradeDraft)
+                .where(TradeDraft.mentor_id == mentor.id),
+                select(func.count()).select_from(Trade).where(Trade.mentor_id == mentor.id),
+                select(func.count())
+                .select_from(AnalysisDraft)
+                .where(AnalysisDraft.mentor_id == mentor.id),
+                select(func.count())
+                .select_from(MentorAnalysis)
+                .where(MentorAnalysis.mentor_id == mentor.id),
+            )
+            association_counts = [
+                int((await session.scalar(query)) or 0) for query in association_queries
+            ]
+            if any(association_counts):
+                raise MentorValidationError("MENTOR_DELETE_BLOCKED_BY_HISTORY")
+            before = self._mentor_payload(mentor)
+            aliases = tuple(
+                await session.scalars(
+                    select(MentorAlias.alias)
+                    .where(MentorAlias.mentor_id == mentor.id)
+                    .order_by(MentorAlias.alias)
+                )
+            )
+            session.add(
+                AuditLog(
+                    guild_id=mentor.guild_id,
+                    actor_user_id=actor_user_id,
+                    action_type="MENTOR_DELETED",
+                    entity_type="mentor",
+                    entity_id=str(mentor.id),
+                    before_json={**before, "aliases": list(aliases)},
+                    after_json={"deleted": True},
+                    discord_interaction_id=interaction_id,
+                )
+            )
+            await session.delete(mentor)
+            await session.commit()
 
     async def reassign_trade(
         self,

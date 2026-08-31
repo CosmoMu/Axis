@@ -112,6 +112,7 @@ async def verify() -> list[str]:
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
         results_review = channel("results_review")
+        mentor_control = channel("mentor_control")
 
         _check(welcome.permissions_for(everyone).view_channel, "public_welcome_view", failures)
         _check(not welcome.permissions_for(everyone).send_messages, "public_welcome_send", failures)
@@ -230,6 +231,29 @@ async def verify() -> list[str]:
                 failures,
             )
             _check(config.lobby_guide_message_id is None, "lobby_guide_should_be_absent", failures)
+            _check(
+                config.mentor_panel_message_id is not None,
+                "mentor_panel_message_id_missing",
+                failures,
+            )
+            if config.mentor_panel_message_id is not None:
+                try:
+                    mentor_panel = await mentor_control.fetch_message(
+                        config.mentor_panel_message_id
+                    )
+                except (discord.NotFound, discord.Forbidden):
+                    failures.append("mentor_panel_message_missing")
+                else:
+                    mentor_labels = {
+                        getattr(component, "label", None)
+                        for row in mentor_panel.components
+                        for component in getattr(row, "children", ())
+                    }
+                    _check(
+                        mentor_labels == {"选择 Mentor", "新增 Mentor"},
+                        "mentor_panel_buttons_mismatch",
+                        failures,
+                    )
 
         application_id = client.application_id
         _check(application_id is not None, "application_id_missing", failures)
@@ -261,6 +285,7 @@ def main() -> int:
     print("discord_runtime=PASS")
     print("permissions=public,member,manager,owner,bot")
     print("general_guides=idempotent")
+    print("mentor_control=select,add")
     print(f"owner_test_commands={len(TEST_COMMANDS)}")
     return 0
 

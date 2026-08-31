@@ -111,11 +111,13 @@ tracking 与 event 均为 0；下一笔真实发布将使用 ST-0001，因此不
 
 ## Mentor Management — COMPLETE
 
-Implemented: create、rename、alias、activate/deactivate、Trade reassign 与持久化控制面板。
+Implemented: create、rename、alias、activate/deactivate、Trade reassign、安全删除与持久化
+控制面板。顶层只保留选择和新增；详情页提供编辑、停用/恢复、修改订单 Mentor 和删除。
+物理删除需要二次确认，且任何关联 Draft、Trade 或 Analysis 都会阻止删除并保留历史。
 
 Remaining: 仅长期运营观察。
 
-Tests: Registry、审计、面板恢复与重分配。
+Tests: Registry、审计、面板恢复、重分配、未使用 Mentor 删除与历史关联阻止。
 
 Production status: 已部署。
 

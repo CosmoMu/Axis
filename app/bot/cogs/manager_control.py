@@ -81,7 +81,11 @@ class ManagerControlCog(commands.Cog):
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
         if isinstance(exc, (MentorError, MembershipError, ResultsError)):
-            message = f"操作未完成：{exc.code}"
+            message = (
+                "该 Mentor 已有关联的 Draft、Trade 或 Analysis。请先重新分配或保留为历史记录。"
+                if exc.code == "MENTOR_DELETE_BLOCKED_BY_HISTORY"
+                else f"操作未完成：{exc.code}"
+            )
         elif isinstance(exc, ValueError):
             message = f"输入格式不正确：{exc}"
         elif isinstance(exc, discord.HTTPException):
@@ -248,7 +252,7 @@ class ManagerControlCog(commands.Cog):
     async def _ensure_panels(self) -> None:
         mentor_embed = discord.Embed(
             title="AXIS Mentor Control",
-            description="选择、创建、编辑、停用或恢复 Mentor。",
+            description="选择或新增 Mentor；选择后可以编辑、删除、停用、恢复或修改订单 Mentor。",
             color=0x86F7A8,
         )
         mentor_embed.set_footer(text="AXIS Mentor Control v1")

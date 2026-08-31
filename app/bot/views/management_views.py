@@ -197,11 +197,8 @@ class MentorSelect(discord.ui.Select):
         self,
         controller: ManagerControlCog,
         mentors: list[MentorSnapshot],
-        *,
-        edit: bool,
     ) -> None:
         self.controller = controller
-        self.edit_mode = edit
         super().__init__(
             placeholder="选择 Mentor",
             options=[
@@ -214,7 +211,7 @@ class MentorSelect(discord.ui.Select):
                 )
                 for mentor in mentors[:25]
             ],
-            custom_id=f"axis:mentor:select:menu:{'edit' if edit else 'view'}:v1",
+            custom_id="axis:mentor:select:menu:view:v1",
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -222,14 +219,11 @@ class MentorSelect(discord.ui.Select):
             return
         try:
             mentor = await self.controller.mentor_service.get(uuid.UUID(self.values[0]))
-            if self.edit_mode:
-                await interaction.response.send_modal(MentorModal(self.controller, mentor))
-            else:
-                await interaction.response.send_message(
-                    embed=mentor_embed(mentor),
-                    view=MentorDetailView(self.controller, mentor),
-                    ephemeral=True,
-                )
+            await interaction.response.send_message(
+                embed=mentor_embed(mentor),
+                view=MentorDetailView(self.controller, mentor),
+                ephemeral=True,
+            )
         except Exception as exc:
             await self.controller.handle_error(interaction, exc)
 
@@ -239,11 +233,9 @@ class MentorSelectView(discord.ui.View):
         self,
         controller: ManagerControlCog,
         mentors: list[MentorSnapshot],
-        *,
-        edit: bool,
     ) -> None:
         super().__init__(timeout=180)
-        self.add_item(MentorSelect(controller, mentors, edit=edit))
+        self.add_item(MentorSelect(controller, mentors))
 
 
 class MentorDetailView(discord.ui.View):
@@ -260,9 +252,12 @@ class MentorDetailView(discord.ui.View):
         toggle.callback = self.toggle
         reassign = discord.ui.Button(label="修改订单 Mentor", style=discord.ButtonStyle.secondary)
         reassign.callback = self.reassign
+        delete = discord.ui.Button(label="删除 Mentor", style=discord.ButtonStyle.danger)
+        delete.callback = self.delete
         self.add_item(edit)
         self.add_item(toggle)
         self.add_item(reassign)
+        self.add_item(delete)
 
     async def edit(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(MentorModal(self.controller, self.mentor))
@@ -296,6 +291,54 @@ class MentorDetailView(discord.ui.View):
             view=TradeReassignView(self.controller, trades),
             ephemeral=True,
         )
+
+    async def delete(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.send_message(
+            f"确认永久删除 Mentor **{self.mentor.name}**？"
+            "已有 Draft、Trade 或 Analysis 时会被阻止。",
+            view=DeleteMentorConfirmView(self.controller, self.mentor),
+            ephemeral=True,
+        )
+
+
+class DeleteMentorConfirmView(discord.ui.View):
+    def __init__(self, controller: ManagerControlCog, mentor: MentorSnapshot) -> None:
+        super().__init__(timeout=120)
+        self.controller = controller
+        self.mentor = mentor
+        confirm = discord.ui.Button(
+            label="确认删除 Mentor",
+            style=discord.ButtonStyle.danger,
+        )
+        confirm.callback = self.confirm
+        cancel = discord.ui.Button(label="取消", style=discord.ButtonStyle.secondary)
+        cancel.callback = self.cancel
+        self.add_item(confirm)
+        self.add_item(cancel)
+
+    async def confirm(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await self.controller.mentor_service.delete(
+                self.mentor.id,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await interaction.followup.send(
+                f"Mentor **{self.mentor.name}** 已永久删除。",
+                ephemeral=True,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+    async def cancel(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.edit_message(content="已取消删除 Mentor。", view=None)
 
 
 class TradeReassignSelect(discord.ui.Select):
@@ -395,13 +438,12 @@ class MentorControlView(discord.ui.View):
         for label, custom_id, callback, style in (
             ("选择 Mentor", "axis:mentor:select:v1", self.select, discord.ButtonStyle.secondary),
             ("新增 Mentor", "axis:mentor:add:v1", self.add, discord.ButtonStyle.success),
-            ("编辑 Mentor", "axis:mentor:edit:v1", self.edit, discord.ButtonStyle.primary),
         ):
             button = discord.ui.Button(label=label, custom_id=custom_id, style=style)
             button.callback = callback
             self.add_item(button)
 
-    async def _select(self, interaction: discord.Interaction, *, edit: bool) -> None:
+    async def _select(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize(interaction):
             return
         mentors = await self.controller.mentor_service.list(self.controller.guild_id)
@@ -410,20 +452,16 @@ class MentorControlView(discord.ui.View):
             return
         await interaction.response.send_message(
             "请选择 Mentor：",
-            view=MentorSelectView(self.controller, mentors, edit=edit),
+            view=MentorSelectView(self.controller, mentors),
             ephemeral=True,
         )
 
     async def select(self, interaction: discord.Interaction) -> None:
-        await self._select(interaction, edit=False)
+        await self._select(interaction)
 
     async def add(self, interaction: discord.Interaction) -> None:
         if await self.controller.authorize(interaction):
             await interaction.response.send_modal(MentorModal(self.controller))
-
-    async def edit(self, interaction: discord.Interaction) -> None:
-        await self._select(interaction, edit=True)
-
 
 class MemberLookupModal(discord.ui.Modal):
     def __init__(self, controller: ManagerControlCog) -> None:

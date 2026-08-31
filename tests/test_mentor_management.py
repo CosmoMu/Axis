@@ -7,10 +7,13 @@ import pytest
 from sqlalchemy import select
 
 from app.db.base import Base
-from app.db.models import AuditLog, GuildConfig, Trade
+from app.db.models import AuditLog, GuildConfig, Mentor, Trade
 from app.db.session import Database
 from app.domain.enums import TradeState
-from app.services.mentor_management import MentorManagementService
+from app.services.mentor_management import (
+    MentorManagementService,
+    MentorValidationError,
+)
 
 GUILD_ID = 1543309921066684567
 
@@ -92,14 +95,27 @@ async def test_mentor_registry_create_edit_toggle_and_trade_reassignment() -> No
             interaction_id=206,
         )
         assert [item.public_trade_id for item in target.active_trades] == ["ST-0001"]
+        with pytest.raises(MentorValidationError, match="MENTOR_DELETE_BLOCKED_BY_HISTORY"):
+            await service.delete(
+                second.id,
+                actor_user_id=101,
+                interaction_id=207,
+            )
+        await service.delete(
+            first.id,
+            actor_user_id=101,
+            interaction_id=208,
+        )
         async with database.session() as session:
             stored_trade = await session.get(Trade, trade.id)
+            deleted_mentor = await session.get(Mentor, first.id)
             actions = (
                 await session.scalars(
                     select(AuditLog.action_type).order_by(AuditLog.created_at, AuditLog.id)
                 )
             ).all()
         assert stored_trade is not None and stored_trade.mentor_id == second.id
+        assert deleted_mentor is None
         assert actions == [
             "MENTOR_CREATED",
             "MENTOR_CREATED",
@@ -107,6 +123,7 @@ async def test_mentor_registry_create_edit_toggle_and_trade_reassignment() -> No
             "MENTOR_DEACTIVATED",
             "MENTOR_REACTIVATED",
             "TRADE_MENTOR_REASSIGNED",
+            "MENTOR_DELETED",
         ]
     finally:
         await database.dispose()

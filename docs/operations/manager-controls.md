@@ -6,8 +6,17 @@
 
 - `选择 Mentor`：查看 Active / Historical Trade。
 - `新增 Mentor`：填写 Name、Short Code 和可选 Aliases。
-- `编辑 Mentor`：改名、修改 Code/Aliases、停用或恢复。
-- Mentor 详情中的 `修改订单 Mentor`：只修改内部归属，不编辑已发布会员卡片。
+
+选择 Mentor 后的详情页包含：
+
+- `编辑`：改名及修改 Code / Aliases。
+- `停用 / 恢复`。
+- `修改订单 Mentor`：只修改内部归属，不编辑已发布会员卡片。
+- `删除 Mentor`：二次确认后物理删除完全未使用的 Mentor。
+
+删除前会检查 Trade Draft、Trade、Analysis Draft 和 Mentor Analysis。任何关联存在时都会拒绝
+删除，提示先重新分配或保留历史；不会把正式 Trade / Analysis 设空或级联删除。成功删除会
+保留 `MENTOR_DELETED` Audit，以及删除前的 Name、Short Code、Status 和 Aliases。
 
 面板 Message ID 保存在 `guild_config.mentor_panel_message_id`；Bot 重启先按 ID 复用，
 找不到时再按 Footer marker 恢复，因此不会创建重复面板。

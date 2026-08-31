@@ -578,6 +578,9 @@ updated_at
 ```
 
 Manager 可以查看该 Mentor 当前 / 历史订单、修改订单 Mentor、创建 / 改名 / 停用 / 恢复 Mentor。
+顶层面板只显示「选择 Mentor / 新增 Mentor」；编辑和删除只在选择后的详情页出现。只有完全
+没有关联 Trade Draft、Trade、Analysis Draft 或 Mentor Analysis 的 Mentor 才能物理删除；
+已有历史必须先重新分配或保留，删除不得级联破坏正式历史，并必须二次确认和写 Audit。
 
 Mentor 改动只影响内部数据，不修改 Public Card。
 
@@ -819,7 +822,7 @@ Core + Signal 必须全部通过后才能开始 Analysis Pipeline：
 [ ] Active button Bot 重启后可用
 [ ] Active View 内容正确
 [ ] Member gift / expiry / revoke 正确
-[ ] Mentor create / rename / deactivate / reactivate 正确
+[ ] Mentor create / rename / deactivate / reactivate / safe delete 正确
 [ ] Results 加权收益正确
 [ ] Audit Log 完整
 [ ] Secret scan 通过
