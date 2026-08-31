@@ -103,8 +103,10 @@ Implemented:
 - no Mentor required，不选择 Mentor、不关联 Mentor Trade。
 - 独立 ST-XXXX 公开编号。
 - Massive MarketTrackingService 与可替换的 market-data provider 边界。
-- 固定 TP1–TP10：20% / 50% / 100% / 150% / 200% / 300% / 400% / 500% / 750% /
-  1000%，每一级只触发一次。
+- 新发布订单使用 ST_TRACKING_V3 固定 TP1–TP12：10% / 20% / 50% / 70% / 100% / 150% /
+  200% / 300% / 400% / 500% / 750% / 1000%，每一级只触发一次。
+- 已在追踪的旧订单继续使用冻结的 ST_TRACKING_V2（20% / 50% / 100% / 150% / 200% /
+  300% / 400% / 500% / 750% / 1000%），不会在同一订单中混用策略。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送不推进固定编号的 Momentum TP。
 - High / Low Watermark。
 - Tracking Protection：初始 -50%；TP1 后锁成本；之后锁前一级 TP。

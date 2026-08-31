@@ -65,6 +65,7 @@ def _deploy_runtime() -> None:
         "llm_analysis_prompt.txt",
         "llm_trade_prompt.txt",
         "short_term_tracking.yaml",
+        "short_term_tracking_v2.yaml",
     ):
         shutil.copy2(
             PROJECT_ROOT / "config" / filename,

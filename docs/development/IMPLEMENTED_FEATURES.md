@@ -78,8 +78,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 - ST-XXXX 独立编号。
 - Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
 - entry_price、current_price、high/low watermark 与 policy version。
-- 固定 TP1–TP10：20% / 50% / 100% / 150% / 200% / 300% / 400% / 500% / 750% /
-  1000%；`tp_levels_hit` 保证每一级只发送一次。
+- 新订单固定 TP1–TP12：10% / 20% / 50% / 70% / 100% / 150% / 200% / 300% / 400% /
+  500% / 750% / 1000%；`tp_levels_hit` 保证每一级只发送一次。
+- Tracking policy 按订单冻结；历史 ST_TRACKING_V2 订单继续使用原 TP1–TP10 点位。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送 plain TP，不推进固定 TP 编号。
 - Tracking Protection、High / Low Watermark、Overnight 和 Tracking Stop。
 - LOTTO 持久化 display flag，不影响 tracking、TP、protection、仓位或结果计算。

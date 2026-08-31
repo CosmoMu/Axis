@@ -1,6 +1,6 @@
 # AXIS Signal System — TP / LOTTO / Results Current Specification
 
-**Effective:** 2026-08-30
+**Effective:** 2026-08-31
 
 This document supersedes older Short-Term Runner, Short-Term Active View, Short-Term Daily Summary,
 and daily-result presentation rules. Signal Input, Review, Publish, Mentor, Analysis, and Membership
@@ -8,10 +8,12 @@ behavior not named here remains unchanged.
 
 ## Short-Term public lifecycle
 
-- Public events are only ENTRY, fixed TP1–TP10, Momentum TP, and 停止追踪.
-- Fixed levels are configured in `config/short_term_tracking.yaml`: TP1 +20%, TP2 +50%, TP3
-  +100%, TP4 +150%, TP5 +200%, TP6 +300%, TP7 +400%, TP8 +500%, TP9 +750%, TP10
-  +1000%.
+- Public events are only ENTRY, fixed TP1–TP12, Momentum TP, and 停止追踪.
+- New tracking uses `ST_TRACKING_V3` from `config/short_term_tracking.yaml`: TP1 +10%, TP2 +20%,
+  TP3 +50%, TP4 +70%, TP5 +100%, TP6 +150%, TP7 +200%, TP8 +300%, TP9 +400%,
+  TP10 +500%, TP11 +750%, TP12 +1000%.
+- Existing orders keep their frozen policy version. `ST_TRACKING_V2` remains available from
+  `config/short_term_tracking_v2.yaml` for orders already tracking under the former TP ladder.
 - Each fixed level is idempotent and persisted in `tp_levels_hit`.
 - Fast Momentum Reversal remains a plain `TP` and never advances the fixed TP number.
 - Short-Term has no Runner card/status/milestone and never publishes SL, CLOSE, SELL, or SELL ALL.
@@ -20,8 +22,8 @@ behavior not named here remains unchanged.
 
 - Before TP1: -50%.
 - After TP1: entry / 0%.
-- After TP2: TP1 / +20%.
-- After TP3: TP2 / +50%; subsequent levels protect the immediately preceding fixed TP.
+- After TP2: TP1 / +10%.
+- After TP3: TP2 / +20%; subsequent levels protect the immediately preceding fixed TP.
 - A protection touch publishes only 停止追踪. This is AXIS tracking state, not a member SL.
 - Full Entry, TP, Momentum, watermark, end, overnight, and policy-version history remains stored.
 

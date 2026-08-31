@@ -12,7 +12,8 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [ ] 已发布 ST 订单自动写入 short_term_tracking。
 - [ ] Massive 返回真实 quote，symbol/contract、价格和 timestamp 已核对。
 - [ ] high/low watermark 在多次 quote 后正确更新。
-- [ ] TP1–TP10 真实触发且每一级只发一次；频道中没有 Runner。
+- [ ] ST_TRACKING_V3 TP1–TP12 真实触发且每一级只发一次；频道中没有 Runner。
+- [ ] 在途 ST_TRACKING_V2 与新 ST_TRACKING_V3 订单均按各自冻结策略运行。
 - [ ] Fast Momentum Reversal 真实路径已验证。
 - [ ] Tracking Protection（-50% / Entry / 前一级 TP）与 Tracking Stop 真实路径已验证。
 - [ ] Overnight 规则与下一交易日恢复已验证。

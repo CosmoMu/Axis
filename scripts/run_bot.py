@@ -103,6 +103,15 @@ async def run() -> None:
             await session.commit()
 
         short_term_policy = ShortTermTrackingPolicy.load(settings.short_term_tracking_config_path)
+        historical_short_term_policies = tuple(
+            ShortTermTrackingPolicy.load(path)
+            for path in (
+                settings.short_term_tracking_config_path.with_name(
+                    "short_term_tracking_v2.yaml"
+                ),
+            )
+            if path.is_file() and path != settings.short_term_tracking_config_path
+        )
         if settings.short_term_tracking_enabled and not settings.massive_api_key:
             raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
         massive_provider = (
@@ -215,6 +224,7 @@ async def run() -> None:
             database,
             short_term_policy,
             massive_provider if settings.short_term_tracking_enabled else None,
+            historical_policies=historical_short_term_policies,
         )
         swing_leaps_trade_plan_service = (
             SwingLeapsTradePlanService(

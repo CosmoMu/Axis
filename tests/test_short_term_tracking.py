@@ -23,6 +23,9 @@ from app.services.short_term_tracking import MarketTrackingService
 
 GUILD_ID = 1543309921066684567
 POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "short_term_tracking.yaml"
+V2_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "config" / "short_term_tracking_v2.yaml"
+)
 
 
 async def tracking_database() -> tuple[Database, Trade]:
@@ -75,11 +78,13 @@ def market_price(
     )
 
 
-async def registered_service() -> tuple[Database, MarketTrackingService, ShortTermTracking]:
+async def registered_service(
+    policy_path: Path = POLICY_PATH,
+) -> tuple[Database, MarketTrackingService, ShortTermTracking]:
     database, trade = await tracking_database()
     service = MarketTrackingService(
         database,
-        ShortTermTrackingPolicy.load(POLICY_PATH),
+        ShortTermTrackingPolicy.load(policy_path),
         None,
     )
     await service.register_trade(trade.id, Decimal("1.00"))
@@ -110,18 +115,21 @@ async def test_all_fixed_tp_levels_fire_once_and_watermarks_are_saved() -> None:
             )
             events.sort(key=lambda event: event.tp_return_pct or 0)
         assert saved is not None
-        assert saved.tp_levels_hit == [f"TP{index}" for index in range(1, 11)]
+        assert saved.tp_levels_hit == [f"TP{index}" for index in range(1, 13)]
+        assert saved.tracking_policy_version == "ST_TRACKING_V3"
         assert saved.highest_price == Decimal("11.5000")
         assert saved.highest_return_pct == Decimal("1050.0000")
-        assert len(events) == 10
-        assert len({event.tp_return_pct for event in events}) == 10
+        assert len(events) == 12
+        assert len({event.tp_return_pct for event in events}) == 12
         assert {event.public_card_type for event in events} == {
-            f"TP{index}" for index in range(1, 11)
+            f"TP{index}" for index in range(1, 13)
         }
         assert all(event.event_type == "FIXED_TP_HIT" for event in events)
         assert [(event.public_price, event.public_return_pct) for event in events] == [
+            (Decimal("1.1000"), Decimal("10.0000")),
             (Decimal("1.2000"), Decimal("20.0000")),
             (Decimal("1.5000"), Decimal("50.0000")),
+            (Decimal("1.7000"), Decimal("70.0000")),
             (Decimal("2.0000"), Decimal("100.0000")),
             (Decimal("2.5000"), Decimal("150.0000")),
             (Decimal("3.0000"), Decimal("200.0000")),
@@ -152,8 +160,8 @@ async def test_high_low_and_tracking_protection_stop_are_internal_states() -> No
                 )
             )
         assert saved is not None and stop is not None
-        assert saved.tracking_protection_price == Decimal("1.5000")
-        assert saved.tracking_protection_return_pct == Decimal("50.0000")
+        assert saved.tracking_protection_price == Decimal("1.7000")
+        assert saved.tracking_protection_return_pct == Decimal("70.0000")
         assert saved.tracking_state == "STOPPED"
         assert saved.tracking_end_reason == "TRAILING_TRACKING_PROTECTION"
         assert saved.highest_return_pct == Decimal("100.0000")
@@ -169,7 +177,7 @@ async def test_tp1_moves_protection_to_entry_and_entry_touch_stops_tracking() ->
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
-        await service.process_price(tracking.id, market_price(tracking.id, "1.20", now))
+        await service.process_price(tracking.id, market_price(tracking.id, "1.10", now))
         await service.process_price(
             tracking.id, market_price(tracking.id, "1.00", now + timedelta(seconds=10))
         )
@@ -226,7 +234,39 @@ async def test_fast_momentum_cooldown_and_new_high_rearm() -> None:
         async with database.session() as session:
             saved = await session.get(ShortTermTracking, tracking.id)
         assert saved is not None
-        assert saved.tp_levels_hit == ["TP1", "TP2", "TP3"]
+        assert saved.tp_levels_hit == ["TP1", "TP2", "TP3", "TP4", "TP5"]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_existing_v2_tracking_keeps_its_frozen_tp_policy() -> None:
+    database, _v2_service, tracking = await registered_service(V2_POLICY_PATH)
+    v2_policy = ShortTermTrackingPolicy.load(V2_POLICY_PATH)
+    service = MarketTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        None,
+        historical_policies=(v2_policy,),
+    )
+    now = datetime.now(UTC)
+    try:
+        await service.process_price(tracking.id, market_price(tracking.id, "1.20", now))
+        async with database.session() as session:
+            saved = await session.get(ShortTermTracking, tracking.id)
+            events = list(
+                await session.scalars(
+                    select(ShortTermTrackingEvent).where(
+                        ShortTermTrackingEvent.tp_return_pct.is_not(None)
+                    )
+                )
+            )
+        assert saved is not None
+        assert saved.tracking_policy_version == "ST_TRACKING_V2"
+        assert saved.tp_levels_hit == ["TP1"]
+        assert [(event.public_card_type, event.tp_return_pct) for event in events] == [
+            ("TP1", 20)
+        ]
     finally:
         await database.dispose()
 

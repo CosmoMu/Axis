@@ -1,22 +1,20 @@
-version: ST_TRACKING_V3
+version: ST_TRACKING_V2
 price_source: MID
 poll_seconds: 5
 max_quote_age_seconds: 120
 last_trade_quote_guard_pct: 50
 
 tp_levels:
-  TP1: 10
-  TP2: 20
-  TP3: 50
-  TP4: 70
-  TP5: 100
-  TP6: 150
-  TP7: 200
-  TP8: 300
-  TP9: 400
-  TP10: 500
-  TP11: 750
-  TP12: 1000
+  TP1: 20
+  TP2: 50
+  TP3: 100
+  TP4: 150
+  TP5: 200
+  TP6: 300
+  TP7: 400
+  TP8: 500
+  TP9: 750
+  TP10: 1000
 
 tracking_protection:
   initial_return_pct: -50

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -54,9 +55,15 @@ class MarketTrackingService:
         policy: ShortTermTrackingPolicy,
         provider: MarketDataProvider | None,
         calendar: TradingCalendarService | None = None,
+        historical_policies: Sequence[ShortTermTrackingPolicy] = (),
     ) -> None:
         self.database = database
         self.policy = policy
+        policies = {item.version: item for item in historical_policies}
+        policies[policy.version] = policy
+        if any(item.price_source != policy.price_source for item in policies.values()):
+            raise ShortTermTrackingError("SHORT_TERM_PRICE_SOURCE_CHANGED")
+        self.policies = policies
         self.provider = provider
         self.calendar = calendar or TradingCalendarService()
 
@@ -193,7 +200,8 @@ class MarketTrackingService:
                 raise ShortTermTrackingError("SHORT_TERM_TRACKING_NOT_FOUND")
             if tracking.tracking_state not in ACTIVE_STATES:
                 return
-            if tracking.tracking_policy_version != self.policy.version:
+            policy = self.policies.get(tracking.tracking_policy_version)
+            if policy is None:
                 raise ShortTermTrackingError("SHORT_TERM_POLICY_VERSION_UNAVAILABLE")
             if market_price.price_source != tracking.price_source:
                 raise ShortTermTrackingError("SHORT_TERM_PRICE_SOURCE_CHANGED")
@@ -203,7 +211,7 @@ class MarketTrackingService:
 
             previous_high = tracking.highest_price
             previous_protection = tracking.tracking_protection_price
-            current_return = self.policy.return_pct(tracking.entry_price, market_price.price)
+            current_return = policy.return_pct(tracking.entry_price, market_price.price)
             market_date = market_price.source_timestamp.astimezone(ET).date()
             new_session = (
                 tracking.last_session_date is not None and market_date > tracking.last_session_date
@@ -242,7 +250,7 @@ class MarketTrackingService:
                 tracking.tracking_state = "ACTIVE"
 
             hit = set(str(value) for value in tracking.tp_levels_hit)
-            crossed = self.policy.crossed_tp_levels(current_return, hit)
+            crossed = policy.crossed_tp_levels(current_return, hit)
             for rule in crossed:
                 hit.add(rule.label)
                 tracking.momentum_anchor_version += 1
@@ -258,17 +266,17 @@ class MarketTrackingService:
                         tp_return_pct=rule.return_pct,
                         public_notification=True,
                         public_card_type=rule.label,
-                        public_price=self.policy.price_at_return(
+                        public_price=policy.price_at_return(
                             tracking.entry_price, rule.return_pct
                         ),
                         public_return_pct=Decimal(rule.return_pct),
                     )
                 )
             tracking.tp_levels_hit = [
-                rule.label for rule in self.policy.tp_levels if rule.label in hit
+                rule.label for rule in policy.tp_levels if rule.label in hit
             ]
             new_protection, new_protection_return, new_protection_reason = (
-                self.policy.protection_for(tracking.entry_price, hit)
+                policy.protection_for(tracking.entry_price, hit)
             )
             if new_protection > tracking.tracking_protection_price:
                 tracking.tracking_protection_price = new_protection
@@ -294,7 +302,7 @@ class MarketTrackingService:
                     ).total_seconds()
                 ),
             )
-            momentum = self.policy.momentum_drawdown(
+            momentum = policy.momentum_drawdown(
                 high_price=tracking.highest_price,
                 high_return_pct=tracking.highest_return_pct,
                 current_price=market_price.price,
@@ -333,7 +341,7 @@ class MarketTrackingService:
                 )
                 tracking.momentum_last_event_anchor_version = tracking.momentum_anchor_version
                 tracking.momentum_cooldown_until = (
-                    market_price.received_at + self.policy.momentum_cooldown
+                    market_price.received_at + policy.momentum_cooldown
                 )
                 tracking.momentum_tp_events = [
                     *tracking.momentum_tp_events,
@@ -345,7 +353,7 @@ class MarketTrackingService:
                         "drawdown_pct": str(drawdown),
                         "drawdown_duration_seconds": elapsed,
                         "triggered_at": market_price.source_timestamp.isoformat(),
-                        "policy_version": self.policy.version,
+                        "policy_version": policy.version,
                     },
                 ]
 
