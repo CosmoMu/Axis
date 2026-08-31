@@ -12,7 +12,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Stripe: TEST MODE COMPLETE / LIVE PENDING
 - Production Stabilization: PARTIAL
 - AXIS LAB: DEFERRED
-- Latest automated regression: 199 passed、0 failed、0 skipped；Ruff / compileall PASS
+- Latest automated regression: 200 passed、0 failed、0 skipped；Ruff / compileall PASS
 
 ## 文档入口
 

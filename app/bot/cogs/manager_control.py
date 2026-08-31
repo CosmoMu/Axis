@@ -258,7 +258,7 @@ class ManagerControlCog(commands.Cog):
         mentor_embed.set_footer(text="AXIS Mentor Control v1")
         member_embed = discord.Embed(
             title="AXIS Member Control",
-            description="查找、赠送、延期、到期取消或立即移除会员。",
+            description="搜索并选择服务器成员，然后查看会员信息、赠送会员或移除会员。",
             color=0x86F7A8,
         )
         member_embed.set_footer(text="AXIS Member Control v1")

@@ -254,6 +254,30 @@ async def verify() -> list[str]:
                         "mentor_panel_buttons_mismatch",
                         failures,
                     )
+            _check(
+                config.member_panel_message_id is not None,
+                "member_panel_message_id_missing",
+                failures,
+            )
+            if config.member_panel_message_id is not None:
+                member_panel_channel = channel("member_control")
+                try:
+                    member_panel = await member_panel_channel.fetch_message(
+                        config.member_panel_message_id
+                    )
+                except (discord.NotFound, discord.Forbidden):
+                    failures.append("member_panel_message_missing")
+                else:
+                    member_custom_ids = {
+                        getattr(component, "custom_id", None)
+                        for row in member_panel.components
+                        for component in getattr(row, "children", ())
+                    }
+                    _check(
+                        member_custom_ids == {"axis:member:user-select:v2"},
+                        "member_panel_user_select_mismatch",
+                        failures,
+                    )
 
         application_id = client.application_id
         _check(application_id is not None, "application_id_missing", failures)
@@ -286,6 +310,7 @@ def main() -> int:
     print("permissions=public,member,manager,owner,bot")
     print("general_guides=idempotent")
     print("mentor_control=select,add")
+    print("member_control=searchable_user_select")
     print(f"owner_test_commands={len(TEST_COMMANDS)}")
     return 0
 

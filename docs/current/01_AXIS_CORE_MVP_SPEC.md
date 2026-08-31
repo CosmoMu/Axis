@@ -593,12 +593,16 @@ Mentor 改动只影响内部数据，不修改 Public Card。
 `👤・member-control`：
 
 ```text
-[ 查找会员 ]
-[ 赠送会员 ]
-[ 延长会员 ]
-[ 到期取消 ]
-[ 立即移除 ]
+[ Searchable User Select ]
+    [ 查看信息 ]
+    [ 赠送会员 ]
+    [ 移除会员 ]
 ```
+
+User Select 使用 Discord 原生服务器成员搜索，不要求 Manager 手输 User ID。选择成员后显示：
+Discord 加入服务器时间、首次加入会员时间、当前状态、来源、Entitlement 数量、Member Role、
+到期日期和 Cancel-at-period-end 状态。赠送与移除继续使用现有 Entitlement、Audit、Stripe
+取消和 Role reconciliation 服务。
 
 支持：
 
@@ -610,7 +614,8 @@ Lifetime
 Custom
 ```
 
-Owner 手工添加 / 移除 `Member` Role 时，Bot 同步数据库。
+Owner 手工添加 / 移除 `Member` Role 时，Bot 同步数据库。底层延期、到期取消与 Stripe
+lifecycle 能力继续保留，但不作为 Member Control 顶层按钮。
 
 不自动 Kick / Ban。
 

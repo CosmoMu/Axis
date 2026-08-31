@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 199 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 200 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -42,6 +42,7 @@ Core / Discord:
 - GENERAL Guide、Owner test commands 和 Public Identity Policy。
 - Mentor Control 顶层按钮精简、详情 Edit / Delete、删除二次确认、未使用 Mentor 物理删除、
   关联 Trade 历史阻止和 `MENTOR_DELETED` Audit。
+- Member Control searchable User Select、选择后详情按钮、会员开始/到期字段和 Member Role 展示。
 
 Signal / Trade:
 
@@ -174,4 +175,4 @@ ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live accepta
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 199 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 200 项测试结果。

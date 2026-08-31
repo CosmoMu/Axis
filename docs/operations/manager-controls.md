@@ -25,14 +25,27 @@
 
 `👤・member-control` 的长期面板包含：
 
-- `查找会员`
-- `赠送会员`
-- `延长会员`
-- `到期取消`
-- `立即移除`
+- Discord 原生 `User Select`：可按服务器成员用户名或显示名搜索，不需要输入 User ID。
 
-Duration 支持 `7`、`30`、`90`、任意 `1..3650` 天，以及 `LIFETIME`。Lifetime
-会员设置到期取消时需要填写 `YYYY-MM-DD`。
+选择成员后显示：
+
+- Discord User mention / ID
+- 加入服务器时间
+- Member Role 状态
+- 会员状态和来源
+- Entitlement 数量
+- 加入会员时间
+- 到期日期或 Lifetime
+- 到期时取消状态
+
+详情页操作：
+
+- `查看信息`：重新读取当前 Discord 与数据库状态。
+- `赠送会员`：7 / 30 / 90 天或 Lifetime，并同步 Member Role。
+- `移除会员`：填写原因后立即撤销有效 Entitlement、处理 Monthly cancellation 并移除 Role。
+
+赠送 Duration 支持 `7`、`30`、`90`、任意 `1..3650` 天，以及 `LIFETIME`。底层延期与到期
+取消服务继续用于 Stripe / scheduled lifecycle，但不再是主面板按钮。
 
 赠送和延期写入 Membership Event、Audit Log 及唯一 Scheduled Expiry Job。到期后 Bot
 将 Membership 标记为 `EXPIRED` 并移除 Member Role；立即移除不会 Kick 或 Ban 用户。

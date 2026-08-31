@@ -93,7 +93,9 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 - Mentor create、rename、alias、deactivate/reactivate、Trade reassign；顶层面板移除重复 Edit，
   选择 Mentor 后的详情页提供 Edit 与二次确认 Delete。只有完全没有 Draft / Trade / Analysis
   关联的 Mentor 可物理删除，已有历史时 fail closed 并写明原因；成功删除写 Audit。
-- Member lookup、gift、manual extension、cancel-at-expiry、immediate revoke。
+- Member Control 使用 Discord 原生 searchable User Select；选择服务器成员后显示 Discord 加入
+  时间、会员开始时间、状态、来源、Entitlements、Role 和到期日，并提供查看、赠送、移除。
+- 底层 gift、manual extension、cancel-at-expiry、immediate revoke 能力继续保留。
 - 单一 Member Role 与多 Entitlement 合并访问。
 - Scheduled expiry 和持续 Role reconciliation。
 - 完整 Membership Event 与 Audit。

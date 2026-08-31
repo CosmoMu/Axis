@@ -123,11 +123,15 @@ Production status: 已部署。
 
 ## Member Management — COMPLETE
 
-Implemented: lookup、gift、extend、cancel-at-expiry、revoke、Role reconciliation 和审计。
+Implemented: Discord 原生 searchable User Select；选择服务器成员后查看 Discord 加入时间、
+会员开始时间、状态、来源、Entitlements、Member Role、到期日和 cancel-at-period-end；详情页
+提供查看信息、赠送会员和移除会员。底层 extend、cancel-at-expiry、revoke、Stripe lifecycle、
+Role reconciliation 和审计继续保留。
 
 Remaining: Live Stripe 场景下继续观察多 Entitlement 合并。
 
-Tests: Role sync、到期任务、撤权与多 Entitlement 决策。
+Tests: searchable control / detail UI、会员时间字段、Role sync、到期任务、撤权与多 Entitlement
+决策。
 
 Production status: 已部署。
 
