@@ -50,26 +50,22 @@ Exit criteria:
 - Manager 不需要反复滚动即可完成审核。
 - 会员内容不泄露 Mentor、Source、Market、Bid、Ask、Parser 或内部 ID。
 
-## Priority 3 — Stripe Live Readiness
+## Priority 3 — Stripe Live First Payment & Lifecycle Acceptance
 
 Work:
 
-- 在 Stripe Dashboard 完成账户 activation、Live KYC、payout bank 和 customer-facing business profile。
-- 轮换 2026-08-31 审计中暴露的 Test secret key，再继续 Test 外部调用。
-- 准备 AXIS 控制的稳定 HTTPS 域名并部署受限的公开 `POST /webhooks/stripe`。
-- 用受保护脚本创建/复用 Live Product / Prices / webhook，所有 Secret 只进入部署 Secret Store。
-- 配置 Customer Portal period-end cancellation、support contact、privacy/refund/cancel 页面和有效
-  statement descriptor；`AXIS` 四字符不可直接使用，候选 `AXIS MEMBERSHIP` 待人工验证。
-- 验证 Day Pass、Monthly signup、renewal、failure、payment-method update 和 cancellation。
+- Live activation、KYC、payout、Product/Prices、Customer Portal、`axisdesk.fyi` webhook、顾客展示
+  资料和 0-blocker readiness 已完成，`PAYMENTS_ENABLED=true`。
+- Owner 从 Discord 完成第一笔真实 Day Pass 或 Monthly 付款，记录 Checkout、签名 webhook、
+  Entitlement 与 Member Role 证据。
+- 验证 Day Pass 到期以及 Monthly renewal、failure/recovery、payment-method update 和 cancellation。
 - 验证 Customer Portal、Price Grandfathering、重复/乱序事件和公开隐私清单。
-- 在全部 Gate 通过前保持 `PAYMENTS_ENABLED=false`；先 Live mode + payments disabled 验证，再由
-  Owner 明确批准开启 Checkout。
+- 轮换 2026-08-31 审计中暴露的 Test secret key，再继续 Test 外部调用。
 
 Exit criteria:
 
-- `scripts/verify_stripe_live_readiness.py` 和 LIVE_MODE_CHECKLIST.md 的 Stripe Live 项全部 PASS。
 - Owner 自行完成第一笔真实付款与 lifecycle 验收；不得由自动化制造 Live 假付款。
-- Owner 明确批准后才设 `PAYMENTS_ENABLED=true`。
+- Stripe / AXIS / Discord 对账 clean，失败路径可恢复且不重复授权。
 
 ## Priority 4 — Real Mentor Analysis Fusion / Prediction Chart UX Validation
 

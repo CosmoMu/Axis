@@ -207,6 +207,9 @@ class Settings:
     stripe_live_monthly_product_id: str | None = None
     stripe_live_monthly_price_id: str | None = None
     stripe_live_monthly_pricing_version: str = "MONTHLY_V1"
+    stripe_live_webhook_relay_url: str | None = None
+    stripe_live_webhook_relay_secret: str = ""
+    stripe_live_webhook_relay_poll_seconds: int = 5
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -413,6 +416,15 @@ class Settings:
             stripe_live_monthly_pricing_version=(
                 os.getenv("STRIPE_LIVE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
                 or "MONTHLY_V1"
+            ),
+            stripe_live_webhook_relay_url=_parse_optional_url(
+                "STRIPE_LIVE_WEBHOOK_RELAY_URL"
+            ),
+            stripe_live_webhook_relay_secret=os.getenv(
+                "STRIPE_LIVE_WEBHOOK_RELAY_SECRET", ""
+            ).strip(),
+            stripe_live_webhook_relay_poll_seconds=_parse_positive_int(
+                "STRIPE_LIVE_WEBHOOK_RELAY_POLL_SECONDS", 5
             ),
         )
 

@@ -165,6 +165,17 @@ class AxisBot(commands.Bot):
             payment_service=membership_stripe_service,
             sync_role=self._manager_control_cog.sync_member_role,
             reconciliation_minutes=settings.stripe_reconciliation_minutes,
+            relay_url=(
+                settings.stripe_live_webhook_relay_url
+                if settings.stripe_mode.value == "live"
+                else None
+            ),
+            relay_secret=(
+                settings.stripe_live_webhook_relay_secret
+                if settings.stripe_mode.value == "live"
+                else ""
+            ),
+            relay_poll_seconds=settings.stripe_live_webhook_relay_poll_seconds,
         )
         self._card_testing_cog = CardTestingCog(
             self,

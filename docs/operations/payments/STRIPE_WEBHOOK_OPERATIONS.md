@@ -5,11 +5,16 @@
 正式 endpoint 固定为：
 
 ```text
-POST https://<AXIS-controlled-domain>/webhooks/stripe
+POST https://axisdesk.fyi/webhooks/stripe
 ```
 
-必须使用有效 HTTPS、受限 reverse proxy、原始 request body 和 `Stripe-Signature`。Live URL
-不得是 localhost、临时隧道或不受 AXIS 控制的域名。
+必须使用有效 HTTPS、原始 request body 和 `Stripe-Signature`。Live URL 不得是 localhost、
+临时隧道或不受 AXIS 控制的域名。
+
+当前架构：Sites Worker 验证签名与 Live event，提取最小必要字段后写入 D1；Bot 通过 Bearer
+保护的 `/internal/stripe-events` 拉取租约并处理现有 `MembershipStripeService`，成功后 ACK，失败
+则按退避重试。完整 Stripe payload、银行卡资料和 Secret 不写入 D1、日志或 Git。公开访问私密
+relay 必须返回 401；Bot 授权访问必须返回 200。
 
 ## Required events
 
@@ -28,9 +33,10 @@ Checkout 当前只允许 card payment method，因此未订阅异步 payment suc
 2. 要求 Stripe event 明确带 `livemode`。
 3. `STRIPE_MODE=test` 只接受 `livemode=false`；Live 只接受 `true`。
 4. metadata `environment` 必须与当前环境一致。
-5. 使用 `provider + environment + provider_event_id` 幂等预留。
-6. 只保存最小事件状态，不保存完整 payload 或支付资料。
-7. 应用 Entitlement，提交后执行 Role reconciliation。
+5. Sites D1 以 provider event ID 幂等排队，并使用租约、ACK 和 retry。
+6. Bot 使用 `provider + environment + provider_event_id` 幂等预留。
+7. 只保存最小事件状态，不保存完整 payload 或支付资料。
+8. 应用 Entitlement，提交后执行 Role reconciliation。
 
 环境不匹配必须在预留 event 之前拒绝，避免 Test event 污染 Live dedup namespace。
 

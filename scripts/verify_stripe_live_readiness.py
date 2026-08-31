@@ -77,10 +77,20 @@ def main() -> int:
     statement_descriptor = "NOT_VERIFIED"
     business_name = "NOT_VERIFIED"
     support_ready = False
+    relay_url_ready = bool(
+        settings.stripe_live_webhook_relay_url
+        and settings.stripe_live_webhook_relay_url.startswith("https://")
+        and settings.stripe_live_webhook_relay_url.rstrip("/").endswith(
+            "/internal/stripe-events"
+        )
+    )
+    relay_secret_ready = bool(settings.stripe_live_webhook_relay_secret)
     if live.secret_key.startswith("sk_live_"):
         try:
             client = stripe.StripeClient(live.secret_key)
-            account = _plain(client.v1.accounts.retrieve())
+            # `/v1/account` verifies the platform account; `v1.accounts` is the
+            # Connect-account service and requires an explicit account ID.
+            account = _plain(stripe.Account.retrieve(api_key=live.secret_key))
             requirements = account.get("requirements") or {}
             account_activated = bool(account.get("charges_enabled"))
             bank_configured = bool(account.get("payouts_enabled"))
@@ -184,6 +194,8 @@ def main() -> int:
         "customer_portal_live": portal_ready,
         "support_contact": support_ready,
         "privacy_review": privacy_review,
+        "webhook_relay_url": relay_url_ready,
+        "webhook_relay_secret": relay_secret_ready,
     }
     for name, passed in checks.items():
         _status(name, passed)

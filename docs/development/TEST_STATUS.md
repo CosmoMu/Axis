@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 206 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 208 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -16,7 +16,8 @@
 - Stripe Test setup verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe Test external E2E verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe dual-environment / kill switch / livemode / pricing / reconciliation regression: PASS
-- Stripe Live readiness verifier: BLOCKED AS EXPECTED — 24 external/config blockers
+- Stripe Live readiness verifier: PASS — 0 blockers / payments enabled
+- AXIS website build/tests: PASS — 4 passed；ESLint 0 errors
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
 - Short-Term / Massive real E2E: NOT PASSED
@@ -32,6 +33,9 @@
 - .venv/bin/python scripts/verify_stripe_test_setup.py
 - .venv/bin/python scripts/verify_stripe_test_e2e.py
 - .venv/bin/python scripts/verify_stripe_live_readiness.py
+- .venv/bin/python scripts/reconcile_stripe_memberships.py --dry-run
+- website: npm test
+- website: npm run lint
 
 没有在 pyproject.toml 或 CI 配置中发现 mypy / pyright，因此没有把未运行的 type check 标记为 PASS。
 
@@ -123,7 +127,7 @@ Database:
 - daily_results_reviews=0
 - daily_results_items=0
 - membership_entitlements=1（真实 Discord Member Role reconciliation）
-- membership_prices=4（TEST 2 / LIVE 2；LIVE 未绑定 Stripe ID）
+- membership_prices=4（TEST 2 / LIVE 2；LIVE V1 已绑定并 current）
 - payment_events=0
 - system_alerts=0
 
@@ -166,18 +170,22 @@ Stripe Test（Pre-Soft-Open historical acceptance evidence）：
 - Monthly entitlement 曾达到 ACTIVE，auto-renew=ENABLED，invoice.paid=PROCESSED。
 - Discord Member Role E2E 曾为 PRESENT。
 - Soft Open Reset 已清除这些 Stripe Test membership / payment records；当前数据库不再把它们
-  视为 Production entitlement。Stripe Test 配置本身保留，Live 仍未启用。
+  视为 Production entitlement。Stripe Test 配置本身保留；当前运行环境已切换为 Live。
 - 2026-08-31 只读 Dashboard 审计后，Test key 按暴露处理；外部 Test verifier 未重跑，
   `STRIPE_ENABLED=false` 且 Test listener 已禁用，等待轮换。
 
 Stripe Live readiness（2026-08-31）：
 
-- account activation / KYC / payout bank = BLOCKED
-- Live Product / Day Pass Price / Monthly Price = BLOCKED
-- public HTTPS webhook / signing secret = BLOCKED
-- Customer Portal / support / privacy / statement descriptor = BLOCKED
-- `PAYMENTS_ENABLED=false`
-- Live blocker count=24；未进行 Live payment。
+- account activation / KYC / payout bank = PASS
+- Live Product / Day Pass Price / Monthly Price = PASS
+- public HTTPS webhook / signing secret / private relay = PASS
+- Customer Portal / support / privacy / statement descriptor / customer-facing name = PASS
+- `STRIPE_MODE=live`、`STRIPE_ENABLED=true`、`PAYMENTS_ENABLED=true`
+- Live blocker count=0；Live reconciliation dry-run clean（provider=0 / local=0 / repairs=0）。
+- `axisdesk.fyi` webhook unsigned request=401、relay unauthenticated=401、authorized relay=200、
+  payment success page=200。
+- Bot service running，Stripe Live subscriptions list request=HTTP 200。
+- 未进行或伪造 Live payment；第一笔真实付款、Entitlement 和 Role E2E 仍待 Owner 验收。
 
 Schema drift check：
 
@@ -203,4 +211,4 @@ ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live accepta
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 206 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 208 项测试结果。

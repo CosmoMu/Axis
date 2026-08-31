@@ -113,7 +113,9 @@ def main() -> int:
     ):
         raise RuntimeError("STRIPE_LIVE_WEBHOOK_URL must be a stable public HTTPS endpoint")
     client = stripe.StripeClient(live.secret_key)
-    account = _plain(client.v1.accounts.retrieve())
+    # `/v1/account` is the platform-account endpoint. The typed `v1.accounts`
+    # service targets Connect accounts and therefore requires an `acct_...` ID.
+    account = _plain(stripe.Account.retrieve(api_key=live.secret_key))
     requirements = account.get("requirements") or {}
     if not (
         account.get("charges_enabled")
@@ -123,17 +125,20 @@ def main() -> int:
         and not requirements.get("past_due")
     ):
         raise RuntimeError("Stripe Live account activation, KYC, and payouts must be complete")
+    profile = account.get("business_profile") or {}
+    profile_configured = profile.get("name") == "AXIS"
     product = _find_product(client)
     product_created = product is None
+    product_description = (
+        "Financial education, market-structure tools, research summaries, and "
+        "community access. Not investment advice."
+    )
     if product is None:
         product = _plain(
             client.v1.products.create(
                 {
                     "name": "AXIS Membership",
-                    "description": (
-                        "Subscription-based market analysis, trading alerts, trade tracking, "
-                        "and community access."
-                    ),
+                    "description": product_description,
                     "metadata": {"axis_resource": "membership", "environment": "PRODUCTION"},
                 }
             )
@@ -141,6 +146,22 @@ def main() -> int:
     product_id = str(product.get("id") or "")
     if not product_id:
         raise RuntimeError("Stripe Live Product ID is missing")
+    if product.get("name") != "AXIS Membership" or product.get(
+        "description"
+    ) != product_description:
+        product = _plain(
+            client.v1.products.update(
+                product_id,
+                {
+                    "name": "AXIS Membership",
+                    "description": product_description,
+                    "metadata": {
+                        "axis_resource": "membership",
+                        "environment": "PRODUCTION",
+                    },
+                },
+            )
+        )
     day_pass, day_created = _ensure_price(
         client,
         product_id=product_id,
@@ -185,6 +206,57 @@ def main() -> int:
         raise RuntimeError(
             "Live endpoint already exists but STRIPE_LIVE_WEBHOOK_SECRET is not configured"
         )
+    portal_params: dict[str, Any] = {
+        "active": True,
+        "name": "AXIS Live Membership",
+        "default_return_url": live.portal_return_url,
+        "business_profile": {
+            "headline": "Manage your AXIS Membership",
+            "privacy_policy_url": "https://axisdesk.fyi/#policies",
+            "terms_of_service_url": "https://axisdesk.fyi/#policies",
+        },
+        "features": {
+            "customer_update": {"enabled": True, "allowed_updates": ["email"]},
+            "invoice_history": {"enabled": True},
+            "payment_method_update": {"enabled": True},
+            "subscription_cancel": {
+                "enabled": True,
+                "mode": "at_period_end",
+                "cancellation_reason": {
+                    "enabled": True,
+                    "options": [
+                        "too_expensive",
+                        "unused",
+                        "missing_features",
+                        "other",
+                    ],
+                },
+            },
+            "subscription_update": {"enabled": False},
+        },
+        "metadata": {"axis_resource": "membership", "environment": "PRODUCTION"},
+    }
+    portal_configs = _plain(
+        client.v1.billing_portal.configurations.list({"limit": 100})
+    ).get("data", [])
+    portal = next(
+        (
+            item
+            for item in portal_configs
+            if item.get("is_default") is True
+            or (item.get("metadata") or {}).get("axis_resource") == "membership"
+        ),
+        None,
+    )
+    portal_created = portal is None
+    if portal is None:
+        client.v1.billing_portal.configurations.create(
+            {key: value for key, value in portal_params.items() if key != "active"}
+        )
+    else:
+        client.v1.billing_portal.configurations.update(
+            str(portal.get("id") or ""), portal_params
+        )
     _save_env(
         {
             "STRIPE_LIVE_DAY_PASS_PRODUCT_ID": product_id,
@@ -198,9 +270,14 @@ def main() -> int:
     )
     print("stripe_live_resource_setup=APPLIED")
     print(f"product={'CREATED' if product_created else 'REUSED'}")
+    print(
+        "customer_facing_business_name="
+        f"{'VERIFIED' if profile_configured else 'DASHBOARD_REVIEW_REQUIRED'}"
+    )
     print(f"day_pass_price={'CREATED' if day_created else 'REUSED'}")
     print(f"monthly_price={'CREATED' if monthly_created else 'REUSED'}")
     print(f"webhook={'CREATED' if endpoint_created else 'REUSED'}")
+    print(f"customer_portal={'CREATED' if portal_created else 'UPDATED'}")
     print("secrets=.env_only")
     print("payments_enabled=UNCHANGED")
     return 0

@@ -1,10 +1,10 @@
 # AXIS Live Mode Checklist
 
-**Current decision:** STOP FOR FULL LIVE CLAIM
+**Current decision:** STRIPE LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
 
-Core Bot 和 Analysis 已在目标 Guild 运行；Stripe 双环境基础已完成，但账户激活/KYC 与 Live
-外部资源仍阻塞且 `PAYMENTS_ENABLED=false`；Short-Term Automated Tracking 尚未完成真实 E2E。
-任何单项启用都不代表整套系统已经 Production-complete。
+Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PASS / 0 blockers 且
+`PAYMENTS_ENABLED=true`；第一笔真实付款和完整 lifecycle 尚未验收。Short-Term Automated Tracking
+也尚未完成真实 E2E。任何单项启用都不代表整套系统已经 Production-complete。
 
 ## Short-Term / Massive
 
@@ -30,7 +30,7 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe 双环境基础已完�
 - [x] invoice.paid 乱序 replay 与 event idempotency 已验证。
 - [x] Entitlement 和 Member Role E2E 已验证。
 - [ ] 2026-08-31 审计后已轮换 Test secret key，并更新本地 Secret Store。
-- [x] 轮换完成前 `STRIPE_ENABLED=false`，本机 Test listener 已停止并禁用。
+- [x] 本机 Test listener 已停止并禁用；当前运行环境使用独立 Live key。
 
 ## Stripe dual-environment foundation
 
@@ -46,30 +46,30 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe 双环境基础已完�
 
 ## Stripe Live activation
 
-- [ ] Stripe Account activation 完成，charges 已启用。
-- [ ] Live KYC / business details 完成，没有 currently_due / past_due。
-- [ ] Payout bank account 已配置并启用。
-- [ ] 公开 POST /webhooks/stripe 已通过受限 TLS reverse proxy。
-- [ ] Live Product、Day Pass Price、Monthly Price 和 Customer Portal 已配置。
-- [ ] Live Secret / IDs 只进入部署 Secret Store。
-- [ ] Live webhook signing secret 已登记并验证。
-- [ ] Customer Portal 启用 payment method update、invoice history 和 period-end cancellation。
-- [ ] Customer-facing business name 已使用 AXIS 品牌并人工确认。
-- [ ] 支持邮箱或支持 URL 已配置，不暴露私人 Owner identity。
-- [ ] Privacy / refund / cancellation 页面可公开访问并人工确认。
-- [ ] Statement descriptor 满足 5–22 字符；`AXIS` 四字符不可直接使用，候选
+- [x] Stripe Account activation 完成，charges 已启用。
+- [x] Live KYC / business details 完成，没有 currently_due / past_due。
+- [x] Payout bank account 已配置并启用。
+- [x] 公开 `POST https://axisdesk.fyi/webhooks/stripe` 已通过 TLS 和签名验证。
+- [x] Live Product、Day Pass Price、Monthly Price 和 Customer Portal 已配置。
+- [x] Live Secret / IDs 只进入本地 `.env` 与 Sites Secret Store。
+- [x] Live webhook signing secret 已登记并验证。
+- [x] Customer Portal 启用 payment method update、invoice history 和 period-end cancellation。
+- [x] Customer-facing business name 已使用 AXIS 品牌并人工确认。
+- [x] 支持邮箱、电话与 URL 已配置。
+- [x] Privacy / refund / cancellation 页面可公开访问并人工确认。
+- [x] Statement descriptor 满足 5–22 字符；`AXIS` 四字符不可直接使用，候选
   `AXIS MEMBERSHIP` 已经 Dashboard 验证。
 - [ ] Day Pass Live payment、expiry 和 Role reconciliation 已验证。
 - [ ] Monthly signup、renewal、payment failure 和 recovery 已验证。
 - [ ] payment-method update、cancel-at-period-end 和 immediate revoke 已验证。
 - [ ] duplicate / out-of-order webhook delivery 已验证。
 - [ ] 新 Price 不改变既有 subscription，Grandfathering 已真实验证。
-- [ ] 商家名称、支持邮箱、退款/取消条款和风险声明已检查。
-- [ ] Checkout / Portal 页面已人工确认不暴露 Discord ID、内部 ID、Secret 或多余 metadata。
-- [ ] Owner 已逐项批准 Live billing。
+- [x] 商家名称、支持邮箱、退款/取消条款和风险声明已检查。
+- [x] Checkout / Portal 页面已人工确认不暴露 Discord ID、内部 ID、Secret 或多余 metadata。
+- [x] Owner 已逐项批准 Live billing。
 - [ ] Owner 已自行完成第一笔真实付款；自动化没有制造 Live 假付款。
-- [ ] 最终 `scripts/verify_stripe_live_readiness.py` 为 PASS。
-- [ ] Owner 批准前 `PAYMENTS_ENABLED=false`；批准后才设为 true。
+- [x] 最终 `scripts/verify_stripe_live_readiness.py` 为 PASS / 0 blockers。
+- [x] `STRIPE_MODE=live`、`STRIPE_ENABLED=true`、`PAYMENTS_ENABLED=true`。
 
 ## Discord / Analysis UX
 

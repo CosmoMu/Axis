@@ -25,22 +25,19 @@ Publish Now、`16:15 ET` scheduled publish 与 restart idempotency 均已实现�
 Open Reset 后尚无 Eligible Production Trade，因此仍需在第一个实际有停止/关闭订单的交易日
 记录 Draft time、Manager interaction、Final Snapshot、Discord Message ID 与 scheduled dedup。
 
-## P1 — Stripe Live 外部激活阻塞
+## P1 — Stripe Live 第一笔真实付款与 lifecycle 待验收
 
-双环境、kill switch、数据库隔离、价格版本、对账和 runbook 已完成；Day Pass 与 Monthly Test
-payment 有历史成功证据，但以下 Live 条件未完成：
+双环境、kill switch、数据库隔离、价格版本、对账和 runbook 已完成；账户、KYC、payout、Live
+Product/Prices、公开 webhook、Portal、顾客展示资料和 0-blocker readiness 均已完成，Live Checkout
+已启用。但以下真实 lifecycle 证据仍未完成：
 
-- Account activation、KYC 和 payout bank。
-- 公开 TLS webhook 与 Live signing secret。
-- Live Product / Price / Key 和真实付款。
+- 第一笔真实 Day Pass 或 Monthly 付款与 Role 授权。
 - renewal、payment failure、payment-method update、cancel、duplicate delivery。
 - Price Grandfathering 的真实价格变更演练。
-- Stripe customer-facing business name、支持联系方式、statement descriptor、退款/取消文案和
-  人工隐私检查。
 - 2026-08-31 审计后 Test secret key 尚未轮换。
 
-当前 `STRIPE_ENABLED=false`、`PAYMENTS_ENABLED=false`，旧 Test listener 已禁用。在 Live
-Checklist 全部签字前不得切换为 Live billing。
+当前 `STRIPE_MODE=live`、`STRIPE_ENABLED=true`、`PAYMENTS_ENABLED=true`，旧 Test listener 已禁用。
+系统可接收真实付款，但不得在 Owner 完成第一笔真实 E2E 前把全部 lifecycle 标记为验收完成。
 
 ## P1 — Production backup / restore 不完整
 

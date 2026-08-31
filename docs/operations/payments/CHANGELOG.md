@@ -1,5 +1,16 @@
 # Payment Operations Changelog
 
+## 2026-08-31 — Stripe Live activation
+
+- Stripe account activation、KYC、payout 和 Live API key 已完成。
+- 创建并绑定 Live `AXIS Membership`、Day Pass USD 9.99 与 Monthly USD 99.99。
+- 部署 `axisdesk.fyi` Live webhook、D1 最小事件队列与 Bot 私密 relay poll / ACK / retry。
+- 配置 Customer Portal 的付款方式更新、账单记录和到期取消。
+- 配置 AXIS 顾客展示名、支持联系方式、公开政策页和 `AXIS MEMBERSHIP` descriptor。
+- 新增 payment success、cancel 与 Portal return 页面。
+- readiness PASS / 0 blockers；Live reconciliation dry-run clean；`PAYMENTS_ENABLED=true`。
+- 第一笔真实付款及完整 Day Pass / Monthly lifecycle E2E 仍待 Owner 完成；自动化未制造付款。
+
 ## 2026-08-31 — Dual environment foundation
 
 - 新增独立 Test / Live env namespace、`STRIPE_MODE` 和 `PAYMENTS_ENABLED`。

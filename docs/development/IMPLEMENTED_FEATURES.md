@@ -123,6 +123,8 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 - 15 分钟 Stripe/Entitlement reconciliation、受控 repair 与 Owner-only mismatch/failure alert。
 - 受保护的 Live resource setup/readiness verifier、secret-safe dual env migration 和完整 Payment runbook。
 - Day Pass 与 Monthly Stripe Test Mode E2E 工具。
+- Stripe Live account/KYC/payout、V1 Product/Prices、Customer Portal 和 0-blocker readiness。
+- `axisdesk.fyi` 签名 webhook、最小 D1 relay queue、Bot 私密 poll / ACK / retry 与回跳页面。
 
 ## GENERAL
 
