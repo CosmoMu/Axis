@@ -109,6 +109,9 @@ async def run() -> None:
                 settings.short_term_tracking_config_path.with_name(
                     "short_term_tracking_v2.yaml"
                 ),
+                settings.short_term_tracking_config_path.with_name(
+                    "short_term_tracking_v3.yaml"
+                ),
             )
             if path.is_file() and path != settings.short_term_tracking_config_path
         )

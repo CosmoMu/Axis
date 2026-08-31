@@ -8,12 +8,11 @@ behavior not named here remains unchanged.
 
 ## Short-Term public lifecycle
 
-- Public events are only ENTRY, fixed TP1–TP12, Momentum TP, and 停止追踪.
-- New tracking uses `ST_TRACKING_V3` from `config/short_term_tracking.yaml`: TP1 +10%, TP2 +20%,
-  TP3 +50%, TP4 +70%, TP5 +100%, TP6 +150%, TP7 +200%, TP8 +300%, TP9 +400%,
-  TP10 +500%, TP11 +750%, TP12 +1000%.
-- Existing orders keep their frozen policy version. `ST_TRACKING_V2` remains available from
-  `config/short_term_tracking_v2.yaml` for orders already tracking under the former TP ladder.
+- Public events are only ENTRY, fixed TP1–TP41, Momentum TP, and 停止追踪.
+- New tracking uses `ST_TRACKING_V4` from `config/short_term_tracking.yaml`: TP1 +10%, TP2 +20%,
+  then one fixed TP every 25 percentage points from TP3 +50% through TP41 +1000%.
+- Existing orders keep their frozen policy version. `ST_TRACKING_V2` and `ST_TRACKING_V3` remain
+  available from their versioned config files for orders already tracking under former ladders.
 - Each fixed level is idempotent and persisted in `tp_levels_hit`.
 - Fast Momentum Reversal remains a plain `TP` and never advances the fixed TP number.
 - Short-Term has no Runner card/status/milestone and never publishes SL, CLOSE, SELL, or SELL ALL.

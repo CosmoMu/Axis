@@ -9,26 +9,17 @@ POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "short_term_track
 def test_short_term_policy_has_exact_configured_tp_levels() -> None:
     policy = ShortTermTrackingPolicy.load(POLICY_PATH)
 
-    assert policy.version == "ST_TRACKING_V3"
+    assert policy.version == "ST_TRACKING_V4"
     assert policy.price_source == "MID"
+    expected_returns = [10, 20, *range(50, 1001, 25)]
     assert [(item.label, item.return_pct) for item in policy.tp_levels] == [
-        ("TP1", 10),
-        ("TP2", 20),
-        ("TP3", 50),
-        ("TP4", 70),
-        ("TP5", 100),
-        ("TP6", 150),
-        ("TP7", 200),
-        ("TP8", 300),
-        ("TP9", 400),
-        ("TP10", 500),
-        ("TP11", 750),
-        ("TP12", 1000),
+        (f"TP{index}", return_pct)
+        for index, return_pct in enumerate(expected_returns, start=1)
     ]
     assert policy.crossed_tp_levels(
-        Decimal("105"), {"TP1", "TP2", "TP3", "TP4"}
+        Decimal("130"), {"TP1", "TP2", "TP3", "TP4", "TP5"}
     ) == tuple(
-        item for item in policy.tp_levels if item.label == "TP5"
+        item for item in policy.tp_levels if item.label == "TP6"
     )
 
 
@@ -41,7 +32,7 @@ def test_tracking_protection_locks_the_previous_tp_level() -> None:
         ({"TP1", "TP2"}, "1.20", 0),
         ({"TP1", "TP2", "TP3"}, "1.44", 20),
         ({"TP1", "TP2", "TP3", "TP4"}, "1.80", 50),
-        ({"TP1", "TP2", "TP3", "TP4", "TP5"}, "2.04", 70),
+        ({"TP1", "TP2", "TP3", "TP4", "TP5"}, "2.10", 75),
     )
     for hit, expected_price, expected_return in cases:
         price, return_pct, _reason = policy.protection_for(entry, hit)

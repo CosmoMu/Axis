@@ -20,8 +20,9 @@ Work:
 
 - 从下一笔正式 ST-0001 开始验证发布后 tracking 注册与真实 Massive quote。
 - 验证 Massive MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
-- 验证 High / Low Watermark 与新订单固定 TP1–TP12；确认每一级只发送一次且没有 Runner。
-- 验证 ST_TRACKING_V2 在途订单与 ST_TRACKING_V3 新订单各自使用冻结策略，不混用点位。
+- 验证 High / Low Watermark 与新订单固定 TP1–TP41；确认 50% 起每 25 个百分点只发送
+  一次且没有 Runner。
+- 验证 ST_TRACKING_V2 / V3 在途订单与 ST_TRACKING_V4 新订单各自使用冻结策略，不混用点位。
 - 验证 Fast Momentum Reversal、Tracking Protection、Overnight Tracking 和 Tracking Stop。
 - 核对 Discord Entry / TP / 停止追踪、Daily Results 和数据库完整历史。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。

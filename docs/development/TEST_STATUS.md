@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 214 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 215 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -70,8 +70,9 @@ Signal / Trade:
 Short-Term:
 
 - 简化 Review、无 Mentor/position、ST 编号和 Massive provider abstraction。
-- Massive MarketTrackingService、新订单固定 TP1–TP12（10%–1000%）与单次触发。
-- ST_TRACKING_V2 / V3 policy-version isolation；在途旧订单不会切换到新点位。
+- Massive MarketTrackingService、新订单固定 TP1–TP41（10%、20%、50% 起每 25 个百分点至
+  1000%）与单次触发。
+- ST_TRACKING_V2 / V3 / V4 policy-version isolation；在途旧订单不会切换到新点位。
 - High / Low Watermark、Tracking Protection、Fast Momentum Reversal、Overnight Tracking、
   Tracking Stop 和 policy version；Momentum TP 不推进固定编号。
 - Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
@@ -216,4 +217,4 @@ ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live accepta
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 214 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 215 项测试结果。

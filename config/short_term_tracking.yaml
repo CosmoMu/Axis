@@ -1,4 +1,4 @@
-version: ST_TRACKING_V3
+version: ST_TRACKING_V4
 price_source: MID
 poll_seconds: 5
 max_quote_age_seconds: 120
@@ -8,15 +8,44 @@ tp_levels:
   TP1: 10
   TP2: 20
   TP3: 50
-  TP4: 70
+  TP4: 75
   TP5: 100
-  TP6: 150
-  TP7: 200
-  TP8: 300
-  TP9: 400
-  TP10: 500
-  TP11: 750
-  TP12: 1000
+  TP6: 125
+  TP7: 150
+  TP8: 175
+  TP9: 200
+  TP10: 225
+  TP11: 250
+  TP12: 275
+  TP13: 300
+  TP14: 325
+  TP15: 350
+  TP16: 375
+  TP17: 400
+  TP18: 425
+  TP19: 450
+  TP20: 475
+  TP21: 500
+  TP22: 525
+  TP23: 550
+  TP24: 575
+  TP25: 600
+  TP26: 625
+  TP27: 650
+  TP28: 675
+  TP29: 700
+  TP30: 725
+  TP31: 750
+  TP32: 775
+  TP33: 800
+  TP34: 825
+  TP35: 850
+  TP36: 875
+  TP37: 900
+  TP38: 925
+  TP39: 950
+  TP40: 975
+  TP41: 1000
 
 tracking_protection:
   initial_return_pct: -50
