@@ -109,7 +109,7 @@ Implemented:
   300% / 400% / 500% / 750% / 1000%），不会在同一订单中混用策略。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送不推进固定编号的 Momentum TP。
 - High / Low Watermark。
-- Tracking Protection：初始 -50%；TP1 后锁成本；之后锁前一级 TP。
+- Tracking Protection：初始 -50%；+10% 与 +20% 后均锁入场成本；从 +50% 起锁前一级 TP。
 - Overnight Tracking。
 - Tracking Stop。
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。

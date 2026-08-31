@@ -139,9 +139,9 @@ class ShortTermTrackingPolicy:
             ),
             default=-1,
         )
-        if highest_index == 0:
+        if highest_index >= 0 and self.tp_levels[highest_index].return_pct <= 20:
             protection_return = 0
-            protection_reason = "TP1_ENTRY_PROTECTION"
+            protection_reason = f"{self.tp_levels[highest_index].label}_ENTRY_PROTECTION"
         elif highest_index > 0:
             previous = self.tp_levels[highest_index - 1]
             protection_return = previous.return_pct

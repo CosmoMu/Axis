@@ -173,11 +173,11 @@ async def test_high_low_and_tracking_protection_stop_are_internal_states() -> No
 
 
 @pytest.mark.asyncio
-async def test_tp1_moves_protection_to_entry_and_entry_touch_stops_tracking() -> None:
+async def test_tp10_and_tp20_keep_protection_at_entry() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
-        await service.process_price(tracking.id, market_price(tracking.id, "1.10", now))
+        await service.process_price(tracking.id, market_price(tracking.id, "1.20", now))
         await service.process_price(
             tracking.id, market_price(tracking.id, "1.00", now + timedelta(seconds=10))
         )
@@ -189,8 +189,10 @@ async def test_tp1_moves_protection_to_entry_and_entry_touch_stops_tracking() ->
                 )
             )
         assert saved is not None and stop is not None
-        assert saved.tp_levels_hit == ["TP1"]
+        assert saved.tp_levels_hit == ["TP1", "TP2"]
         assert saved.tracking_protection_price == Decimal("1.0000")
+        assert saved.tracking_protection_return_pct == Decimal("0.0000")
+        assert saved.tracking_protection_reason == "TP2_ENTRY_PROTECTION"
         assert saved.tracking_state == "STOPPED"
         assert stop.public_notification is True
         assert stop.public_card_type == "STOP_TRACKING"

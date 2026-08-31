@@ -21,9 +21,10 @@ behavior not named here remains unchanged.
 ## Tracking protection
 
 - Before TP1: -50%.
-- After TP1: entry / 0%.
-- After TP2: TP1 / +10%.
-- After TP3: TP2 / +20%; subsequent levels protect the immediately preceding fixed TP.
+- After TP1 (+10%): entry / 0%.
+- After TP2 (+20%): entry / 0%.
+- From TP3 (+50%) onward: protect the immediately preceding fixed TP; TP3 protects +20%, TP4
+  protects +50%, and so on.
 - A protection touch publishes only 停止追踪. This is AXIS tracking state, not a member SL.
 - Full Entry, TP, Momentum, watermark, end, overnight, and policy-version history remains stored.
 

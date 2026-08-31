@@ -38,7 +38,7 @@ def test_tracking_protection_locks_the_previous_tp_level() -> None:
     cases = (
         (set(), "0.60", -50),
         ({"TP1"}, "1.20", 0),
-        ({"TP1", "TP2"}, "1.32", 10),
+        ({"TP1", "TP2"}, "1.20", 0),
         ({"TP1", "TP2", "TP3"}, "1.44", 20),
         ({"TP1", "TP2", "TP3", "TP4"}, "1.80", 50),
         ({"TP1", "TP2", "TP3", "TP4", "TP5"}, "2.04", 70),

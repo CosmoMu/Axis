@@ -15,7 +15,8 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [ ] ST_TRACKING_V3 TP1–TP12 真实触发且每一级只发一次；频道中没有 Runner。
 - [ ] 在途 ST_TRACKING_V2 与新 ST_TRACKING_V3 订单均按各自冻结策略运行。
 - [ ] Fast Momentum Reversal 真实路径已验证。
-- [ ] Tracking Protection（-50% / Entry / 前一级 TP）与 Tracking Stop 真实路径已验证。
+- [ ] Tracking Protection（初始 -50%；+10% / +20% 后保本；+50% 起回到前一级 TP）与
+  Tracking Stop 真实路径已验证。
 - [ ] Overnight 规则与下一交易日恢复已验证。
 - [ ] Discord Entry / TP / 停止追踪与数据库状态一致，Short-Term 无 Active Button。
 - [ ] Short-Term 不发 Daily Summary；Swing / LEAPS Summary 与官方 Results 已验证。

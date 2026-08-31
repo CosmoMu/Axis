@@ -74,6 +74,7 @@ Short-Term:
 - ST_TRACKING_V2 / V3 policy-version isolation；在途旧订单不会切换到新点位。
 - High / Low Watermark、Tracking Protection、Fast Momentum Reversal、Overnight Tracking、
   Tracking Stop 和 policy version；Momentum TP 不推进固定编号。
+- Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - 极简 Daily Results 的 TP highest / no-TP tracking-end 选择、LOTTO、TP 顺序和幂等。

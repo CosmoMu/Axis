@@ -82,7 +82,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   500% / 750% / 1000%；`tp_levels_hit` 保证每一级只发送一次。
 - Tracking policy 按订单冻结；历史 ST_TRACKING_V2 订单继续使用原 TP1–TP10 点位。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送 plain TP，不推进固定 TP 编号。
-- Tracking Protection、High / Low Watermark、Overnight 和 Tracking Stop。
+- Tracking Protection（+10% / +20% 后保本，+50% 起保护前一级 TP）、High / Low Watermark、
+  Overnight 和 Tracking Stop。
 - LOTTO 持久化 display flag，不影响 tracking、TP、protection、仓位或结果计算。
 - Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
