@@ -42,6 +42,8 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [x] `STRIPE_MODE` 和 `PAYMENTS_ENABLED` kill switch 已实现。
 - [x] 数据库 revision 20260831_0023 按环境隔离 Price、Entitlement、Session 和 Payment Event。
 - [x] revision 20260831_0024 已规范本次 Stripe check constraint 名称。
+- [x] revision 20260831_0025 已将新 Free Trial 固化为 Calendar Day duration，并保留历史
+  Trial 的原 duration/expiry。
 - [x] webhook 在 event reservation 前严格验证签名、`livemode` 和 metadata environment。
 - [x] immutable Price version、signup snapshot、grandfathering 与 V2 switch/rollback 已实现。
 - [x] Stripe/AXIS reconciliation、受控 repair 和 Owner-only mismatch alert 已实现。

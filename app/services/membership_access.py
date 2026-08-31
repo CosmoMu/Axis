@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select, update
@@ -250,10 +250,17 @@ class MembershipAccessService:
         database: Database,
         calendar: TradingCalendarService,
         acknowledgements: MembershipAcknowledgementService,
+        *,
+        free_trial_enabled: bool = True,
+        free_trial_calendar_days: int = 7,
     ) -> None:
+        if free_trial_calendar_days <= 0:
+            raise ValueError("free_trial_calendar_days must be positive")
         self.database = database
         self.calendar = calendar
         self.acknowledgements = acknowledgements
+        self.free_trial_enabled = free_trial_enabled
+        self.free_trial_calendar_days = free_trial_calendar_days
 
     async def status(self, guild_id: int, user_id: int) -> AccessSnapshot:
         async with self.database.session() as session:
@@ -296,6 +303,40 @@ class MembershipAccessService:
     async def should_have_access(self, guild_id: int, user_id: int) -> bool:
         return (await self.status(guild_id, user_id)).has_access
 
+    async def free_trial_claim_state(
+        self,
+        guild_id: int,
+        user_id: int,
+        *,
+        now: datetime | None = None,
+    ) -> str:
+        """Inspect eligibility without granting access or consuming the one-time trial."""
+        if not self.free_trial_enabled:
+            return "DISABLED"
+        checked_at = _aware(now or utc_now())
+        async with self.database.session() as session:
+            existing = await session.scalar(
+                select(MembershipTrial.id).where(
+                    MembershipTrial.discord_user_id == user_id,
+                    MembershipTrial.trial_type == EntitlementType.FREE_TRIAL.value,
+                )
+            )
+            if existing is not None:
+                return "USED"
+            active = await session.scalar(
+                select(MembershipEntitlement.id).where(
+                    MembershipEntitlement.guild_id == guild_id,
+                    MembershipEntitlement.discord_user_id == user_id,
+                    MembershipEntitlement.status.in_(ACCESS_STATUSES),
+                    (
+                        (MembershipEntitlement.status == EntitlementStatus.PAST_DUE.value)
+                        | MembershipEntitlement.ends_at.is_(None)
+                        | (MembershipEntitlement.ends_at > checked_at)
+                    ),
+                )
+            )
+            return "ACCESS_ACTIVE" if active is not None else "ELIGIBLE"
+
     async def claim_free_trial(
         self,
         guild_id: int,
@@ -304,10 +345,12 @@ class MembershipAccessService:
         interaction_id: int | None,
         now: datetime | None = None,
     ) -> EntitlementSnapshot:
+        if not self.free_trial_enabled:
+            raise MembershipAccessError("FREE_TRIAL_DISABLED")
         if not await self.acknowledgements.has_current_risk(user_id):
             raise MembershipAccessError("RISK_ACKNOWLEDGEMENT_REQUIRED")
-        claimed_at = now or utc_now()
-        window = self.calendar.trading_window(claimed_at, 3)
+        claimed_at = _aware(now or utc_now())
+        expires_at = claimed_at + timedelta(days=self.free_trial_calendar_days)
         async with self.database.session() as session:
             existing = await session.scalar(
                 select(MembershipTrial.id).where(
@@ -317,15 +360,29 @@ class MembershipAccessService:
             )
             if existing is not None:
                 raise MembershipAccessError("FREE_TRIAL_ALREADY_CLAIMED")
+            active = await session.scalar(
+                select(MembershipEntitlement.id).where(
+                    MembershipEntitlement.guild_id == guild_id,
+                    MembershipEntitlement.discord_user_id == user_id,
+                    MembershipEntitlement.status.in_(ACCESS_STATUSES),
+                    (
+                        (MembershipEntitlement.status == EntitlementStatus.PAST_DUE.value)
+                        | MembershipEntitlement.ends_at.is_(None)
+                        | (MembershipEntitlement.ends_at > claimed_at)
+                    ),
+                )
+            )
+            if active is not None:
+                raise MembershipAccessError("FREE_TRIAL_ACCESS_ALREADY_ACTIVE")
             entitlement = MembershipEntitlement(
                 guild_id=guild_id,
                 discord_user_id=user_id,
                 entitlement_type=EntitlementType.FREE_TRIAL.value,
                 status=EntitlementStatus.ACTIVE.value,
                 starts_at=claimed_at,
-                ends_at=window.expires_at,
-                first_trading_day=window.first_trading_day,
-                last_trading_day=window.last_trading_day,
+                ends_at=expires_at,
+                first_trading_day=None,
+                last_trading_day=None,
             )
             session.add(entitlement)
             await session.flush()
@@ -334,11 +391,15 @@ class MembershipAccessService:
                     guild_id=guild_id,
                     discord_user_id=user_id,
                     trial_type=EntitlementType.FREE_TRIAL.value,
-                    trading_days_granted=3,
+                    duration_unit="CALENDAR_DAY",
+                    duration_amount=self.free_trial_calendar_days,
+                    calendar_days_granted=self.free_trial_calendar_days,
+                    trading_days_granted=None,
                     claimed_at=claimed_at,
-                    first_trading_day=window.first_trading_day,
-                    last_trading_day=window.last_trading_day,
-                    expires_at=window.expires_at,
+                    started_at=claimed_at,
+                    first_trading_day=None,
+                    last_trading_day=None,
+                    expires_at=expires_at,
                     status=EntitlementStatus.ACTIVE.value,
                     entitlement_id=entitlement.id,
                 )

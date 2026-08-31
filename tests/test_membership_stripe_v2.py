@@ -19,7 +19,12 @@ from app.db.models import (
     PaymentEvent,
 )
 from app.db.session import Database
-from app.domain.enums import EntitlementStatus, MembershipExtensionType, MembershipPlanType
+from app.domain.enums import (
+    EntitlementStatus,
+    EntitlementType,
+    MembershipExtensionType,
+    MembershipPlanType,
+)
 from app.domain.public_identity import PublicIdentityPolicy
 from app.integrations.stripe_config import StripeMode
 from app.integrations.stripe_gateway import (
@@ -191,6 +196,32 @@ async def test_day_pass_checkout_duplicate_click_webhook_and_idempotency() -> No
         assert entitlement.unit_amount_at_signup == 999
         assert entitlement.first_trading_day is not None
         assert entitlement.last_trading_day == entitlement.first_trading_day
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_active_free_trial_blocks_day_pass_but_allows_monthly_checkout() -> None:
+    database, gateway, access, stripe_service = await setup()
+    try:
+        trial = await access.claim_free_trial(GUILD_ID, USER_ID, interaction_id=2)
+        assert trial.entitlement_type == EntitlementType.FREE_TRIAL.value
+        with pytest.raises(
+            MembershipStripeError,
+            match="FREE_TRIAL_ACTIVE_DAY_PASS_NOT_NEEDED",
+        ):
+            await stripe_service.create_checkout(
+                GUILD_ID,
+                USER_ID,
+                MembershipPlanType.DAY_PASS.value,
+            )
+        monthly = await stripe_service.create_checkout(
+            GUILD_ID,
+            USER_ID,
+            MembershipPlanType.MONTHLY.value,
+        )
+        assert monthly.id == "cs_test_1"
+        assert gateway.checkout_calls[0]["monthly"] is True
     finally:
         await database.dispose()
 

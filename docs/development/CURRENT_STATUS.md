@@ -4,7 +4,7 @@
 
 **Current stage:** Production stabilization / Stripe Live enabled; first-payment E2E pending
 
-**Database revision:** 20260831_0024
+**Database revision:** 20260831_0025
 
 **AXIS LAB:** DEFERRED
 
@@ -46,7 +46,9 @@ Production status: `DEPLOYMENT_STAGE=SOFT_OPEN`。生产数据起点为
 ## Discord Core — COMPLETE
 
 Implemented: Guild 锁定、幂等 Bootstrap、Role / Category / Channel / Permission reconciliation、
-持久化 View、控制面板 Message ID 恢复、Owner-only 测试与告警频道。
+AXIS Category / Channel 顺序 reconciliation、持久化 View、控制面板 Message ID 恢复、
+Owner-only 测试与告警频道。`👋・welcome` 是第一个公共 AXIS Category 的第一个频道；未取得
+Member Role 的用户看不到会员区。
 
 Remaining: 生产故障演练与长期运行观测。
 
@@ -159,18 +161,24 @@ Production status: 已部署。
 
 ## Free Trial — COMPLETE
 
-Implemented: 终身一次、版本化风险确认、XNYS 三个交易日和 Member Role 同步。
+Implemented: 终身一次、版本化风险确认、领取时刻起连续 7 个 Calendar Days、周末/美国市场
+休市日计入、领取时固化 duration/expiry、加入 Guild 不自动领取、已有访问不消耗 Trial、
+Trial 期间阻止 Day Pass 但允许 Monthly，以及多 Entitlement 汇总后的 Member Role 同步。
+`TradingCalendarService` 不参与 Free Trial；Day Pass 的一交易日逻辑保持不变。旧 Trial 通过
+0025 migration 保留历史 `TRADING_DAY` duration 与原到期时间，不追溯改期。
 
-Remaining: Test Guild 的真实到期时钟演练。
+Remaining: Production 新用户真实领取、7×24 小时到期和 Discord Role reconciliation 时钟演练。
 
-Tests: 周末、休市日、重复申请、到期和多 Entitlement。
+Tests: 周末、美国市场休市日、严格 7 天、禁止调用交易日历、重复申请、已有访问不消耗、
+Trial/Day Pass checkout 边界、到期和多 Entitlement。
 
-Production status: 代码已部署；Reset 已清除开发阶段 Trial。当前唯一 entitlement 来自真实
-Discord Member Role reconciliation，不是 Fake Trial 或 Stripe Test membership。
+Production status: 代码、数据库 migration、Welcome-first 顺序与持久卡片已部署并通过 runtime
+验证；Reset 已清除开发阶段 Trial。现有历史 claim 不被重算。
 
 ## Day Pass — LIVE ENABLED / REAL PAYMENT E2E PENDING
 
-Implemented: XNYS 一个交易日、动态 Checkout、payment event dedup 和 Role 同步。
+Implemented: XNYS 一个交易日、动态 Checkout、payment event dedup 和 Role 同步；
+`TradingCalendarService` 逻辑未因 Free Trial 改为 Calendar Days 而改变。
 
 Remaining: Owner 完成真实付款、交易日到期与 Discord Role reconciliation 验收。
 

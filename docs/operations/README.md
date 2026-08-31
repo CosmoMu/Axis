@@ -15,5 +15,10 @@
 - `payments/PAYMENT_INCIDENT_RUNBOOK.md` — 支付事故诊断与恢复。
 - `payments/CHANGELOG.md` — Payment 架构与生产配置变更记录。
 
+## Membership onboarding
+
+- `membership/FREE_TRIAL_ONBOARDING.md` — Welcome-first 新会员入口、7 个自然日 Trial、终身一次
+  资格、Day Pass 交易日边界和运行验证。
+
 Secret、完整 Stripe payload、客户付款信息、Discord 用户 ID 与数据库连接信息不得写进文档、
 命令输出、日志或 Git。

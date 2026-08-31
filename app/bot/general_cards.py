@@ -25,6 +25,9 @@ def _channel_link(
 def welcome_embed(
     guild_id: int | None = None,
     channel_ids: Mapping[str, int] | None = None,
+    *,
+    free_trial_calendar_days: int = 7,
+    free_trial_enabled: bool = True,
 ) -> discord.Embed:
     def link(key: str, label: str) -> str:
         return _channel_link(guild_id, channel_ids, key, label)
@@ -32,21 +35,30 @@ def welcome_embed(
     embed = discord.Embed(
         title="WELCOME TO AXIS",
         description=(
-            "**Signals without the noise.**\n\n"
-            "欢迎来到 AXIS。这里是服务器快速导航；点击频道名称即可前往。"
+            "**Signals without the noise.**\n\n欢迎来到 AXIS。请从这里开始；点击频道名称即可前往。"
         ),
         color=AXIS_GREEN,
     )
     embed.add_field(
         name="1️⃣ START HERE",
         value=(
-            f"{link('subscriptions', '💳・subscriptions')} — Free Trial、Day Pass 与 Monthly\n"
+            f"{link('subscriptions', '💳・subscriptions')} — 领取 Free Trial 或开通会员\n"
             f"{link('official_results', '📊・results')} — AXIS 官方系统战绩\n"
             f"{link('lobby', '💬・lobby')} — 市场交流与一般问题\n"
             f"{link('member_wins', '🏆・member-wins')} — 会员投稿与社区战绩"
         ),
         inline=False,
     )
+    if free_trial_enabled:
+        embed.add_field(
+            name="🎟️ NEW MEMBER FREE TRIAL",
+            value=(
+                f"新会员可主动领取 **{free_trial_calendar_days} 个自然日**完整 Member 访问权限。\n"
+                "从领取时刻连续计算，周末与美国市场休市日也计入。\n"
+                "无需信用卡，不会自动续费；每个 Discord 账户仅可领取一次。"
+            ),
+            inline=False,
+        )
     embed.add_field(
         name="2️⃣ MEMBER ACCESS",
         value=(
@@ -69,7 +81,12 @@ def welcome_embed(
     return embed
 
 
-def subscription_embed(offers: Mapping[str, PriceSnapshot]) -> discord.Embed:
+def subscription_embed(
+    offers: Mapping[str, PriceSnapshot],
+    *,
+    free_trial_calendar_days: int = 7,
+    free_trial_enabled: bool = True,
+) -> discord.Embed:
     day_pass = offers.get("DAY_PASS")
     monthly = offers.get("MONTHLY")
     day_price = day_pass.display_amount if day_pass else "Unavailable"
@@ -81,7 +98,11 @@ def subscription_embed(offers: Mapping[str, PriceSnapshot]) -> discord.Embed:
     )
     embed.add_field(
         name="FREE TRIAL",
-        value="3 Trading Days\n$0\n\nNo card required.",
+        value=(
+            f"{free_trial_calendar_days} Calendar Days\n$0\n\nNo card required. No auto-renewal."
+            if free_trial_enabled
+            else "Temporarily unavailable."
+        ),
         inline=True,
     )
     embed.add_field(
@@ -100,8 +121,12 @@ def subscription_embed(offers: Mapping[str, PriceSnapshot]) -> discord.Embed:
         inline=False,
     )
     embed.add_field(
-        name="TRADING DAYS",
-        value="U.S. market calendar. Weekends and market holidays do not count.",
+        name="HOW TIME IS COUNTED",
+        value=(
+            f"Free Trial：领取后连续 {free_trial_calendar_days} 个自然日，"
+            "周末与市场休市日计入。\n"
+            "Day Pass：1 个美国股票市场交易日，周末与市场休市日不计入。"
+        ),
         inline=False,
     )
     embed.add_field(

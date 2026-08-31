@@ -168,6 +168,10 @@ class Settings:
     public_identity_forbidden_terms: tuple[str, ...] = ()
     lab_enabled: bool = False
     model_ab_enabled: bool = False
+    new_member_free_trial_enabled: bool = True
+    new_member_free_trial_calendar_days: int = 7
+    new_member_free_trial_auto_offer: bool = True
+    new_member_free_trial_dm_enabled: bool = False
     membership_price_display: str = "价格见支付页面"
     subscription_url: str | None = None
     customer_portal_url: str | None = None
@@ -305,6 +309,12 @@ class Settings:
             ),
             lab_enabled=_parse_bool("FEATURE_LAB_ENABLED", False),
             model_ab_enabled=_parse_bool("FEATURE_MODEL_AB_ENABLED", False),
+            new_member_free_trial_enabled=_parse_bool("NEW_MEMBER_FREE_TRIAL_ENABLED", True),
+            new_member_free_trial_calendar_days=_parse_positive_int(
+                "NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS", 7
+            ),
+            new_member_free_trial_auto_offer=_parse_bool("NEW_MEMBER_FREE_TRIAL_AUTO_OFFER", True),
+            new_member_free_trial_dm_enabled=_parse_bool("NEW_MEMBER_FREE_TRIAL_DM_ENABLED", False),
             membership_price_display=(
                 os.getenv("MEMBERSHIP_PRICE_DISPLAY", "价格见支付页面").strip() or "价格见支付页面"
             ),
@@ -322,9 +332,7 @@ class Settings:
                 "MEMBERSHIP_SESSION_TTL_MINUTES", 30
             ),
             system_alert_check_seconds=_parse_positive_int("SYSTEM_ALERT_CHECK_SECONDS", 30),
-            stripe_reconciliation_minutes=_parse_positive_int(
-                "STRIPE_RECONCILIATION_MINUTES", 15
-            ),
+            stripe_reconciliation_minutes=_parse_positive_int("STRIPE_RECONCILIATION_MINUTES", 15),
             stripe_enabled=_parse_bool("STRIPE_ENABLED", False),
             payments_enabled=_parse_bool("PAYMENTS_ENABLED", False),
             stripe_mode=_parse_stripe_mode(),
@@ -334,9 +342,7 @@ class Settings:
                 os.getenv("STRIPE_TEST_SECRET_KEY", "").strip()
                 or os.getenv("STRIPE_SECRET_KEY", "").strip()
             ),
-            stripe_test_publishable_key=os.getenv(
-                "STRIPE_TEST_PUBLISHABLE_KEY", ""
-            ).strip(),
+            stripe_test_publishable_key=os.getenv("STRIPE_TEST_PUBLISHABLE_KEY", "").strip(),
             stripe_test_webhook_secret=(
                 os.getenv("STRIPE_TEST_WEBHOOK_SECRET", "").strip()
                 or os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
@@ -385,18 +391,12 @@ class Settings:
                 or "MONTHLY_V1"
             ),
             stripe_live_secret_key=os.getenv("STRIPE_LIVE_SECRET_KEY", "").strip(),
-            stripe_live_publishable_key=os.getenv(
-                "STRIPE_LIVE_PUBLISHABLE_KEY", ""
-            ).strip(),
-            stripe_live_webhook_secret=os.getenv(
-                "STRIPE_LIVE_WEBHOOK_SECRET", ""
-            ).strip(),
+            stripe_live_publishable_key=os.getenv("STRIPE_LIVE_PUBLISHABLE_KEY", "").strip(),
+            stripe_live_webhook_secret=os.getenv("STRIPE_LIVE_WEBHOOK_SECRET", "").strip(),
             stripe_live_webhook_url=_parse_optional_url("STRIPE_LIVE_WEBHOOK_URL"),
             stripe_live_success_url=_parse_optional_url("STRIPE_LIVE_SUCCESS_URL"),
             stripe_live_cancel_url=_parse_optional_url("STRIPE_LIVE_CANCEL_URL"),
-            stripe_live_portal_return_url=_parse_optional_url(
-                "STRIPE_LIVE_PORTAL_RETURN_URL"
-            ),
+            stripe_live_portal_return_url=_parse_optional_url("STRIPE_LIVE_PORTAL_RETURN_URL"),
             stripe_live_day_pass_product_id=(
                 os.getenv("STRIPE_LIVE_DAY_PASS_PRODUCT_ID", "").strip() or None
             ),
@@ -417,9 +417,7 @@ class Settings:
                 os.getenv("STRIPE_LIVE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
                 or "MONTHLY_V1"
             ),
-            stripe_live_webhook_relay_url=_parse_optional_url(
-                "STRIPE_LIVE_WEBHOOK_RELAY_URL"
-            ),
+            stripe_live_webhook_relay_url=_parse_optional_url("STRIPE_LIVE_WEBHOOK_RELAY_URL"),
             stripe_live_webhook_relay_secret=os.getenv(
                 "STRIPE_LIVE_WEBHOOK_RELAY_SECRET", ""
             ).strip(),
@@ -483,14 +481,10 @@ class Settings:
                 portal_return_url=getattr(self, f"{prefix}_portal_return_url"),
                 day_pass_product_id=getattr(self, f"{prefix}_day_pass_product_id"),
                 day_pass_price_id=getattr(self, f"{prefix}_day_pass_price_id"),
-                day_pass_pricing_version=getattr(
-                    self, f"{prefix}_day_pass_pricing_version"
-                ),
+                day_pass_pricing_version=getattr(self, f"{prefix}_day_pass_pricing_version"),
                 monthly_product_id=getattr(self, f"{prefix}_monthly_product_id"),
                 monthly_price_id=getattr(self, f"{prefix}_monthly_price_id"),
-                monthly_pricing_version=getattr(
-                    self, f"{prefix}_monthly_pricing_version"
-                ),
+                monthly_pricing_version=getattr(self, f"{prefix}_monthly_pricing_version"),
             )
 
         return StripeConfig(

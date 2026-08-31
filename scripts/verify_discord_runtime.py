@@ -116,6 +116,36 @@ async def verify() -> list[str]:
 
         _check(welcome.permissions_for(everyone).view_channel, "public_welcome_view", failures)
         _check(not welcome.permissions_for(everyone).send_messages, "public_welcome_send", failures)
+        public_categories = [
+            category
+            for category in guild.categories
+            if category.permissions_for(everyone).view_channel
+        ]
+        if public_categories:
+            _check(
+                welcome.category_id == min(public_categories, key=lambda item: item.position).id,
+                "welcome_category_not_first_public",
+                failures,
+            )
+        if welcome.category is not None:
+            public_text_channels = [
+                item
+                for item in welcome.category.text_channels
+                if item.permissions_for(everyone).view_channel
+            ]
+            _check(
+                bool(public_text_channels)
+                and welcome.id == min(public_text_channels, key=lambda item: item.position).id,
+                "welcome_channel_not_first_public",
+                failures,
+            )
+        _check(
+            not member_lounge.category.permissions_for(everyone).view_channel
+            if member_lounge.category is not None
+            else False,
+            "member_category_publicly_visible",
+            failures,
+        )
         _check(lobby.permissions_for(everyone).send_messages, "public_lobby_send", failures)
         _check(member_wins.permissions_for(everyone).view_channel, "public_wins_view", failures)
         _check(
@@ -195,6 +225,9 @@ async def verify() -> list[str]:
                 if channel_key == "welcome" and matching:
                     payload = str(matching[0].embeds[0].to_dict())
                     _check("NO ACCESS" in payload, "welcome_no_access_missing", failures)
+                    _check("7 个自然日" in payload, "welcome_trial_calendar_copy_missing", failures)
+                    _check("无需信用卡" in payload, "welcome_trial_no_card_missing", failures)
+                    _check("不会自动续费" in payload, "welcome_trial_no_renew_missing", failures)
                     for linked_key in (
                         "subscriptions",
                         "official_results",
@@ -225,7 +258,15 @@ async def verify() -> list[str]:
                         "monthly_auto_renew_copy_missing",
                         failures,
                     )
-                    _check("CANCEL MONTHLY" in labels, "cancel_monthly_button_missing", failures)
+                    _check("7 Calendar Days" in payload, "trial_calendar_days_missing", failures)
+                    _check("3 Trading Days" not in payload, "legacy_trial_copy_present", failures)
+                    _check("1 Trading Day" in payload, "day_pass_trading_day_missing", failures)
+                    _check("START FREE TRIAL" in labels, "start_trial_button_missing", failures)
+                    _check(
+                        "MANAGE MEMBERSHIP" in labels,
+                        "manage_membership_button_missing",
+                        failures,
+                    )
                 if channel_key in {"member_wins", "short_term_alerts"} and matching:
                     _check(matching[0].pinned, f"{channel_key}_guide_not_pinned", failures)
             lobby = channel("lobby")

@@ -15,6 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
+EXPECTED_REVISION = "20260831_0025"
+
 COUNTED_TABLES = (
     "input_code_counters",
     "source_messages",
@@ -69,6 +71,28 @@ async def verify() -> None:
             revision = (
                 await session.execute(text("SELECT version_num FROM alembic_version"))
             ).scalar_one()
+            if revision != EXPECTED_REVISION:
+                raise RuntimeError("DATABASE_REVISION_MISMATCH")
+            trial_columns = {
+                row[0]
+                for row in (
+                    await session.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_name='membership_trials'"
+                        )
+                    )
+                ).all()
+            }
+            required_trial_columns = {
+                "duration_unit",
+                "duration_amount",
+                "calendar_days_granted",
+                "started_at",
+                "expires_at",
+            }
+            if not required_trial_columns <= trial_columns:
+                raise RuntimeError("MEMBERSHIP_TRIAL_SCHEMA_MISMATCH")
             counts = {}
             for table in COUNTED_TABLES:
                 exists = (

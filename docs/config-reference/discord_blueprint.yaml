@@ -32,7 +32,7 @@ role_order:
 categories:
   - key: start
     name: "⬛・GENERAL"
-    position: 10
+    position: 0
     channels:
       - key: welcome
         name: "👋・welcome"
@@ -87,7 +87,7 @@ categories:
 
   - key: members
     name: "🟢・MEMBERS"
-    position: 20
+    position: 1
     default_visibility: member
     channels:
       - key: short_term_alerts
@@ -135,7 +135,7 @@ categories:
 
   - key: manager
     name: "⚙️・MANAGER"
-    position: 90
+    position: 2
     default_visibility: manager
     channels:
       - key: signal_input
@@ -250,7 +250,7 @@ categories:
 
   - key: lab
     name: "🧪・AXIS LAB"
-    position: 99
+    position: 3
     default_visibility: deferred
     feature_flag: FEATURE_LAB_ENABLED
     channels:

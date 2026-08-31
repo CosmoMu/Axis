@@ -106,12 +106,8 @@ async def run() -> None:
         historical_short_term_policies = tuple(
             ShortTermTrackingPolicy.load(path)
             for path in (
-                settings.short_term_tracking_config_path.with_name(
-                    "short_term_tracking_v2.yaml"
-                ),
-                settings.short_term_tracking_config_path.with_name(
-                    "short_term_tracking_v3.yaml"
-                ),
+                settings.short_term_tracking_config_path.with_name("short_term_tracking_v2.yaml"),
+                settings.short_term_tracking_config_path.with_name("short_term_tracking_v3.yaml"),
             )
             if path.is_file() and path != settings.short_term_tracking_config_path
         )
@@ -241,7 +237,13 @@ async def run() -> None:
         )
         calendar = TradingCalendarService()
         acknowledgements = MembershipAcknowledgementService(database)
-        access_service = MembershipAccessService(database, calendar, acknowledgements)
+        access_service = MembershipAccessService(
+            database,
+            calendar,
+            acknowledgements,
+            free_trial_enabled=settings.new_member_free_trial_enabled,
+            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+        )
         stripe_config = settings.stripe_config()
         active_stripe = stripe_config.active
         price_catalog = MembershipPriceCatalog(

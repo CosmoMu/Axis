@@ -882,7 +882,8 @@ Short-Term 是 Signal Core 的独立交易路径：
 ## Membership Products
 
 - 只有一个 `Member` Role，所有有效 Entitlement 获得相同频道权限。
-- Free Trial：3 个 XNYS Trading Days、每个 Discord User 终身一次、需版本化风险确认。
+- Free Trial：领取时刻起连续 7 个 Calendar Days（周末与美国市场休市日计入）、每个 Discord
+  User 终身一次、需版本化风险确认；不得调用 `TradingCalendarService`。
 - Day Pass：一次性付款、1 个 XNYS Trading Day。
 - Monthly：Stripe 月度自动续费，不换算为交易日或固定日历天数。
 - Gift、Manual、Manual Extension 与 Stripe Entitlement 可以并存；任一有效即保留 Role。
@@ -896,6 +897,9 @@ Short-Term 是 Signal Core 的独立交易路径：
 - 每次购买保存 pricing version、Stripe Price ID 与 signup amount；新价格不得自动迁移既有
   Monthly Subscription，以保证 Grandfathering。
 - Live Mode 前必须完成 Test E2E、公开 HTTPS Webhook、续费/失败/取消 E2E 和人工隐私检查。
+
+New Member onboarding 的最终覆盖规则见 `07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md`；
+`👋・welcome` 必须是第一个公共 AXIS Category 的第一个可见频道。
 
 ## Owner-only Operations
 

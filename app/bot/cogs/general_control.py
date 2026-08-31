@@ -55,7 +55,9 @@ class RiskDisclosureView(discord.ui.View):
         self.controller = controller
         self.plan_type = plan_type
         button = discord.ui.Button(
-            label="I UNDERSTAND",
+            label=(
+                "I UNDERSTAND & START" if plan_type == "FREE_TRIAL" else "I UNDERSTAND & CONTINUE"
+            ),
             style=discord.ButtonStyle.success,
             custom_id=f"axis:risk:accept:{plan_type.lower()}:v1",
         )
@@ -86,12 +88,6 @@ class MembershipView(discord.ui.View):
         monthly = offers.get(MembershipPlanType.MONTHLY.value)
         definitions = (
             (
-                "FREE 3-DAY TRIAL",
-                "free_trial",
-                discord.ButtonStyle.success,
-                self.free_trial,
-            ),
-            (
                 f"DAY PASS · {day.display_amount if day else 'UNAVAILABLE'}",
                 "day_pass",
                 discord.ButtonStyle.primary,
@@ -104,12 +100,22 @@ class MembershipView(discord.ui.View):
                 self.monthly,
             ),
             (
-                "CANCEL MONTHLY",
+                "MANAGE MEMBERSHIP",
                 "manage",
                 discord.ButtonStyle.secondary,
                 self.manage,
             ),
         )
+        if controller.free_trial_enabled:
+            definitions = (
+                (
+                    "START FREE TRIAL",
+                    "free_trial",
+                    discord.ButtonStyle.success,
+                    self.free_trial,
+                ),
+                *definitions,
+            )
         for label, action, style, callback in definitions:
             button = discord.ui.Button(
                 label=label[:80],
@@ -153,6 +159,10 @@ class GeneralControlCog(commands.Cog):
         stripe_service: MembershipStripeService,
         public_identity: PublicIdentityPolicy,
         sync_role: Callable[[int, bool], Awaitable[None]],
+        free_trial_enabled: bool = True,
+        free_trial_calendar_days: int = 7,
+        free_trial_auto_offer: bool = True,
+        free_trial_dm_enabled: bool = False,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -171,6 +181,10 @@ class GeneralControlCog(commands.Cog):
         self.stripe_service = stripe_service
         self.public_identity = public_identity
         self.sync_role = sync_role
+        self.free_trial_enabled = free_trial_enabled
+        self.free_trial_calendar_days = free_trial_calendar_days
+        self.free_trial_auto_offer = free_trial_auto_offer
+        self.free_trial_dm_enabled = free_trial_dm_enabled
         self._ready = False
         self.control_loop.start()
 
@@ -184,6 +198,22 @@ class GeneralControlCog(commands.Cog):
         if not self.is_current_guild(interaction):
             await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
             return
+        if plan_type == "FREE_TRIAL":
+            state = await self.access_service.free_trial_claim_state(
+                self.guild_id,
+                interaction.user.id,
+            )
+            ineligible_messages = {
+                "DISABLED": "Free Trial 目前未开放。",
+                "USED": "该 Discord 账户已经领取过终身一次的 Free Trial。",
+                "ACCESS_ACTIVE": "你已有有效访问权限；本次不会消耗 Free Trial。",
+            }
+            if state != "ELIGIBLE":
+                await interaction.response.send_message(
+                    ineligible_messages.get(state, "Free Trial 当前不可领取。"),
+                    ephemeral=True,
+                )
+                return
         if not await self.acknowledgements.has_current_risk(interaction.user.id):
             notice = risk_disclosure_embed()
             self.public_identity.assert_public(notice.to_dict(), field="risk_disclosure")
@@ -206,9 +236,10 @@ class GeneralControlCog(commands.Cog):
                 )
                 await self.sync_role(interaction.user.id, True)
                 await interaction.followup.send(
-                    "Free Trial 已启用。有效交易日："
-                    f"{entitlement.first_trading_day} → {entitlement.last_trading_day}；"
-                    "最后一天 23:59:59 ET 到期。",
+                    f"Free Trial 已启用，共 {self.free_trial_calendar_days} 个自然日。\n"
+                    f"开始：{entitlement.starts_at.isoformat()}\n"
+                    f"到期：{entitlement.ends_at.isoformat() if entitlement.ends_at else '—'}\n"
+                    "周末与美国市场休市日也计入；不会自动续费。",
                     ephemeral=True,
                 )
                 return
@@ -225,12 +256,16 @@ class GeneralControlCog(commands.Cog):
         except (MembershipAccessError, MembershipStripeError) as exc:
             messages = {
                 "FREE_TRIAL_ALREADY_CLAIMED": "该 Discord 账户已经领取过终身一次的 Free Trial。",
+                "FREE_TRIAL_ACCESS_ALREADY_ACTIVE": "你已有有效访问权限；Free Trial 未被消耗。",
+                "FREE_TRIAL_DISABLED": "Free Trial 目前未开放。",
+                "FREE_TRIAL_ACTIVE_DAY_PASS_NOT_NEEDED": (
+                    "Free Trial 仍在有效期内，无需购买 Day Pass；你仍可购买 Monthly。"
+                ),
                 "MONTHLY_ALREADY_ACTIVE": (
                     "该 Discord 账户已有有效 Monthly，请使用 Manage Membership。"
                 ),
                 "PAYMENTS_DISABLED": (
-                    "AXIS membership checkout is temporarily unavailable.\n"
-                    "Please try again later."
+                    "AXIS membership checkout is temporarily unavailable.\nPlease try again later."
                 ),
                 "STRIPE_CHECKOUT_DISABLED": "Stripe Checkout 仍处于安全禁用状态。",
                 "STRIPE_PRICE_NOT_CONFIGURED": "Stripe Price 尚未完成配置。",
@@ -288,8 +323,14 @@ class GeneralControlCog(commands.Cog):
                         "leaps_alerts": self.leaps_channel_id,
                         "member_chat": self.member_chat_channel_id,
                     },
+                    free_trial_calendar_days=self.free_trial_calendar_days,
+                    free_trial_enabled=self.free_trial_enabled,
                 ),
-                subscription_embed(offers),
+                subscription_embed(
+                    offers,
+                    free_trial_calendar_days=self.free_trial_calendar_days,
+                    free_trial_enabled=self.free_trial_enabled,
+                ),
                 results_guide_embed(),
                 member_wins_guide_embed(),
                 short_term_risk_notice_embed(),
@@ -344,6 +385,31 @@ class GeneralControlCog(commands.Cog):
             )
         except Exception as exc:
             logger.warning("event=general_control_failed error_type=%s", type(exc).__name__)
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member) -> None:
+        if member.bot or member.guild.id != self.guild_id or not self.free_trial_auto_offer:
+            return
+        try:
+            state = await self.access_service.free_trial_claim_state(
+                self.guild_id,
+                member.id,
+            )
+            logger.info("event=new_member_trial_state user_id=%s state=%s", member.id, state)
+            if not self.free_trial_dm_enabled or state != "ELIGIBLE":
+                return
+            await member.send(
+                "欢迎加入 AXIS。请从 👋・welcome 开始，并在阅读风险说明后主动领取 "
+                f"{self.free_trial_calendar_days} 个自然日 Free Trial："
+                f"https://discord.com/channels/{self.guild_id}/{self.welcome_channel_id}"
+            )
+        except discord.HTTPException:
+            logger.info("event=new_member_trial_dm_unavailable user_id=%s", member.id)
+        except Exception as exc:
+            logger.warning(
+                "event=new_member_trial_state_failed error_type=%s",
+                type(exc).__name__,
+            )
 
     @control_loop.before_loop
     async def before_control_loop(self) -> None:

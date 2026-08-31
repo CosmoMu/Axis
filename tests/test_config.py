@@ -120,6 +120,22 @@ def test_soft_open_and_results_review_configuration(monkeypatch: pytest.MonkeyPa
     assert configured.results_timezone == "America/New_York"
 
 
+def test_new_member_trial_uses_calendar_day_configuration_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
+    monkeypatch.setenv("NEW_MEMBER_FREE_TRIAL_ENABLED", "true")
+    monkeypatch.setenv("NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS", "7")
+    monkeypatch.setenv("NEW_MEMBER_FREE_TRIAL_AUTO_OFFER", "true")
+    monkeypatch.setenv("NEW_MEMBER_FREE_TRIAL_DM_ENABLED", "false")
+    monkeypatch.setenv("NEW_MEMBER_FREE_TRIAL_TRADING_DAYS", "99")
+    configured = Settings.load(Path("/tmp/axis-test"))
+    assert configured.new_member_free_trial_enabled is True
+    assert configured.new_member_free_trial_calendar_days == 7
+    assert configured.new_member_free_trial_auto_offer is True
+    assert configured.new_member_free_trial_dm_enabled is False
+
+
 def test_lab_gate_requires_all_deferred_features_off() -> None:
     configured = settings(apply_changes=False, dry_run=True)
     configured.assert_lab_disabled()
@@ -149,9 +165,7 @@ def test_stripe_requires_complete_dynamic_checkout_configuration() -> None:
     assert ready.stripe_configuration_ready()
     assert ready.stripe_config().active.mode is StripeMode.TEST
 
-    assert not replace(
-        ready, stripe_test_day_pass_product_id=None
-    ).stripe_configuration_ready()
+    assert not replace(ready, stripe_test_day_pass_product_id=None).stripe_configuration_ready()
 
 
 def test_stripe_live_never_falls_back_to_test_credentials(

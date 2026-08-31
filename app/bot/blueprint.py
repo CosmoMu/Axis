@@ -701,6 +701,17 @@ def build_plan(
                 )
             )
         if category is not None:
+            if category_spec.key == "start" and category.position != 0:
+                actions.append(
+                    PlanAction(
+                        "UPDATE",
+                        "category_position",
+                        category_spec.key,
+                        category_spec.name,
+                        f"Welcome Category position {category.position}→0。",
+                        category.id,
+                    )
+                )
             differences = _compare_permissions(
                 category.overwrites,
                 desired_category_permissions(category_spec),
@@ -825,6 +836,17 @@ def build_plan(
                         channel_spec.key,
                         channel_spec.name,
                         "频道主题与蓝图不同。",
+                        channel.id,
+                    )
+                )
+            if channel_spec.key == "welcome" and channel.position != 0:
+                actions.append(
+                    PlanAction(
+                        "UPDATE",
+                        "channel_position",
+                        channel_spec.key,
+                        channel_spec.name,
+                        f"Welcome Channel position {channel.position}→0。",
                         channel.id,
                     )
                 )

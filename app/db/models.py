@@ -1181,7 +1181,19 @@ class MembershipTrial(UuidPrimaryKeyMixin, Base):
     __tablename__ = "membership_trials"
     __table_args__ = (
         UniqueConstraint("discord_user_id", "trial_type", name="membership_trial_lifetime_once"),
-        CheckConstraint("trading_days_granted > 0", name="membership_trial_days_positive"),
+        CheckConstraint(
+            "duration_unit IN ('CALENDAR_DAY','TRADING_DAY')",
+            name="membership_trial_duration_unit",
+        ),
+        CheckConstraint("duration_amount > 0", name="membership_trial_duration_positive"),
+        CheckConstraint(
+            "trading_days_granted IS NULL OR trading_days_granted > 0",
+            name="membership_trial_trading_days_positive",
+        ),
+        CheckConstraint(
+            "calendar_days_granted IS NULL OR calendar_days_granted > 0",
+            name="membership_trial_calendar_days_positive",
+        ),
     )
 
     guild_id: Mapped[int] = mapped_column(
@@ -1189,10 +1201,14 @@ class MembershipTrial(UuidPrimaryKeyMixin, Base):
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     trial_type: Mapped[str] = mapped_column(String(24), nullable=False)
-    trading_days_granted: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_unit: Mapped[str] = mapped_column(String(24), nullable=False)
+    duration_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    calendar_days_granted: Mapped[int | None] = mapped_column(Integer)
+    trading_days_granted: Mapped[int | None] = mapped_column(Integer)
     claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    first_trading_day: Mapped[date] = mapped_column(Date, nullable=False)
-    last_trading_day: Mapped[date] = mapped_column(Date, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_trading_day: Mapped[date | None] = mapped_column(Date)
+    last_trading_day: Mapped[date | None] = mapped_column(Date)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     entitlement_id: Mapped[uuid.UUID] = mapped_column(
@@ -1200,6 +1216,12 @@ class MembershipTrial(UuidPrimaryKeyMixin, Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
 
 

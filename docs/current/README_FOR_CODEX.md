@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的八份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的九份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -23,7 +23,9 @@
 6. 05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md — 最新 Short-Term TP、LOTTO、Active View、
    Daily Results 与 Daily Summary 覆盖规则。
 7. 06_STRIPE_LIVE_PAYMENT_SPEC.md — Test / Live 隔离、kill switch、价格版本和 Stripe Live Gate。
-8. README_FOR_CODEX.md — 本入口和文档使用规则。
+8. 07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md — 7 Calendar Days Free Trial、Welcome-first
+   onboarding 与 Day Pass 交易日边界。
+9. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 

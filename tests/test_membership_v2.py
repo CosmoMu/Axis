@@ -63,14 +63,74 @@ async def test_free_trial_requires_versioned_ack_and_is_lifetime_once() -> None:
         assert await acknowledgements.accept_risk(GUILD_ID, USER_ID, interaction_id=2)
         assert not await acknowledgements.accept_risk(GUILD_ID, USER_ID, interaction_id=3)
         trial = await access.claim_free_trial(GUILD_ID, USER_ID, interaction_id=4, now=claimed_at)
-        assert trial.first_trading_day.isoformat() == "2026-09-04"
-        assert trial.last_trading_day.isoformat() == "2026-09-09"
+        assert trial.starts_at == claimed_at
+        assert trial.ends_at == claimed_at + timedelta(days=7)
+        assert trial.first_trading_day is None
+        assert trial.last_trading_day is None
         assert await access.should_have_access(GUILD_ID, USER_ID)
         with pytest.raises(MembershipAccessError, match="FREE_TRIAL_ALREADY_CLAIMED"):
             await access.claim_free_trial(GUILD_ID, USER_ID, interaction_id=5, now=claimed_at)
         async with database.session() as session:
             stored = await session.scalar(select(MembershipTrial))
-        assert stored is not None and stored.trading_days_granted == 3
+        assert stored is not None
+        assert stored.duration_unit == "CALENDAR_DAY"
+        assert stored.duration_amount == 7
+        assert stored.calendar_days_granted == 7
+        assert stored.trading_days_granted is None
+        assert stored.first_trading_day is None
+        assert stored.last_trading_day is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_free_trial_counts_weekends_and_holidays_without_calling_trading_calendar() -> None:
+    database, acknowledgements, access = await services()
+
+    class CalendarThatRejectsTradingWindows(TradingCalendarService):
+        def trading_window(self, *_: object, **__: object) -> object:
+            raise AssertionError("Free Trial must not call TradingCalendarService.trading_window")
+
+    access.calendar = CalendarThatRejectsTradingWindows()
+    claims = (
+        (USER_ID + 1, datetime(2026, 9, 5, 14, tzinfo=UTC)),  # Saturday
+        (USER_ID + 2, datetime(2026, 9, 7, 14, tzinfo=UTC)),  # U.S. Labor Day
+    )
+    try:
+        for index, (user_id, claimed_at) in enumerate(claims, start=10):
+            await acknowledgements.accept_risk(GUILD_ID, user_id, interaction_id=index)
+            trial = await access.claim_free_trial(
+                GUILD_ID,
+                user_id,
+                interaction_id=index + 100,
+                now=claimed_at,
+            )
+            assert trial.ends_at == claimed_at + timedelta(days=7)
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_active_access_does_not_consume_free_trial() -> None:
+    database, acknowledgements, access = await services()
+    user_id = USER_ID + 3
+    try:
+        await acknowledgements.accept_risk(GUILD_ID, user_id, interaction_id=20)
+        await access.grant(
+            GUILD_ID,
+            user_id,
+            days=None,
+            actor_user_id=99,
+            interaction_id=21,
+        )
+        assert await access.free_trial_claim_state(GUILD_ID, user_id) == "ACCESS_ACTIVE"
+        with pytest.raises(MembershipAccessError, match="FREE_TRIAL_ACCESS_ALREADY_ACTIVE"):
+            await access.claim_free_trial(GUILD_ID, user_id, interaction_id=22)
+        async with database.session() as session:
+            stored = await session.scalar(
+                select(MembershipTrial).where(MembershipTrial.discord_user_id == user_id)
+            )
+        assert stored is None
     finally:
         await database.dispose()
 

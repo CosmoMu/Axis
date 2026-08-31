@@ -145,6 +145,10 @@ class AxisBot(commands.Bot):
             stripe_service=membership_stripe_service,
             public_identity=public_identity,
             sync_role=self._manager_control_cog.sync_member_role,
+            free_trial_enabled=settings.new_member_free_trial_enabled,
+            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+            free_trial_auto_offer=settings.new_member_free_trial_auto_offer,
+            free_trial_dm_enabled=settings.new_member_free_trial_dm_enabled,
         )
         self._system_alerts_cog = SystemAlertsCog(
             self,

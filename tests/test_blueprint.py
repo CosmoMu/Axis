@@ -75,6 +75,8 @@ def test_blueprint_has_exact_mvp_shape() -> None:
     assert len(blueprint.categories) == 4
     assert blueprint.channel_count == 22
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
+    assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
+    assert blueprint.categories[0].channels[0].key == "welcome"
 
 
 def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
@@ -116,6 +118,37 @@ def test_existing_unrelated_resources_are_never_planned_for_mutation() -> None:
     plan = build_plan(blueprint, guild, GUILD_ID)
 
     assert all(action.name != "Other Project" for action in plan.actions)
+
+
+def test_welcome_first_plan_never_targets_unregistered_resources() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    welcome_spec = blueprint.categories[0].channels[0]
+    guild = replace(
+        empty_guild(),
+        categories=(
+            CategoryState(999, "Other Project", 0),
+            CategoryState(401, "⬛・GENERAL", 5),
+        ),
+        channels=(
+            ChannelState(998, "other-channel", "text", 999, 0, "Other", {}),
+            ChannelState(501, "👋・welcome", "text", 401, 5, welcome_spec.topic, {}),
+        ),
+    )
+    saved_ids = {
+        "guild_id": GUILD_ID,
+        "categories": {"start": 401},
+        "channels": {"welcome": 501},
+    }
+    plan = build_plan(blueprint, guild, GUILD_ID, saved_ids)
+
+    position_updates = [
+        action for action in plan.actions if action.resource_type.endswith("_position")
+    ]
+    assert {(action.resource_type, action.key) for action in position_updates} == {
+        ("category_position", "start"),
+        ("channel_position", "welcome"),
+    }
+    assert all(action.current_id not in {998, 999} for action in position_updates)
 
 
 def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:

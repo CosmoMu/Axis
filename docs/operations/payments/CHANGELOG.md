@@ -1,5 +1,13 @@
 # Payment Operations Changelog
 
+## 2026-08-31 — Free Trial calendar-day separation
+
+- Free Trial 从三个交易日改为领取时刻起连续 7 个自然日；周末和美国市场休市日计入。
+- Day Pass 保持一个 XNYS Trading Day；`TradingCalendarService` 逻辑不变。
+- migration `20260831_0025` 新增 duration unit/amount/start 字段并保留历史 Trial 到期时间。
+- Trial 有效时阻止 Day Pass checkout，但 Monthly upgrade 继续开放。
+- 本变更未修改 Stripe Product、Price、Live Secret、webhook 或订阅 lifecycle。
+
 ## 2026-08-31 — Stripe Live activation
 
 - Stripe account activation、KYC、payout 和 Live API key 已完成。

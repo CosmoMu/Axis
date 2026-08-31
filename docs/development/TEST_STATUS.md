@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 219 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 225 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -96,7 +96,10 @@ Daily Results Review:
 Membership / Stripe:
 
 - Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role reconciliation。
-- XNYS 交易日、风险确认、终身一次 Trial 和 scheduled expiry。
+- Free Trial 严格 7 Calendar Days：周末/美国市场休市日计入、领取时固化 duration/expiry、
+  不调用 TradingCalendarService、终身一次、已有访问不消耗、默认无 DM。
+- Day Pass 保持 1 XNYS Trading Day；Trial 有效时阻止 Day Pass checkout，但允许 Monthly。
+- Welcome-first Category / Channel 顺序、公开入口、会员区隐藏和 Persistent Card 文案/按钮。
 - Checkout / Portal、webhook signature、dedup、Price snapshot / Grandfathering。
 - renewal、failure、cancel-at-period-end、PAST_DUE 与 provider event ordering。
 - Test / Live config fallback rejection、environment-scoped Price/Entitlement/Session/Event。
@@ -124,21 +127,23 @@ Operations / Security:
 
 Database:
 
-- revision=20260831_0024
-- source_messages=0
-- trade_drafts=0
-- trades=0
-- trade_events=0
-- trade_publications=0
+- revision=20260831_0025
+- source_messages=21
+- trade_drafts=21
+- trades=16
+- trade_events=16
+- trade_publications=16
 - analysis_drafts=0
 - mentor_analyses=0
 - analysis_publications=0
-- daily_results_reviews=0
-- daily_results_items=0
-- membership_entitlements=1（真实 Discord Member Role reconciliation）
+- market_quote_snapshots=2
+- daily_results_reviews=1
+- daily_results_items=14
+- membership_entitlements=2
+- membership_trials=0
 - membership_prices=4（TEST 2 / LIVE 2；LIVE V1 已绑定并 current）
 - payment_events=0
-- system_alerts=0
+- system_alerts=2
 
 Feature flags:
 
@@ -155,6 +160,10 @@ Discord:
 
 - discord_runtime=PASS
 - Bootstrap dry-run=REUSE 29 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
+- `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
+  会员 Category 对 `@everyone` 隐藏。
+- Welcome / Membership 持久卡片已显示 7 Calendar Days、No Card / No Auto-Renewal、
+  Day Pass 1 Trading Day、START FREE TRIAL 与 MANAGE MEMBERSHIP；同标题消息各只有一条。
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent

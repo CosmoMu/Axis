@@ -18,9 +18,10 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0024；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+- Alembic revisions 0001–0025；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
   0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
-  Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称。
+  Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称，
+  0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -107,7 +108,12 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 ## Free Trial / Day Pass / Monthly
 
 - 版本化风险确认与 Trial 终身一次。
-- XNYS 正式交易日历：Free Trial 三个交易日、Day Pass 一个交易日。
+- Free Trial 从领取时刻连续 7 个自然日，周末和美国市场休市日计入；duration/expiry 在领取时
+  固化，运行时不调用 `TradingCalendarService`。
+- Day Pass 继续使用 XNYS 正式交易日历的一个交易日，逻辑未变。
+- 加入 Guild 只检查资格，不自动创建 entitlement、不授予 Role、不重置 Trial；默认不发 DM。
+- 已有 Paid / Gift / Manual / Extension 访问不消耗 Trial；Trial 有效时 Day Pass checkout 被阻止，
+  Monthly checkout 继续可用。
 - Monthly 自动续费、PAST_DUE、cancel-at-period-end 和 EXPIRED/CANCELLED/REVOKED lifecycle。
 - 多个有效 entitlement 任一有效即保留 Member Role。
 - Manager extension 创建独立 MANUAL_EXTENSION，不覆盖原 entitlement。
@@ -131,7 +137,10 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 ## GENERAL
 
-- Welcome、Membership、Results、Member Wins 和 Lobby Topic。
+- Welcome、Membership、Results、Member Wins 和 Lobby Topic；Welcome 是第一个公共 AXIS
+  Category 的第一个频道，Persistent Card 是默认 onboarding 入口。
+- Welcome / Membership 明确展示 `7 Calendar Days` Free Trial、无需信用卡、不自动续费，
+  并把 Day Pass 单独标为 `1 Trading Day`。
 - Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。
 - 公开 Membership 卡片使用数据库 Price Catalog。

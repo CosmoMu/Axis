@@ -417,6 +417,19 @@ async def _apply_permissions(
                 await _merge_permissions(channel, subjects[subject], values)
 
 
+async def _apply_axis_positions(
+    categories: dict[str, discord.CategoryChannel],
+    channels: dict[str, discord.TextChannel],
+) -> None:
+    """Place only the registered Welcome resources first; leave all other ordering untouched."""
+    category = categories["start"]
+    if category.position != 0:
+        await category.edit(position=0, reason="AXIS Bootstrap：Welcome Category 置顶")
+    channel = channels["welcome"]
+    if channel.position != 0:
+        await channel.edit(position=0, reason="AXIS Bootstrap：Welcome Channel 置顶")
+
+
 def _write_ids(
     path: Path,
     guild: discord.Guild,
@@ -468,6 +481,7 @@ async def apply_blueprint(
         allow_axis_renames=allow_axis_renames,
     )
     await _apply_permissions(blueprint, subjects, channels)
+    await _apply_axis_positions(categories, channels)
     _write_ids(settings.ids_path, guild, roles, categories, channels)
 
 
@@ -517,7 +531,7 @@ async def run_bootstrap(
             saved_ids,
             allow_axis_renames=allow_axis_renames,
         )
-        print("\nAXIS 缺失资源与权限已应用。未删除、改名或移动非项目资源。")
+        print("\nAXIS 缺失资源、权限与 AXIS 内部顺序已应用。未删除、改名或移动非项目资源。")
         return 0
     finally:
         await client.close()

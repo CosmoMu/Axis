@@ -123,6 +123,22 @@ class MembershipStripeService:
             raise MembershipStripeError("STRIPE_PRICE_NOT_CONFIGURED")
         now = utc_now()
         async with self.database.session() as session:
+            if plan_type == MembershipPlanType.DAY_PASS.value:
+                active_trial = await session.scalar(
+                    select(MembershipEntitlement.id).where(
+                        MembershipEntitlement.guild_id == guild_id,
+                        MembershipEntitlement.discord_user_id == user_id,
+                        MembershipEntitlement.entitlement_type == EntitlementType.FREE_TRIAL.value,
+                        MembershipEntitlement.status.in_(ACCESS_STATUSES),
+                        (
+                            (MembershipEntitlement.status == EntitlementStatus.PAST_DUE.value)
+                            | MembershipEntitlement.ends_at.is_(None)
+                            | (MembershipEntitlement.ends_at > now)
+                        ),
+                    )
+                )
+                if active_trial is not None:
+                    raise MembershipStripeError("FREE_TRIAL_ACTIVE_DAY_PASS_NOT_NEEDED")
             if plan_type == MembershipPlanType.MONTHLY.value:
                 existing_monthly = await session.scalar(
                     select(MembershipEntitlement.id).where(
@@ -366,11 +382,7 @@ class MembershipStripeService:
                     MembershipPrice.is_active.is_(True),
                 )
             )
-            if (
-                price is None
-                or not provider.price_id
-                or price.stripe_price_id != provider.price_id
-            ):
+            if price is None or not provider.price_id or price.stripe_price_id != provider.price_id:
                 return StripeReconciliationItem(
                     user_id,
                     "PRICING_MAPPING_MISMATCH",
