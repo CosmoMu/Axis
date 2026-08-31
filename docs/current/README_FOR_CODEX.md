@@ -42,6 +42,10 @@
 - Stage 1–4 的核心代码和自动化测试已经完成。
 - Core Gate A 与 Analysis Gate B 已通过。
 - Stripe Test Mode 的 Day Pass / Monthly 付款链路已通过；Live Mode 仍受上线清单阻止。
+- Pre-Soft-Open backup、测试数据清理和公开编号复位已完成；2026-08-31 起真实输入均为
+  Production Data，禁止再次全量 Reset 或重新编号。
+- Daily Results Review / Exclude Workflow 已部署：收盘后生成 Draft，Manager 可审核公开展示，
+  `16:15 ET` 幂等发布；Exclude 绝不删除或改写真实 Trade 历史。
 - Short-Term Automated Tracking 的代码和测试已完成，但真实 Massive quote、tracking 注册、
   trigger、Discord 事件和重启恢复尚未完成端到端验收。
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
@@ -55,7 +59,7 @@
 
 - Discord Core、权限、持久化控制面板与幂等 Bootstrap
 - Signal / Swing / LEAPS / Short-Term Pipeline
-- Short-Term Automated Tracking、LOTTO 与 Daily Results；Swing / LEAPS Active Position View
+- Short-Term Automated Tracking、LOTTO、Daily Results Review；Swing / LEAPS Active Position View
 - Mentor、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控

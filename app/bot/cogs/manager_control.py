@@ -32,6 +32,7 @@ class ManagerControlCog(commands.Cog):
         mentor_service: MentorManagementService,
         membership_service: MembershipManagementService,
         results_service: OfficialResultsService,
+        publish_individual_results: bool = True,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -49,7 +50,8 @@ class ManagerControlCog(commands.Cog):
         self._role_expectations: dict[int, bool] = {}
         self.control_loop.start()
         self.membership_loop.start()
-        self.results_loop.start()
+        if publish_individual_results:
+            self.results_loop.start()
 
     def cog_unload(self) -> None:
         self.control_loop.cancel()

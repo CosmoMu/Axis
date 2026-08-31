@@ -51,6 +51,31 @@ behavior not named here remains unchanged.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are
   shown. The past-performance disclaimer remains.
 
+## Daily Results Review / Exclude workflow
+
+- 每个实际 XNYS 交易日收盘后 `RESULTS_REVIEW_DRAFT_DELAY_MINUTES` 分钟生成唯一 Draft；Early
+  Close 使用当日真实 close time。
+- Eligible Items 只包含当天 STOPPED Short-Term 与当天 CLOSED Swing / LEAPS，默认全部
+  Included；Active Trade 不进入 Review，Loss Trade 不自动隐藏。
+- `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、EDIT CARD、
+  PREVIEW 与 PUBLISH NOW。
+- Exclude / Re-Include 只改变当天公开快照，保存 actor、time、reason 与 before/after Audit，
+  永不删除 Trade、Event、Tracking、Mentor Dataset 或内部历史。
+- 普通 Edit 只修改 Public Display。收益纠错必须走 Correct Result，保存 original、corrected、
+  reason、actor 与 time。
+- `RESULTS_FINAL_PUBLISH_TIME` 默认 `16:15 ET`；无人审核时仍发布所有默认 Included Items。
+  Publish Now 和 Scheduled Publish 共用幂等 claim，Bot 重启不得重复 Draft 或 Public Message。
+- Published 后普通 Include / Exclude 锁定；`final_snapshot` 不可变。后续 Public Correction
+  只能通过独立 Audit Workflow，并保持会员当日原始可见快照可追溯。
+- Review / Final 不显示 Daily Totals；Swing / LEAPS Category Summary 不受 Exclude 影响。
+
+## Soft Open production boundary
+
+- `2026-08-31` 起真实输入默认为 PRODUCTION，并永久保存。
+- 之后禁止第二次全量 Reset、重新编号或清除 Production History。
+- Fake Signal、Fake Result、Synthetic Event 和 Preview 只允许在 `🧪・card-testing` 的 TEST
+  Environment 中运行，不得污染 Production 数据。
+
 ## Explicit exclusions
 
 This change does not authorize Stripe, pricing, AXIS LAB, Model A/B, new Analysis functions,

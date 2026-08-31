@@ -195,8 +195,18 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
+      - key: results_review
+        name: "📋・results-review"
+        type: text
+        topic: "Daily Results Draft、Include / Exclude、Preview 与正式发布控制。"
+        everyone_view: false
+        member_view: false
+        manager_view: true
+        manager_send: false
+        manager_interact: true
+        bot_send: true
       - key: manager_lounge
-        name: "🤫・quiet-profits"
+        name: "🤫・在这交流"
         type: text
         topic: "AXIS Manager 私人交流频道。"
         everyone_view: false

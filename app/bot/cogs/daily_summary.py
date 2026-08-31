@@ -30,12 +30,14 @@ class DailySummaryCog(commands.Cog):
         guild_id: int,
         schedule_hhmm: str,
         tracking_service: MarketTrackingService,
+        publish_legacy_results: bool = True,
     ) -> None:
         self.bot = bot
         self.service = service
         self.guild_id = guild_id
         self.schedule_hhmm = schedule_hhmm
         self.tracking_service = tracking_service
+        self.publish_legacy_results = publish_legacy_results
         self.publish_summaries.start()
 
     def cog_unload(self) -> None:
@@ -116,7 +118,8 @@ class DailySummaryCog(commands.Cog):
                     type(exc).__name__,
                 )
                 await self.service.mark_failed(claim.publication_id, "UNEXPECTED")
-        await self._publish_results(session_date)
+        if self.publish_legacy_results:
+            await self._publish_results(session_date)
 
     @publish_summaries.before_loop
     async def before_publish_summaries(self) -> None:

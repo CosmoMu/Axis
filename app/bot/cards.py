@@ -414,9 +414,7 @@ def _build_swing_leaps_entry_embed(
         contract += f" · {_money(option_entry)}"
     embed = discord.Embed(
         title=(
-            f"#{card.public_trade_id} · STARTER ENTRY"
-            if card.public_trade_id
-            else "STARTER ENTRY"
+            f"#{card.public_trade_id} · STARTER ENTRY" if card.public_trade_id else "STARTER ENTRY"
         ),
         description=f"**{contract}**",
         color=ACCENT_GREEN,
@@ -474,11 +472,7 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
             name=trade.public_trade_id,
             value=(
                 f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}"
-                + (
-                    f"\n最近持仓成本 {_money(trade.avg_cost)}"
-                    if trade.avg_cost is not None
-                    else ""
-                )
+                + (f"\n最近持仓成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
             ),
             inline=False,
         )
@@ -546,9 +540,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
             + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
         )
     if len(summary.active) > 12:
-        active_lines.append(
-            f"另有 {len(summary.active) - 12} 个订单，请使用「查看当前持仓订单」。"
-        )
+        active_lines.append(f"另有 {len(summary.active) - 12} 个订单，请使用「查看当前持仓订单」。")
     embed.add_field(
         name="当前持仓",
         value=("\n\n".join(active_lines) or "当前没有进行中的订单。")[:1024],
@@ -595,8 +587,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
             )
             if label == "SHORT-TERM":
                 lines.append(
-                    f"**{row.public_trade_id}** · {contract} · "
-                    f"{_percent(row.displayed_result_pct)}"
+                    f"**{row.public_trade_id}** · {contract} · {_percent(row.displayed_result_pct)}"
                 )
             else:
                 lines.append(
@@ -615,10 +606,41 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
             inline=False,
         )
     embed.description = (
-        f"{card.session_date.isoformat()} ET\n"
-        "Past performance does not guarantee future results."
+        f"{card.session_date.isoformat()} ET\nPast performance does not guarantee future results."
     )
     embed.set_footer(text="AXIS Results")
+    return _public(embed)
+
+
+def build_daily_results_snapshot_embed(
+    snapshot: dict[str, object],
+    *,
+    review: bool,
+) -> discord.Embed:
+    embed = discord.Embed(
+        title=str(snapshot.get("title") or "AXIS DAILY RESULTS"),
+        color=ACCENT_GREEN,
+    )
+    description = str(snapshot.get("trading_date") or "")
+    if review:
+        description += (
+            f"\n\n状态：{snapshot.get('status', 'DRAFT')}"
+            f"\n自动发布：{snapshot.get('scheduled_publish_at', '16:15 ET')}"
+        )
+    embed.description = description
+    for section in snapshot.get("sections", []):
+        if not isinstance(section, dict):
+            continue
+        lines = section.get("lines")
+        value = "今日无已完成订单"
+        if isinstance(lines, list) and lines:
+            value = "\n\n".join(str(line) for line in lines)
+        embed.add_field(
+            name=str(section.get("label") or "RESULTS")[:256],
+            value=value[:1024],
+            inline=False,
+        )
+    embed.set_footer(text=str(snapshot.get("footer") or "AXIS Results")[:2048])
     return _public(embed)
 
 
@@ -684,8 +706,7 @@ def _indicator_text(
         )
         value_text = f" · {value}" if value is not None else ""
         lines.append(
-            f"**{name}**{value_text}{source}"
-            + (f"\n{interpretation}" if interpretation else "")
+            f"**{name}**{value_text}{source}" + (f"\n{interpretation}" if interpretation else "")
         )
     return "\n\n".join(lines)
 
@@ -724,8 +745,7 @@ def build_analysis_review_embed(
     embed = discord.Embed(
         title=f"FINAL FUSED PREVIEW · {draft.draft_code}",
         description=str(
-            public_analysis_text(payload.get("title") or payload.get("summary"))
-            or "需要人工整理"
+            public_analysis_text(payload.get("title") or payload.get("summary")) or "需要人工整理"
         ),
         color=DANGER if draft.status == "PARSE_FAILED" else MUTED,
     )

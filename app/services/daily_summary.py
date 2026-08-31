@@ -128,8 +128,7 @@ def _trade_result_details(
         (
             event
             for event in reversed(events)
-            if event.position_after_eighths == 0
-            and event.action in {"SL", "CLOSE", "CANCEL"}
+            if event.position_after_eighths == 0 and event.action in {"SL", "CLOSE", "CANCEL"}
         ),
         None,
     )
@@ -210,8 +209,7 @@ def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
                 option_side=str(item["option_side"]),
                 final_return_pct=_optional_decimal(item.get("final_return_pct")),
                 tp_returns=tuple(
-                    (str(label), Decimal(str(value)))
-                    for label, value in item.get("tp_returns", [])
+                    (str(label), Decimal(str(value))) for label, value in item.get("tp_returns", [])
                 ),
                 highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
                 exit_label=(str(item["exit_label"]) if item.get("exit_label") else None),
@@ -264,8 +262,7 @@ def _deserialize_results(payload: dict[str, Any]) -> DailyResultsCard:
                 mentor_final_return_pct=_optional_decimal(item.get("mentor_final_return_pct")),
                 displayed_result_pct=_optional_decimal(item.get("displayed_result_pct")),
                 tp_returns=tuple(
-                    (str(label), Decimal(str(value)))
-                    for label, value in item.get("tp_returns", [])
+                    (str(label), Decimal(str(value))) for label, value in item.get("tp_returns", [])
                 ),
                 highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
                 exit_label=(str(item["exit_label"]) if item.get("exit_label") else None),
@@ -292,10 +289,13 @@ class DailySummaryService:
         database: Database,
         market_data: PostCloseMarketData | None = None,
         calendar: TradingCalendarService | None = None,
+        *,
+        results_review_enabled: bool = False,
     ) -> None:
         self.database = database
         self.market_data = market_data
         self.calendar = calendar or TradingCalendarService()
+        self.results_review_enabled = results_review_enabled
 
     async def prepare_session(self, guild_id: int, session_date: date) -> bool:
         if not self.calendar.is_trading_day(session_date):
@@ -315,7 +315,9 @@ class DailySummaryService:
                     DailyResultsPublication.session_date == session_date,
                 )
             )
-            if set(CATEGORIES).issubset(existing) and results_existing is not None:
+            if set(CATEGORIES).issubset(existing) and (
+                self.results_review_enabled or results_existing is not None
+            ):
                 return True
             config = await session.get(GuildConfig, guild_id)
             if config is None:
@@ -594,16 +596,14 @@ class DailySummaryService:
                         attempt_count=0,
                     )
                 )
-            if results_existing is None:
+            if not self.results_review_enabled and results_existing is None:
                 tracking_by_public_id = {
                     trade.public_trade_id: tracking for tracking, trade in tracking_rows
                 }
                 short_result_rows = []
                 for row in short_term_ended:
                     tracking = tracking_by_public_id[row.public_trade_id]
-                    has_take_profit = bool(
-                        tracking.tp_levels_hit or tracking.momentum_tp_events
-                    )
+                    has_take_profit = bool(tracking.tp_levels_hit or tracking.momentum_tp_events)
                     short_result_rows.append(
                         DailyResultRow(
                             public_trade_id=row.public_trade_id,

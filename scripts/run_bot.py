@@ -48,6 +48,7 @@ from app.market_intelligence.trade_plan import SwingLeapsTradePlanService  # noq
 from app.services.analysis_pipeline import AnalysisPipelineService  # noqa: E402
 from app.services.attachment_storage import LocalAttachmentStore  # noqa: E402
 from app.services.card_review import CardReviewService  # noqa: E402
+from app.services.daily_results_review import DailyResultsReviewService  # noqa: E402
 from app.services.daily_summary import DailySummaryService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
 from app.services.membership_access import (  # noqa: E402
@@ -101,9 +102,7 @@ async def run() -> None:
             )
             await session.commit()
 
-        short_term_policy = ShortTermTrackingPolicy.load(
-            settings.short_term_tracking_config_path
-        )
+        short_term_policy = ShortTermTrackingPolicy.load(settings.short_term_tracking_config_path)
         if settings.short_term_tracking_enabled and not settings.massive_api_key:
             raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
         massive_provider = (
@@ -200,7 +199,17 @@ async def run() -> None:
                     if settings.moomoo_enabled
                     else None
                 ),
+                results_review_enabled=settings.results_review_enabled,
             )
+        daily_results_review_service = (
+            DailyResultsReviewService(
+                database,
+                timezone_name=settings.results_timezone,
+                final_publish_time=settings.results_final_publish_time,
+            )
+            if settings.results_review_enabled
+            else None
+        )
         short_term_tracking_service = MarketTrackingService(
             database,
             short_term_policy,
@@ -281,6 +290,7 @@ async def run() -> None:
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,
             daily_summary_service=daily_summary_service,
+            daily_results_review_service=daily_results_review_service,
             swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
         )
         async with bot:

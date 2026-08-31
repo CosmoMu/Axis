@@ -64,7 +64,8 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "📝・analysis-review",
         "🧭・mentor-control",
         "👤・member-control",
-        "🤫・quiet-profits",
+        "📋・results-review",
+        "🤫・在这交流",
         "🚨・system-alerts",
         "🧪・card-testing",
         "🟢・lab-signals",
@@ -72,7 +73,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 21
+    assert blueprint.channel_count == 22
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
 
 
@@ -83,7 +84,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 2
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 21
+    assert sum(action.resource_type == "channel" for action in creates) == 22
     assert not plan.blockers
 
 

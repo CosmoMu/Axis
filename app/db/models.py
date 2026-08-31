@@ -103,6 +103,7 @@ class GuildConfig(TimestampMixin, Base):
     member_wins_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     system_alerts_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     card_testing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    results_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -569,6 +570,69 @@ class DailyResultsPublication(UuidPrimaryKeyMixin, TimestampMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DailyResultsReview(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "daily_results_reviews"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "trading_date", name="daily_results_review_guild_date"),
+        CheckConstraint(
+            "status IN ('DRAFT','REVIEWED','PUBLISHED','CORRECTED')",
+            name="daily_results_review_status",
+        ),
+        Index("ix_daily_results_reviews_due", "status", "scheduled_publish_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="DRAFT", nullable=False)
+    draft_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    final_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    display_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    scheduled_publish_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discord_review_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_public_message_id: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class DailyResultsItem(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "daily_results_items"
+    __table_args__ = (
+        UniqueConstraint("review_id", "trade_id", name="daily_results_item_review_trade"),
+        CheckConstraint(
+            "category IN ('SHORT_TERM','SWING','LEAPS')",
+            name="daily_results_item_category",
+        ),
+        CheckConstraint(
+            "exclusion_reason IS NULL OR exclusion_reason IN "
+            "('DUPLICATE_SIGNAL','DATA_QUALITY_ISSUE','BAD_QUOTE','WRONG_CONTRACT',"
+            "'MANUAL_CORRECTION','NOT_FOR_PUBLIC_SUMMARY','OTHER')",
+            name="daily_results_item_exclusion_reason",
+        ),
+        Index("ix_daily_results_items_review_order", "review_id", "display_order"),
+    )
+
+    review_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("daily_results_reviews.id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="RESTRICT"), index=True
+    )
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    display_result_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    included: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    excluded_by: Mapped[int | None] = mapped_column(BigInteger)
+    excluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    exclusion_reason: Mapped[str | None] = mapped_column(String(40))
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    display_text_override: Mapped[str | None] = mapped_column(Text)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    original_result_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    correction_reason: Mapped[str | None] = mapped_column(Text)
+    corrected_by: Mapped[int | None] = mapped_column(BigInteger)
+    corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class TradePublication(UuidPrimaryKeyMixin, Base):
     __tablename__ = "trade_publications"
     __table_args__ = (
@@ -653,9 +717,7 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
         JSON, default=dict, nullable=False
     )
     market_context_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    conflicts_json: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSON, default=list, nullable=False
-    )
+    conflicts_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
     missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     parser_confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))

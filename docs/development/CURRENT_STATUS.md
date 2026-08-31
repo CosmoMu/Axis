@@ -4,7 +4,7 @@
 
 **Current stage:** Core feature-complete / Production live validation
 
-**Database revision:** 20260830_0020
+**Database revision:** 20260830_0022
 
 **AXIS LAB:** DEFERRED
 
@@ -17,11 +17,21 @@
 
 ## Executive summary
 
-Core Gate A 和 Analysis Gate B 已通过。Discord Core、Signal、Analysis、会员、结果与管理工具
-均已实现；Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。当前最高优先级是
-Short-Term / Massive 真实端到端：已清除 ST-0001 的旧 Mentor 关联，Bot 已幂等补注册
-short_term_tracking 与 Entry event。真实 Massive quote、TP/Protection 触发和下一交易日
-Discord E2E 仍未验收，所以不能宣称自动跟踪已经完整投入生产。
+Core Gate A 和 Analysis Gate B 已通过。Pre-Soft-Open backup、测试数据清理、公开编号复位与
+Discord 消息清理已完成；`2026-08-31` 起真实输入是永久 Production Data。Daily Results Review
+已部署并通过自动化及 runtime 验证。Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。
+当前最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
+Massive quote、TP/Protection 触发和正式交易日 Discord E2E 仍未验收。
+
+## Soft Open Boundary — COMPLETE
+
+Implemented: Reset 前 PostgreSQL 与配置归档、SHA-256 和可读性验证；事务化测试数据清理；
+Discord 原资源原 ID 消息清理；ST/SW/LP 与 Signal/Analysis counter 复位；永久 Reset marker；
+正式 Persistent Message 幂等重建；Bot restart 与 runtime verifier。
+
+Production status: `DEPLOYMENT_STAGE=SOFT_OPEN`。生产数据起点为
+`2026-08-31 00:00 America/New_York`；该日期后禁止第二次全量 Reset、重新编号或删除正式历史。
+完整证据见 `SOFT_OPEN_RESET_2026-08-30.md`。
 
 ## Discord Core — COMPLETE
 
@@ -43,7 +53,8 @@ Remaining: 持续真实使用观察，不需要架构重做。
 
 Tests: 解析、附件安全、幂等、并发、审核、发布重试、Public leakage 与 persistent Active View。
 
-Production status: 已投入使用，数据库有 Published Signal。
+Production status: 已投入使用；Soft Open Reset 后正式 Trade 为 0，2026-08-31 起第一笔真实
+发布将分配新的正式编号并永久保存。
 
 ## Swing Pipeline — COMPLETE
 
@@ -56,7 +67,7 @@ RUNNER / CLOSE 的视觉样式。
 Tests: 状态流转、仓位、发布幂等、关闭订单排除、Results、Mentor 点位优先、0.618、
 确定性图片和 Discord attachment。
 
-Production status: 可用；当前盘点没有新的 Swing live tracking 结论。
+Production status: 可用；Soft Open Reset 后正式 Swing 数据为 0，下一笔为 SW-0001。
 
 ## LEAPS Pipeline — COMPLETE
 
@@ -67,7 +78,7 @@ Remaining: 完成真实 LEAPS Desktop / Mobile ENTRY UX；后续统一 ADD / TP 
 
 Tests: 与 Signal / Trade 公共状态机和 Public DTO 测试共同覆盖。
 
-Production status: 可用；没有宣称已完成新的真实 LEAPS 运营验收。
+Production status: 可用；Soft Open Reset 后正式 LEAPS 数据为 0，下一笔为 LP-0001。
 
 ## Short-Term Automated Tracking — CODE COMPLETE / LIVE E2E PENDING
 
@@ -95,9 +106,8 @@ Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、wate
 reversal、tracking protection、overnight、tracking stop、restart recovery、无 Short-Term Daily
 Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 
-Production status: **真实 Massive E2E 尚未验收。** ST-0001 已 Published，并已有
-short_term_tracking=1、short_term_events=1（Entry）；尚无真实行情触发事件，因此不能标记
-Live Complete。
+Production status: **真实 Massive E2E 尚未验收。** Soft Open Reset 后正式 Short-Term、
+tracking 与 event 均为 0；下一笔真实发布将使用 ST-0001，因此不能标记 Live Complete。
 
 ## Mentor Management — COMPLETE
 
@@ -127,7 +137,8 @@ Remaining: Test Guild 的真实到期时钟演练。
 
 Tests: 周末、休市日、重复申请、到期和多 Entitlement。
 
-Production status: 代码已部署；数据库存在 ACTIVE FREE_TRIAL entitlement。
+Production status: 代码已部署；Reset 已清除开发阶段 Trial。当前唯一 entitlement 来自真实
+Discord Member Role reconciliation，不是 Fake Trial 或 Stripe Test membership。
 
 ## Day Pass — PARTIAL
 
@@ -198,7 +209,8 @@ Remaining: 用真实 Mentor 内容继续做质量与移动端 UX 复核。
 
 Tests: 文字/图片/多图、四类 Analysis、无臆造、失败重试、独立观点和 Public leakage。
 
-Production status: FEATURE_ANALYSIS_ENABLED=true；已有 4 个 Published Analysis。
+Production status: FEATURE_ANALYSIS_ENABLED=true；Soft Open Reset 后正式 Analysis 为 0，
+2026-08-31 起的新输入永久保存。
 
 ## Analysis Fusion — COMPLETE
 
@@ -209,7 +221,8 @@ Remaining: 真实 Mentor 卡片逐项复核点位、warnings 和公开文案。
 
 Tests: 来源优先级、冲突、阈值、fallback 和 card/chart 同源。
 
-Production status: FEATURE_AXIS_STOCK_ANALYST_ENABLED=true；真实输出已有发布记录。
+Production status: FEATURE_AXIS_STOCK_ANALYST_ENABLED=true；Reset 后等待第一份 Soft Open
+Mentor input 做真实质量复核。
 
 ## Prediction Chart — PARTIAL
 
@@ -223,13 +236,22 @@ Production status: 可生成并发布，但尚未形成完整 UX 验收记录。
 
 ## Results — COMPLETE
 
-Implemented: position-event 加权收益、关闭订单幂等官方发布与 Public DTO。
+Implemented: position-event 加权收益、关闭订单 Public DTO，以及统一的 Daily Results Review。
+实际收盘后生成唯一 Draft；Eligible Trade 默认 Included；Manager 可 Exclude / Re-Include、编辑
+公开展示、纠错、预览或 Publish Now；`16:15 ET` 自动发布，Final Snapshot 不可变保存。
 
-Remaining: 用更多真实已关闭订单观察统计。
+Safety: Exclude 只影响当天 Public Results，保存原因与完整 Audit；不会删除 Trade、Event、
+Tracking、Mentor Dataset、内部绩效或 Swing / LEAPS Summary。Active Trade 不进入 Review，
+亏损订单不自动隐藏，不显示 Daily Totals。
 
-Tests: 加权计算、防泄漏、幂等 Message ID。
+Remaining: 在第一个有 Eligible Trade 的正式交易日完成 Manager Desktop / Mobile click-through
+与 `16:15 ET` 真实 Discord 发布验收。
 
-Production status: 已部署。
+Tests: Draft 幂等、Active 排除、三类别格式、LOTTO、Exclude 不删除历史、Re-Include、Display
+Edit、Correct Result Audit、Preview、Publish Now / Scheduled 去重、Early Close 与不可变快照。
+
+Production status: 已部署；`📋・results-review` ID 已写入 Guild Config，scheduled job 正常，
+Soft Open Reset 后尚无首日 Eligible Production Trade。
 
 ## Card Testing — COMPLETE
 
@@ -239,7 +261,8 @@ Remaining: 新卡片类型出现时补 preview。
 
 Tests: 权限、命令同步和无数据库副作用。
 
-Production status: Owner-only 频道已部署。
+Production status: Owner-only 频道已部署；`/test-results-review` 已同步到目标 Guild，所有
+Preview 使用内存 TEST DTO，不写 Production 数据或发布到 `📊・results`。
 
 ## System Alerts — PARTIAL
 
@@ -249,7 +272,8 @@ Remaining: 数据库、OpenAI、Discord、Jobs、Membership 与行情依赖的�
 
 Tests: dedup、恢复、再次告警。
 
-Production status: 数据库有 active/resolved 告警记录；完整演练尚未完成。
+Production status: Reset 已清除开发阶段 Fake Alert；当前没有 active system alert，完整真实
+故障演练尚未完成。
 
 ## Backup — PARTIAL
 
@@ -259,7 +283,8 @@ Remaining: 加密 off-host target、保留策略和自动监控。
 
 Tests: Secret 不进入 argv、文件校验脚本。
 
-Production status: 本地最新备份存在；没有 off-host 副本证明。
+Production status: Pre-Soft-Open custom dump 与配置归档已验证可读并保存 SHA-256；均位于 Git
+忽略的 `var/backups/`。没有 off-host 副本证明。
 
 ## Restore — PARTIAL
 

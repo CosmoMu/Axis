@@ -155,8 +155,7 @@ async def test_prepare_is_idempotent_and_public_payload_is_strict() -> None:
             )
             assert await session.scalar(select(func.count()).select_from(MarketQuoteSnapshot)) == 1
             assert (
-                await session.scalar(select(func.count()).select_from(DailyResultsPublication))
-                == 1
+                await session.scalar(select(func.count()).select_from(DailyResultsPublication)) == 1
             )
             payloads = list(await session.scalars(select(DailySummaryPublication.snapshot_json)))
             public_text = str(payloads)
@@ -204,6 +203,23 @@ async def test_non_trading_day_does_not_create_summaries() -> None:
         assert await service.prepare_session(GUILD_ID, SESSION_DATE) is False
         async with database.session() as session:
             count = await session.scalar(select(func.count()).select_from(DailySummaryPublication))
+            assert count == 0
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_results_review_mode_disables_legacy_direct_results_publication() -> None:
+    database = await seeded_database()
+    service = DailySummaryService(
+        database,
+        FakeMarketData(),
+        results_review_enabled=True,
+    )
+    try:
+        assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
+        async with database.session() as session:
+            count = await session.scalar(select(func.count()).select_from(DailyResultsPublication))
             assert count == 0
     finally:
         await database.dispose()

@@ -42,6 +42,7 @@ TEST_COMMANDS = {
     "test-short-entry",
     "test-short-tp",
     "test-short-stop",
+    "test-results-review",
 }
 REMOVED_COMMANDS = {"test-short-runner", "test-short-daily"}
 
@@ -110,6 +111,7 @@ async def verify() -> list[str]:
         short_term = channel("short_term_alerts")
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
+        results_review = channel("results_review")
 
         _check(welcome.permissions_for(everyone).view_channel, "public_welcome_view", failures)
         _check(not welcome.permissions_for(everyone).send_messages, "public_welcome_send", failures)
@@ -148,6 +150,29 @@ async def verify() -> list[str]:
             _check(bot_permissions.view_channel, f"bot_{key}_view", failures)
             _check(bot_permissions.send_messages, f"bot_{key}_send", failures)
             _check(bot_permissions.manage_messages, f"bot_{key}_manage", failures)
+        _check(
+            not results_review.permissions_for(everyone).view_channel,
+            "everyone_results_review_view",
+            failures,
+        )
+        _check(
+            not results_review.permissions_for(member).view_channel,
+            "member_results_review_view",
+            failures,
+        )
+        manager_results = results_review.permissions_for(manager)
+        _check(manager_results.view_channel, "manager_results_review_view", failures)
+        _check(not manager_results.send_messages, "manager_results_review_send", failures)
+        _check(
+            manager_results.use_application_commands,
+            "manager_results_review_interact",
+            failures,
+        )
+        _check(
+            results_review.permissions_for(bot_member).send_messages,
+            "bot_results_review_send",
+            failures,
+        )
 
         if config is not None:
             for channel_key, (field_name, title) in GUIDE_TITLES.items():

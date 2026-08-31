@@ -72,6 +72,11 @@ class TradingCalendarService:
         closed = self._python_datetime(self.calendar.session_close(session_date))
         return opened <= current <= closed
 
+    def session_close(self, value: date) -> datetime:
+        if not self.calendar.is_session(value):
+            raise TradingCalendarError("NOT_A_TRADING_DAY")
+        return self._python_datetime(self.calendar.session_close(value))
+
     def next_trading_day(self, value: date) -> date:
         return self._date_to_session(value, direction="next")
 

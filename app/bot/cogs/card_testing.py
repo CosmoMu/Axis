@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from app.bot.cards import (
+    build_daily_results_snapshot_embed,
     build_public_analysis_embed,
     build_public_trade_embed,
     build_short_term_entry_embed,
@@ -38,6 +39,79 @@ class PreviewComponentView(discord.ui.View):
     async def respond(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             "测试组件正常；未读取或写入正式订单。",
+            ephemeral=True,
+        )
+
+
+def _results_snapshot(*, review: bool) -> dict[str, object]:
+    return {
+        "title": "AXIS DAILY RESULTS · DRAFT" if review else "AXIS DAILY RESULTS",
+        "trading_date": "2026-08-31",
+        "status": "DRAFT",
+        "scheduled_publish_at": "2026-08-31T16:15:00-04:00",
+        "sections": [
+            {
+                "label": "SHORT-TERM",
+                "lines": [
+                    "✓ ST-TEST · NVDA 200C (LOTTO) +136%"
+                    if review
+                    else "ST-TEST · NVDA 200C (LOTTO) +136%"
+                ],
+            },
+            {
+                "label": "SWING",
+                "lines": [
+                    "✓ SW-TEST · GOOGL 400C\nTP1 +42% · TP2 +60% · 最高收益 +70%"
+                    if review
+                    else "SW-TEST · GOOGL 400C\nTP1 +42% · TP2 +60% · 最高收益 +70%"
+                ],
+            },
+            {"label": "LEAPS", "lines": []},
+        ],
+        "footer": (
+            "Manager Review" if review else "Past performance does not guarantee future results."
+        ),
+    }
+
+
+class PreviewResultsReviewView(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=600)
+        definitions = (
+            ("MANAGE TRADES", discord.ButtonStyle.secondary, self.manage),
+            ("EDIT CARD", discord.ButtonStyle.secondary, self.edit),
+            ("PREVIEW", discord.ButtonStyle.primary, self.preview),
+            ("PUBLISH NOW", discord.ButtonStyle.success, self.publish),
+        )
+        for label, style, callback in definitions:
+            button = discord.ui.Button(label=label, style=style)
+            button.callback = callback
+            self.add_item(button)
+
+    async def manage(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            "TEST：Include / Exclude / Re-Include 由自动化测试覆盖；未写入正式历史。",
+            ephemeral=True,
+        )
+
+    async def edit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            "TEST：Display Edit / Correct Result Audit 已通过；未写入正式历史。",
+            ephemeral=True,
+        )
+
+    async def preview(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            embed=build_daily_results_snapshot_embed(
+                _results_snapshot(review=False),
+                review=False,
+            ),
+            ephemeral=True,
+        )
+
+    async def publish(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            "TEST Publish Now：不会发送到 results，也不会写入数据库。",
             ephemeral=True,
         )
 
@@ -283,6 +357,24 @@ class CardTestingCog(commands.Cog):
         await interaction.response.send_message(
             embed=risk_disclosure_embed(),
             view=PreviewComponentView(),
+        )
+
+    @app_commands.command(
+        name="test-results-review",
+        description="Preview Daily Results Review without production writes",
+    )
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.guild_only()
+    async def test_results_review(self, interaction: discord.Interaction) -> None:
+        if not await self._authorize(interaction):
+            return
+        await interaction.response.send_message(
+            content="TEST ENVIRONMENT · no production data writes",
+            embed=build_daily_results_snapshot_embed(
+                _results_snapshot(review=True),
+                review=True,
+            ),
+            view=PreviewResultsReviewView(),
         )
 
 

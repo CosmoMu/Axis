@@ -33,10 +33,13 @@ Owner 只能在 `🧪・card-testing` 使用：
 /test-tp-card
 /test-runner-card
 /test-close-card
+/test-results-review
 ```
 
 这些命令直接构建内存 `PublicTradeCard` / `PublicAnalysisCard` Preview DTO，不调用正式
 Trade、Analysis、Publication 或 Results service，不向会员频道发送，也不写数据库。
+`/test-results-review` 使用内存 TEST DTO 预览 Draft、Manager buttons 和 Final Card；它的
+Publish Now 仅返回测试回执，不会发送到 `📊・results`。
 
 ## System Alerts
 

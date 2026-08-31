@@ -22,6 +22,8 @@ EXPECTED_TABLES = {
     "analysis_symbols",
     "daily_summary_publications",
     "daily_results_publications",
+    "daily_results_reviews",
+    "daily_results_items",
     "guild_config",
     "input_code_counters",
     "mentors",
@@ -65,6 +67,7 @@ def discord_ids() -> dict[str, object]:
             "leaps_alerts": 204,
             "mentor_control": 205,
             "member_control": 206,
+            "results_review": 207,
         },
     }
 
@@ -87,6 +90,7 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "subscription_message_id",
         "system_alerts_channel_id",
         "card_testing_channel_id",
+        "results_review_channel_id",
     } <= set(Base.metadata.tables["guild_config"].columns.keys())
     memberships = Base.metadata.tables["memberships"]
     assert {

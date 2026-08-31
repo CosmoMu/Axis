@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
@@ -86,6 +88,23 @@ def _parse_optional_url(name: str) -> str | None:
     return raw
 
 
+def _parse_date(name: str, default: str) -> date:
+    raw = os.getenv(name, default).strip()
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} 必须使用 YYYY-MM-DD 格式。") from exc
+
+
+def _parse_timezone(name: str, default: str) -> str:
+    raw = os.getenv(name, default).strip() or default
+    try:
+        ZoneInfo(raw)
+    except ZoneInfoNotFoundError as exc:
+        raise ConfigurationError(f"{name} 不是有效时区。") from exc
+    return raw
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     project_root: Path
@@ -124,6 +143,13 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    production_data_start_date: date = date(2026, 8, 31)
+    production_data_start_timezone: str = "America/New_York"
+    deployment_stage: str = "SOFT_OPEN"
+    results_review_enabled: bool = True
+    results_review_draft_delay_minutes: int = 1
+    results_final_publish_time: str = "16:15"
+    results_timezone: str = "America/New_York"
     public_operator_name: str = "VALE"
     public_identity_forbidden_terms: tuple[str, ...] = ()
     lab_enabled: bool = False
@@ -223,6 +249,19 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            production_data_start_date=_parse_date("PRODUCTION_DATA_START_DATE", "2026-08-31"),
+            production_data_start_timezone=_parse_timezone(
+                "PRODUCTION_DATA_START_TIMEZONE", "America/New_York"
+            ),
+            deployment_stage=(
+                os.getenv("DEPLOYMENT_STAGE", "SOFT_OPEN").strip().upper() or "SOFT_OPEN"
+            ),
+            results_review_enabled=_parse_bool("RESULTS_REVIEW_ENABLED", True),
+            results_review_draft_delay_minutes=_parse_nonnegative_int(
+                "RESULTS_REVIEW_DRAFT_DELAY_MINUTES", 1
+            ),
+            results_final_publish_time=_parse_time_hhmm("RESULTS_FINAL_PUBLISH_TIME", "16:15"),
+            results_timezone=_parse_timezone("RESULTS_TIMEZONE", "America/New_York"),
             public_operator_name=(os.getenv("PUBLIC_OPERATOR_NAME", "VALE").strip() or "VALE")[:40],
             public_identity_forbidden_terms=tuple(
                 item.strip()

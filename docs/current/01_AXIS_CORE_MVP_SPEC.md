@@ -637,13 +637,15 @@ exit_value = sum(exit price * sold units)
 final_return = (exit_value - entry_cost) / entry_cost
 ```
 
-官方 Results 不能选择性删除亏损交易。
+所有当天 Eligible Trade 默认进入官方 Results，不得自动隐藏亏损交易。Manager 的 Exclude
+只控制当天 Public Daily Results 的展示，必须保存原因和 Audit；绝不能删除 Trade、Event、
+Tracking、Mentor Dataset 或内部 Historical Performance。
 
 ---
 
 # 16A. Daily Post-Close Category Summaries
 
-`⚡・short-term`、`〽️・swing`、`♾️・leaps` 每个美股交易日 `16:15 ET` 各发布一条总结：
+`〽️・swing`、`♾️・leaps` 每个美股交易日 `16:15 ET` 各发布一条总结：
 
 ```text
 Active 收盘总结
@@ -665,7 +667,22 @@ Core 只允许通过本地 Moomoo OpenD 获取只读美股期权快照：
 每日发布以 `guild + category + session_date` 唯一，Discord marker 与数据库状态共同防止
 重启或重试时重复发送。周末、假日以及无法确认交易日时不发布。
 
+`⚡・short-term` 不发布 Daily Summary。当天已停止或关闭的 Short-Term / Swing / LEAPS
+进入 `📋・results-review` 的唯一 Daily Results Draft；Manager 可 Include / Exclude、编辑公开
+展示、预览或提前发布。最终结果默认 `16:15 ET` 幂等发布到 `📊・results`，正式
+`final_snapshot` 不可变保存。公开排除不影响 Swing / LEAPS Category Summary。
+
 此功能属于 AXIS Core 运维，不启用 AXIS LAB、Model A / B 或自动交易。
+
+---
+
+# 16B. Soft Open Production Boundary
+
+`2026-08-31 00:00 America/New_York` 起，真实 Signal、Trade、Trade Event、Tracking、Analysis、
+Daily Results、Daily Summary 与 Historical Performance 全部属于永久 Production Data。
+Soft Open 不是 TEST / LIVE_TEST / PAPER。此日期后的数据不得 wipe all、truncate all、重新编号
+或执行第二次 Soft Open Reset；所有 Fake Card、Synthetic Event 与 Preview 只能在
+`🧪・card-testing` 的 TEST Environment 中运行，且不得写入 Production Domain。
 
 ---
 

@@ -36,6 +36,24 @@ pricing_version + membership_session_id`。Monthly 同步写入 Subscription met
 
 - `SYSTEM_ALERT_CHECK_SECONDS`：Owner-only 健康检查周期；正常状态不发送消息。
 
+## Soft Open / Production Boundary
+
+- `PRODUCTION_DATA_START_DATE=2026-08-31`
+- `PRODUCTION_DATA_START_TIMEZONE=America/New_York`
+- `DEPLOYMENT_STAGE=SOFT_OPEN`：Soft Open 是 Production，不是 Test / Paper。
+- `SOFT_OPEN_RESET_DRY_RUN=true` / `SOFT_OPEN_RESET_APPLY=false`：受保护 reset gate。正式
+  Apply 已在 2026-08-30 完成，Audit marker 会拒绝第二次 Apply；不要把 Apply 永久打开。
+
+## Daily Results Review
+
+- `RESULTS_REVIEW_ENABLED=true`
+- `RESULTS_REVIEW_DRAFT_DELAY_MINUTES=1`：从当天真实 XNYS close 起算，包含 Early Close。
+- `RESULTS_FINAL_PUBLISH_TIME=16:15`
+- `RESULTS_TIMEZONE=America/New_York`
+
+Review 只影响当天 Public Results display；Exclude 不删除真实历史。配置时间不得在 Service
+内部另行硬编码。
+
 ## OpenAI / Workload Router
 
 - `OPENAI_API_KEY`：OpenAI Secret。

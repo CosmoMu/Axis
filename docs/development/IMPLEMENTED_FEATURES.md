@@ -13,17 +13,21 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Persistent View、Review Card 和 Manager 控制面板重启恢复。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - GENERAL Guide 依据数据库 Message ID 幂等同步。
+- Manager-only `📋・results-review`、每日 Review View 与公开 Results 幂等恢复。
 - macOS LaunchAgent、Dockerfile 与 Compose 基础部署。
 
 ## Database
 
-- Alembic revisions 0001–0020；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联。
+- Alembic revisions 0001–0022；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+  0021 增加期权到期日解析 trace，0022 增加 Daily Results Review 配置与持久化 Review Item。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
 - Input code counters：Signal S-00001、Analysis A-00001、Public Trade ST/SW/LP。
 - Membership Price Catalog、Acknowledgement、Entitlement、Payment Event 和 System Alert。
 - Short-Term Tracking、Event、Daily Snapshot 与 Results 数据结构。
+- `daily_results_reviews` / `daily_results_items`、不可变 Final Snapshot、Exclude / Correction
+  Audit 与 `guild + trading_date` 唯一约束。
 - Publication claim / retry / finalize 和必要的唯一约束。
 
 ## Signal intake and parsing
@@ -81,8 +85,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-说明：ST-0001 已通过补注册写入 tracking 与 Entry event；真实 Massive quote / TP / Protection
-触发尚未验收，Live Gate 仍未通过。
+说明：Soft Open Reset 后正式 Short-Term 与 tracking 均为 0，下一笔为 ST-0001；真实 Massive
+quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 ## Mentor / Member
 
@@ -144,11 +148,35 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Source 图片不转发到 Review 或会员频道。
 - renderer 失败不阻塞文字 Analysis 归档，支持独立重试。
 
-## Results / Testing / Operations
+## Daily Results Review
 
-- Trade Event TP 收益、最高收益和幂等极简 Daily Results；Swing / LEAPS Daily Summary 保留
-  今日关闭与当前持仓。
-- Owner-only preview commands 不创建假 Trade、不写 Results。
+- 实际 XNYS Close + 可配置延迟后生成每日唯一 Draft，Early Close 使用真实收盘时间。
+- 当天 STOPPED Short-Term 与 CLOSED Swing / LEAPS 默认 Included；Active Trade 自动排除，
+  亏损交易不会被自动隐藏。
+- Manager / Owner 可 Manage Trades、Exclude with Reason、Re-Include、Edit Display、Correct
+  Result、Preview、Publish Now；普通 Edit 不修改 Trade History。
+- Exclude 保存 actor / time / reason / before / after，不删除 Trade、Event、Tracking、Mentor
+  Dataset 或内部 Performance。
+- `16:15 ET` scheduled publish 与 Publish Now 共用幂等 claim；发布后普通操作锁定，Final
+  Snapshot 不可变，Public Correction 另记 Audit。
+- Short-Term 按 TP 是否触发选择 highest 或 tracking-end；Swing / LEAPS 显示 TP / SL 与最高
+  收益；LOTTO 全程保留。Daily Results 不显示 totals。
+- Results Review 不影响 Swing / LEAPS Daily Summary；Short-Term 继续不发 Daily Summary。
+
+## Soft Open Reset / Production Boundary
+
+- 受保护 reset 工具要求目标 Guild、Dry Run / Apply 环境锁、Production cutoff guard 和单次
+  Audit marker。
+- Reset 前生成 PostgreSQL custom dump、配置归档、SHA-256 并验证可读；备份、`.env` 与 Secret
+  均不进入 Git。
+- 只清除开发测试数据和 Discord Test Message，保留 Mentor、Guild Config、资源 ID、权限、
+  Channel / Role 与 Persistent Message identity。
+- `2026-08-31` 起真实数据永久保存，禁止第二次全量 Reset 或重新编号；所有 Synthetic Test
+  只允许在 `🧪・card-testing` 使用内存 DTO。
+
+## Testing / Operations
+
+- Owner-only preview commands（包括 `/test-results-review`）不创建假 Trade、不写 Results。
 - ERROR / WARNING / RECOVERY 持久化告警和 fingerprint 去重。
 - 数据库只读 verifier、Discord runtime verifier、Analysis Fusion verifier 和 Stripe Test verifier。
 - PostgreSQL custom backup、pg_restore list、SHA-256 与双确认 restore 工具。

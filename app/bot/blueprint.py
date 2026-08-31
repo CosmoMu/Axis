@@ -845,8 +845,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 21:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 21 个。")
+    if blueprint.channel_count != 22:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 22 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

@@ -6,17 +6,24 @@
 
 ## P0 — Short-Term tracking 尚未完成 Live E2E
 
-ST-0001 的旧 Mentor 关联已由 revision 0020 清理，Bot 已成功补注册
-short_term_tracking=1、short_term_events=1（Entry）。当前仍没有真实 Massive quote 触发记录。
+Soft Open Reset 后正式 Short-Term、tracking 与 event 均为 0；下一笔真实发布将使用 ST-0001。
+当前仍没有 Soft Open Production 数据上的 Massive quote 触发记录。
 
 影响：
 
-- 已证明已发布 Short-Term 订单能够幂等补注册跟踪。
+- 自动化已证明已发布 Short-Term 订单能够幂等注册和恢复跟踪；正式 ST-0001 尚未产生。
 - 仍不能证明 Massive 真实报价会驱动固定 TP、Momentum TP、protection 或 stop。
 - 仍不能证明 Discord 自动事件、Daily Results 和重启恢复在真实行情路径上工作。
 
 下一步在美股交易时段做一笔可控的真实端到端验收，并记录 quote timestamp、event、Discord
 message 与重启幂等证据。
+
+## P1 — Daily Results Review 首个 Production Day E2E 待验收
+
+Results Review schema、Discord channel、Manager UI、Include / Exclude、不可删除历史、Preview、
+Publish Now、`16:15 ET` scheduled publish 与 restart idempotency 均已实现并通过自动化。Soft
+Open Reset 后尚无 Eligible Production Trade，因此仍需在第一个实际有停止/关闭订单的交易日
+记录 Draft time、Manager interaction、Final Snapshot、Discord Message ID 与 scheduled dedup。
 
 ## P1 — Stripe 仍是 Test Mode
 

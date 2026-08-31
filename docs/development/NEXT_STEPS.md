@@ -5,22 +5,29 @@
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
 
+Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
+wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
+`🧪・card-testing`。
+
 ## Priority 1 — Short-Term + Massive Real E2E
 
 Work:
 
-- 在下一个美股交易时段验证已注册 ST-0001 的真实 Massive quote。
+- 从下一笔正式 ST-0001 开始验证发布后 tracking 注册与真实 Massive quote。
 - 验证 Massive MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
 - 验证 High / Low Watermark 与固定 TP1–TP10；确认每一级只发送一次且没有 Runner。
 - 验证 Fast Momentum Reversal、Tracking Protection、Overnight Tracking 和 Tracking Stop。
 - 核对 Discord Entry / TP / 停止追踪、Daily Results 和数据库完整历史。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。
+- 在第一天存在 Eligible stopped/closed trade 时，验证收盘后 `📋・results-review` Draft、默认
+  Include、Manager Review 与 `16:15 ET` 单次公开发布；保留数据库与 Discord 证据。
 
 Exit criteria:
 
 - 数据库存在对应 tracking、真实 quote timestamp 和幂等 event。
 - Discord 消息与数据库一致，重启前后没有重复 milestone。
 - Massive 故障和恢复产生可操作的去重告警。
+- Daily Results Review / Public Message 不重复，Exclude 不删除真实历史。
 
 ## Priority 2 — Short-Term Discord Desktop / Mobile UX Validation
 

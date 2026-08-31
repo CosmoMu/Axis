@@ -52,6 +52,7 @@ async def seed_guild_config(
         "member_wins_channel_id": _snowflake(channels, "member_wins"),
         "system_alerts_channel_id": _snowflake(channels, "system_alerts"),
         "card_testing_channel_id": _snowflake(channels, "card_testing"),
+        "results_review_channel_id": _snowflake(channels, "results_review"),
     }
     config = await session.get(GuildConfig, guild_id)
     if config is None:

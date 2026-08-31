@@ -41,6 +41,8 @@ COUNTED_TABLES = (
     "short_term_tracking_events",
     "short_term_daily_snapshots",
     "daily_results_publications",
+    "daily_results_reviews",
+    "daily_results_items",
 )
 SAFE_FEATURES = (
     "FEATURE_ANALYSIS_ENABLED",
@@ -50,6 +52,7 @@ SAFE_FEATURES = (
     "FEATURE_LAB_ENABLED",
     "FEATURE_MODEL_AB_ENABLED",
     "FEATURE_MOOMOO_ENABLED",
+    "RESULTS_REVIEW_ENABLED",
 )
 
 

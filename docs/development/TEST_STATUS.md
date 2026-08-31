@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 190 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 198 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -15,6 +15,8 @@
 - Analysis Fusion verifier: PASS
 - Stripe Test setup verifier: PASS
 - Stripe Test external E2E verifier: PASS
+- Daily Results Review regression: PASS
+- Soft Open Reset database / Discord verification: PASS
 - Short-Term / Massive real E2E: NOT PASSED
 
 ## Commands executed
@@ -62,6 +64,16 @@ Short-Term:
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - 极简 Daily Results 的 TP highest / no-TP tracking-end 选择、LOTTO、TP 顺序和幂等。
 
+Daily Results Review:
+
+- 实际 Market Close + delay 与 Early Close；Public Publish 时间固定为可配置 `16:15 ET`。
+- 一个 Trading Date 一个 Draft；默认包含所有 Ended Trade，Active Trade 排除。
+- Short-Term、Swing、LEAPS 展示规则与 LOTTO。
+- Exclude with Reason / Re-Include 不删除 Trade 或 Event history。
+- Display Edit 不修改 Trade；Correct Result、Public Correction 与 actor/before/after Audit。
+- Preview、Publish Now、Scheduled Publish 去重、restart-safe claim 与不可变 Final Snapshot。
+- Swing / LEAPS Daily Summary 不受 Exclude 影响；Short-Term 仍无 Daily Summary。
+
 Membership / Stripe:
 
 - Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role reconciliation。
@@ -88,18 +100,20 @@ Operations / Security:
 
 Database:
 
-- revision=20260830_0020
-- source_messages=19
-- trade_drafts=10
-- trades=3
-- trade_events=3
-- trade_publications=3
-- analysis_drafts=8
-- mentor_analyses=4
-- analysis_publications=4
-- membership_entitlements=3
-- payment_events=3
-- system_alerts=3
+- revision=20260830_0022
+- source_messages=0
+- trade_drafts=0
+- trades=0
+- trade_events=0
+- trade_publications=0
+- analysis_drafts=0
+- mentor_analyses=0
+- analysis_publications=0
+- daily_results_reviews=0
+- daily_results_items=0
+- membership_entitlements=1（真实 Discord Member Role reconciliation）
+- payment_events=0
+- system_alerts=0
 
 Feature flags:
 
@@ -110,13 +124,14 @@ Feature flags:
 - FEATURE_LAB_ENABLED=false
 - FEATURE_MODEL_AB_ENABLED=false
 - FEATURE_MOOMOO_ENABLED=false
+- RESULTS_REVIEW_ENABLED=true
 
 Discord:
 
 - discord_runtime=PASS
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=12
+- owner test commands=13
 
 Analysis Fusion:
 
@@ -125,7 +140,7 @@ Analysis Fusion:
 - 当前历史归档 indicators/scenarios/path_points 均为 0；结构与回归测试 PASS，但仍需新的真实
   Mentor Fusion / Chart UX 验收。
 
-Stripe Test:
+Stripe Test（Pre-Soft-Open historical acceptance evidence）：
 
 - setup=PASS
 - Product=AXIS Membership
@@ -133,25 +148,28 @@ Stripe Test:
 - Monthly=USD 99.99 monthly auto-renew
 - local webhook=LISTENING
 - external E2E=PASS
-- Day Pass entitlement=ACTIVE
-- Monthly entitlement=ACTIVE，auto-renew=ENABLED，invoice.paid=PROCESSED
-- Discord Member Role=PRESENT
+- Day Pass entitlement 曾达到 ACTIVE。
+- Monthly entitlement 曾达到 ACTIVE，auto-renew=ENABLED，invoice.paid=PROCESSED。
+- Discord Member Role E2E 曾为 PRESENT。
+- Soft Open Reset 已清除这些 Stripe Test membership / payment records；当前数据库不再把它们
+  视为 Production entitlement。Stripe Test 配置本身保留，Live 仍未启用。
 
 ## Explicit failed / pending Live gate
 
 Short-Term verifier evidence:
 
-- short_term_tracking=1
-- short_term_tracking_events=1（Entry）
+- short_term_tracking=0
+- short_term_tracking_events=0
 - short_term_daily_snapshots=0
 - daily_results_publications=0
 - market_quote_snapshots=0
 
-ST-0001 Published Active Entry 已完成幂等 tracking 补注册。真实 Massive quote、TP / Protection
-trigger、Discord event、Daily Results 和 restart recovery 必须完成后，Short-Term Live E2E
-才能标记 PASS。
+Soft Open Reset 后没有正式 ST Trade；下一笔真实发布将是 ST-0001。真实 Massive quote、TP /
+Protection trigger、Discord event、Daily Results 和 restart recovery 必须完成后，Short-Term
+Live E2E 才能标记 PASS。Results Review 的代码、自动化、migration、Discord command 与 job
+ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live acceptance。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 190 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 198 项测试结果。

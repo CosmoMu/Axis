@@ -9,6 +9,7 @@ from discord.ext import commands
 from app.bot.cogs.analysis_pipeline import AnalysisPipelineCog
 from app.bot.cogs.card_review import CardReviewCog
 from app.bot.cogs.card_testing import CardTestingCog
+from app.bot.cogs.daily_results_review import DailyResultsReviewCog
 from app.bot.cogs.daily_summary import DailySummaryCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.general_control import GeneralControlCog
@@ -24,6 +25,7 @@ from app.integrations.stripe_gateway import StripeGateway
 from app.market_intelligence.trade_plan import SwingLeapsTradePlanService
 from app.services.analysis_pipeline import AnalysisPipelineService
 from app.services.card_review import CardReviewService
+from app.services.daily_results_review import DailyResultsReviewService
 from app.services.daily_summary import DailySummaryService
 from app.services.draft_generation import DraftGenerationService
 from app.services.membership_access import (
@@ -73,6 +75,7 @@ class AxisBot(commands.Bot):
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
         daily_summary_service: DailySummaryService | None,
+        daily_results_review_service: DailyResultsReviewService | None,
         swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
     ) -> None:
         super().__init__(
@@ -121,6 +124,7 @@ class AxisBot(commands.Bot):
             mentor_service=mentor_service,
             membership_service=membership_service,
             results_service=results_service,
+            publish_individual_results=not settings.results_review_enabled,
         )
         results_channel_id = _required_snowflake(channels, "official_results")
         self._general_control_cog = GeneralControlCog(
@@ -188,8 +192,21 @@ class AxisBot(commands.Bot):
                 guild_id=settings.discord_guild_id,
                 schedule_hhmm=settings.daily_summary_time_et,
                 tracking_service=short_term_tracking_service,
+                publish_legacy_results=not settings.results_review_enabled,
             )
             if daily_summary_service is not None
+            else None
+        )
+        self._daily_results_review_cog = (
+            DailyResultsReviewCog(
+                self,
+                service=daily_results_review_service,
+                guild_id=settings.discord_guild_id,
+                manager_role_id=_required_snowflake(roles, "manager"),
+                owner_user_id=settings.discord_owner_user_id,
+                draft_delay_minutes=settings.results_review_draft_delay_minutes,
+            )
+            if daily_results_review_service is not None
             else None
         )
         self._short_term_tracking_cog = ShortTermTrackingCog(
@@ -216,6 +233,8 @@ class AxisBot(commands.Bot):
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:
             await self.add_cog(self._daily_summary_cog)
+        if self._daily_results_review_cog is not None:
+            await self.add_cog(self._daily_results_review_cog)
         self.tree.copy_global_to(guild=self._guild_command_target)
         await self._sync_guild_commands()
 

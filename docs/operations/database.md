@@ -42,9 +42,9 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0020` 使用 40 张业务表。0019 增加持久化 `is_lotto`，把
-Short-Term tracking 迁移为 TP1–TP10 与 tracking protection 命名；0020 清除旧
-Short-Term Mentor 关联并保留完整历史：
+当前 revision `20260830_0022`。0019 增加持久化 `is_lotto`，把 Short-Term tracking 迁移为
+TP1–TP10 与 tracking protection 命名；0020 清除旧 Short-Term Mentor 关联并保留完整历史；
+0021 增加期权到期日解析 trace；0022 增加 Daily Results Review：
 
 ```text
 guild_config
@@ -80,6 +80,9 @@ analysis_points
 analysis_publications
 market_quote_snapshots
 daily_summary_publications
+daily_results_publications
+daily_results_reviews
+daily_results_items
 ```
 
 交易持仓以 `position_eighths` 保存，数据库约束范围为 `0..8`；事件增减范围为 `-8..8`。
@@ -100,6 +103,9 @@ Chart storage/checksum 与 render error 支持确定性 PNG 的发布、失败�
 形式的 Manager-facing 顺序号；UUID 仍是内部主键。
 `market_quote_snapshots` 保存 Moomoo 只读盘后参考价；`daily_summary_publications` 以
 Guild、类别与交易日唯一，保存公开快照和 Discord 发布状态。
+`daily_results_reviews` 以 Guild、交易日唯一保存 Draft / Final Snapshot、计划和实际发布时间、
+Review / Public Message ID；`daily_results_items` 保存每笔 Eligible Trade 的公开展示、Include /
+Exclude、原因与纠错值。Exclude 不级联删除或修改 `trades`、`trade_events` 或 tracking 历史。
 `membership_sessions` 在进入动态 Checkout 前绑定 `discord_user_id`；0015 的价格目录、带版本
 风险确认、终身一次 Trial、独立 Entitlement 和最小 Payment Event 记录支撑 Stripe 会员。
 `payment_events` 按 provider event ID 幂等处理且不保存完整 Payload；旧

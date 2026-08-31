@@ -8,7 +8,9 @@ AXIS BOT 在每个美股交易日 `16:15 ET` 只向以下频道发送 Daily Summ
 - `♾️・leaps`
 
 每条消息包含该类别的今日关闭与当前持仓。`⚡・short-term` 不发送 Daily Summary；已停止
-追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。启用 Moomoo 时，Active 收盘参考来自本机
+追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。Daily Results 先进入
+`📋・results-review`，不再由 Daily Summary job 直接发布；完整流程见
+`docs/operations/daily-results-review.md`。启用 Moomoo 时，Active 收盘参考来自本机
 OpenD 的只读期权 snapshot；不是账户持仓或交易数据。Moomoo 未启用时，不猜测 Active 行情。
 
 ## Required Runtime
@@ -48,5 +50,5 @@ launchctl print gui/$(id -u)/com.axis.bot
 lsof -nP -iTCP:11111 -sTCP:LISTEN
 ```
 
-正常数据库 revision 为 `20260830_0020`。`market_quote_snapshots` 与
+正常数据库 revision 为 `20260830_0022`。`market_quote_snapshots` 与
 `daily_summary_publications` 在第一个真实交易日、且存在相关 Trade 后才会出现行数。

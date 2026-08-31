@@ -54,7 +54,8 @@ DRY_RUN=false
 完成后立即把 `.env` 恢复为 `APPLY_CHANGES=false`、`DRY_RUN=true`，并再次运行 dry-run。
 重复运行不应出现 `CREATE`；非项目资源不得出现在 `UPDATE` 或 `BLOCK` 的目标中。
 
-当前蓝图为 4 个 Category、21 个 Channel。`🚨・system-alerts` 与
+当前蓝图为 4 个 Category、22 个 Channel。`📋・results-review` 只对 Manager、Owner 与
+AXIS BOT 可见；Manager 可以使用 Bot interaction，但不能发送普通消息。`🚨・system-alerts` 与
 `🧪・card-testing` 只对 Owner 与 AXIS BOT 可见；Owner 权限通过
 `DISCORD_OWNER_USER_ID` 的 user-specific overwrite 实现，Manager 明确 DENY VIEW。
 AXIS LAB 仍为 deferred，Bootstrap 不会因本轮功能改动它的现有权限。

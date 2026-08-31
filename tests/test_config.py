@@ -100,6 +100,25 @@ def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch)
     assert Settings.load(Path("/tmp/axis-test")).daily_summary_time_et == "09:05"
 
 
+def test_soft_open_and_results_review_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
+    monkeypatch.setenv("PRODUCTION_DATA_START_DATE", "2026-08-31")
+    monkeypatch.setenv("PRODUCTION_DATA_START_TIMEZONE", "America/New_York")
+    monkeypatch.setenv("DEPLOYMENT_STAGE", "SOFT_OPEN")
+    monkeypatch.setenv("RESULTS_REVIEW_ENABLED", "true")
+    monkeypatch.setenv("RESULTS_REVIEW_DRAFT_DELAY_MINUTES", "1")
+    monkeypatch.setenv("RESULTS_FINAL_PUBLISH_TIME", "16:15")
+    monkeypatch.setenv("RESULTS_TIMEZONE", "America/New_York")
+    configured = Settings.load(Path("/tmp/axis-test"))
+    assert configured.production_data_start_date.isoformat() == "2026-08-31"
+    assert configured.production_data_start_timezone == "America/New_York"
+    assert configured.deployment_stage == "SOFT_OPEN"
+    assert configured.results_review_enabled is True
+    assert configured.results_review_draft_delay_minutes == 1
+    assert configured.results_final_publish_time == "16:15"
+    assert configured.results_timezone == "America/New_York"
+
+
 def test_lab_gate_requires_all_deferred_features_off() -> None:
     configured = settings(apply_changes=False, dry_run=True)
     configured.assert_lab_disabled()
