@@ -52,6 +52,12 @@ def _public_trade_sort_key(public_trade_id: str) -> tuple[str, int, str]:
     return match.group(1), int(match.group(2)), public_trade_id
 
 
+def _result_status_emoji(value: Decimal | None) -> str:
+    if value is None or value == 0:
+        return "➖"
+    return "✅" if value > 0 else "❌"
+
+
 ACTION_LABELS = {
     "ENTRY": "入场",
     "UPDATE": "订单更新",
@@ -621,6 +627,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
             if label == "SHORT-TERM":
                 expiry = row.expiry.strftime("%m/%d") if row.expiry is not None else ""
                 lines.append(
+                    f"{_result_status_emoji(row.displayed_result_pct)} "
                     f"{row.public_trade_id} · {row.ticker} "
                     f"{expiry + ' ' if expiry else ''}{_number(row.strike)}"
                     f"{'C' if row.option_side == 'CALL' else 'P'} "

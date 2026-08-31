@@ -318,8 +318,8 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
         ),
     )
     rendered = str(build_daily_results_embed(card).to_dict())
-    assert "ST-0001 · NVDA 08/28 500C +136.00%" in rendered
-    assert "ST-0002 · QQQ 08/28 714C -50.00%" in rendered
+    assert "✅ ST-0001 · NVDA 08/28 500C +136.00%" in rendered
+    assert "❌ ST-0002 · QQQ 08/28 714C -50.00%" in rendered
     assert rendered.index("ST-0001") < rendered.index("ST-0002")
     assert "TP1 +42.00% · TP2 +70.00% · 最高收益 +84.00%" in rendered
     assert "TP1 +51.00% · TP2 +102.00% · 最高收益 +126.00%" in rendered

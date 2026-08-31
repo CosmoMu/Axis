@@ -50,8 +50,9 @@ behavior not named here remains unchanged.
   the complete tracking lifecycle relative to entry price, whether it stopped that day or remains
   under tracking. Current return, tracking-end return, and daily-only snapshots stay internal.
 - Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
-  `ST-0001 · MU 08/31 970C +52.94%`; LOTTO labels are omitted from this section. Lines are sorted
-  by the numeric part of the order ID in ascending order.
+  `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
+  LOTTO labels are omitted from this section. Lines are sorted by the numeric part of the order ID
+  in ascending order.
 - Closed Swing/LEAPS trades list realized TP event returns in numeric TP order and the highest
   recorded return. An SL close lists SL return and highest return.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are

@@ -106,6 +106,12 @@ def _percent(value: Decimal | None) -> str:
     return f"{rendered}%"
 
 
+def _short_term_result_emoji(value: Decimal | None) -> str:
+    if value is None or value == 0:
+        return "➖"
+    return "✅" if value > 0 else "❌"
+
+
 def _contract(payload: dict[str, object]) -> str:
     side = "C" if payload["option_side"] == "CALL" else "P"
     lotto = " (LOTTO)" if payload.get("is_lotto") else ""
@@ -152,11 +158,17 @@ def _review_item_sort_key(item: DailyResultsItem) -> tuple[int, str, int, str]:
 
 def _display_line(item: DailyResultsItem) -> str:
     if item.display_text_override:
-        return item.display_text_override.strip()
+        override = item.display_text_override.strip()
+        if item.category != TradeCategory.SHORT_TERM.value or override.startswith(
+            ("✅", "❌", "➖")
+        ):
+            return override
+        return f"{_short_term_result_emoji(item.display_result_pct)} {override}"
     payload = item.snapshot_json
     head = f"{payload['public_trade_id']} · {_contract(payload)}"
     if item.category == TradeCategory.SHORT_TERM.value:
         return (
+            f"{_short_term_result_emoji(item.display_result_pct)} "
             f"{payload['public_trade_id']} · "
             f"{_short_term_result_contract(payload)} "
             f"{_percent(item.display_result_pct)}"

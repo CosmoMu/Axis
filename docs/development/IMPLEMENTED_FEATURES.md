@@ -177,7 +177,8 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
   Snapshot 不可变，Public Correction 另记 Audit。
 - 全部 Short-Term Results 统一使用完整追踪周期内的期权最高价相对入场价计算收益；不使用
   当前价、停止价或单日快照。公开行显示 ST 订单号、Ticker、到期日、合约代码和收益率，
-  并按订单号数字升序排列。Swing / LEAPS 显示 TP / SL 与最高收益；Daily Results 不显示 totals。
+  前置 `✅` / `❌` / `➖` 状态并按订单号数字升序排列。Swing / LEAPS 显示 TP / SL 与
+  最高收益；Daily Results 不显示 totals。
 - Results Review 不影响 Swing / LEAPS Daily Summary；Short-Term 继续不发 Daily Summary。
 
 ## Soft Open Reset / Production Boundary
