@@ -24,6 +24,8 @@
   reconciliation。
 - `STRIPE_TEST_*` 与 `STRIPE_LIVE_*`：Secret、Publishable Key、Webhook Secret、返回 URL、
   Product / Price ID 和 Pricing Version 全部分离。Secret 只放 `.env` / Secret Store。
+- `STRIPE_LIVE_PRIVACY_REVIEWED=false`：只有公开 Privacy、Refund、Cancellation 页面完成
+  人工复核后才改为 `true`。
 - `*_DAY_PASS_PRICING_VERSION` / `*_MONTHLY_PRICING_VERSION`：必须对应当前环境
   `membership_prices` 中的不可变版本。
 - `PAYMENT_WEBHOOK_HOST` / `PAYMENT_WEBHOOK_PORT`：Webhook listener 绑定地址。
