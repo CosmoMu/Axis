@@ -5,6 +5,14 @@
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
 
+## Immediate Execution Lock — Soft Open Day 1
+
+`2026-08-31` 白天暂停所有新功能开发，只执行
+`SOFT_OPEN_DAY1_VALIDATION.md`：Signal Input → Review → Category / Mentor → Publish → History →
+Results Review → Daily Results，以及 Swing / LEAPS Summary、Short-Term Tracking 和 Public
+Privacy。Stripe / Payment / Membership Pricing 只能在白天 Gate 完成后的晚上作为独立工作流
+开始；不得提前混入白天验证。
+
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・card-testing`。

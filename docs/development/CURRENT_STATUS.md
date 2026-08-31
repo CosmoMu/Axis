@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-30
 
-**Current stage:** Core feature-complete / Production live validation
+**Current stage:** Soft Open Day 1 / Core validation freeze
 
 **Database revision:** 20260830_0022
 
@@ -22,6 +22,11 @@ Discord 消息清理已完成；`2026-08-31` 起真实输入是永久 Production
 已部署并通过自动化及 runtime 验证。Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。
 当前最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
 Massive quote、TP/Protection 触发和正式交易日 Discord E2E 仍未验收。
+
+Next execution boundary: 2026-08-31 白天只验证 Signal Input / Review / Publish、Mentor Flow、
+Results Review、Daily Results、Swing / LEAPS Summary、Short-Term Tracking、History 与 Public
+Privacy。禁止白天开始 Payment、AXIS LAB、Prediction Chart、新 Analysis 或新 Tracking 策略；
+执行清单见 `SOFT_OPEN_DAY1_VALIDATION.md`。
 
 ## Soft Open Boundary — COMPLETE
 

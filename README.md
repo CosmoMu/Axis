@@ -22,14 +22,16 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - 已知问题：docs/development/KNOWN_ISSUES.md
 - 测试状态：docs/development/TEST_STATUS.md
 - 下一步：docs/development/NEXT_STEPS.md
+- Soft Open Day 1 验证：docs/development/SOFT_OPEN_DAY1_VALIDATION.md
 - Live 上线清单：docs/development/LIVE_MODE_CHECKLIST.md
 - Soft Open Reset 审计：docs/development/SOFT_OPEN_RESET_2026-08-30.md
 - 运维手册：docs/operations/
 
 ## 下一优先级
 
-完成 Short-Term / Massive 的真实端到端验证，确认已发布订单能够注册 tracking、取得真实行情、
-触发 TP1–TP10 / Momentum TP / tracking protection 事件，并在 Bot 重启后正确恢复。
+2026-08-31 白天执行 Soft Open Day 1 核心验证：只检查 Signal Input / Review / Publish、Mentor、
+History、Results Review、Daily Results、Swing / LEAPS Summary、Short-Term Tracking 和 Public
+Privacy，不开发新功能。Payment / Stripe / Membership Pricing 延后到白天 Gate 完成后的晚上。
 
 2026-08-31 起由真实输入产生的数据均为永久 Production Data，不再执行全量 Reset 或重新编号。
 
