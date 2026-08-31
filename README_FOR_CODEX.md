@@ -11,7 +11,9 @@
 4. `docs/current/02_AXIS_ANALYSIS_PIPELINE_SPEC.md`
 5. `docs/current/03_AXIS_LAB_DEFERRED_SPEC.md`
 6. `docs/current/04_IMPLEMENTATION_ORDER_AND_GATES.md`
-7. `docs/development/CURRENT_STATUS.md`
-8. `docs/development/NEXT_STEPS.md`
+7. `docs/current/05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md`
+8. `docs/current/06_STRIPE_LIVE_PAYMENT_SPEC.md`
+9. `docs/development/CURRENT_STATUS.md`
+10. `docs/development/NEXT_STEPS.md`
 
 `AXIS LAB` 保持 Deferred，Owner 明确说 `START AXIS LAB` 前不得开发。

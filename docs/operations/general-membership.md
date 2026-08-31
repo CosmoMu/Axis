@@ -10,27 +10,28 @@ All duration labels used by Free Trial, Day Pass, and trading-day extensions use
 calendar through `TradingCalendarService`. The last valid session expires at 23:59:59
 America/New_York.
 
-## Stripe Test Mode configuration
+## Stripe environment configuration
 
 Keep every value in local `.env` or a Secret Manager:
 
 ```dotenv
-STRIPE_ENABLED=false
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_SUCCESS_URL=
-STRIPE_CANCEL_URL=
-STRIPE_PORTAL_RETURN_URL=
-STRIPE_DAY_PASS_PRODUCT_ID=
-STRIPE_DAY_PASS_PRICE_ID=
-STRIPE_DAY_PASS_PRICING_VERSION=DAY_PASS_V1
-STRIPE_MONTHLY_PRODUCT_ID=
-STRIPE_MONTHLY_PRICE_ID=
-STRIPE_MONTHLY_PRICING_VERSION=MONTHLY_V1
+STRIPE_MODE=test
+PAYMENTS_ENABLED=false
+
+STRIPE_TEST_SECRET_KEY=
+STRIPE_TEST_PUBLISHABLE_KEY=
+STRIPE_TEST_WEBHOOK_SECRET=
+STRIPE_TEST_WEBHOOK_URL=
+
+STRIPE_LIVE_SECRET_KEY=
+STRIPE_LIVE_PUBLISHABLE_KEY=
+STRIPE_LIVE_WEBHOOK_SECRET=
+STRIPE_LIVE_WEBHOOK_URL=
 ```
 
-Checkout is disabled unless `STRIPE_ENABLED=true` and every required Test Mode value is
-present. The webhook endpoint is `POST /webhooks/stripe` and validates the raw body using the
+Checkout is disabled unless `PAYMENTS_ENABLED=true` and every required value for the selected
+`STRIPE_MODE` is present. Test and Live never share keys, IDs, endpoint secrets or database event
+namespaces. The webhook endpoint is `POST /webhooks/stripe` and validates the raw body using the
 `Stripe-Signature` header. Do not route the listener publicly without TLS and a restricted
 reverse proxy.
 
@@ -51,7 +52,7 @@ both paid Entitlements, the processed Monthly invoice, and the Discord Member Ro
 printing customer, subscription, Checkout, or Discord user identifiers.
 
 `membership_prices` is the source for displayed and charged prices. The initial V1 catalog is
-stored in migration `20260830_0015`; Stripe Product/Price IDs are bound from `.env`. Never edit
+split by environment in migration `20260831_0023`; Stripe Product/Price IDs are bound from `.env`. Never edit
 an existing purchased price version or migrate an active subscription automatically. Create a
 new current version instead.
 
@@ -73,7 +74,5 @@ market-analysis language. Private owner identity and contact details must never 
 Checkout copy, receipts, invoices, Portal content, metadata visible to customers, or Discord
 cards.
 
-Complete both checklists before Live Mode:
-
-- `docs/development/LIVE_MODE_CHECKLIST.md`
-- `docs/development/LIVE_MODE_CHECKLIST.md`
+Complete `docs/development/LIVE_MODE_CHECKLIST.md` before Live Mode. Full payment setup, pricing,
+webhook, reconciliation, rotation and incident procedures are in `docs/operations/payments/`.

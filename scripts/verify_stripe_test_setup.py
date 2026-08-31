@@ -16,18 +16,20 @@ from app.config import Settings  # noqa: E402
 
 def main() -> int:
     settings = Settings.load(PROJECT_ROOT)
-    if not settings.stripe_configuration_ready():
+    stripe_config = settings.stripe_config()
+    test_config = stripe_config.test
+    if not stripe_config.enabled or not test_config.runtime_ready:
         raise RuntimeError("Stripe Test configuration is incomplete")
-    if not settings.stripe_secret_key.startswith("sk_test_"):
+    if not test_config.secret_key.startswith("sk_test_"):
         raise RuntimeError("Stripe key is not a Test Mode key")
 
-    client = stripe.StripeClient(settings.stripe_secret_key)
-    product_id = settings.stripe_day_pass_product_id or ""
-    if product_id != settings.stripe_monthly_product_id:
+    client = stripe.StripeClient(test_config.secret_key)
+    product_id = test_config.day_pass_product_id or ""
+    if product_id != test_config.monthly_product_id:
         raise RuntimeError("Day Pass and Monthly must share AXIS Membership product")
     product = client.v1.products.retrieve(product_id)
-    day_pass = client.v1.prices.retrieve(settings.stripe_day_pass_price_id or "")
-    monthly = client.v1.prices.retrieve(settings.stripe_monthly_price_id or "")
+    day_pass = client.v1.prices.retrieve(test_config.day_pass_price_id or "")
+    monthly = client.v1.prices.retrieve(test_config.monthly_price_id or "")
 
     if product.name != "AXIS Membership" or not product.active:
         raise RuntimeError("AXIS Membership product is missing or inactive")

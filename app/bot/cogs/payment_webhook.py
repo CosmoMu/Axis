@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from aiohttp import web
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.integrations.stripe_gateway import StripeGateway, StripeGatewayError
@@ -24,6 +24,7 @@ class PaymentWebhookCog(commands.Cog):
         gateway: StripeGateway | None,
         payment_service: MembershipStripeService,
         sync_role: Callable[[int, bool], Awaitable[None]],
+        reconciliation_minutes: int = 15,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -33,6 +34,7 @@ class PaymentWebhookCog(commands.Cog):
         self.payment_service = payment_service
         self.sync_role = sync_role
         self.runner: web.AppRunner | None = None
+        self.reconciliation_loop.change_interval(minutes=reconciliation_minutes)
 
     async def cog_load(self) -> None:
         if self.gateway is None:
@@ -48,8 +50,10 @@ class PaymentWebhookCog(commands.Cog):
             await self.runner.cleanup()
             self.runner = None
             raise
+        self.reconciliation_loop.start()
 
     async def cog_unload(self) -> None:
+        self.reconciliation_loop.cancel()
         if self.runner is not None:
             await self.runner.cleanup()
             self.runner = None
@@ -102,3 +106,66 @@ class PaymentWebhookCog(commands.Cog):
                 detail=type(exc).__name__,
             )
             return web.json_response({"status": "failed"}, status=500)
+
+    @tasks.loop(minutes=15)
+    async def reconciliation_loop(self) -> None:
+        if self.gateway is None or self.bot.user is None:
+            return
+        try:
+            result = await self.payment_service.reconcile_subscriptions(
+                self.guild_id,
+                actor_user_id=self.bot.user.id,
+                apply=True,
+            )
+            unresolved = [
+                item
+                for item in result.items
+                if item.action
+                not in {"CONSISTENT", "UPDATE_MEMBERSHIP", "CREATE_MISSING_MEMBERSHIP"}
+            ]
+            for item in result.items:
+                if (
+                    item.applied
+                    and item.discord_user_id is not None
+                    and item.should_have_role is not None
+                ):
+                    await self.sync_role(item.discord_user_id, item.should_have_role)
+            if unresolved:
+                await report_system_failure(
+                    self.bot,
+                    severity="ERROR",
+                    service="Stripe Reconciliation",
+                    error_type="STRIPE_RECONCILIATION_MISMATCH",
+                    affected="Stripe ↔ AXIS Membership ↔ Discord Role",
+                    detail=f"environment={result.environment} unresolved={len(unresolved)}",
+                )
+            else:
+                await report_system_recovery(
+                    self.bot,
+                    service="Stripe Reconciliation",
+                    error_type="STRIPE_RECONCILIATION_MISMATCH",
+                    affected="Stripe ↔ AXIS Membership ↔ Discord Role",
+                )
+        except MembershipStripeError as exc:
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Stripe Reconciliation",
+                error_type="STRIPE_RECONCILIATION_FAILED",
+                affected="Stripe ↔ AXIS Membership ↔ Discord Role",
+                detail=exc.code,
+            )
+        except Exception as exc:
+            logger.warning("event=stripe_reconciliation_failed error_type=%s", type(exc).__name__)
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Stripe Reconciliation",
+                error_type="STRIPE_RECONCILIATION_FAILED",
+                affected="Stripe ↔ AXIS Membership ↔ Discord Role",
+                detail=type(exc).__name__,
+            )
+
+    @reconciliation_loop.before_loop
+    async def before_reconciliation_loop(self) -> None:
+        await self.bot.wait_until_ready()

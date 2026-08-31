@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的七份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的八份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -22,7 +22,8 @@
 5. 04_IMPLEMENTATION_ORDER_AND_GATES.md — 实施顺序、发布 Gate 与生产验证要求。
 6. 05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md — 最新 Short-Term TP、LOTTO、Active View、
    Daily Results 与 Daily Summary 覆盖规则。
-7. README_FOR_CODEX.md — 本入口和文档使用规则。
+7. 06_STRIPE_LIVE_PAYMENT_SPEC.md — Test / Live 隔离、kill switch、价格版本和 Stripe Live Gate。
+8. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -41,7 +42,8 @@
 
 - Stage 1–4 的核心代码和自动化测试已经完成。
 - Core Gate A 与 Analysis Gate B 已通过。
-- Stripe Test Mode 的 Day Pass / Monthly 付款链路已通过；Live Mode 仍受上线清单阻止。
+- Stripe Test Mode 历史 Day Pass / Monthly 链路已通过；Test / Live 隔离、价格版本、对账和
+  kill switch 已完成。账户激活/KYC 与 Live 外部资源仍受上线清单阻止，`PAYMENTS_ENABLED=false`。
 - Pre-Soft-Open backup、测试数据清理和公开编号复位已完成；2026-08-31 起真实输入均为
   Production Data，禁止再次全量 Reset 或重新编号。
 - Daily Results Review / Exclude Workflow 已部署：收盘后生成 Draft，Manager 可审核公开展示，

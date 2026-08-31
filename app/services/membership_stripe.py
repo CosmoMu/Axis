@@ -19,7 +19,13 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import EntitlementStatus, EntitlementType, MembershipPlanType
-from app.integrations.stripe_gateway import StripeCheckout, StripeGateway, StripeGatewayError
+from app.integrations.stripe_config import StripeMode
+from app.integrations.stripe_gateway import (
+    StripeCheckout,
+    StripeGateway,
+    StripeGatewayError,
+    StripeSubscriptionSnapshot,
+)
 from app.services.membership_access import (
     ACCESS_STATUSES,
     MembershipAccessError,
@@ -51,6 +57,23 @@ class StripeWebhookApplication:
     should_have_role: bool | None
 
 
+@dataclass(frozen=True, slots=True)
+class StripeReconciliationItem:
+    discord_user_id: int | None
+    action: str
+    applied: bool
+    should_have_role: bool | None
+
+
+@dataclass(frozen=True, slots=True)
+class StripeReconciliationResult:
+    environment: str
+    provider_count: int
+    local_count: int
+    repaired_count: int
+    items: tuple[StripeReconciliationItem, ...]
+
+
 class MembershipStripeService:
     def __init__(
         self,
@@ -61,6 +84,8 @@ class MembershipStripeService:
         prices: MembershipPriceCatalog,
         *,
         session_ttl_minutes: int = 30,
+        mode: StripeMode = StripeMode.TEST,
+        payments_enabled: bool = True,
     ) -> None:
         self.database = database
         self.gateway = gateway
@@ -68,10 +93,13 @@ class MembershipStripeService:
         self.acknowledgements = acknowledgements
         self.prices = prices
         self.session_ttl_minutes = session_ttl_minutes
+        self.mode = mode
+        self.environment = mode.database_value
+        self.payments_enabled = payments_enabled
 
     @property
     def enabled(self) -> bool:
-        return self.gateway is not None
+        return self.gateway is not None and self.payments_enabled
 
     async def create_checkout(
         self,
@@ -79,6 +107,8 @@ class MembershipStripeService:
         user_id: int,
         plan_type: str,
     ) -> StripeCheckout:
+        if not self.payments_enabled:
+            raise MembershipStripeError("PAYMENTS_DISABLED")
         if self.gateway is None:
             raise MembershipStripeError("STRIPE_CHECKOUT_DISABLED")
         if not await self.acknowledgements.has_current_risk(user_id):
@@ -99,6 +129,8 @@ class MembershipStripeService:
                         MembershipEntitlement.guild_id == guild_id,
                         MembershipEntitlement.discord_user_id == user_id,
                         MembershipEntitlement.entitlement_type == EntitlementType.MONTHLY.value,
+                        MembershipEntitlement.provider == "stripe",
+                        MembershipEntitlement.payment_environment == self.environment,
                         MembershipEntitlement.status.in_(ACCESS_STATUSES),
                         (
                             (MembershipEntitlement.status == EntitlementStatus.PAST_DUE.value)
@@ -115,6 +147,7 @@ class MembershipStripeService:
                     MembershipSession.guild_id == guild_id,
                     MembershipSession.discord_user_id == user_id,
                     MembershipSession.provider == "stripe",
+                    MembershipSession.payment_environment == self.environment,
                     MembershipSession.membership_type == plan_type,
                     MembershipSession.pricing_version == price.pricing_version,
                     MembershipSession.used_at.is_(None),
@@ -135,6 +168,7 @@ class MembershipStripeService:
                     guild_id=guild_id,
                     discord_user_id=user_id,
                     provider="stripe",
+                    payment_environment=self.environment,
                     membership_type=plan_type,
                     pricing_version=price.pricing_version,
                     membership_price_id=price.id,
@@ -173,6 +207,7 @@ class MembershipStripeService:
                     MembershipEntitlement.discord_user_id == user_id,
                     MembershipEntitlement.entitlement_type == EntitlementType.MONTHLY.value,
                     MembershipEntitlement.provider == "stripe",
+                    MembershipEntitlement.payment_environment == self.environment,
                     MembershipEntitlement.provider_customer_id.is_not(None),
                 )
                 .order_by(MembershipEntitlement.created_at.desc())
@@ -197,6 +232,7 @@ class MembershipStripeService:
                         MembershipEntitlement.discord_user_id == user_id,
                         MembershipEntitlement.entitlement_type == EntitlementType.MONTHLY.value,
                         MembershipEntitlement.provider == "stripe",
+                        MembershipEntitlement.payment_environment == self.environment,
                         MembershipEntitlement.provider_subscription_id.is_not(None),
                         MembershipEntitlement.status.in_(ACCESS_STATUSES),
                     )
@@ -224,6 +260,222 @@ class MembershipStripeService:
             raise MembershipStripeError(exc.code) from exc
         return True
 
+    async def reconcile_subscriptions(
+        self,
+        guild_id: int,
+        *,
+        actor_user_id: int,
+        apply: bool,
+    ) -> StripeReconciliationResult:
+        if self.gateway is None:
+            raise MembershipStripeError("STRIPE_RECONCILIATION_DISABLED")
+        try:
+            provider_rows = await self.gateway.list_subscriptions()
+        except StripeGatewayError as exc:
+            raise MembershipStripeError(exc.code) from exc
+        relevant = tuple(
+            item
+            for item in provider_rows
+            if item.metadata.get("environment") == self.mode.metadata_value
+        )
+        async with self.database.session() as session:
+            local_rows = list(
+                await session.scalars(
+                    select(MembershipEntitlement).where(
+                        MembershipEntitlement.guild_id == guild_id,
+                        MembershipEntitlement.entitlement_type == EntitlementType.MONTHLY.value,
+                        MembershipEntitlement.provider == "stripe",
+                        MembershipEntitlement.payment_environment == self.environment,
+                    )
+                )
+            )
+        local_by_subscription = {
+            item.provider_subscription_id: item
+            for item in local_rows
+            if item.provider_subscription_id
+        }
+        provider_ids = {item.id for item in relevant if item.id}
+        items: list[StripeReconciliationItem] = []
+        repaired = 0
+        for provider in relevant:
+            entitlement = local_by_subscription.get(provider.id)
+            if entitlement is None:
+                result = await self._reconcile_missing_entitlement(
+                    guild_id,
+                    provider,
+                    actor_user_id=actor_user_id,
+                    apply=apply,
+                )
+            else:
+                result = await self._reconcile_existing_entitlement(
+                    entitlement.id,
+                    provider,
+                    actor_user_id=actor_user_id,
+                    apply=apply,
+                )
+            items.append(result)
+            repaired += int(result.applied)
+        for entitlement in local_rows:
+            if (
+                entitlement.provider_subscription_id
+                and entitlement.provider_subscription_id not in provider_ids
+            ):
+                items.append(
+                    StripeReconciliationItem(
+                        entitlement.discord_user_id,
+                        "PROVIDER_SUBSCRIPTION_MISSING",
+                        False,
+                        await self._has_access(guild_id, entitlement.discord_user_id),
+                    )
+                )
+        return StripeReconciliationResult(
+            environment=self.environment,
+            provider_count=len(relevant),
+            local_count=len(local_rows),
+            repaired_count=repaired,
+            items=tuple(items),
+        )
+
+    async def _reconcile_missing_entitlement(
+        self,
+        guild_id: int,
+        provider: StripeSubscriptionSnapshot,
+        *,
+        actor_user_id: int,
+        apply: bool,
+    ) -> StripeReconciliationItem:
+        try:
+            user_id = _positive_int(provider.metadata.get("discord_user_id"))
+        except MembershipStripeError:
+            return StripeReconciliationItem(None, "CUSTOMER_MAPPING_MISSING", False, None)
+        pricing_version = provider.metadata.get("pricing_version", "")
+        expected_status = _reconciled_status(provider)
+        if expected_status == EntitlementStatus.CANCELLED.value:
+            return StripeReconciliationItem(
+                user_id,
+                "ENDED_SUBSCRIPTION_WITHOUT_LOCAL_MEMBERSHIP",
+                False,
+                await self._has_access(guild_id, user_id),
+            )
+        async with self.database.session() as session:
+            price = await session.scalar(
+                select(MembershipPrice).where(
+                    MembershipPrice.environment == self.environment,
+                    MembershipPrice.plan_type == MembershipPlanType.MONTHLY.value,
+                    MembershipPrice.pricing_version == pricing_version,
+                    MembershipPrice.is_active.is_(True),
+                )
+            )
+            if (
+                price is None
+                or not provider.price_id
+                or price.stripe_price_id != provider.price_id
+            ):
+                return StripeReconciliationItem(
+                    user_id,
+                    "PRICING_MAPPING_MISMATCH",
+                    False,
+                    await self._has_access(guild_id, user_id),
+                )
+            if apply:
+                entitlement = MembershipEntitlement(
+                    guild_id=guild_id,
+                    discord_user_id=user_id,
+                    entitlement_type=EntitlementType.MONTHLY.value,
+                    status=expected_status,
+                    starts_at=provider.created_at or utc_now(),
+                    ends_at=provider.current_period_end,
+                    membership_price_id=price.id,
+                    pricing_version=price.pricing_version,
+                    stripe_price_id=price.stripe_price_id,
+                    unit_amount_at_signup=price.unit_amount,
+                    currency=price.currency,
+                    provider="stripe",
+                    payment_environment=self.environment,
+                    provider_customer_id=provider.customer_id,
+                    provider_subscription_id=provider.id,
+                    cancel_at_period_end=provider.cancel_at_period_end,
+                    reason="stripe_reconciliation_recovery",
+                )
+                session.add(entitlement)
+                await session.flush()
+                self._audit(
+                    session,
+                    entitlement,
+                    "STRIPE_RECONCILIATION_CREATED",
+                    actor_user_id,
+                )
+                await session.commit()
+        return StripeReconciliationItem(
+            user_id,
+            "CREATE_MISSING_MEMBERSHIP",
+            apply,
+            await self._has_access(guild_id, user_id),
+        )
+
+    async def _reconcile_existing_entitlement(
+        self,
+        entitlement_id: uuid.UUID,
+        provider: StripeSubscriptionSnapshot,
+        *,
+        actor_user_id: int,
+        apply: bool,
+    ) -> StripeReconciliationItem:
+        expected_status = _reconciled_status(provider)
+        async with self.database.session() as session:
+            entitlement = await session.get(MembershipEntitlement, entitlement_id)
+            if entitlement is None:
+                return StripeReconciliationItem(None, "LOCAL_MEMBERSHIP_DISAPPEARED", False, None)
+            mismatch = (
+                entitlement.status != expected_status
+                or entitlement.cancel_at_period_end != provider.cancel_at_period_end
+                or (
+                    provider.customer_id is not None
+                    and entitlement.provider_customer_id != provider.customer_id
+                )
+                or (
+                    provider.current_period_end is not None
+                    and entitlement.ends_at != provider.current_period_end
+                )
+            )
+            price_mismatch = bool(
+                provider.price_id
+                and entitlement.stripe_price_id
+                and provider.price_id != entitlement.stripe_price_id
+            )
+            if not mismatch and not price_mismatch:
+                return StripeReconciliationItem(
+                    entitlement.discord_user_id,
+                    "CONSISTENT",
+                    False,
+                    await self._has_access(entitlement.guild_id, entitlement.discord_user_id),
+                )
+            if apply and mismatch:
+                entitlement.status = expected_status
+                entitlement.cancel_at_period_end = provider.cancel_at_period_end
+                entitlement.provider_customer_id = (
+                    provider.customer_id or entitlement.provider_customer_id
+                )
+                if expected_status == EntitlementStatus.CANCELLED.value:
+                    entitlement.ends_at = provider.current_period_end or utc_now()
+                elif provider.current_period_end is not None:
+                    entitlement.ends_at = provider.current_period_end
+                entitlement.version += 1
+                self._audit(
+                    session,
+                    entitlement,
+                    "STRIPE_RECONCILIATION_UPDATED",
+                    actor_user_id,
+                )
+                await session.commit()
+            action = "PRICE_MISMATCH" if price_mismatch else "UPDATE_MEMBERSHIP"
+            return StripeReconciliationItem(
+                entitlement.discord_user_id,
+                action,
+                apply and mismatch,
+                await self._has_access(entitlement.guild_id, entitlement.discord_user_id),
+            )
+
     async def process_webhook(
         self,
         guild_id: int,
@@ -233,6 +485,11 @@ class MembershipStripeService:
     ) -> StripeWebhookApplication:
         event_id = str(event.get("id") or "").strip()
         event_type = str(event.get("type") or "").strip()
+        livemode = event.get("livemode")
+        if not isinstance(livemode, bool):
+            raise MembershipStripeError("STRIPE_EVENT_LIVEMODE_REQUIRED")
+        if livemode is not self.mode.livemode:
+            raise MembershipStripeError("STRIPE_EVENT_ENVIRONMENT_MISMATCH")
         if not event_id:
             raise MembershipStripeError("STRIPE_EVENT_ID_REQUIRED")
         if event_type not in SUPPORTED_STRIPE_EVENTS:
@@ -274,6 +531,7 @@ class MembershipStripeService:
             existing = await session.scalar(
                 select(PaymentEvent).where(
                     PaymentEvent.provider == "stripe",
+                    PaymentEvent.environment == self.environment,
                     PaymentEvent.provider_event_id == event_id,
                 )
             )
@@ -285,6 +543,7 @@ class MembershipStripeService:
                 return existing, True
             stored = PaymentEvent(
                 provider="stripe",
+                environment=self.environment,
                 provider_event_id=event_id[:255],
                 event_type=event_type,
                 processing_status="PENDING",
@@ -297,6 +556,7 @@ class MembershipStripeService:
                 existing = await session.scalar(
                     select(PaymentEvent).where(
                         PaymentEvent.provider == "stripe",
+                        PaymentEvent.environment == self.environment,
                         PaymentEvent.provider_event_id == event_id,
                     )
                 )
@@ -375,10 +635,13 @@ class MembershipStripeService:
             raise MembershipStripeError("MEMBERSHIP_SESSION_NOT_FOUND")
         if membership_session.provider != "stripe":
             raise MembershipStripeError("MEMBERSHIP_SESSION_PROVIDER_MISMATCH")
+        if membership_session.payment_environment != self.environment:
+            raise MembershipStripeError("MEMBERSHIP_SESSION_ENVIRONMENT_MISMATCH")
         if membership_session.used_at is not None:
             existing = await session.scalar(
                 select(MembershipEntitlement).where(
                     MembershipEntitlement.provider == "stripe",
+                    MembershipEntitlement.payment_environment == self.environment,
                     MembershipEntitlement.provider_checkout_session_id == str(obj.get("id")),
                 )
             )
@@ -390,14 +653,20 @@ class MembershipStripeService:
         user_id = _positive_int(metadata.get("discord_user_id"))
         plan_type = str(metadata.get("membership_type") or "")
         pricing_version = str(metadata.get("pricing_version") or "")
+        metadata_environment = str(metadata.get("environment") or "")
         if (
             user_id != membership_session.discord_user_id
             or plan_type != membership_session.membership_type
             or pricing_version != membership_session.pricing_version
+            or metadata_environment != self.mode.metadata_value
         ):
             raise MembershipStripeError("MEMBERSHIP_SESSION_METADATA_MISMATCH")
         price = await session.get(MembershipPrice, membership_session.membership_price_id)
-        if price is None or price.pricing_version != pricing_version:
+        if (
+            price is None
+            or price.environment != self.environment
+            or price.pricing_version != pricing_version
+        ):
             raise MembershipStripeError("MEMBERSHIP_PRICE_NOT_FOUND")
         checkout_id = str(obj.get("id") or "")
         customer_id = _object_id(obj.get("customer"))
@@ -436,6 +705,7 @@ class MembershipStripeService:
         entitlement.unit_amount_at_signup = price.unit_amount
         entitlement.currency = price.currency
         entitlement.provider = "stripe"
+        entitlement.payment_environment = self.environment
         entitlement.provider_customer_id = customer_id
         entitlement.provider_checkout_session_id = checkout_id
         session.add(entitlement)
@@ -462,6 +732,7 @@ class MembershipStripeService:
             .where(
                 MembershipEntitlement.guild_id == guild_id,
                 MembershipEntitlement.provider == "stripe",
+                MembershipEntitlement.payment_environment == self.environment,
                 MembershipEntitlement.provider_subscription_id == subscription_id,
             )
             .with_for_update()
@@ -470,8 +741,14 @@ class MembershipStripeService:
             raise MembershipStripeError("STRIPE_SUBSCRIPTION_NOT_LINKED")
         period_end = _subscription_period_end(obj)
         if event_type == "invoice.paid":
-            entitlement.status = EntitlementStatus.ACTIVE.value
-            entitlement.cancel_at_period_end = False
+            # A final invoice can be paid after the customer has already chosen
+            # cancel-at-period-end. Payment success must not silently undo that
+            # scheduled cancellation.
+            entitlement.status = (
+                EntitlementStatus.CANCEL_AT_PERIOD_END.value
+                if entitlement.cancel_at_period_end
+                else EntitlementStatus.ACTIVE.value
+            )
             entitlement.ends_at = period_end or entitlement.ends_at
             action = "STRIPE_INVOICE_PAID"
         elif event_type == "invoice.payment_failed":
@@ -560,6 +837,7 @@ class MembershipStripeService:
                     "entitlement_type": entitlement.entitlement_type,
                     "status": entitlement.status,
                     "pricing_version": entitlement.pricing_version,
+                    "payment_environment": entitlement.payment_environment,
                     "ends_at": entitlement.ends_at.isoformat() if entitlement.ends_at else None,
                 },
             )
@@ -623,6 +901,20 @@ def _subscription_period_end(obj: dict[str, Any]) -> datetime | None:
         ]
         return max(values) if values else None
     return None
+
+
+def _reconciled_status(provider: StripeSubscriptionSnapshot) -> str:
+    if provider.status in {"active", "trialing"}:
+        return (
+            EntitlementStatus.CANCEL_AT_PERIOD_END.value
+            if provider.cancel_at_period_end
+            else EntitlementStatus.ACTIVE.value
+        )
+    if provider.status in {"past_due", "incomplete"}:
+        return EntitlementStatus.PAST_DUE.value
+    if provider.status in {"canceled", "unpaid", "incomplete_expired", "paused"}:
+        return EntitlementStatus.CANCELLED.value
+    raise MembershipStripeError("STRIPE_SUBSCRIPTION_STATUS_UNSUPPORTED")
 
 
 def _timestamp(value: Any) -> datetime | None:

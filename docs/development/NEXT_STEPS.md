@@ -1,17 +1,14 @@
 # AXIS Next Steps
 
-**Updated:** 2026-08-30
+**Updated:** 2026-08-31
 
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
 
-## Immediate Execution Lock — Soft Open Day 1
+## Production Data Lock
 
-`2026-08-31` 白天暂停所有新功能开发，只执行
-`SOFT_OPEN_DAY1_VALIDATION.md`：Signal Input → Review → Category / Mentor → Publish → History →
-Results Review → Daily Results，以及 Swing / LEAPS Summary、Short-Term Tracking 和 Public
-Privacy。Stripe / Payment / Membership Pricing 只能在白天 Gate 完成后的晚上作为独立工作流
-开始；不得提前混入白天验证。
+Soft Open Day 1 清单仍用于核心回归证据，但 Stripe 双环境基础工作已在独立边界内完成，未修改
+Signal System。当前不新增功能；只执行下面固定 Priority 的真实验收、外部配置和稳定化。
 
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
@@ -57,15 +54,22 @@ Exit criteria:
 
 Work:
 
-- 部署受限的公开 TLS webhook。
-- 创建 Live Product / Prices，所有 Secret 只进入部署 Secret Store。
+- 在 Stripe Dashboard 完成账户 activation、Live KYC、payout bank 和 customer-facing business profile。
+- 轮换 2026-08-31 审计中暴露的 Test secret key，再继续 Test 外部调用。
+- 准备 AXIS 控制的稳定 HTTPS 域名并部署受限的公开 `POST /webhooks/stripe`。
+- 用受保护脚本创建/复用 Live Product / Prices / webhook，所有 Secret 只进入部署 Secret Store。
+- 配置 Customer Portal period-end cancellation、support contact、privacy/refund/cancel 页面和有效
+  statement descriptor；`AXIS` 四字符不可直接使用，候选 `AXIS MEMBERSHIP` 待人工验证。
 - 验证 Day Pass、Monthly signup、renewal、failure、payment-method update 和 cancellation。
 - 验证 Customer Portal、Price Grandfathering、重复/乱序事件和公开隐私清单。
+- 在全部 Gate 通过前保持 `PAYMENTS_ENABLED=false`；先 Live mode + payments disabled 验证，再由
+  Owner 明确批准开启 Checkout。
 
 Exit criteria:
 
-- LIVE_MODE_CHECKLIST.md 的 Stripe Live 项全部完成。
-- Owner 明确批准后才从 Test Mode 切换到 Live。
+- `scripts/verify_stripe_live_readiness.py` 和 LIVE_MODE_CHECKLIST.md 的 Stripe Live 项全部 PASS。
+- Owner 自行完成第一笔真实付款与 lifecycle 验收；不得由自动化制造 Live 假付款。
+- Owner 明确批准后才设 `PAYMENTS_ENABLED=true`。
 
 ## Priority 4 — Real Mentor Analysis Fusion / Prediction Chart UX Validation
 

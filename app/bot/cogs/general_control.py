@@ -228,6 +228,10 @@ class GeneralControlCog(commands.Cog):
                 "MONTHLY_ALREADY_ACTIVE": (
                     "该 Discord 账户已有有效 Monthly，请使用 Manage Membership。"
                 ),
+                "PAYMENTS_DISABLED": (
+                    "AXIS membership checkout is temporarily unavailable.\n"
+                    "Please try again later."
+                ),
                 "STRIPE_CHECKOUT_DISABLED": "Stripe Checkout 仍处于安全禁用状态。",
                 "STRIPE_PRICE_NOT_CONFIGURED": "Stripe Price 尚未完成配置。",
             }

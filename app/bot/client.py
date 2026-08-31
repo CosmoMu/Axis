@@ -164,6 +164,7 @@ class AxisBot(commands.Bot):
             gateway=stripe_gateway,
             payment_service=membership_stripe_service,
             sync_role=self._manager_control_cog.sync_member_role,
+            reconciliation_minutes=settings.stripe_reconciliation_minutes,
         )
         self._card_testing_cog = CardTestingCog(
             self,

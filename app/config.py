@@ -9,9 +9,23 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
+from app.integrations.stripe_config import (
+    StripeConfig,
+    StripeEnvironmentConfig,
+    StripeMode,
+)
+
 
 class ConfigurationError(RuntimeError):
     """Raised when runtime configuration is absent or unsafe."""
+
+
+def _parse_stripe_mode(name: str = "STRIPE_MODE") -> StripeMode:
+    raw = os.getenv(name, StripeMode.TEST.value)
+    try:
+        return StripeMode.parse(raw)
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} must be test or live.") from exc
 
 
 def _parse_bool(name: str, default: bool) -> bool:
@@ -163,18 +177,36 @@ class Settings:
     payment_webhook_secret: str = ""
     membership_session_ttl_minutes: int = 30
     system_alert_check_seconds: int = 30
+    stripe_reconciliation_minutes: int = 15
     stripe_enabled: bool = False
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    stripe_success_url: str | None = None
-    stripe_cancel_url: str | None = None
-    stripe_portal_return_url: str | None = None
-    stripe_day_pass_product_id: str | None = None
-    stripe_day_pass_price_id: str | None = None
-    stripe_day_pass_pricing_version: str = "DAY_PASS_V1"
-    stripe_monthly_product_id: str | None = None
-    stripe_monthly_price_id: str | None = None
-    stripe_monthly_pricing_version: str = "MONTHLY_V1"
+    payments_enabled: bool = False
+    stripe_mode: StripeMode = StripeMode.TEST
+    stripe_test_secret_key: str = ""
+    stripe_test_publishable_key: str = ""
+    stripe_test_webhook_secret: str = ""
+    stripe_test_webhook_url: str | None = None
+    stripe_test_success_url: str | None = None
+    stripe_test_cancel_url: str | None = None
+    stripe_test_portal_return_url: str | None = None
+    stripe_test_day_pass_product_id: str | None = None
+    stripe_test_day_pass_price_id: str | None = None
+    stripe_test_day_pass_pricing_version: str = "DAY_PASS_V1"
+    stripe_test_monthly_product_id: str | None = None
+    stripe_test_monthly_price_id: str | None = None
+    stripe_test_monthly_pricing_version: str = "MONTHLY_V1"
+    stripe_live_secret_key: str = ""
+    stripe_live_publishable_key: str = ""
+    stripe_live_webhook_secret: str = ""
+    stripe_live_webhook_url: str | None = None
+    stripe_live_success_url: str | None = None
+    stripe_live_cancel_url: str | None = None
+    stripe_live_portal_return_url: str | None = None
+    stripe_live_day_pass_product_id: str | None = None
+    stripe_live_day_pass_price_id: str | None = None
+    stripe_live_day_pass_pricing_version: str = "DAY_PASS_V1"
+    stripe_live_monthly_product_id: str | None = None
+    stripe_live_monthly_price_id: str | None = None
+    stripe_live_monthly_pricing_version: str = "MONTHLY_V1"
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -287,23 +319,100 @@ class Settings:
                 "MEMBERSHIP_SESSION_TTL_MINUTES", 30
             ),
             system_alert_check_seconds=_parse_positive_int("SYSTEM_ALERT_CHECK_SECONDS", 30),
+            stripe_reconciliation_minutes=_parse_positive_int(
+                "STRIPE_RECONCILIATION_MINUTES", 15
+            ),
             stripe_enabled=_parse_bool("STRIPE_ENABLED", False),
-            stripe_secret_key=os.getenv("STRIPE_SECRET_KEY", "").strip(),
-            stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET", "").strip(),
-            stripe_success_url=_parse_optional_url("STRIPE_SUCCESS_URL"),
-            stripe_cancel_url=_parse_optional_url("STRIPE_CANCEL_URL"),
-            stripe_portal_return_url=_parse_optional_url("STRIPE_PORTAL_RETURN_URL"),
-            stripe_day_pass_product_id=(
-                os.getenv("STRIPE_DAY_PASS_PRODUCT_ID", "").strip() or None
+            payments_enabled=_parse_bool("PAYMENTS_ENABLED", False),
+            stripe_mode=_parse_stripe_mode(),
+            # Legacy STRIPE_* aliases are accepted for TEST only. LIVE never falls back
+            # to a shared credential or identifier.
+            stripe_test_secret_key=(
+                os.getenv("STRIPE_TEST_SECRET_KEY", "").strip()
+                or os.getenv("STRIPE_SECRET_KEY", "").strip()
             ),
-            stripe_day_pass_price_id=(os.getenv("STRIPE_DAY_PASS_PRICE_ID", "").strip() or None),
-            stripe_day_pass_pricing_version=(
-                os.getenv("STRIPE_DAY_PASS_PRICING_VERSION", "DAY_PASS_V1").strip() or "DAY_PASS_V1"
+            stripe_test_publishable_key=os.getenv(
+                "STRIPE_TEST_PUBLISHABLE_KEY", ""
+            ).strip(),
+            stripe_test_webhook_secret=(
+                os.getenv("STRIPE_TEST_WEBHOOK_SECRET", "").strip()
+                or os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
             ),
-            stripe_monthly_product_id=(os.getenv("STRIPE_MONTHLY_PRODUCT_ID", "").strip() or None),
-            stripe_monthly_price_id=(os.getenv("STRIPE_MONTHLY_PRICE_ID", "").strip() or None),
-            stripe_monthly_pricing_version=(
-                os.getenv("STRIPE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip() or "MONTHLY_V1"
+            stripe_test_webhook_url=_parse_optional_url("STRIPE_TEST_WEBHOOK_URL"),
+            stripe_test_success_url=(
+                _parse_optional_url("STRIPE_TEST_SUCCESS_URL")
+                or _parse_optional_url("STRIPE_SUCCESS_URL")
+            ),
+            stripe_test_cancel_url=(
+                _parse_optional_url("STRIPE_TEST_CANCEL_URL")
+                or _parse_optional_url("STRIPE_CANCEL_URL")
+            ),
+            stripe_test_portal_return_url=(
+                _parse_optional_url("STRIPE_TEST_PORTAL_RETURN_URL")
+                or _parse_optional_url("STRIPE_PORTAL_RETURN_URL")
+            ),
+            stripe_test_day_pass_product_id=(
+                os.getenv("STRIPE_TEST_DAY_PASS_PRODUCT_ID", "").strip()
+                or os.getenv("STRIPE_DAY_PASS_PRODUCT_ID", "").strip()
+                or None
+            ),
+            stripe_test_day_pass_price_id=(
+                os.getenv("STRIPE_TEST_DAY_PASS_PRICE_ID", "").strip()
+                or os.getenv("STRIPE_DAY_PASS_PRICE_ID", "").strip()
+                or None
+            ),
+            stripe_test_day_pass_pricing_version=(
+                os.getenv("STRIPE_TEST_DAY_PASS_PRICING_VERSION", "").strip()
+                or os.getenv("STRIPE_DAY_PASS_PRICING_VERSION", "DAY_PASS_V1").strip()
+                or "DAY_PASS_V1"
+            ),
+            stripe_test_monthly_product_id=(
+                os.getenv("STRIPE_TEST_MONTHLY_PRODUCT_ID", "").strip()
+                or os.getenv("STRIPE_MONTHLY_PRODUCT_ID", "").strip()
+                or None
+            ),
+            stripe_test_monthly_price_id=(
+                os.getenv("STRIPE_TEST_MONTHLY_PRICE_ID", "").strip()
+                or os.getenv("STRIPE_MONTHLY_PRICE_ID", "").strip()
+                or None
+            ),
+            stripe_test_monthly_pricing_version=(
+                os.getenv("STRIPE_TEST_MONTHLY_PRICING_VERSION", "").strip()
+                or os.getenv("STRIPE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
+                or "MONTHLY_V1"
+            ),
+            stripe_live_secret_key=os.getenv("STRIPE_LIVE_SECRET_KEY", "").strip(),
+            stripe_live_publishable_key=os.getenv(
+                "STRIPE_LIVE_PUBLISHABLE_KEY", ""
+            ).strip(),
+            stripe_live_webhook_secret=os.getenv(
+                "STRIPE_LIVE_WEBHOOK_SECRET", ""
+            ).strip(),
+            stripe_live_webhook_url=_parse_optional_url("STRIPE_LIVE_WEBHOOK_URL"),
+            stripe_live_success_url=_parse_optional_url("STRIPE_LIVE_SUCCESS_URL"),
+            stripe_live_cancel_url=_parse_optional_url("STRIPE_LIVE_CANCEL_URL"),
+            stripe_live_portal_return_url=_parse_optional_url(
+                "STRIPE_LIVE_PORTAL_RETURN_URL"
+            ),
+            stripe_live_day_pass_product_id=(
+                os.getenv("STRIPE_LIVE_DAY_PASS_PRODUCT_ID", "").strip() or None
+            ),
+            stripe_live_day_pass_price_id=(
+                os.getenv("STRIPE_LIVE_DAY_PASS_PRICE_ID", "").strip() or None
+            ),
+            stripe_live_day_pass_pricing_version=(
+                os.getenv("STRIPE_LIVE_DAY_PASS_PRICING_VERSION", "DAY_PASS_V1").strip()
+                or "DAY_PASS_V1"
+            ),
+            stripe_live_monthly_product_id=(
+                os.getenv("STRIPE_LIVE_MONTHLY_PRODUCT_ID", "").strip() or None
+            ),
+            stripe_live_monthly_price_id=(
+                os.getenv("STRIPE_LIVE_MONTHLY_PRICE_ID", "").strip() or None
+            ),
+            stripe_live_monthly_pricing_version=(
+                os.getenv("STRIPE_LIVE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
+                or "MONTHLY_V1"
             ),
         )
 
@@ -348,16 +457,37 @@ class Settings:
                 "当前规格禁止启动 AXIS LAB / Model A-B / Moomoo；请将三个开关保持 false。"
             )
 
-    def stripe_configuration_ready(self) -> bool:
-        required = (
-            self.stripe_secret_key,
-            self.stripe_webhook_secret,
-            self.stripe_success_url,
-            self.stripe_cancel_url,
-            self.stripe_portal_return_url,
-            self.stripe_day_pass_product_id,
-            self.stripe_day_pass_price_id,
-            self.stripe_monthly_product_id,
-            self.stripe_monthly_price_id,
+    def stripe_config(self) -> StripeConfig:
+        def environment(mode: StripeMode) -> StripeEnvironmentConfig:
+            prefix = "stripe_live" if mode is StripeMode.LIVE else "stripe_test"
+            return StripeEnvironmentConfig(
+                mode=mode,
+                secret_key=getattr(self, f"{prefix}_secret_key"),
+                publishable_key=getattr(self, f"{prefix}_publishable_key"),
+                webhook_secret=getattr(self, f"{prefix}_webhook_secret"),
+                webhook_url=getattr(self, f"{prefix}_webhook_url"),
+                success_url=getattr(self, f"{prefix}_success_url"),
+                cancel_url=getattr(self, f"{prefix}_cancel_url"),
+                portal_return_url=getattr(self, f"{prefix}_portal_return_url"),
+                day_pass_product_id=getattr(self, f"{prefix}_day_pass_product_id"),
+                day_pass_price_id=getattr(self, f"{prefix}_day_pass_price_id"),
+                day_pass_pricing_version=getattr(
+                    self, f"{prefix}_day_pass_pricing_version"
+                ),
+                monthly_product_id=getattr(self, f"{prefix}_monthly_product_id"),
+                monthly_price_id=getattr(self, f"{prefix}_monthly_price_id"),
+                monthly_pricing_version=getattr(
+                    self, f"{prefix}_monthly_pricing_version"
+                ),
+            )
+
+        return StripeConfig(
+            enabled=self.stripe_enabled,
+            payments_enabled=self.payments_enabled,
+            mode=self.stripe_mode,
+            test=environment(StripeMode.TEST),
+            live=environment(StripeMode.LIVE),
         )
-        return self.stripe_enabled and all(required)
+
+    def stripe_configuration_ready(self) -> bool:
+        return self.stripe_config().runtime_ready()

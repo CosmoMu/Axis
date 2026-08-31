@@ -162,8 +162,12 @@ class MembershipAcknowledgementService:
 
 
 class MembershipPriceCatalog:
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, *, environment: str = "TEST") -> None:
+        normalized = environment.strip().upper()
+        if normalized not in {"TEST", "LIVE"}:
+            raise MembershipAccessError("PAYMENT_ENVIRONMENT_INVALID")
         self.database = database
+        self.environment = normalized
 
     async def current(self, plan_type: str) -> PriceSnapshot:
         if plan_type not in {item.value for item in MembershipPlanType}:
@@ -171,6 +175,7 @@ class MembershipPriceCatalog:
         async with self.database.session() as session:
             price = await session.scalar(
                 select(MembershipPrice).where(
+                    MembershipPrice.environment == self.environment,
                     MembershipPrice.plan_type == plan_type,
                     MembershipPrice.is_current.is_(True),
                     MembershipPrice.is_active.is_(True),
@@ -185,6 +190,7 @@ class MembershipPriceCatalog:
             prices = (
                 await session.scalars(
                     select(MembershipPrice).where(
+                        MembershipPrice.environment == self.environment,
                         MembershipPrice.is_current.is_(True),
                         MembershipPrice.is_active.is_(True),
                     )
@@ -206,6 +212,7 @@ class MembershipPriceCatalog:
             price = await session.scalar(
                 select(MembershipPrice)
                 .where(
+                    MembershipPrice.environment == self.environment,
                     MembershipPrice.plan_type == plan_type,
                     MembershipPrice.pricing_version == pricing_version,
                 )

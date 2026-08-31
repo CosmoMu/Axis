@@ -1,6 +1,6 @@
 # AXIS Implemented Features
 
-**Updated:** 2026-08-30
+**Updated:** 2026-08-31
 
 本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
 LIVE_MODE_CHECKLIST.md 为准。
@@ -18,8 +18,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0022；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
-  0021 增加期权到期日解析 trace，0022 增加 Daily Results Review 配置与持久化 Review Item。
+- Alembic revisions 0001–0024；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+  0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
+  Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -110,12 +111,17 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 ## Stripe
 
-- 数据库驱动的 Product / Price Catalog。
+- Test / Live 独立配置、Secret、URL、Product/Price binding 和数据库 namespace；Live 不回退 Test。
+- `STRIPE_MODE` 环境选择和 `PAYMENTS_ENABLED` Checkout kill switch。
+- 数据库驱动的 immutable Product / Price Catalog、V2 create/switch/rollback 和 signup snapshot。
 - 动态 Checkout Session 和 Customer Portal。
-- Stripe 签名 Webhook 和 provider event 幂等。
+- Stripe 签名 Webhook、严格 `event.livemode` / metadata environment 检查和环境级 provider event 幂等。
 - 最小事件存储，不保留完整支付 payload。
 - Checkout metadata 绑定 Discord User ID。
-- 不可变价格快照和 Price Grandfathering。
+- Price Grandfathering：切换 current 不自动迁移既有 Monthly subscription。
+- `MembershipAccessService` 统一访问决策；Discord Member Role 只是投影。
+- 15 分钟 Stripe/Entitlement reconciliation、受控 repair 与 Owner-only mismatch/failure alert。
+- 受保护的 Live resource setup/readiness verifier、secret-safe dual env migration 和完整 Payment runbook。
 - Day Pass 与 Monthly Stripe Test Mode E2E 工具。
 
 ## GENERAL

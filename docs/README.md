@@ -5,9 +5,9 @@ docs/config-reference/ 是只读镜像，并由测试保证与运行时配置一
 
 ## 目录结构
 
-- current/ — 当前有效的六份核心规格。
+- current/ — 当前有效的七份核心规格和 Codex 入口。
 - development/ — 当前状态、功能清单、已知问题、测试结果、下一步、Soft Open Day 1 和 Live 清单。
-- operations/ — Bootstrap、数据库、部署、Daily Results Review、会员、Stripe、备份与恢复手册。
+- operations/ — Bootstrap、数据库、部署、Daily Results Review、会员、Stripe Payment、备份与恢复手册。
 - migration/ — v1 → v2 审计和迁移计划；保留实施历史。
 - config-reference/ — config/ 的文档镜像。
 - archive/v1/ — v1 历史规格。

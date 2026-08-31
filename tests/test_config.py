@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.config import ConfigurationError, Settings
+from app.integrations.stripe_config import StripeMode
 
 
 def settings(*, apply_changes: bool, dry_run: bool) -> Settings:
@@ -134,16 +135,36 @@ def test_stripe_requires_complete_dynamic_checkout_configuration() -> None:
     ready = replace(
         configured,
         stripe_enabled=True,
-        stripe_secret_key="test-only",
-        stripe_webhook_secret="test-only",
-        stripe_success_url="https://axis.example/success",
-        stripe_cancel_url="https://axis.example/cancel",
-        stripe_portal_return_url="https://axis.example/account",
-        stripe_day_pass_product_id="prod_day_test",
-        stripe_day_pass_price_id="price_day_test",
-        stripe_monthly_product_id="prod_monthly_test",
-        stripe_monthly_price_id="price_monthly_test",
+        stripe_test_secret_key="sk_test_placeholder",
+        stripe_test_publishable_key="pk_test_placeholder",
+        stripe_test_webhook_secret="whsec_placeholder",
+        stripe_test_success_url="https://axis.example/success",
+        stripe_test_cancel_url="https://axis.example/cancel",
+        stripe_test_portal_return_url="https://axis.example/account",
+        stripe_test_day_pass_product_id="prod_axis_test",
+        stripe_test_day_pass_price_id="price_day_test",
+        stripe_test_monthly_product_id="prod_axis_test",
+        stripe_test_monthly_price_id="price_monthly_test",
     )
     assert ready.stripe_configuration_ready()
+    assert ready.stripe_config().active.mode is StripeMode.TEST
 
-    assert not replace(ready, stripe_day_pass_product_id=None).stripe_configuration_ready()
+    assert not replace(
+        ready, stripe_test_day_pass_product_id=None
+    ).stripe_configuration_ready()
+
+
+def test_stripe_live_never_falls_back_to_test_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
+    monkeypatch.setenv("STRIPE_ENABLED", "true")
+    monkeypatch.setenv("STRIPE_MODE", "live")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_legacy")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_legacy")
+    loaded = Settings.load(Path("/tmp/axis-test"))
+    stripe_config = loaded.stripe_config()
+    assert stripe_config.mode is StripeMode.LIVE
+    assert stripe_config.test.secret_key == "sk_test_legacy"
+    assert stripe_config.live.secret_key == ""
+    assert not stripe_config.runtime_ready()

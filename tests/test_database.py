@@ -99,6 +99,10 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "provider_customer_id",
         "provider_subscription_id",
     } <= set(memberships.columns.keys())
+    assert "environment" in Base.metadata.tables["membership_prices"].columns
+    assert "payment_environment" in Base.metadata.tables["membership_entitlements"].columns
+    assert "payment_environment" in Base.metadata.tables["membership_sessions"].columns
+    assert "environment" in Base.metadata.tables["payment_events"].columns
     assert "source_kind" in Base.metadata.tables["source_messages"].columns
     assert "moomoo_option_code" in Base.metadata.tables["trades"].columns
     for column in (

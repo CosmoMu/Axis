@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-08-30
+**Updated:** 2026-08-31
 
-**Current stage:** Soft Open Day 1 / Core validation freeze
+**Current stage:** Production stabilization / Stripe external activation blocked
 
-**Database revision:** 20260830_0022
+**Database revision:** 20260831_0024
 
 **AXIS LAB:** DEFERRED
 
@@ -19,14 +19,16 @@
 
 Core Gate A 和 Analysis Gate B 已通过。Pre-Soft-Open backup、测试数据清理、公开编号复位与
 Discord 消息清理已完成；`2026-08-31` 起真实输入是永久 Production Data。Daily Results Review
-已部署并通过自动化及 runtime 验证。Stripe Test Mode 已完成 Day Pass / Monthly 付款验收。
+已部署并通过自动化及 runtime 验证。Stripe Test Mode 已完成历史 Day Pass / Monthly 付款验收；
+Test / Live 配置与数据库 namespace、不可变价格版本、严格 `livemode` 验证、reconciliation 和
+kill switch 已完成并迁移。Dashboard 核验显示账户激活/KYC 尚未完成，Live 外部资源与真实
+付款均未验收，因此 `PAYMENTS_ENABLED=false`，不能宣称 Production Enabled。
 当前最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
 Massive quote、TP/Protection 触发和正式交易日 Discord E2E 仍未验收。
 
-Next execution boundary: 2026-08-31 白天只验证 Signal Input / Review / Publish、Mentor Flow、
-Results Review、Daily Results、Swing / LEAPS Summary、Short-Term Tracking、History 与 Public
-Privacy。禁止白天开始 Payment、AXIS LAB、Prediction Chart、新 Analysis 或新 Tracking 策略；
-执行清单见 `SOFT_OPEN_DAY1_VALIDATION.md`。
+Next execution boundary: 不新增产品功能。继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
+完成 Test key 轮换、账户 activation/KYC、稳定 HTTPS endpoint、Live resources/Portal/公开资料和
+真实首笔付款。AXIS LAB 继续 Deferred，Signal / Analysis / Tracking 业务逻辑保持冻结。
 
 ## Soft Open Boundary — COMPLETE
 
@@ -47,7 +49,9 @@ Remaining: 生产故障演练与长期运行观测。
 
 Tests: Blueprint、权限矩阵、unknown-resource safety、重启恢复和只读 runtime verifier。
 
-Production status: Bot 正在目标 Guild 运行；最近盘点未发现结构漂移。
+Production status: Bot 正在目标 Guild 运行。2026-08-31 只读验证发现唯一权限漂移：
+`member-wins` 的 `@everyone` 可发消息/附件；严格 Bootstrap apply 被 Discord 403 拒绝，未发生
+写入。需要 Owner 临时授权或在 UI 手动修复后复验。
 
 ## Signal Pipeline — COMPLETE
 
@@ -151,41 +155,55 @@ Tests: 周末、休市日、重复申请、到期和多 Entitlement。
 Production status: 代码已部署；Reset 已清除开发阶段 Trial。当前唯一 entitlement 来自真实
 Discord Member Role reconciliation，不是 Fake Trial 或 Stripe Test membership。
 
-## Day Pass — PARTIAL
+## Day Pass — CODE COMPLETE / LIVE EXTERNAL BLOCKED
 
 Implemented: XNYS 一个交易日、动态 Checkout、payment event dedup 和 Role 同步。
 
-Remaining: Stripe Live Product / Price / webhook 与真实付款验收。
+Remaining: Stripe account activation、Live Product / Price / HTTPS webhook 与真实付款验收。
 
 Tests: 自动化及 Stripe Test Mode checkout.session.completed E2E。
 
 Production status: Test Mode 已通过；Live 未启用。
 
-## Monthly — PARTIAL
+## Monthly — CODE COMPLETE / LIVE EXTERNAL BLOCKED
 
 Implemented: 自动续费订阅、invoice lifecycle、cancel-at-period-end、PAST_DUE 和 Portal。
 
-Remaining: Live renewal、payment failure、payment-method update、cancel 和重复 webhook 验收。
+Remaining: Live Product/Price/Portal，以及真实 renewal、payment failure、payment-method update、
+cancel 和重复 webhook 验收。
 
 Tests: 自动化及 Test Mode signup / invoice replay。
 
 Production status: Test Mode 已通过；Live 未启用。
 
-## Stripe Integration — PARTIAL
+## Stripe Payment — LIVE-READY FOUNDATION / EXTERNAL ACTIVATION BLOCKED
 
-Implemented: 动态 Checkout / Portal、签名 Webhook、最小 payment event 存储、幂等、价格快照。
+Implemented: 动态 Checkout / Portal；Test / Live 独立 Secret、URL、Product、Price 与 database
+namespace；`STRIPE_MODE`；`PAYMENTS_ENABLED` kill switch；签名 Webhook；严格 `event.livemode` +
+metadata environment 验证；environment-scoped dedup；最小 payment event；不可变价格版本与
+signup snapshot；grandfathering；15 分钟对账、受控修复和 Owner-only mismatch alert；受保护的
+Live resource setup/readiness verifier；完整 Payment 运维手册。
 
-Remaining: 公开 TLS webhook、Live keys / products / prices、Live events、法律商家资料和隐私检查。
+Remaining: Stripe account activation/KYC/bank、Live key、Product/Prices、稳定公开 TLS webhook、
+Live signing secret、Customer Portal、customer-facing business name、支持联系方式、合法 statement
+descriptor、隐私/退款/取消页面和真实首笔付款。`AXIS` 只有四字符，不满足完整 descriptor 的
+5–22 字符要求；候选 `AXIS MEMBERSHIP` 待 Dashboard 人工验证。Test key 在 2026-08-31 只读
+Dashboard 审计时出现在受限工具输出中，下一次 Test 外部调用前必须轮换。
 
-Tests: 单元/集成测试和 Test Mode 外部 verifier。
+Tests: 单元/集成、Test 历史外部 verifier、dual-mode fallback rejection、kill switch、livemode
+mismatch-before-reservation、environment dedup、价格版本/grandfathering 和 reconciliation repair。
 
-Production status: STRIPE_ENABLED=true 指向 Test Mode；不得解释为 Live billing。
+Production status: `STRIPE_ENABLED=false`、`STRIPE_MODE=test`、`PAYMENTS_ENABLED=false`，旧 Test
+listener 已停止并禁用。数据库 revision 0024；TEST V1
+两条 Price 已绑定，LIVE V1 两条 catalog 记录未绑定 Stripe ID。Stripe Dashboard 显示账户仍需
+继续激活支付功能；没有执行 Live 付款，不得解释为 Live billing。
 
-## Price Grandfathering — PARTIAL
+## Price Grandfathering — CODE COMPLETE / LIVE E2E PENDING
 
-Implemented: entitlement 保存不可变 Price snapshot，既有订阅不因 catalog 更新被覆盖。
+Implemented: entitlement 保存不可变 Price snapshot；catalog 按 Test / Live 和版本隔离；管理工具
+支持 create、switch current 与 rollback；既有订阅不因 catalog 更新被覆盖。
 
-Remaining: 在 Stripe Test/Live 创建新 Price 后完成真实 grandfathering 演练。
+Remaining: Live 创建 V2 Price 后完成真实 grandfathering 演练。
 
 Tests: 自动化覆盖。
 

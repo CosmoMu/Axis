@@ -1056,12 +1056,21 @@ class MembershipEvent(UuidPrimaryKeyMixin, Base):
 class MembershipPrice(UuidPrimaryKeyMixin, Base):
     __tablename__ = "membership_prices"
     __table_args__ = (
-        UniqueConstraint("plan_type", "pricing_version", name="membership_price_version"),
-        UniqueConstraint("stripe_price_id", name="membership_stripe_price"),
+        UniqueConstraint(
+            "environment",
+            "plan_type",
+            "pricing_version",
+            name="membership_price_environment_version",
+        ),
+        UniqueConstraint(
+            "environment", "stripe_price_id", name="membership_environment_stripe_price"
+        ),
         CheckConstraint(enum_check("plan_type", MembershipPlanType), name="membership_price_plan"),
+        CheckConstraint("environment IN ('TEST','LIVE')", name="membership_price_environment"),
         CheckConstraint("unit_amount >= 0", name="membership_price_amount_nonnegative"),
     )
 
+    environment: Mapped[str] = mapped_column(String(8), default="TEST", nullable=False, index=True)
     plan_type: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     pricing_version: Mapped[str] = mapped_column(String(40), nullable=False)
     stripe_product_id: Mapped[str | None] = mapped_column(String(255))
@@ -1109,16 +1118,26 @@ class MembershipEntitlement(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "membership_entitlements"
     __table_args__ = (
         UniqueConstraint(
-            "provider", "provider_subscription_id", name="entitlement_provider_subscription"
+            "provider",
+            "payment_environment",
+            "provider_subscription_id",
+            name="entitlement_provider_environment_subscription",
         ),
         UniqueConstraint(
-            "provider", "provider_checkout_session_id", name="entitlement_provider_checkout"
+            "provider",
+            "payment_environment",
+            "provider_checkout_session_id",
+            name="entitlement_provider_environment_checkout",
         ),
         CheckConstraint(enum_check("entitlement_type", EntitlementType), name="entitlement_type"),
         CheckConstraint(enum_check("status", EntitlementStatus), name="entitlement_status"),
         CheckConstraint(
             "unit_amount_at_signup IS NULL OR unit_amount_at_signup >= 0",
             name="entitlement_amount_nonnegative",
+        ),
+        CheckConstraint(
+            "payment_environment IS NULL OR payment_environment IN ('TEST','LIVE')",
+            name="entitlement_payment_environment",
         ),
         Index("ix_entitlements_user_status", "guild_id", "discord_user_id", "status"),
     )
@@ -1141,6 +1160,7 @@ class MembershipEntitlement(UuidPrimaryKeyMixin, TimestampMixin, Base):
     unit_amount_at_signup: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str | None] = mapped_column(String(3))
     provider: Mapped[str | None] = mapped_column(String(32))
+    payment_environment: Mapped[str | None] = mapped_column(String(8), index=True)
     provider_customer_id: Mapped[str | None] = mapped_column(String(255), index=True)
     provider_subscription_id: Mapped[str | None] = mapped_column(String(255), index=True)
     provider_checkout_session_id: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -1186,11 +1206,15 @@ class MembershipTrial(UuidPrimaryKeyMixin, Base):
 class PaymentEvent(UuidPrimaryKeyMixin, Base):
     __tablename__ = "payment_events"
     __table_args__ = (
-        UniqueConstraint("provider", "provider_event_id", name="payment_event_provider_id"),
+        UniqueConstraint(
+            "provider", "environment", "provider_event_id", name="payment_event_environment_id"
+        ),
+        CheckConstraint("environment IN ('TEST','LIVE')", name="payment_event_environment"),
         Index("ix_payment_events_user_created", "discord_user_id", "created_at"),
     )
 
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    environment: Mapped[str] = mapped_column(String(8), default="TEST", nullable=False, index=True)
     provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
     event_type: Mapped[str] = mapped_column(String(80), nullable=False)
     discord_user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
@@ -1227,7 +1251,17 @@ class Subscription(UuidPrimaryKeyMixin, TimestampMixin, Base):
 class MembershipSession(Base):
     __tablename__ = "membership_sessions"
     __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "payment_environment",
+            "provider_checkout_session_id",
+            name="membership_session_environment_checkout",
+        ),
         Index("ix_membership_sessions_user_created", "discord_user_id", "created_at"),
+        CheckConstraint(
+            "payment_environment IS NULL OR payment_environment IN ('TEST','LIVE')",
+            name="membership_session_payment_environment",
+        ),
     )
 
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -1236,12 +1270,13 @@ class MembershipSession(Base):
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    payment_environment: Mapped[str | None] = mapped_column(String(8), index=True)
     membership_type: Mapped[str | None] = mapped_column(String(24))
     pricing_version: Mapped[str | None] = mapped_column(String(40))
     membership_price_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("membership_prices.id", ondelete="RESTRICT"), index=True
     )
-    provider_checkout_session_id: Mapped[str | None] = mapped_column(String(255), unique=True)
+    provider_checkout_session_id: Mapped[str | None] = mapped_column(String(255))
     checkout_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")

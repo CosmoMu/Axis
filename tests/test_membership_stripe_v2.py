@@ -5,6 +5,7 @@ import hmac
 import json
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -20,7 +21,12 @@ from app.db.models import (
 from app.db.session import Database
 from app.domain.enums import EntitlementStatus, MembershipExtensionType, MembershipPlanType
 from app.domain.public_identity import PublicIdentityPolicy
-from app.integrations.stripe_gateway import StripeCheckout, StripeSdkGateway
+from app.integrations.stripe_config import StripeMode
+from app.integrations.stripe_gateway import (
+    StripeCheckout,
+    StripeSdkGateway,
+    StripeSubscriptionSnapshot,
+)
 from app.services.membership_access import (
     MembershipAccessService,
     MembershipAcknowledgementService,
@@ -39,6 +45,7 @@ class FakeStripeGateway:
         self.portal_customers: list[str] = []
         self.period_end_cancellations: list[str] = []
         self.immediate_cancellations: list[str] = []
+        self.subscriptions: tuple[StripeSubscriptionSnapshot, ...] = ()
 
     async def create_checkout(self, **kwargs: Any) -> StripeCheckout:
         self.checkout_calls.append(kwargs)
@@ -54,6 +61,9 @@ class FakeStripeGateway:
 
     async def cancel_subscription(self, *, subscription_id: str) -> None:
         self.immediate_cancellations.append(subscription_id)
+
+    async def list_subscriptions(self) -> tuple[StripeSubscriptionSnapshot, ...]:
+        return self.subscriptions
 
     def construct_event(self, body: bytes, signature: str | None) -> dict[str, Any]:
         return json.loads(body)
@@ -124,6 +134,7 @@ def checkout_event(
 ) -> dict[str, Any]:
     return {
         "id": event_id,
+        "livemode": False,
         "type": "checkout.session.completed",
         "created": int(time.time()),
         "data": {
@@ -139,6 +150,7 @@ def checkout_event(
                     "membership_type": plan_type,
                     "pricing_version": call["pricing_version"],
                     "membership_session_id": call["membership_session_id"],
+                    "environment": "TEST",
                 },
             }
         },
@@ -175,6 +187,7 @@ async def test_day_pass_checkout_duplicate_click_webhook_and_idempotency() -> No
         assert event_count == 1
         assert entitlement is not None
         assert entitlement.pricing_version == "DAY_PASS_V1"
+        assert entitlement.payment_environment == "TEST"
         assert entitlement.unit_amount_at_signup == 999
         assert entitlement.first_trading_day is not None
         assert entitlement.last_trading_day == entitlement.first_trading_day
@@ -213,6 +226,7 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
 
         paid = {
             "id": "evt_invoice_paid",
+            "livemode": False,
             "type": "invoice.paid",
             "created": now,
             "data": {
@@ -228,6 +242,7 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
         await stripe_service.process_webhook(GUILD_ID, paid, actor_user_id=999)
         cancel_at_end = {
             "id": "evt_subscription_cancel_at_end",
+            "livemode": False,
             "type": "customer.subscription.updated",
             "created": now + 30,
             "data": {
@@ -246,8 +261,19 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
         )
         assert cancelling.membership_status == EntitlementStatus.CANCEL_AT_PERIOD_END.value
         assert cancelling.should_have_role is True
+        final_period_paid = {
+            **paid,
+            "id": "evt_final_period_invoice_paid",
+            "created": now + 45,
+        }
+        still_cancelling = await stripe_service.process_webhook(
+            GUILD_ID, final_period_paid, actor_user_id=999
+        )
+        assert still_cancelling.membership_status == EntitlementStatus.CANCEL_AT_PERIOD_END.value
+        assert still_cancelling.should_have_role is True
         failed = {
             "id": "evt_invoice_failed",
+            "livemode": False,
             "type": "invoice.payment_failed",
             "created": now + 60,
             "data": {
@@ -272,6 +298,7 @@ async def test_monthly_payment_failure_portal_and_manual_extension_preserve_acce
         )
         deleted = {
             "id": "evt_subscription_deleted",
+            "livemode": False,
             "type": "customer.subscription.deleted",
             "created": now + 120,
             "data": {
@@ -301,6 +328,7 @@ async def test_monthly_invoice_before_checkout_is_safe_to_replay() -> None:
         )
         invoice = {
             "id": "evt_invoice_before_checkout",
+            "livemode": False,
             "type": "invoice.paid",
             "created": now,
             "data": {
@@ -415,3 +443,107 @@ def test_stripe_signature_and_checkout_metadata_privacy_contract() -> None:
         "description": "Market analysis, trading alerts, trade tracking and community access.",
     }
     policy.assert_public(public_payment_copy)
+
+
+@pytest.mark.asyncio
+async def test_payments_kill_switch_blocks_checkout_but_not_signed_webhook() -> None:
+    database, gateway, access, enabled_service = await setup()
+    try:
+        checkout = await enabled_service.create_checkout(
+            GUILD_ID, USER_ID, MembershipPlanType.DAY_PASS.value
+        )
+        disabled_service = MembershipStripeService(
+            database,
+            gateway,
+            TradingCalendarService(),
+            MembershipAcknowledgementService(database),
+            MembershipPriceCatalog(database),
+            mode=StripeMode.TEST,
+            payments_enabled=False,
+        )
+        with pytest.raises(MembershipStripeError, match="PAYMENTS_DISABLED"):
+            await disabled_service.create_checkout(
+                GUILD_ID, USER_ID + 1, MembershipPlanType.DAY_PASS.value
+            )
+        event = checkout_event(
+            "evt_kill_switch_webhook",
+            gateway.checkout_calls[0],
+            checkout.id,
+            plan_type=MembershipPlanType.DAY_PASS.value,
+        )
+        result = await disabled_service.process_webhook(GUILD_ID, event, actor_user_id=999)
+        assert result.should_have_role is True
+        assert await access.count_active(GUILD_ID, USER_ID) == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_webhook_livemode_mismatch_is_rejected_before_event_reservation() -> None:
+    database, gateway, _, stripe_service = await setup()
+    try:
+        checkout = await stripe_service.create_checkout(
+            GUILD_ID, USER_ID, MembershipPlanType.DAY_PASS.value
+        )
+        event = checkout_event(
+            "evt_wrong_environment",
+            gateway.checkout_calls[0],
+            checkout.id,
+            plan_type=MembershipPlanType.DAY_PASS.value,
+        )
+        event["livemode"] = True
+        with pytest.raises(MembershipStripeError, match="STRIPE_EVENT_ENVIRONMENT_MISMATCH"):
+            await stripe_service.process_webhook(GUILD_ID, event, actor_user_id=999)
+        async with database.session() as session:
+            count = await session.scalar(select(func.count()).select_from(PaymentEvent))
+        assert count == 0
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_repairs_missing_membership_without_changing_price() -> None:
+    database, gateway, access, stripe_service = await setup()
+    other_user = USER_ID + 10
+    gateway.subscriptions = (
+        StripeSubscriptionSnapshot(
+            id="sub_recovered",
+            customer_id="cus_recovered",
+            status="active",
+            cancel_at_period_end=False,
+            current_period_end=datetime(2026, 9, 30, tzinfo=UTC),
+            created_at=datetime(2026, 8, 31, tzinfo=UTC),
+            metadata={
+                "discord_user_id": str(other_user),
+                "membership_type": "MONTHLY",
+                "pricing_version": "MONTHLY_V1",
+                "environment": "TEST",
+            },
+            price_id="price_monthly_v1",
+        ),
+    )
+    try:
+        dry_run = await stripe_service.reconcile_subscriptions(
+            GUILD_ID, actor_user_id=999, apply=False
+        )
+        assert dry_run.repaired_count == 0
+        assert dry_run.items[0].action == "CREATE_MISSING_MEMBERSHIP"
+        assert not await access.should_have_access(GUILD_ID, other_user)
+
+        applied = await stripe_service.reconcile_subscriptions(
+            GUILD_ID, actor_user_id=999, apply=True
+        )
+        assert applied.repaired_count == 1
+        assert await access.should_have_access(GUILD_ID, other_user)
+        async with database.session() as session:
+            entitlement = await session.scalar(
+                select(MembershipEntitlement).where(
+                    MembershipEntitlement.provider_subscription_id == "sub_recovered"
+                )
+            )
+        assert entitlement is not None
+        assert entitlement.pricing_version == "MONTHLY_V1"
+        assert entitlement.unit_amount_at_signup == 9999
+        assert entitlement.payment_environment == "TEST"
+    finally:
+        await database.dispose()

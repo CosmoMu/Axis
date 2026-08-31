@@ -1,20 +1,22 @@
 # AXIS Test Status
 
-**Date:** 2026-08-30
+**Date:** 2026-08-31
 
 ## Summary
 
-- Full pytest suite: PASS — 200 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 206 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS
 - Database verifier: PASS
-- Discord runtime verifier: PASS
+- Discord runtime verifier: FAIL — `public_wins_send` permission drift；apply 被 Discord 403 拒绝
 - Analysis Fusion verifier: PASS
-- Stripe Test setup verifier: PASS
-- Stripe Test external E2E verifier: PASS
+- Stripe Test setup verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
+- Stripe Test external E2E verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
+- Stripe dual-environment / kill switch / livemode / pricing / reconciliation regression: PASS
+- Stripe Live readiness verifier: BLOCKED AS EXPECTED — 24 external/config blockers
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
 - Short-Term / Massive real E2E: NOT PASSED
@@ -29,6 +31,7 @@
 - .venv/bin/python scripts/verify_discord_runtime.py
 - .venv/bin/python scripts/verify_stripe_test_setup.py
 - .venv/bin/python scripts/verify_stripe_test_e2e.py
+- .venv/bin/python scripts/verify_stripe_live_readiness.py
 
 没有在 pyproject.toml 或 CI 配置中发现 mypy / pyright，因此没有把未运行的 type check 标记为 PASS。
 
@@ -83,6 +86,11 @@ Membership / Stripe:
 - XNYS 交易日、风险确认、终身一次 Trial 和 scheduled expiry。
 - Checkout / Portal、webhook signature、dedup、Price snapshot / Grandfathering。
 - renewal、failure、cancel-at-period-end、PAST_DUE 与 provider event ordering。
+- Test / Live config fallback rejection、environment-scoped Price/Entitlement/Session/Event。
+- `PAYMENTS_ENABLED=false` 阻止 Checkout 但不改变已签名 webhook lifecycle；`livemode` mismatch
+  在 event reservation 前拒绝。
+- immutable V2 create/switch/rollback、既有 V1 grandfathering 和 reconciliation safe repair。
+- final-period `invoice.paid` 不清除已预约的 cancel-at-period-end。
 
 Analysis:
 
@@ -103,7 +111,7 @@ Operations / Security:
 
 Database:
 
-- revision=20260830_0022
+- revision=20260831_0024
 - source_messages=0
 - trade_drafts=0
 - trades=0
@@ -115,6 +123,7 @@ Database:
 - daily_results_reviews=0
 - daily_results_items=0
 - membership_entitlements=1（真实 Discord Member Role reconciliation）
+- membership_prices=4（TEST 2 / LIVE 2；LIVE 未绑定 Stripe ID）
 - payment_events=0
 - system_alerts=0
 
@@ -131,7 +140,9 @@ Feature flags:
 
 Discord:
 
-- discord_runtime=PASS
+- discord_runtime=FAIL（唯一失败 `public_wins_send`）
+- Bootstrap dry-run=REUSE 29 / UPDATE 1 / CREATE 0 / BLOCK 0；目标更新仅为 member-wins
+  `@everyone` send/attach deny；apply 因 Bot 权限不足未写入。
 - personas=public, member, manager, owner, bot
 - GENERAL guides=idempotent
 - owner test commands=13
@@ -156,6 +167,23 @@ Stripe Test（Pre-Soft-Open historical acceptance evidence）：
 - Discord Member Role E2E 曾为 PRESENT。
 - Soft Open Reset 已清除这些 Stripe Test membership / payment records；当前数据库不再把它们
   视为 Production entitlement。Stripe Test 配置本身保留，Live 仍未启用。
+- 2026-08-31 只读 Dashboard 审计后，Test key 按暴露处理；外部 Test verifier 未重跑，
+  `STRIPE_ENABLED=false` 且 Test listener 已禁用，等待轮换。
+
+Stripe Live readiness（2026-08-31）：
+
+- account activation / KYC / payout bank = BLOCKED
+- Live Product / Day Pass Price / Monthly Price = BLOCKED
+- public HTTPS webhook / signing secret = BLOCKED
+- Customer Portal / support / privacy / statement descriptor = BLOCKED
+- `PAYMENTS_ENABLED=false`
+- Live blocker count=24；未进行 Live payment。
+
+Schema drift check：
+
+- 本次 Stripe Price / Entitlement / Session / Payment Event schema 与 ORM 已一致。
+- Alembic 仍报告两个早于本次工作的 constraint-name-only baseline drift：
+  `membership_acknowledgements` 与 `short_term_tracking`；约束逻辑存在，未在 Stripe 任务中改动。
 
 ## Explicit failed / pending Live gate
 
@@ -175,4 +203,4 @@ ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live accepta
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 200 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 206 项测试结果。

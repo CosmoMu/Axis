@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import Settings  # noqa: E402
+from app.integrations.stripe_config import StripeMode  # noqa: E402
 
 STRIPE_TEST_EVENTS = (
     "checkout.session.completed",
@@ -31,13 +32,18 @@ def redact_stripe_output(value: str) -> str:
 
 def run() -> int:
     settings = Settings.load(PROJECT_ROOT)
-    if not settings.stripe_enabled:
+    stripe_config = settings.stripe_config()
+    test_config = stripe_config.test
+    if not stripe_config.enabled:
         logging.error("event=stripe_test_listener_disabled")
         return 2
-    if not settings.stripe_secret_key.startswith("sk_test_"):
+    if stripe_config.mode is not StripeMode.TEST:
+        logging.error("event=stripe_test_listener_requires_test_runtime")
+        return 2
+    if not test_config.secret_key.startswith("sk_test_"):
         logging.error("event=stripe_test_listener_invalid_api_key")
         return 2
-    if not settings.stripe_webhook_secret.startswith("whsec_"):
+    if not test_config.webhook_secret.startswith("whsec_"):
         logging.error("event=stripe_test_listener_invalid_webhook_secret")
         return 2
 
@@ -50,7 +56,7 @@ def run() -> int:
         return 2
 
     environment = os.environ.copy()
-    environment["STRIPE_API_KEY"] = settings.stripe_secret_key
+    environment["STRIPE_API_KEY"] = test_config.secret_key
     forward_url = (
         f"http://{settings.payment_webhook_host}:{settings.payment_webhook_port}/webhooks/stripe"
     )
@@ -73,7 +79,7 @@ def run() -> int:
         bufsize=1,
     )
     assert process.stdout is not None
-    expected_secret = settings.stripe_webhook_secret
+    expected_secret = test_config.webhook_secret
     for line in process.stdout:
         discovered = _SECRET_PATTERN.search(line)
         if (

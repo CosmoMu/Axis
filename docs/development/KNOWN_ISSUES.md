@@ -1,6 +1,6 @@
 # AXIS Known Issues
 
-**Updated:** 2026-08-30
+**Updated:** 2026-08-31
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
@@ -25,17 +25,34 @@ Publish Now、`16:15 ET` scheduled publish 与 restart idempotency 均已实现�
 Open Reset 后尚无 Eligible Production Trade，因此仍需在第一个实际有停止/关闭订单的交易日
 记录 Draft time、Manager interaction、Final Snapshot、Discord Message ID 与 scheduled dedup。
 
-## P1 — Stripe 仍是 Test Mode
+## P1 — Stripe Live 外部激活阻塞
 
-Day Pass 与 Monthly Test payment 已成功，但以下 Live 条件未完成：
+双环境、kill switch、数据库隔离、价格版本、对账和 runbook 已完成；Day Pass 与 Monthly Test
+payment 有历史成功证据，但以下 Live 条件未完成：
 
+- Account activation、KYC 和 payout bank。
 - 公开 TLS webhook 与 Live signing secret。
 - Live Product / Price / Key 和真实付款。
 - renewal、payment failure、payment-method update、cancel、duplicate delivery。
 - Price Grandfathering 的真实价格变更演练。
-- Stripe 商家法律资料、退款/取消文案和人工隐私检查。
+- Stripe customer-facing business name、支持联系方式、statement descriptor、退款/取消文案和
+  人工隐私检查。
+- 2026-08-31 审计后 Test secret key 尚未轮换。
 
-在 Live Checklist 全部签字前不得切换为 Live billing。
+当前 `STRIPE_ENABLED=false`、`PAYMENTS_ENABLED=false`，旧 Test listener 已禁用。在 Live
+Checklist 全部签字前不得切换为 Live billing。
+
+## P1 — member-wins 权限漂移需要人工授权修复
+
+2026-08-31 只读 Discord verifier 和 Bootstrap dry-run 确认唯一漂移：`🏆・member-wins` 的
+`@everyone` 实际可发消息/附件，而 Blueprint 要求 `send=false / attach=false`，Member 仍可发。
+Bootstrap apply 被 Discord 403 拒绝，AXIS BOT 当前缺少修改该 overwrite 的权限。没有创建、
+删除、移动或重命名资源，也没有发生部分写入。
+
+下一步由 Server Owner 临时授予 Bot 足够的 Manage Channels 权限后重跑严格 Bootstrap，或在
+Discord UI 手动把该频道 `@everyone` 的 Send Messages / Attach Files 设为 deny，再运行
+`scripts/verify_discord_runtime.py`。此问题与 Stripe 代码无关，但当前 Discord runtime verifier
+不能标记 PASS。
 
 ## P1 — Production backup / restore 不完整
 
@@ -62,6 +79,12 @@ Mentor、Trade 和 Active View 受 Discord 单个 Select / Embed 25 项限制。
 
 ENTRY / STARTER ENTRY 已升级为结构图 + 新文字卡。ADD、TP、RUNNER、CLOSE / SL 仍沿用
 现有公开卡样式；这是本轮明确保留的后续视觉工作，不影响现有交易状态机。
+
+## P2 — 两个旧 check constraint 名称与 ORM naming convention 不一致
+
+Alembic drift check 只剩 `membership_acknowledgements` 和 `short_term_tracking` 两个早于本次 Stripe
+工作的 constraint-name-only drift；约束逻辑都存在。本次 0024 已消除新 Stripe 四个约束的同类
+问题，但为避免改动 Short-Term schema，没有顺带修复旧项。后续应作为独立、已备份迁移处理。
 
 ## Non-blocking dependency warning
 

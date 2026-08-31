@@ -36,6 +36,7 @@ async def _verify_database(settings: Settings) -> tuple[int, str]:
                     .where(
                         MembershipSession.guild_id == settings.discord_guild_id,
                         MembershipSession.provider == "stripe",
+                        MembershipSession.payment_environment == "TEST",
                         MembershipSession.membership_type.in_(
                             [MembershipPlanType.DAY_PASS.value, MembershipPlanType.MONTHLY.value]
                         ),
@@ -64,6 +65,7 @@ async def _verify_database(settings: Settings) -> tuple[int, str]:
                         MembershipEntitlement.guild_id == settings.discord_guild_id,
                         MembershipEntitlement.discord_user_id == user_id,
                         MembershipEntitlement.provider == "stripe",
+                        MembershipEntitlement.payment_environment == "TEST",
                         MembershipEntitlement.status.in_(
                             [
                                 EntitlementStatus.ACTIVE.value,
@@ -87,6 +89,7 @@ async def _verify_database(settings: Settings) -> tuple[int, str]:
                 select(PaymentEvent)
                 .where(
                     PaymentEvent.membership_id == monthly.id,
+                    PaymentEvent.environment == "TEST",
                     PaymentEvent.event_type == "invoice.paid",
                 )
                 .order_by(PaymentEvent.created_at.desc())
@@ -128,13 +131,15 @@ async def _verify_member_role(settings: Settings, user_id: int) -> None:
 
 async def verify() -> None:
     settings = Settings.load(PROJECT_ROOT)
-    if not settings.stripe_configuration_ready():
+    stripe_config = settings.stripe_config()
+    test_config = stripe_config.test
+    if not stripe_config.enabled or not test_config.runtime_ready:
         raise RuntimeError("Stripe Test configuration is incomplete")
-    if not settings.stripe_secret_key.startswith("sk_test_"):
+    if not test_config.secret_key.startswith("sk_test_"):
         raise RuntimeError("Stripe key is not a Test Mode key")
     user_id, subscription_id = await _verify_database(settings)
     subscription = await asyncio.to_thread(
-        stripe.StripeClient(settings.stripe_secret_key).v1.subscriptions.retrieve,
+        stripe.StripeClient(test_config.secret_key).v1.subscriptions.retrieve,
         subscription_id,
     )
     if subscription.status != "active" or subscription.cancel_at_period_end:

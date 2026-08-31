@@ -18,6 +18,7 @@ import aiohttp  # noqa: E402
 import stripe  # noqa: E402
 
 from app.config import Settings  # noqa: E402
+from app.integrations.stripe_config import StripeMode  # noqa: E402
 
 
 def _signature(secret: str, body: bytes, timestamp: int) -> str:
@@ -31,20 +32,24 @@ def _signature(secret: str, body: bytes, timestamp: int) -> str:
 
 async def replay(event_id: str) -> int:
     settings = Settings.load(PROJECT_ROOT)
-    if not settings.stripe_secret_key.startswith("sk_test_"):
+    stripe_config = settings.stripe_config()
+    test_config = stripe_config.test
+    if stripe_config.mode is not StripeMode.TEST:
+        raise RuntimeError("Local replay requires STRIPE_MODE=test")
+    if not test_config.secret_key.startswith("sk_test_"):
         raise RuntimeError("Only a Stripe Test key may replay local events")
-    if not settings.stripe_webhook_secret.startswith("whsec_"):
+    if not test_config.webhook_secret.startswith("whsec_"):
         raise RuntimeError("Stripe Test webhook secret is missing")
     if settings.payment_webhook_host not in {"127.0.0.1", "localhost"}:
         raise RuntimeError("Replay destination must be local")
 
-    event = stripe.StripeClient(settings.stripe_secret_key).v1.events.retrieve(event_id)
+    event = stripe.StripeClient(test_config.secret_key).v1.events.retrieve(event_id)
     body = json.dumps(event, separators=(",", ":"), sort_keys=True).encode("utf-8")
     timestamp = int(time.time())
     url = f"http://{settings.payment_webhook_host}:{settings.payment_webhook_port}/webhooks/stripe"
     headers = {
         "Content-Type": "application/json",
-        "Stripe-Signature": _signature(settings.stripe_webhook_secret, body, timestamp),
+        "Stripe-Signature": _signature(test_config.webhook_secret, body, timestamp),
     }
     async with (
         aiohttp.ClientSession() as session,

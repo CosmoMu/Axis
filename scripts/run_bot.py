@@ -225,32 +225,42 @@ async def run() -> None:
         calendar = TradingCalendarService()
         acknowledgements = MembershipAcknowledgementService(database)
         access_service = MembershipAccessService(database, calendar, acknowledgements)
-        price_catalog = MembershipPriceCatalog(database)
+        stripe_config = settings.stripe_config()
+        active_stripe = stripe_config.active
+        price_catalog = MembershipPriceCatalog(
+            database, environment=stripe_config.mode.database_value
+        )
         await price_catalog.bind_stripe_ids(
             "DAY_PASS",
-            settings.stripe_day_pass_pricing_version,
-            product_id=settings.stripe_day_pass_product_id,
-            price_id=settings.stripe_day_pass_price_id,
+            active_stripe.day_pass_pricing_version,
+            product_id=active_stripe.day_pass_product_id,
+            price_id=active_stripe.day_pass_price_id,
         )
         await price_catalog.bind_stripe_ids(
             "MONTHLY",
-            settings.stripe_monthly_pricing_version,
-            product_id=settings.stripe_monthly_product_id,
-            price_id=settings.stripe_monthly_price_id,
+            active_stripe.monthly_pricing_version,
+            product_id=active_stripe.monthly_product_id,
+            price_id=active_stripe.monthly_price_id,
         )
-        if settings.stripe_enabled and not settings.stripe_configuration_ready():
+        if stripe_config.enabled and not active_stripe.runtime_ready:
             raise ConfigurationError(
-                "STRIPE_ENABLED=true，但 Test Mode Checkout/Webhook/Portal 配置不完整。"
+                "STRIPE_ENABLED=true, but "
+                f"{stripe_config.mode.value} runtime configuration is incomplete."
+            )
+        if stripe_config.payments_enabled and not active_stripe.live_ready:
+            raise ConfigurationError(
+                "PAYMENTS_ENABLED=true, but the selected Stripe environment is not fully ready."
             )
         stripe_gateway = (
             StripeSdkGateway(
-                secret_key=settings.stripe_secret_key,
-                webhook_secret=settings.stripe_webhook_secret,
-                success_url=settings.stripe_success_url or "",
-                cancel_url=settings.stripe_cancel_url or "",
-                portal_return_url=settings.stripe_portal_return_url or "",
+                secret_key=active_stripe.secret_key,
+                webhook_secret=active_stripe.webhook_secret,
+                success_url=active_stripe.success_url or "",
+                cancel_url=active_stripe.cancel_url or "",
+                portal_return_url=active_stripe.portal_return_url or "",
+                mode=stripe_config.mode,
             )
-            if settings.stripe_configuration_ready()
+            if stripe_config.runtime_ready()
             else None
         )
         membership_stripe_service = MembershipStripeService(
@@ -260,6 +270,8 @@ async def run() -> None:
             acknowledgements,
             price_catalog,
             session_ttl_minutes=settings.membership_session_ttl_minutes,
+            mode=stripe_config.mode,
+            payments_enabled=stripe_config.payments_enabled,
         )
         membership_service = MembershipManagementService(
             database, access_service, membership_stripe_service

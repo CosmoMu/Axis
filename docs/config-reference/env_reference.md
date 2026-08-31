@@ -18,19 +18,21 @@
 
 - `PUBLIC_OPERATOR_NAME=VALE`：匿名 AXIS Brand Persona；不是专业履历。
 - `PUBLIC_IDENTITY_FORBIDDEN_TERMS`：额外的私有身份阻止词，逗号分隔。
-- `STRIPE_ENABLED=false`：只有 Test Mode E2E 与人工隐私检查完成后才可启用。
-- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`：只放 `.env` / Secret Store。
-- `STRIPE_SUCCESS_URL` / `STRIPE_CANCEL_URL` / `STRIPE_PORTAL_RETURN_URL`。
-- `STRIPE_DAY_PASS_PRODUCT_ID` / `STRIPE_DAY_PASS_PRICE_ID`。
-- `STRIPE_MONTHLY_PRODUCT_ID` / `STRIPE_MONTHLY_PRICE_ID`。
-- `STRIPE_DAY_PASS_PRICING_VERSION` / `STRIPE_MONTHLY_PRICING_VERSION`：必须对应
+- `STRIPE_ENABLED=false`：控制 Stripe Gateway / Webhook 基础设施。
+- `STRIPE_MODE=test|live`：选择当前运行时环境；不会让一套 Key 覆盖另一环境。
+- `PAYMENTS_ENABLED=false`：只停止新 Checkout，不停止 Webhook、Portal、既有订阅同步或
+  reconciliation。
+- `STRIPE_TEST_*` 与 `STRIPE_LIVE_*`：Secret、Publishable Key、Webhook Secret、返回 URL、
+  Product / Price ID 和 Pricing Version 全部分离。Secret 只放 `.env` / Secret Store。
+- `*_DAY_PASS_PRICING_VERSION` / `*_MONTHLY_PRICING_VERSION`：必须对应当前环境
   `membership_prices` 中的不可变版本。
 - `PAYMENT_WEBHOOK_HOST` / `PAYMENT_WEBHOOK_PORT`：Webhook listener 绑定地址。
 - `MEMBERSHIP_SESSION_TTL_MINUTES`：Discord User ID 绑定 session 的有效期。
 
 Checkout 为动态 Stripe Session，metadata 包含 `discord_user_id + membership_type +
-pricing_version + membership_session_id`。Monthly 同步写入 Subscription metadata。Webhook
-验证 `Stripe-Signature`，不使用 email、username 或显示名推断身份。
+pricing_version + membership_session_id + environment`。Monthly 同步写入 Subscription
+metadata。Webhook 验证 `Stripe-Signature` 和 Event `livemode`，不使用 email、username 或
+显示名推断身份。旧的单环境 `STRIPE_*` 变量仅作为 Test-only 部署迁移兼容，Live 永不读取。
 
 ## Production Alerts
 
