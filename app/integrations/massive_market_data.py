@@ -51,6 +51,18 @@ def verified_ssl_context() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=certifi.where())
 
 
+_MASSIVE_UNDERLYING_ALIASES = {
+    # SPX weekly contracts use SPXW as the OCC contract root, while Massive's
+    # reference and snapshot endpoints index them under the SPX underlying.
+    "SPXW": "SPX",
+}
+
+
+def massive_underlying_ticker(ticker: str) -> str:
+    normalized = ticker.strip().upper().removeprefix("US.").removeprefix("$")
+    return _MASSIVE_UNDERLYING_ALIASES.get(normalized, normalized)
+
+
 def massive_option_ticker(
     ticker: str,
     expiry: date,
@@ -133,7 +145,7 @@ class MassiveMarketDataProvider:
         strike: Decimal,
         option_side: str,
     ) -> tuple[ListedOptionContract, ...]:
-        normalized_underlying = underlying.strip().upper().removeprefix("US.").removeprefix("$")
+        normalized_underlying = massive_underlying_ticker(underlying)
         contract_type = {"CALL": "call", "PUT": "put"}.get(option_side)
         if not normalized_underlying or contract_type is None or strike <= 0 or start > end:
             raise MarketDataProviderError("OPTION_CONTRACT_INVALID")
@@ -211,8 +223,9 @@ class MassiveMarketDataProvider:
         session: aiohttp.ClientSession,
         request: MarketPriceRequest,
     ) -> MarketPrice:
+        underlying = massive_underlying_ticker(request.underlying)
         path = (
-            f"/v3/snapshot/options/{quote(request.underlying, safe='')}/"
+            f"/v3/snapshot/options/{quote(underlying, safe='')}/"
             f"{quote(request.option_ticker, safe=':')}"
         )
         try:
