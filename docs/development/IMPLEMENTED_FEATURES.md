@@ -93,7 +93,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 仍未到期但曾被旧价格保护停止的订单会在轮询时幂等恢复；旧公开历史保留、未公开的旧停止
   通知取消。
 - LOTTO 持久化 display flag，不影响 tracking、TP、仓位或结果计算。
-- Short-Term 不发送 Daily Summary；到期订单只进入极简 official Daily Results。Swing / LEAPS
+- Short-Term 不发送 Daily Summary；盘中报价按交易日持续更新独立 Daily High / Low，极简
+  official Daily Results 使用对应交易日最高利润点；当天到期订单不会继承此前交易日高点。
+  Swing / LEAPS
   Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 

@@ -179,6 +179,37 @@ def _optional_decimal(value: object) -> Decimal | None:
         return None
 
 
+def _tracking_daily_extremes(
+    tracking: ShortTermTracking,
+    session_date: date,
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    reference = tracking.current_price or tracking.entry_price
+    high_price = reference
+    low_price = reference
+    started_at = tracking.tracking_started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    if started_at.astimezone(ET).date() == session_date:
+        high_price = max(high_price, tracking.entry_price)
+        low_price = min(low_price, tracking.entry_price)
+    highest_at = tracking.highest_at
+    if highest_at.tzinfo is None:
+        highest_at = highest_at.replace(tzinfo=UTC)
+    if highest_at.astimezone(ET).date() == session_date:
+        high_price = max(high_price, tracking.highest_price)
+    lowest_at = tracking.lowest_at
+    if lowest_at.tzinfo is None:
+        lowest_at = lowest_at.replace(tzinfo=UTC)
+    if lowest_at.astimezone(ET).date() == session_date:
+        low_price = min(low_price, tracking.lowest_price)
+    return (
+        high_price,
+        ShortTermTrackingPolicy.return_pct(tracking.entry_price, high_price),
+        low_price,
+        ShortTermTrackingPolicy.return_pct(tracking.entry_price, low_price),
+    )
+
+
 def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
     try:
         active = tuple(
@@ -390,6 +421,19 @@ class DailySummaryService:
                     .order_by(Trade.public_trade_id)
                 )
             ).all()
+            tracking_ids = [tracking.id for tracking, _trade in tracking_rows]
+            daily_snapshots = (
+                list(
+                    await session.scalars(
+                        select(ShortTermDailySnapshot).where(
+                            ShortTermDailySnapshot.tracking_id.in_(tracking_ids),
+                            ShortTermDailySnapshot.session_date == session_date,
+                        )
+                    )
+                )
+                if tracking_ids
+                else []
+            )
 
         requests = tuple(
             OptionQuoteRequest(
@@ -421,11 +465,24 @@ class DailySummaryService:
             events_by_trade.setdefault(event.trade_id, []).append(event)
 
         short_term_rows: list[ShortTermDailyRow] = []
+        daily_snapshots_by_tracking = {
+            snapshot.tracking_id: snapshot for snapshot in daily_snapshots
+        }
         for tracking, trade in tracking_rows:
-            peak_return_pct = ShortTermTrackingPolicy.return_pct(
-                tracking.entry_price,
-                tracking.highest_price,
-            )
+            snapshot = daily_snapshots_by_tracking.get(tracking.id)
+            if snapshot is None:
+                _high_price, peak_return_pct, _low_price, daily_low_return = (
+                    _tracking_daily_extremes(tracking, session_date)
+                )
+            else:
+                peak_return_pct = ShortTermTrackingPolicy.return_pct(
+                    tracking.entry_price,
+                    snapshot.highest_price,
+                )
+                daily_low_return = ShortTermTrackingPolicy.return_pct(
+                    tracking.entry_price,
+                    snapshot.lowest_price,
+                )
             row = ShortTermDailyRow(
                 public_trade_id=trade.public_trade_id,
                 ticker=trade.ticker,
@@ -435,7 +492,7 @@ class DailySummaryService:
                 current_return_pct=tracking.current_return_pct,
                 tracking_end_return_pct=tracking.tracking_end_return_pct,
                 highest_return_pct=peak_return_pct,
-                lowest_return_pct=tracking.lowest_return_pct,
+                lowest_return_pct=daily_low_return,
                 is_lotto=trade.is_lotto,
             )
             short_term_rows.append(row)
@@ -552,25 +609,33 @@ class DailySummaryService:
                         ShortTermDailySnapshot.session_date == session_date,
                     )
                 )
-                if snapshot is not None:
-                    continue
-                session.add(
-                    ShortTermDailySnapshot(
+                high_price, high_return, low_price, low_return = _tracking_daily_extremes(
+                    current,
+                    session_date,
+                )
+                if snapshot is None:
+                    snapshot = ShortTermDailySnapshot(
                         guild_id=guild_id,
                         tracking_id=current.id,
                         trade_id=current.trade_id,
                         session_date=session_date,
                         closing_price=current.current_price,
                         closing_return_pct=current.current_return_pct,
-                        highest_price=current.highest_price,
-                        highest_return_pct=current.highest_return_pct,
-                        lowest_price=current.lowest_price,
-                        lowest_return_pct=current.lowest_return_pct,
+                        highest_price=high_price,
+                        highest_return_pct=high_return,
+                        lowest_price=low_price,
+                        lowest_return_pct=low_return,
                         tracking_protection_price=current.tracking_protection_price,
                         tracking_state=current.tracking_state,
                         tracking_end_reason=current.tracking_end_reason,
                     )
-                )
+                    session.add(snapshot)
+                else:
+                    snapshot.closing_price = current.current_price
+                    snapshot.closing_return_pct = current.current_return_pct
+                    snapshot.tracking_protection_price = current.tracking_protection_price
+                    snapshot.tracking_state = current.tracking_state
+                    snapshot.tracking_end_reason = current.tracking_end_reason
                 if current.tracking_state not in {"ACTIVE", "OVERNIGHT_ACTIVE"}:
                     continue
                 now = utc_now()

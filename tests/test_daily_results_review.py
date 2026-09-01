@@ -15,6 +15,7 @@ from app.db.models import (
     DailyResultsItem,
     DailyResultsReview,
     GuildConfig,
+    ShortTermDailySnapshot,
     ShortTermTracking,
     Trade,
     TradeEvent,
@@ -214,6 +215,48 @@ async def review_database() -> Database:
                 ),
             ]
         )
+        await session.flush()
+        stopped_tracking = await session.scalar(
+            select(ShortTermTracking).where(ShortTermTracking.trade_id == short.id)
+        )
+        active_tracking = await session.scalar(
+            select(ShortTermTracking).where(ShortTermTracking.trade_id == short_active.id)
+        )
+        assert stopped_tracking is not None and active_tracking is not None
+        session.add_all(
+            [
+                ShortTermDailySnapshot(
+                    guild_id=GUILD_ID,
+                    tracking_id=stopped_tracking.id,
+                    trade_id=short.id,
+                    session_date=TRADING_DATE,
+                    closing_price=Decimal("1.5"),
+                    closing_return_pct=Decimal("50"),
+                    highest_price=Decimal("1.8"),
+                    highest_return_pct=Decimal("80"),
+                    lowest_price=Decimal("0.6"),
+                    lowest_return_pct=Decimal("-40"),
+                    tracking_protection_price=Decimal("1"),
+                    tracking_state="STOPPED",
+                    tracking_end_reason="EXPIRED_CONTRACT",
+                ),
+                ShortTermDailySnapshot(
+                    guild_id=GUILD_ID,
+                    tracking_id=active_tracking.id,
+                    trade_id=short_active.id,
+                    session_date=TRADING_DATE,
+                    closing_price=Decimal("1.12"),
+                    closing_return_pct=Decimal("12"),
+                    highest_price=Decimal("1.15"),
+                    highest_return_pct=Decimal("15"),
+                    lowest_price=Decimal("0.9"),
+                    lowest_return_pct=Decimal("-10"),
+                    tracking_protection_price=Decimal("1"),
+                    tracking_state="ACTIVE",
+                    tracking_end_reason=None,
+                ),
+            ]
+        )
         await session.commit()
     return database
 
@@ -235,12 +278,12 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         }
         assert all(item.included for item in first.items)
         short = next(item for item in first.items if item.public_trade_id == "ST-0001")
-        assert short.display_result_pct == Decimal("136.0000")
+        assert short.display_result_pct == Decimal("80.0000")
         short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
-        assert short_active.display_result_pct == Decimal("20.0000")
+        assert short_active.display_result_pct == Decimal("15.0000")
         rendered = str(first.snapshot)
-        assert "✅ ST-0001 · NVDA 08/28 200C +136%" in rendered
-        assert "✅ ST-0002 · QQQ 08/28 714C +20%" in rendered
+        assert "✅ ST-0001 · NVDA 08/28 200C +80%" in rendered
+        assert "✅ ST-0002 · QQQ 08/28 714C +15%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
         async with database.session() as session:
             stored_items = list(
@@ -325,7 +368,7 @@ async def test_display_edit_and_result_correction_do_not_modify_trade() -> None:
             saved = await session.get(DailyResultsItem, item.id)
             assert trade is not None and trade.final_return_pct is None
             assert saved is not None
-            assert saved.original_result_pct == Decimal("136.0000")
+            assert saved.original_result_pct == Decimal("80.0000")
             assert saved.display_result_pct == Decimal("140.0000")
             actions = set(await session.scalars(select(AuditLog.action_type)))
             assert "DAILY_RESULTS_DISPLAY_EDITED" in actions

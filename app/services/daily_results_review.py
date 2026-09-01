@@ -15,6 +15,7 @@ from app.db.models import (
     DailyResultsItem,
     DailyResultsReview,
     GuildConfig,
+    ShortTermDailySnapshot,
     ShortTermTracking,
     Trade,
     TradeEvent,
@@ -22,7 +23,11 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import TradeCategory, TradeState
-from app.services.daily_summary import _trade_result_details, _weighted_return
+from app.services.daily_summary import (
+    _tracking_daily_extremes,
+    _trade_result_details,
+    _weighted_return,
+)
 from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.trading_calendar import TradingCalendarService
 
@@ -270,6 +275,22 @@ class DailyResultsReviewService:
                         .order_by(Trade.public_trade_id)
                     )
                 ).all()
+                tracking_ids = [tracking.id for tracking, _trade in tracking_rows]
+                daily_snapshots = (
+                    list(
+                        await session.scalars(
+                            select(ShortTermDailySnapshot).where(
+                                ShortTermDailySnapshot.tracking_id.in_(tracking_ids),
+                                ShortTermDailySnapshot.session_date == trading_date,
+                            )
+                        )
+                    )
+                    if tracking_ids
+                    else []
+                )
+                daily_snapshots_by_tracking = {
+                    snapshot.tracking_id: snapshot for snapshot in daily_snapshots
+                }
                 closed = list(
                     await session.scalars(
                         select(Trade)
@@ -313,9 +334,15 @@ class DailyResultsReviewService:
                 await session.flush()
                 order = 0
                 for tracking, trade in tracking_rows:
+                    snapshot = daily_snapshots_by_tracking.get(tracking.id)
+                    daily_high_price = (
+                        snapshot.highest_price
+                        if snapshot is not None
+                        else _tracking_daily_extremes(tracking, trading_date)[0]
+                    )
                     peak_return_pct = ShortTermTrackingPolicy.return_pct(
                         tracking.entry_price,
-                        tracking.highest_price,
+                        daily_high_price,
                     )
                     session.add(
                         DailyResultsItem(

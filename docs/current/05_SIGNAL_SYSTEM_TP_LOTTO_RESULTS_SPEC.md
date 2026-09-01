@@ -46,9 +46,10 @@ behavior not named here remains unchanged.
 - Short-Term does not publish a Daily Summary.
 - Swing and LEAPS each publish one Daily Summary containing 今日关闭 and 当前持仓.
 - Results publishes one `AXIS DAILY RESULTS` card with SHORT-TERM, SWING, and LEAPS sections.
-- Every Short-Term trade derives its displayed return from the highest option price recorded across
-  the complete tracking lifecycle relative to entry price, whether it expired that day or remains
-  under tracking. Current return, tracking-end return, and daily-only snapshots stay internal.
+- Every Short-Term trade derives its displayed return from the highest option price recorded during
+  that Results trading date relative to entry price. A contract expiring that day therefore reports
+  its expiry-day maximum profit point, not a high carried forward from an earlier session. Active
+  contracts use the same daily-high rule. Current return and tracking-end return stay internal.
 - Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
   `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
   LOTTO labels are omitted from this section. Lines are sorted by the numeric part of the order ID

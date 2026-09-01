@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.db.models import (
     DailySummaryPublication,
     GuildConfig,
+    ShortTermDailySnapshot,
     ShortTermTracking,
     ShortTermTrackingEvent,
     Trade,
@@ -224,6 +225,41 @@ async def test_all_fixed_tp_levels_fire_once_and_watermarks_are_saved() -> None:
             (Decimal("1") + Decimal(return_pct) / 100, Decimal(return_pct))
             for return_pct in [10, 20, *range(50, 1001, 25)]
         ]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_daily_snapshot_keeps_each_session_high_separate() -> None:
+    database, service, tracking = await registered_service()
+    first_day = datetime.now(UTC)
+    second_day = first_day + timedelta(days=1)
+    try:
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "2.00", first_day),
+        )
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "1.20", second_day),
+        )
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "1.40", second_day + timedelta(seconds=5)),
+        )
+        async with database.session() as session:
+            snapshots = list(
+                await session.scalars(
+                    select(ShortTermDailySnapshot).order_by(
+                        ShortTermDailySnapshot.session_date
+                    )
+                )
+            )
+        assert len(snapshots) == 2
+        assert snapshots[0].highest_price == Decimal("2.0000")
+        assert snapshots[0].highest_return_pct == Decimal("100.0000")
+        assert snapshots[1].highest_price == Decimal("1.4000")
+        assert snapshots[1].highest_return_pct == Decimal("40.0000")
     finally:
         await database.dispose()
 
@@ -471,8 +507,8 @@ async def test_overnight_gap_continues_tracking_until_expiry() -> None:
         assert carried.tracking_end_reason is None
         assert len(claim.card.short_term) == 1
         assert claim.card.short_term[0].tracking_end_return_pct is None
-        assert claim.card.short_term[0].maximum_return_pct == Decimal("100.0000")
-        assert claim.card.short_term[0].displayed_result_pct == Decimal("100.0000")
+        assert claim.card.short_term[0].maximum_return_pct == Decimal("40.0000")
+        assert claim.card.short_term[0].displayed_result_pct == Decimal("40.0000")
     finally:
         await database.dispose()
 
@@ -520,7 +556,7 @@ async def test_daily_result_uses_daily_high_even_when_no_tp_was_triggered() -> N
         assert len(claim.card.short_term) == 1
         row = claim.card.short_term[0]
         assert row.tracking_end_return_pct is None
-        assert row.maximum_return_pct == Decimal("0.0000")
-        assert row.displayed_result_pct == Decimal("0.0000")
+        assert row.maximum_return_pct == Decimal("-51.0000")
+        assert row.displayed_result_pct == Decimal("-51.0000")
     finally:
         await database.dispose()

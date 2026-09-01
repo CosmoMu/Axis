@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 246 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 247 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -82,8 +82,8 @@ Short-Term:
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
-- 极简 Daily Results 的全量 Short-Term 全追踪周期最高价收益、ST 订单号升序、Ticker、到期日、
-  合约代码和幂等。
+- 极简 Daily Results 使用对应交易日独立 Daily High；覆盖跨日高点隔离、到期日当天最高利润点、
+  ST 订单号升序、Ticker、到期日、合约代码和幂等。
 
 Daily Results Review:
 
@@ -233,15 +233,16 @@ Schema drift check：
 Short-Term verifier evidence:
 
 - short_term_tracking=21
-- short_term_tracking_events=98
-- short_term_daily_snapshots=14
+- short_term_tracking_events=101
+- short_term_daily_snapshots=29
 - daily_results_publications=0
 - market_quote_snapshots=2
 
 2026-09-01 部署 Expiry-only Tracking 后，11 条仍未到期的旧 Protection Stop 已幂等恢复；
 当前所有 15 条未到期订单均为 ACTIVE、`tracking_end_reason=None`、Protection Reason 为
-`EXPIRY_ONLY`，待发布旧 Stop 通知为 0。数据库共有 21 条 Short-Term tracking 与 98 条
-tracking event，但这些计数本身不能替代
+`EXPIRY_ONLY`，待发布旧 Stop 通知为 0；当天 15 条订单均已建立独立 Daily High / Low
+Snapshot。数据库共有 21 条 Short-Term tracking、101 条 tracking event 与 29 条 daily
+snapshot，但这些计数本身不能替代
 对真实 Massive quote、TP / Expiry trigger、Discord event、Daily Results 和 restart recovery
 的逐项验收，因此 Short-Term Live E2E 仍不能标记 PASS。Results Review 的代码、自动化、
 migration、Discord command 与 job ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live
@@ -250,4 +251,4 @@ acceptance。
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 246 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 247 项测试结果。

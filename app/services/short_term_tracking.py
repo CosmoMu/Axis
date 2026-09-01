@@ -4,7 +4,7 @@ import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     GuildConfig,
+    ShortTermDailySnapshot,
     ShortTermTracking,
     ShortTermTrackingEvent,
     Trade,
@@ -377,6 +378,13 @@ class MarketTrackingService:
                         event_type="OVERNIGHT_GAP_STOP",
                         public_notification=True,
                     )
+                    await self._update_daily_snapshot(
+                        session,
+                        tracking,
+                        market_price,
+                        current_return,
+                        market_date,
+                    )
                     await session.commit()
                     return
                 tracking.tracking_state = "ACTIVE"
@@ -507,8 +515,75 @@ class MarketTrackingService:
                     event_type="TRACKING_STOPPED",
                     public_notification=True,
                 )
+            await self._update_daily_snapshot(
+                session,
+                tracking,
+                market_price,
+                current_return,
+                market_date,
+            )
             tracking.version += 1
             await session.commit()
+
+    async def _update_daily_snapshot(
+        self,
+        session: AsyncSession,
+        tracking: ShortTermTracking,
+        market_price: MarketPrice,
+        current_return: Decimal,
+        market_date: date,
+    ) -> None:
+        snapshot = await session.scalar(
+            select(ShortTermDailySnapshot).where(
+                ShortTermDailySnapshot.tracking_id == tracking.id,
+                ShortTermDailySnapshot.session_date == market_date,
+            )
+        )
+        if snapshot is None:
+            high_price = market_price.price
+            high_return = current_return
+            low_price = market_price.price
+            low_return = current_return
+            started_date = _aware_required(tracking.tracking_started_at).astimezone(ET).date()
+            if started_date == market_date:
+                high_price = max(high_price, tracking.entry_price)
+                low_price = min(low_price, tracking.entry_price)
+                high_return = self.policy.return_pct(tracking.entry_price, high_price)
+                low_return = self.policy.return_pct(tracking.entry_price, low_price)
+            if _aware_required(tracking.highest_at).astimezone(ET).date() == market_date:
+                high_price = max(high_price, tracking.highest_price)
+                high_return = self.policy.return_pct(tracking.entry_price, high_price)
+            if _aware_required(tracking.lowest_at).astimezone(ET).date() == market_date:
+                low_price = min(low_price, tracking.lowest_price)
+                low_return = self.policy.return_pct(tracking.entry_price, low_price)
+            snapshot = ShortTermDailySnapshot(
+                guild_id=tracking.guild_id,
+                tracking_id=tracking.id,
+                trade_id=tracking.trade_id,
+                session_date=market_date,
+                closing_price=market_price.price,
+                closing_return_pct=current_return,
+                highest_price=high_price,
+                highest_return_pct=high_return,
+                lowest_price=low_price,
+                lowest_return_pct=low_return,
+                tracking_protection_price=tracking.tracking_protection_price,
+                tracking_state=tracking.tracking_state,
+                tracking_end_reason=tracking.tracking_end_reason,
+            )
+            session.add(snapshot)
+            return
+        snapshot.closing_price = market_price.price
+        snapshot.closing_return_pct = current_return
+        if market_price.price > snapshot.highest_price:
+            snapshot.highest_price = market_price.price
+            snapshot.highest_return_pct = current_return
+        if market_price.price < snapshot.lowest_price:
+            snapshot.lowest_price = market_price.price
+            snapshot.lowest_return_pct = current_return
+        snapshot.tracking_protection_price = tracking.tracking_protection_price
+        snapshot.tracking_state = tracking.tracking_state
+        snapshot.tracking_end_reason = tracking.tracking_end_reason
 
     async def next_public_event(self, guild_id: int) -> TrackingEventClaim | None:
         async with self.database.session() as session:

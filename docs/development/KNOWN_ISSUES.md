@@ -1,6 +1,6 @@
 # AXIS Known Issues
 
-**Updated:** 2026-08-31
+**Updated:** 2026-09-01
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
@@ -13,8 +13,8 @@ Newcomer Gate 标记为 Live Complete。
 
 ## P0 — Short-Term tracking 尚未完成 Live E2E
 
-生产数据库当前已有 14 条 Short-Term tracking、62 条 tracking event 与 2 条 market quote
-snapshot，但尚未完成按验收清单逐项核对的真实 Massive / Discord 完整证据链。
+生产数据库当前已有 21 条 Short-Term tracking、101 条 tracking event 与 29 条 Short-Term
+daily snapshot，但尚未完成按验收清单逐项核对的真实 Massive / Discord 完整证据链。
 
 2026-09-01 已修复单个期权 MID quote 超过 120 秒未更新时反复产生系统级 ERROR / RECOVERY 的
 告警抖动；此类数据质量状态现在留在对应 tracking，且不会使用陈旧价格触发 TP。真实 provider
@@ -23,7 +23,8 @@ snapshot，但尚未完成按验收清单逐项核对的真实 Massive / Discord
 影响：
 
 - 自动化已证明已发布 Short-Term 订单能够幂等注册和恢复跟踪，数据库也已有生产追踪记录。
-- 现有计数尚不能证明 Massive 真实报价已按清单完整驱动固定 TP、Momentum TP、protection 或 stop。
+- 现有计数尚不能证明 Massive 真实报价已按清单完整驱动固定 TP、Momentum TP、Expiry 事件与
+  当天 Results 发布。
 - 仍需核对 Discord 自动事件、Daily Results 和重启恢复的真实行情完整证据链。
 
 下一步在美股交易时段做一笔可控的真实端到端验收，并记录 quote timestamp、event、Discord
