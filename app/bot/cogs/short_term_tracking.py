@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import discord
 from discord.ext import commands, tasks
 
 from app.bot.cards import build_short_term_tracking_embed
@@ -10,6 +11,16 @@ from app.integrations.massive_market_data import MarketDataProviderError
 from app.services.short_term_tracking import MarketTrackingService
 
 logger = logging.getLogger(__name__)
+
+
+def _same_public_event_embed(existing: discord.Embed, expected: discord.Embed) -> bool:
+    """Match an event by member-visible content without exposing its internal ID."""
+
+    existing_data = existing.to_dict()
+    expected_data = expected.to_dict()
+    existing_data.pop("footer", None)
+    expected_data.pop("footer", None)
+    return existing_data == expected_data
 
 
 class ShortTermTrackingCog(commands.Cog):
@@ -74,19 +85,22 @@ class ShortTermTrackingCog(commands.Cog):
             history = getattr(channel, "history", None)
             if send is None or history is None:
                 return
-            marker = f"AXIS Short-Term Event · {claim.public_ref}"
+            legacy_marker = f"AXIS Short-Term Event · {claim.public_ref}"
+            expected_embed = build_short_term_tracking_embed(
+                claim.card,
+                public_ref=claim.public_ref,
+            )
             message = None
             async for candidate in history(limit=200):
                 if self.bot.user is None or candidate.author.id != self.bot.user.id:
                     continue
-                if any(embed.footer.text == marker for embed in candidate.embeds):
+                if any(
+                    embed.footer.text == legacy_marker
+                    or _same_public_event_embed(embed, expected_embed)
+                    for embed in candidate.embeds
+                ):
                     message = candidate
                     break
             if message is None:
-                message = await send(
-                    embed=build_short_term_tracking_embed(
-                        claim.card,
-                        public_ref=claim.public_ref,
-                    )
-                )
+                message = await send(embed=expected_embed)
             await self.service.mark_event_published(claim.event_id, message.id)

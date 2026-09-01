@@ -338,7 +338,7 @@ def build_short_term_tracking_embed(
     if card.card_type in {"STOP_TRACKING", "EXPIRED"} and card.highest_return_pct is not None:
         embed.add_field(name="最高收益", value=f"{card.highest_return_pct:+.2f}%", inline=False)
     if public_ref:
-        embed.set_footer(text=f"AXIS Short-Term Event · {public_ref}")
+        embed.set_footer(text="AXIS")
     return _public(embed)
 
 

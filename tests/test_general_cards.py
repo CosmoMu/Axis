@@ -27,6 +27,7 @@ from app.bot.cogs.newcomer_access import (
     safety_agreement_embed,
     welcome_application_embed,
 )
+from app.bot.cogs.short_term_tracking import _same_public_event_embed
 from app.bot.general_cards import (
     lobby_guide_embed,
     member_wins_guide_embed,
@@ -181,6 +182,29 @@ def test_short_term_sl_card_is_non_terminal_and_uses_breakeven_label() -> None:
     assert embed.title == "SL · ST-TEST"
     assert "成本价 · 0.00%" in rendered
     assert "继续追踪至到期" in rendered
+
+
+def test_short_term_event_id_is_not_member_visible() -> None:
+    embed = build_short_term_tracking_embed(
+        _short_term_tracking_card("TP"),
+        public_ref="STE-26CFC5C8DA92",
+    )
+    rendered = str(embed.to_dict())
+
+    assert embed.footer.text == "AXIS"
+    assert "STE-26CFC5C8DA92" not in rendered
+    assert "AXIS Short-Term Event" not in rendered
+
+
+def test_short_term_event_dedupe_ignores_footer_but_not_content() -> None:
+    card = _short_term_tracking_card("TP")
+    expected = build_short_term_tracking_embed(card, public_ref="STE-NEW")
+    legacy = build_short_term_tracking_embed(card)
+    legacy.set_footer(text="AXIS Short-Term Event · STE-OLD")
+    different = build_short_term_tracking_embed(replace(card, price=Decimal("9.99")))
+
+    assert _same_public_event_embed(legacy, expected)
+    assert not _same_public_event_embed(different, expected)
 
 
 def test_short_term_risk_notice_is_stable_and_member_safe() -> None:
