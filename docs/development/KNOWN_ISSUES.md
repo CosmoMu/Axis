@@ -16,6 +16,10 @@ Newcomer Gate 标记为 Live Complete。
 生产数据库当前已有 14 条 Short-Term tracking、62 条 tracking event 与 2 条 market quote
 snapshot，但尚未完成按验收清单逐项核对的真实 Massive / Discord 完整证据链。
 
+2026-09-01 已修复单个期权 MID quote 超过 120 秒未更新时反复产生系统级 ERROR / RECOVERY 的
+告警抖动；此类数据质量状态现在留在对应 tracking，且不会使用陈旧价格触发 TP。真实 provider
+故障仍保留系统告警。
+
 影响：
 
 - 自动化已证明已发布 Short-Term 订单能够幂等注册和恢复跟踪，数据库也已有生产追踪记录。

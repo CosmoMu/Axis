@@ -6,6 +6,7 @@ from discord.ext import commands, tasks
 
 from app.bot.cards import build_short_term_tracking_embed
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
+from app.integrations.massive_market_data import MarketDataProviderError
 from app.services.short_term_tracking import MarketTrackingService
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,12 @@ class ShortTermTrackingCog(commands.Cog):
                 affected="Short-Term automated tracking",
             )
         except Exception as exc:
+            error_code = (
+                exc.code if isinstance(exc, MarketDataProviderError) else type(exc).__name__
+            )
             logger.warning(
-                "event=short_term_tracking_failed error_type=%s",
+                "event=short_term_tracking_failed error_code=%s error_type=%s",
+                error_code,
                 type(exc).__name__,
             )
             await report_system_failure(
@@ -53,7 +58,7 @@ class ShortTermTrackingCog(commands.Cog):
                 service="Massive Market Data",
                 error_type="SHORT_TERM_TRACKING_FAILED",
                 affected="Short-Term automated tracking",
-                detail=type(exc).__name__,
+                detail=error_code,
             )
 
     @tracking_loop.before_loop

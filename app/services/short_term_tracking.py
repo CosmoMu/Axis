@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ from app.db.session import Database
 from app.domain.public_cards import ShortTermTrackingCard
 from app.integrations.massive_market_data import (
     MarketDataProvider,
+    MarketDataProviderError,
     MarketPrice,
     MarketPriceRequest,
     massive_option_ticker,
@@ -32,6 +34,14 @@ from app.services.trading_calendar import TradingCalendarService
 
 ET = ZoneInfo("America/New_York")
 ACTIVE_STATES = {"ACTIVE", "OVERNIGHT_ACTIVE"}
+RECOVERABLE_MARKET_DATA_ERRORS = {
+    "LAST_TRADE_OUTLIER",
+    "MASSIVE_PRICE_UNAVAILABLE",
+    "MASSIVE_QUOTE_STALE",
+    "OPTION_CONTRACT_NOT_FOUND",
+}
+
+logger = logging.getLogger(__name__)
 
 
 class ShortTermTrackingError(RuntimeError):
@@ -179,12 +189,52 @@ class MarketTrackingService:
             )
             for tracking, trade in rows
         )
-        prices = await self.provider.fetch_prices(requests)
+        try:
+            prices = await self.provider.fetch_prices(requests)
+        except MarketDataProviderError as exc:
+            if exc.code not in RECOVERABLE_MARKET_DATA_ERRORS:
+                raise
+            await self._record_data_error(
+                tuple(tracking.id for tracking, _trade in rows),
+                exc.code,
+            )
+            return 0
         processed = 0
         for market_price in prices:
             await self.process_price(uuid.UUID(market_price.key), market_price)
             processed += 1
         return processed
+
+    async def _record_data_error(
+        self,
+        tracking_ids: Sequence[uuid.UUID],
+        error_code: str,
+    ) -> None:
+        if not tracking_ids:
+            return
+        async with self.database.session() as session:
+            rows = list(
+                await session.scalars(
+                    select(ShortTermTracking)
+                    .where(
+                        ShortTermTracking.id.in_(tracking_ids),
+                        ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
+                    )
+                    .with_for_update()
+                )
+            )
+            for tracking in rows:
+                if tracking.consecutive_data_errors == 0:
+                    logger.warning(
+                        "event=short_term_quote_degraded tracking_id=%s "
+                        "option_ticker=%s error_code=%s",
+                        tracking.id,
+                        tracking.option_ticker,
+                        error_code,
+                    )
+                tracking.consecutive_data_errors += 1
+                tracking.last_error_code = error_code[:64]
+            await session.commit()
 
     async def expire_contracts(self, guild_id: int) -> None:
         await self._expire_contracts(guild_id)
@@ -222,8 +272,17 @@ class MarketTrackingService:
             tracking.last_quote_at = market_price.source_timestamp
             tracking.last_session_date = market_date
             tracking.option_ticker = market_price.option_ticker
-            tracking.consecutive_data_errors = 0
-            tracking.last_error_code = None
+            if tracking.consecutive_data_errors:
+                logger.info(
+                    "event=short_term_quote_recovered tracking_id=%s "
+                    "option_ticker=%s previous_error=%s error_count=%s",
+                    tracking.id,
+                    tracking.option_ticker,
+                    tracking.last_error_code,
+                    tracking.consecutive_data_errors,
+                )
+                tracking.consecutive_data_errors = 0
+                tracking.last_error_code = None
             if market_price.price > tracking.highest_price:
                 tracking.highest_price = market_price.price
                 tracking.highest_return_pct = current_return

@@ -79,6 +79,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 - no Mentor required；不使用 Swing / LEAPS 的 Mentor Trade Flow。
 - ST-XXXX 独立编号。
 - Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
+- 单合约 stale / unavailable / outlier / not-found 数据状态不会再升级为 Massive 服务整体 ERROR；
+  订单保存连续错误次数与精确错误码，有效报价自动恢复。认证、限流和请求/响应故障继续进入
+  system-alerts。
 - entry_price、current_price、high/low watermark 与 policy version。
 - 新订单固定 TP1–TP41：10% / 20%，然后从 50% 起每 25 个百分点提示一次直至 1000%；
   `tp_levels_hit` 保证每一级只发送一次。
@@ -91,8 +94,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-说明：Soft Open Reset 后正式 Short-Term 与 tracking 均为 0，下一笔为 ST-0001；真实 Massive
-quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
+说明：Production 已有 Short-Term tracking 与 Massive quote；真实 TP / Protection / Discord /
+restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 ## Mentor / Member
 

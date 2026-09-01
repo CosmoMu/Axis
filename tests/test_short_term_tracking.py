@@ -16,7 +16,7 @@ from app.db.models import (
     Trade,
 )
 from app.db.session import Database
-from app.integrations.massive_market_data import MarketPrice
+from app.integrations.massive_market_data import MarketDataProviderError, MarketPrice
 from app.services.daily_summary import DailySummaryService
 from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.short_term_tracking import MarketTrackingService
@@ -29,6 +29,34 @@ V2_POLICY_PATH = (
 V3_POLICY_PATH = (
     Path(__file__).resolve().parents[1] / "config" / "short_term_tracking_v3.yaml"
 )
+
+
+class AlwaysOpenCalendar:
+    @staticmethod
+    def is_market_open(_at: datetime) -> bool:
+        return True
+
+
+class MutableTrackingProvider:
+    def __init__(self, error_code: str | None = None) -> None:
+        self.error_code = error_code
+
+    async def fetch_prices(self, requests):
+        if self.error_code is not None:
+            raise MarketDataProviderError(self.error_code)
+        now = datetime.now(UTC)
+        return tuple(
+            MarketPrice(
+                key=request.key,
+                option_ticker=request.option_ticker,
+                price=Decimal("1.05"),
+                price_source="MID",
+                source_timestamp=now,
+                received_at=now,
+                market_status="open",
+            )
+            for request in requests
+        )
 
 
 async def tracking_database() -> tuple[Database, Trade]:
@@ -95,6 +123,70 @@ async def registered_service(
         tracking = await session.scalar(select(ShortTermTracking))
     assert tracking is not None
     return database, service, tracking
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        "LAST_TRADE_OUTLIER",
+        "MASSIVE_PRICE_UNAVAILABLE",
+        "MASSIVE_QUOTE_STALE",
+        "OPTION_CONTRACT_NOT_FOUND",
+    ],
+)
+@pytest.mark.asyncio
+async def test_recoverable_contract_data_errors_do_not_fail_the_tracking_service(
+    error_code: str,
+) -> None:
+    database, trade = await tracking_database()
+    provider = MutableTrackingProvider(error_code)
+    service = MarketTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        provider,
+        calendar=AlwaysOpenCalendar(),
+    )
+    try:
+        await service.register_trade(trade.id, Decimal("1.00"))
+        assert await service.poll(GUILD_ID) == 0
+        async with database.session() as session:
+            tracking = await session.scalar(select(ShortTermTracking))
+        assert tracking is not None
+        assert tracking.consecutive_data_errors == 1
+        assert tracking.last_error_code == error_code
+
+        provider.error_code = None
+        assert await service.poll(GUILD_ID) == 1
+        async with database.session() as session:
+            recovered = await session.get(ShortTermTracking, tracking.id)
+        assert recovered is not None
+        assert recovered.consecutive_data_errors == 0
+        assert recovered.last_error_code is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_provider_outage_still_fails_the_tracking_service() -> None:
+    database, trade = await tracking_database()
+    provider = MutableTrackingProvider("MASSIVE_AUTH_FAILED")
+    service = MarketTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        provider,
+        calendar=AlwaysOpenCalendar(),
+    )
+    try:
+        await service.register_trade(trade.id, Decimal("1.00"))
+        with pytest.raises(MarketDataProviderError, match="MASSIVE_AUTH_FAILED"):
+            await service.poll(GUILD_ID)
+        async with database.session() as session:
+            tracking = await session.scalar(select(ShortTermTracking))
+        assert tracking is not None
+        assert tracking.consecutive_data_errors == 0
+        assert tracking.last_error_code is None
+    finally:
+        await database.dispose()
 
 
 @pytest.mark.asyncio

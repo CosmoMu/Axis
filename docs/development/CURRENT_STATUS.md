@@ -27,8 +27,8 @@ webhook、D1 relay、Customer Portal、顾客展示资料与政策页面已完�
 blockers。第一笔真实 Live 付款及完整 lifecycle 尚未验收。
 Newcomer Approval / Free Trial Security Gate 已完成代码、迁移、权限矩阵和自动化回归；生产环境
 已执行 existing-user baseline 与 Discord structure 安全部署，但真实新账户的完整时钟 E2E 仍待验收。
-随后最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
-Massive quote、TP/Protection 触发和正式交易日 Discord E2E 仍未验收。
+随后最高优先级仍是 Short-Term / Massive 真实端到端；Production 已有 Short-Term tracking 与
+Massive quote，但 TP/Protection 触发和正式交易日 Discord 完整证据链仍未验收。
 
 Next execution boundary: 不新增产品功能。先完成真实 Newcomer Join → Apply → Approve → Trial →
 Expiry → Rejoin 验收，再继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
@@ -108,6 +108,10 @@ Implemented:
 - no Mentor required，不选择 Mentor、不关联 Mentor Trade。
 - 独立 ST-XXXX 公开编号。
 - Massive MarketTrackingService 与可替换的 market-data provider 边界。
+- 单合约 `MASSIVE_QUOTE_STALE`、`MASSIVE_PRICE_UNAVAILABLE`、`LAST_TRADE_OUTLIER` 和
+  `OPTION_CONTRACT_NOT_FOUND` 作为可恢复数据质量状态写入订单，不再误报 Massive 服务整体
+  ERROR；下一次有效报价自动清零。认证、限流、网络/响应故障仍触发 system-alerts，并显示精确
+  provider error code。
 - 新发布订单使用 ST_TRACKING_V4 固定 TP1–TP41：10% / 20%，然后从 50% 起每 25 个百分点
   提示一次，直至 1000%；每一级只触发一次。
 - 已在追踪的旧订单继续使用冻结的 ST_TRACKING_V2 或 ST_TRACKING_V3，不会在同一订单中
@@ -133,8 +137,8 @@ Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、wate
 reversal、tracking protection、overnight、tracking stop、restart recovery、无 Short-Term Daily
 Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 
-Production status: **真实 Massive E2E 尚未验收。** Soft Open Reset 后正式 Short-Term、
-tracking 与 event 均为 0；下一笔真实发布将使用 ST-0001，因此不能标记 Live Complete。
+Production status: **真实 Massive E2E 尚未验收。** 当前已有 Production tracking、event 与报价
+记录，但仍缺 TP / Protection / Discord / restart 的完整逐项验收，因此不能标记 Live Complete。
 
 ## Mentor Management — COMPLETE
 
