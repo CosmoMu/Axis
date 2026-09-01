@@ -4,16 +4,23 @@
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
+## P0 — Newcomer Gate 真实用户生命周期 E2E 待验收
+
+Newcomer Role、Discord overwrite、英文 Application、join-review、审批后自动 Trial、终身唯一约束、
+Risk Scanner 与 Role reconciliation 已完成自动化和 production-safe rollout 工具。仍需使用真实
+Discord 新账户完成 Join → Apply → Approve → Trial → Expiry → Rejoin 的时钟验收；在此之前不能把
+Newcomer Gate 标记为 Live Complete。
+
 ## P0 — Short-Term tracking 尚未完成 Live E2E
 
-Soft Open Reset 后正式 Short-Term、tracking 与 event 均为 0；下一笔真实发布将使用 ST-0001。
-当前仍没有 Soft Open Production 数据上的 Massive quote 触发记录。
+生产数据库当前已有 14 条 Short-Term tracking、62 条 tracking event 与 2 条 market quote
+snapshot，但尚未完成按验收清单逐项核对的真实 Massive / Discord 完整证据链。
 
 影响：
 
-- 自动化已证明已发布 Short-Term 订单能够幂等注册和恢复跟踪；正式 ST-0001 尚未产生。
-- 仍不能证明 Massive 真实报价会驱动固定 TP、Momentum TP、protection 或 stop。
-- 仍不能证明 Discord 自动事件、Daily Results 和重启恢复在真实行情路径上工作。
+- 自动化已证明已发布 Short-Term 订单能够幂等注册和恢复跟踪，数据库也已有生产追踪记录。
+- 现有计数尚不能证明 Massive 真实报价已按清单完整驱动固定 TP、Momentum TP、protection 或 stop。
+- 仍需核对 Discord 自动事件、Daily Results 和重启恢复的真实行情完整证据链。
 
 下一步在美股交易时段做一笔可控的真实端到端验收，并记录 quote timestamp、event、Discord
 message 与重启幂等证据。

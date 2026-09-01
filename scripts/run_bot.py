@@ -59,6 +59,10 @@ from app.services.membership_access import (  # noqa: E402
 from app.services.membership_management import MembershipManagementService  # noqa: E402
 from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
+from app.services.newcomer_access import (  # noqa: E402
+    NewcomerAccessService,
+    NewcomerRiskScanner,
+)
 from app.services.official_results import OfficialResultsService  # noqa: E402
 from app.services.option_contracts import OptionContractResolver  # noqa: E402
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
@@ -244,6 +248,11 @@ async def run() -> None:
             free_trial_enabled=settings.new_member_free_trial_enabled,
             free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
         )
+        newcomer_access_service = NewcomerAccessService(database, acknowledgements)
+        newcomer_risk_scanner = NewcomerRiskScanner.load(
+            database,
+            PROJECT_ROOT / "config" / "newcomer_security.yaml",
+        )
         stripe_config = settings.stripe_config()
         active_stripe = stripe_config.active
         price_catalog = MembershipPriceCatalog(
@@ -291,6 +300,7 @@ async def run() -> None:
             session_ttl_minutes=settings.membership_session_ttl_minutes,
             mode=stripe_config.mode,
             payments_enabled=stripe_config.payments_enabled,
+            approval_required=True,
         )
         membership_service = MembershipManagementService(
             database, access_service, membership_stripe_service
@@ -318,6 +328,8 @@ async def run() -> None:
             stripe_gateway=stripe_gateway,
             public_identity=public_identity,
             system_alert_service=SystemAlertService(database),
+            newcomer_access_service=newcomer_access_service,
+            newcomer_risk_scanner=newcomer_risk_scanner,
             results_service=OfficialResultsService(database),
             analysis_service=analysis_service,
             daily_summary_service=daily_summary_service,

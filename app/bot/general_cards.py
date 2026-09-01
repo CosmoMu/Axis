@@ -19,10 +19,12 @@ def welcome_embed(
 ) -> discord.Embed:
     del guild_id, channel_ids
     trial_copy = (
-        f"首次加入 AXIS，\n可获得 **{free_trial_calendar_days} 天完整会员体验**。\n\n"
-        "无需信用卡。\n不会自动续费。"
+        "New members must complete a short access application before entering AXIS.\n\n"
+        "Once approved, you will automatically receive:\n\n"
+        f"**{free_trial_calendar_days} DAYS OF FULL MEMBER ACCESS**\n\n"
+        "No credit card required.\nNo automatic renewal."
         if free_trial_enabled
-        else "Free Trial 当前未开放；你仍可在 Membership 页面查看其他访问方式。"
+        else "New member applications are temporarily unavailable."
     )
 
     embed = discord.Embed(
@@ -31,20 +33,25 @@ def welcome_embed(
         color=AXIS_GREEN,
     )
     embed.add_field(
-        name="会员内容",
+        name="MEMBER ACCESS INCLUDES",
+        value=("⚡ Short-Term\n〽️ Swing\n♾️ LEAPS\n🛋️ Member Lounge"),
+        inline=False,
+    )
+    embed.add_field(
+        name="RISK NOTICE",
         value=(
-            "⚡ Short-Term\n"
-            "〽️ Swing\n"
-            "♾️ LEAPS\n"
-            "🛋️ Member Lounge"
+            "AXIS provides market analysis, research, and educational content only.\n\n"
+            "Nothing provided by AXIS constitutes investment or financial advice.\n\n"
+            "Trading involves risk.\n\n"
+            "**MY RISK IS NOT YOUR RISK.**"
         ),
         inline=False,
     )
     embed.add_field(
-        name="风险提示",
+        name="SAFETY NOTICE",
         value=(
-            "仅供市场分析与教育交流，不构成投资或买卖建议。\n\n"
-            "**MY RISK IS NOT YOUR RISK.**"
+            "AXIS staff will never DM you first asking for private payment, passwords, "
+            "brokerage credentials, crypto transfers, or remote access."
         ),
         inline=False,
     )
@@ -94,7 +101,7 @@ def subscription_embed(
     embed.add_field(
         name="HOW TIME IS COUNTED",
         value=(
-            f"Free Trial：领取后连续 {free_trial_calendar_days} 个自然日，"
+            f"Free Trial：申请获批后自动开始，连续 {free_trial_calendar_days} 个自然日，"
             "周末与市场休市日计入。\n"
             "Day Pass：1 个美国股票市场交易日，周末与市场休市日不计入。"
         ),
@@ -129,10 +136,7 @@ def risk_disclosure_embed() -> discord.Embed:
 def free_trial_used_embed() -> discord.Embed:
     return discord.Embed(
         title="AXIS FREE TRIAL",
-        description=(
-            "你的免费体验已经使用过。\n\n"
-            "你可以前往 Membership 页面继续访问 AXIS。"
-        ),
+        description=("你的免费体验已经使用过。\n\n你可以前往 Membership 页面继续访问 AXIS。"),
         color=QUIET_BLACK,
     )
 

@@ -1,0 +1,9 @@
+version: 1
+
+# Normalized, case-insensitive identity matching is used by NewcomerRiskScanner.
+protected_identity_names:
+  - AXIS
+  - AXIS BOT
+  - AXIS ADMIN
+  - AXIS SUPPORT
+  - VALE

@@ -256,12 +256,25 @@ def load_blueprint(path: Path) -> Blueprint:
 
 def desired_category_permissions(category: CategorySpec) -> dict[str, dict[str, bool]]:
     if category.default_visibility == "member":
-        visibility = {"everyone": False, "member": True, "manager": True, "bot": True}
+        visibility = {
+            "everyone": False,
+            "newcomer": False,
+            "member": True,
+            "manager": True,
+            "bot": True,
+        }
     elif category.default_visibility == "manager":
-        visibility = {"everyone": False, "member": False, "manager": True, "bot": True}
+        visibility = {
+            "everyone": False,
+            "newcomer": False,
+            "member": False,
+            "manager": True,
+            "bot": True,
+        }
     elif category.default_visibility == "owner_only":
         visibility = {
             "everyone": False,
+            "newcomer": False,
             "member": False,
             "manager": False,
             "owner": True,
@@ -270,9 +283,21 @@ def desired_category_permissions(category: CategorySpec) -> dict[str, dict[str, 
     elif category.default_visibility == "deferred":
         # Deferred areas keep their existing role-level isolation without adding
         # new user-specific overwrites while the feature is out of scope.
-        visibility = {"everyone": False, "member": False, "manager": False, "bot": True}
+        visibility = {
+            "everyone": False,
+            "newcomer": False,
+            "member": False,
+            "manager": False,
+            "bot": True,
+        }
     else:
-        visibility = {"everyone": True, "member": True, "manager": True, "bot": True}
+        visibility = {
+            "everyone": True,
+            "newcomer": True,
+            "member": True,
+            "manager": True,
+            "bot": True,
+        }
     return {key: {"view_channel": value} for key, value in visibility.items()}
 
 
@@ -282,6 +307,12 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
     everyone_send = channel.permissions.get("everyone_send", False)
     defaults = {
         "everyone": (everyone_view, everyone_send),
+        # Newcomer always fails closed. Every allowed public onboarding channel
+        # must opt in explicitly, preventing inherited @everyone visibility.
+        "newcomer": (
+            channel.permissions.get("newcomer_view", False),
+            channel.permissions.get("newcomer_send", False),
+        ),
         "member": (
             channel.permissions.get("member_view", everyone_view),
             channel.permissions.get("member_send", everyone_send),
@@ -312,6 +343,11 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
         if subject == "bot":
             values["embed_links"] = can_send
             values["manage_messages"] = can_send
+            # Existing channels can deny manage_channels through @everyone.
+            # Restore the Bot's guild-level capability explicitly so Bootstrap
+            # can reconcile topics and overwrites without Administrator.
+            values["manage_channels"] = True
+            values["manage_roles"] = True
         result[subject] = values
     if any(name.startswith("owner_") for name in channel.permissions):
         can_view = channel.permissions.get("owner_view", True)
@@ -867,8 +903,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 22:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 22 个。")
+    if blueprint.channel_count != 23:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 23 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

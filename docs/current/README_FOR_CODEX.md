@@ -23,8 +23,8 @@
 6. 05_SIGNAL_SYSTEM_TP_LOTTO_RESULTS_SPEC.md — 最新 Short-Term TP、LOTTO、Active View、
    Daily Results 与 Daily Summary 覆盖规则。
 7. 06_STRIPE_LIVE_PAYMENT_SPEC.md — Test / Live 隔离、kill switch、价格版本和 Stripe Live Gate。
-8. 07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md — 7 Calendar Days Free Trial、Welcome-first
-   onboarding 与 Day Pass 交易日边界。
+8. 07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md — Final Newcomer security isolation、Application、
+   permanent Approval、automatic 7 Calendar Day Trial 与 Day Pass 交易日边界。
 9. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
@@ -64,7 +64,7 @@
 - Discord Core、权限、持久化控制面板与幂等 Bootstrap
 - Signal / Swing / LEAPS / Short-Term Pipeline
 - Short-Term Automated Tracking、LOTTO、Daily Results Review；Swing / LEAPS Active Position View
-- Mentor、Member、Free Trial、Day Pass、Monthly 与 Stripe
+- Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控
 

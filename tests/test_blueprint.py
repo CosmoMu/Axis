@@ -38,10 +38,15 @@ def empty_guild() -> GuildState:
 def test_blueprint_has_exact_mvp_shape() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
 
-    assert blueprint.version == 2
+    assert blueprint.version == 3
     assert blueprint.server_name == "AXIS"
-    assert [role.name for role in blueprint.roles] == ["AXIS BOT", "Manager", "Member"]
-    assert blueprint.role_order == ("bot", "manager", "member", "everyone")
+    assert [role.name for role in blueprint.roles] == [
+        "AXIS BOT",
+        "Manager",
+        "Member",
+        "Newcomer",
+    ]
+    assert blueprint.role_order == ("bot", "manager", "member", "newcomer", "everyone")
     assert [category.name for category in blueprint.categories] == [
         "⬛・GENERAL",
         "🟢・MEMBERS",
@@ -65,6 +70,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🧭・mentor-control",
         "👤・member-control",
         "📋・results-review",
+        "🛂・join-review",
         "🤫・在这交流",
         "🚨・system-alerts",
         "🧪・card-testing",
@@ -73,7 +79,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 22
+    assert blueprint.channel_count == 23
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
     assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
     assert blueprint.categories[0].channels[0].key == "welcome"
@@ -84,9 +90,9 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     plan = build_plan(blueprint, empty_guild(), GUILD_ID)
 
     creates = [action for action in plan.actions if action.status == "CREATE"]
-    assert sum(action.resource_type == "role" for action in creates) == 2
+    assert sum(action.resource_type == "role" for action in creates) == 3
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 22
+    assert sum(action.resource_type == "channel" for action in creates) == 23
     assert not plan.blockers
 
 
@@ -184,6 +190,8 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     assert system_alerts["manager"]["view_channel"] is False
     assert system_alerts["owner"]["view_channel"] is True
     assert system_alerts["bot"]["manage_messages"] is True
+    assert system_alerts["bot"]["manage_channels"] is True
+    assert system_alerts["bot"]["manage_roles"] is True
 
 
 def test_blueprint_encodes_four_identity_visibility_matrix() -> None:
@@ -199,33 +207,54 @@ def test_blueprint_encodes_four_identity_visibility_matrix() -> None:
     deferred_lab = desired_category_permissions(categories["lab"])
     assert {key: value["view_channel"] for key, value in general.items()} == {
         "everyone": True,
+        "newcomer": True,
         "member": True,
         "manager": True,
         "bot": True,
     }
     assert {key: value["view_channel"] for key, value in members.items()} == {
         "everyone": False,
+        "newcomer": False,
         "member": True,
         "manager": True,
         "bot": True,
     }
     assert {key: value["view_channel"] for key, value in manager.items()} == {
         "everyone": False,
+        "newcomer": False,
         "member": False,
         "manager": True,
         "bot": True,
     }
     assert "owner" not in deferred_lab
     assert deferred_lab["manager"]["view_channel"] is False
+    assert deferred_lab["newcomer"]["view_channel"] is False
 
     owner_only = desired_channel_permissions(channels["system_alerts"])
     assert {subject: values["view_channel"] for subject, values in owner_only.items()} == {
         "everyone": False,
+        "newcomer": False,
         "member": False,
         "manager": False,
         "bot": True,
         "owner": True,
     }
+
+
+def test_newcomer_permission_matrix_is_explicit_and_fail_closed() -> None:
+    blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
+    channels = {
+        channel.key: desired_channel_permissions(channel)
+        for category in blueprint.categories
+        for channel in category.channels
+    }
+    allowed = {"welcome", "official_results", "member_wins"}
+    for key, permissions in channels.items():
+        newcomer = permissions["newcomer"]
+        assert newcomer["view_channel"] is (key in allowed)
+        assert newcomer["send_messages"] is False
+        assert newcomer["read_message_history"] is (key in allowed)
+        assert newcomer["attach_files"] is False
 
 
 def test_saved_axis_role_rename_requires_explicit_opt_in() -> None:

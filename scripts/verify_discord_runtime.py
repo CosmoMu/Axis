@@ -87,15 +87,17 @@ async def verify() -> list[str]:
             return failures
         everyone = guild.default_role
         member = guild.get_role(roles["member"])
+        newcomer = guild.get_role(roles["newcomer"])
         manager = guild.get_role(roles["manager"])
         bot_member = guild.me
         owner = guild.get_member(settings.discord_owner_user_id or guild.owner_id)
         if owner is None:
             owner = await guild.fetch_member(settings.discord_owner_user_id or guild.owner_id)
         _check(member is not None, "member_role_missing", failures)
+        _check(newcomer is not None, "newcomer_role_missing", failures)
         _check(manager is not None, "manager_role_missing", failures)
         _check(bot_member is not None, "bot_member_missing", failures)
-        if member is None or manager is None or bot_member is None:
+        if member is None or newcomer is None or manager is None or bot_member is None:
             return failures
 
         def channel(key: str) -> discord.TextChannel:
@@ -112,7 +114,42 @@ async def verify() -> list[str]:
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
         results_review = channel("results_review")
+        join_review = channel("join_review")
         mentor_control = channel("mentor_control")
+
+        newcomer_allowed = {"welcome", "official_results", "member_wins"}
+        for key, channel_id in channel_ids.items():
+            newcomer_channel = guild.get_channel(channel_id)
+            if not isinstance(newcomer_channel, discord.TextChannel):
+                continue
+            overwrite = newcomer_channel.overwrites_for(newcomer)
+            expected_view = key in newcomer_allowed
+            _check(
+                overwrite.view_channel is expected_view,
+                f"newcomer_{key}_view_override",
+                failures,
+            )
+            _check(
+                overwrite.read_message_history is expected_view,
+                f"newcomer_{key}_history_override",
+                failures,
+            )
+            _check(
+                overwrite.send_messages is False,
+                f"newcomer_{key}_send_override",
+                failures,
+            )
+            bot_permissions = newcomer_channel.permissions_for(bot_member)
+            _check(
+                bot_permissions.manage_channels,
+                f"bot_{key}_manage_channels",
+                failures,
+            )
+            _check(
+                bot_permissions.manage_roles,
+                f"bot_{key}_manage_roles",
+                failures,
+            )
 
         _check(welcome.permissions_for(everyone).view_channel, "public_welcome_view", failures)
         _check(not welcome.permissions_for(everyone).send_messages, "public_welcome_send", failures)
@@ -209,6 +246,16 @@ async def verify() -> list[str]:
             "bot_results_review_send",
             failures,
         )
+        _check(
+            not join_review.permissions_for(everyone).view_channel, "public_join_review", failures
+        )
+        _check(not join_review.permissions_for(member).view_channel, "member_join_review", failures)
+        manager_join_review = join_review.permissions_for(manager)
+        _check(manager_join_review.view_channel, "manager_join_review_view", failures)
+        _check(not manager_join_review.send_messages, "manager_join_review_send", failures)
+        _check(
+            manager_join_review.use_application_commands, "manager_join_review_interact", failures
+        )
 
         if config is not None:
             for channel_key, (field_name, title) in GUIDE_TITLES.items():
@@ -226,9 +273,21 @@ async def verify() -> list[str]:
                     payload = str(matching[0].embeds[0].to_dict())
                     _check("START HERE" not in payload, "welcome_navigation_not_removed", failures)
                     _check("NO ACCESS" not in payload, "welcome_no_access_not_removed", failures)
-                    _check("7 天完整会员体验" in payload, "welcome_trial_copy_missing", failures)
-                    _check("无需信用卡" in payload, "welcome_trial_no_card_missing", failures)
-                    _check("不会自动续费" in payload, "welcome_trial_no_renew_missing", failures)
+                    _check(
+                        "complete a short access application" in payload,
+                        "welcome_application_copy_missing",
+                        failures,
+                    )
+                    _check(
+                        "7 DAYS OF FULL MEMBER ACCESS" in payload,
+                        "welcome_trial_copy_missing",
+                        failures,
+                    )
+                    _check(
+                        "No credit card required" in payload, "welcome_no_card_missing", failures
+                    )
+                    _check("No automatic renewal" in payload, "welcome_no_renew_missing", failures)
+                    _check("SAFETY NOTICE" in payload, "welcome_safety_notice_missing", failures)
                     _check(
                         "MY RISK IS NOT YOUR RISK" in payload,
                         "welcome_personal_risk_copy_missing",
@@ -241,38 +300,25 @@ async def verify() -> list[str]:
                     ]
                     labels = [getattr(component, "label", None) for component in components]
                     _check(
-                        labels == ["START 7-DAY FREE TRIAL", "VIEW MEMBERSHIP"],
+                        labels == ["APPLY TO JOIN AXIS"],
                         "welcome_buttons_mismatch",
                         failures,
                     )
-                    trial_button = next(
+                    apply_button = next(
                         (
                             component
                             for component in components
-                            if getattr(component, "label", None) == "START 7-DAY FREE TRIAL"
-                        ),
-                        None,
-                    )
-                    membership_button = next(
-                        (
-                            component
-                            for component in components
-                            if getattr(component, "label", None) == "VIEW MEMBERSHIP"
+                            if getattr(component, "label", None) == "APPLY TO JOIN AXIS"
                         ),
                         None,
                     )
                     _check(
-                        getattr(trial_button, "custom_id", None)
-                        == "axis:welcome:free_trial:v1",
-                        "welcome_trial_interaction_missing",
+                        getattr(apply_button, "custom_id", None) == "axis:newcomer:apply:v1",
+                        "welcome_application_interaction_missing",
                         failures,
                     )
                     _check(
-                        getattr(membership_button, "url", None)
-                        == f"https://discord.com/channels/{guild.id}/"
-                        f"{channel_ids['subscriptions']}",
-                        "welcome_membership_link_mismatch",
-                        failures,
+                        "APPLY FOR MEMBER ACCESS" not in payload, "old_apply_copy_present", failures
                     )
                 if channel_key == "subscriptions" and matching:
                     payload = str(matching[0].embeds[0].to_dict())
@@ -294,7 +340,9 @@ async def verify() -> list[str]:
                         "trial_payment_copy_missing",
                         failures,
                     )
-                    _check("START FREE TRIAL" in labels, "start_trial_button_missing", failures)
+                    _check(
+                        "START FREE TRIAL" not in labels, "direct_trial_button_present", failures
+                    )
                     _check(
                         "MANAGE MEMBERSHIP" in labels,
                         "manage_membership_button_missing",
@@ -357,6 +405,12 @@ async def verify() -> list[str]:
                         "member_panel_user_select_mismatch",
                         failures,
                     )
+            _check(config.newcomer_role_id == newcomer.id, "newcomer_role_id_mismatch", failures)
+            _check(
+                config.join_review_channel_id == join_review.id,
+                "join_review_channel_id_mismatch",
+                failures,
+            )
 
         application_id = client.application_id
         _check(application_id is not None, "application_id_missing", failures)
@@ -386,7 +440,7 @@ def main() -> int:
         print("discord_runtime=FAIL checks=" + ",".join(sorted(failures)))
         return 2
     print("discord_runtime=PASS")
-    print("permissions=public,member,manager,owner,bot")
+    print("permissions=public,newcomer,member,manager,owner,bot")
     print("general_guides=idempotent")
     print("mentor_control=select,add")
     print("member_control=searchable_user_select")

@@ -153,6 +153,19 @@ class AcknowledgementDocumentType(StrEnum):
     PRIVACY = "PRIVACY"
 
 
+class AccessApplicationStatus(StrEnum):
+    PENDING = "PENDING"
+    FLAGGED = "FLAGGED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class NewcomerRiskSeverity(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class JobStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"

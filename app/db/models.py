@@ -27,6 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.domain.enums import (
+    AccessApplicationStatus,
     AcknowledgementDocumentType,
     ActionStage,
     AnalysisDraftStatus,
@@ -41,6 +42,7 @@ from app.domain.enums import (
     MembershipPlanType,
     MembershipSource,
     MembershipStatus,
+    NewcomerRiskSeverity,
     OptionSide,
     PublicationStatus,
     SourceKind,
@@ -90,6 +92,7 @@ class GuildConfig(TimestampMixin, Base):
     lab_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     manager_role_id: Mapped[int | None] = mapped_column(BigInteger)
     member_role_id: Mapped[int | None] = mapped_column(BigInteger)
+    newcomer_role_id: Mapped[int | None] = mapped_column(BigInteger)
     results_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     short_term_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     swing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -104,6 +107,7 @@ class GuildConfig(TimestampMixin, Base):
     system_alerts_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     card_testing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     results_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    join_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -112,6 +116,10 @@ class GuildConfig(TimestampMixin, Base):
     lobby_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_wins_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     short_term_notice_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    newcomer_status_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    newcomer_gate_activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class InputCodeCounter(Base):
@@ -1114,6 +1122,125 @@ class MembershipAcknowledgement(UuidPrimaryKeyMixin, Base):
     )
 
 
+class NewcomerProfile(TimestampMixin, Base):
+    __tablename__ = "newcomer_profiles"
+    __table_args__ = (
+        CheckConstraint("join_count >= 1", name="newcomer_profile_join_count_positive"),
+        CheckConstraint(
+            "role_sync_status IN ('SYNCED','PENDING','FAILED')",
+            name="newcomer_profile_role_sync_status",
+        ),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"),
+        primary_key=True,
+        autoincrement=False,
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    discord_username_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    discord_display_name_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    first_joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    join_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    role_sync_status: Mapped[str] = mapped_column(String(16), default="SYNCED", nullable=False)
+    last_role_error: Mapped[str | None] = mapped_column(String(100))
+
+
+class AccessApplication(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "access_applications"
+    __table_args__ = (
+        CheckConstraint(
+            enum_check("status", AccessApplicationStatus),
+            name="access_application_status",
+        ),
+        CheckConstraint(
+            "discovery_source IN "
+            "('FRIEND_REFERRAL','X_SOCIAL_MEDIA','DISCORD','ONLINE_COMMUNITY','OTHER')",
+            name="access_application_discovery_source",
+        ),
+        CheckConstraint(
+            "risk_acknowledged = TRUE AND community_rules_acknowledged = TRUE",
+            name="access_application_agreements_required",
+        ),
+        Index(
+            "uq_access_application_open_per_user",
+            "guild_id",
+            "discord_user_id",
+            unique=True,
+            postgresql_where=text("status IN ('PENDING','FLAGGED')"),
+            sqlite_where=text("status IN ('PENDING','FLAGGED')"),
+        ),
+        Index(
+            "uq_access_application_approved_per_user",
+            "guild_id",
+            "discord_user_id",
+            unique=True,
+            postgresql_where=text("status = 'APPROVED'"),
+            sqlite_where=text("status = 'APPROVED'"),
+        ),
+        Index("ix_access_applications_review", "guild_id", "status", "submitted_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    discord_username_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    discord_display_name_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    discovery_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    referred_by_text: Mapped[str | None] = mapped_column(String(200))
+    interests: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    risk_acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    community_rules_acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default=AccessApplicationStatus.PENDING.value, nullable=False, index=True
+    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    review_message_id: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class NewcomerRiskFlag(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "newcomer_risk_flags"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id",
+            "discord_user_id",
+            "risk_code",
+            name="newcomer_risk_flag_user_code",
+        ),
+        CheckConstraint(
+            enum_check("severity", NewcomerRiskSeverity),
+            name="newcomer_risk_flag_severity",
+        ),
+        CheckConstraint("occurrence_count >= 1", name="newcomer_risk_occurrence_positive"),
+        Index("ix_newcomer_risk_active", "guild_id", "resolved_at", "severity"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("access_applications.id", ondelete="SET NULL"), index=True
+    )
+    risk_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    details: Mapped[str | None] = mapped_column(Text)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurrence_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 class MembershipEntitlement(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "membership_entitlements"
     __table_args__ = (
@@ -1214,6 +1341,10 @@ class MembershipTrial(UuidPrimaryKeyMixin, Base):
     entitlement_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("membership_entitlements.id", ondelete="RESTRICT"), unique=True
     )
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("access_applications.id", ondelete="RESTRICT"), unique=True
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )

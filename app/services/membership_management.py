@@ -260,7 +260,10 @@ class MembershipManagementService:
         self, guild_id: int, user_id: int, *, actor_user_id: int
     ) -> MembershipSnapshot | None:
         existing = await self.get(guild_id, user_id)
-        if existing is not None and existing.is_active:
+        # Startup import is only for legacy Role holders with no entitlement history.
+        # An expired Trial must never be converted into lifetime MANUAL access merely
+        # because Discord role reconciliation has not removed Member yet.
+        if existing is not None:
             return existing
         await self.access.add_manual(guild_id, user_id, actor_user_id=actor_user_id)
         return await self.get(guild_id, user_id)

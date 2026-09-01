@@ -14,6 +14,7 @@ from app.db.models import (
     MembershipEntitlement,
     MembershipPrice,
     MembershipSession,
+    NewcomerProfile,
     PaymentEvent,
     utc_now,
 )
@@ -86,6 +87,7 @@ class MembershipStripeService:
         session_ttl_minutes: int = 30,
         mode: StripeMode = StripeMode.TEST,
         payments_enabled: bool = True,
+        approval_required: bool = False,
     ) -> None:
         self.database = database
         self.gateway = gateway
@@ -96,6 +98,7 @@ class MembershipStripeService:
         self.mode = mode
         self.environment = mode.database_value
         self.payments_enabled = payments_enabled
+        self.approval_required = approval_required
 
     @property
     def enabled(self) -> bool:
@@ -107,6 +110,25 @@ class MembershipStripeService:
         user_id: int,
         plan_type: str,
     ) -> StripeCheckout:
+        if self.approval_required:
+            async with self.database.session() as approval_session:
+                approval = (
+                    await approval_session.execute(
+                        select(
+                            NewcomerProfile.approved_at,
+                            NewcomerProfile.role_sync_status,
+                        ).where(
+                            NewcomerProfile.guild_id == guild_id,
+                            NewcomerProfile.discord_user_id == user_id,
+                        )
+                    )
+                ).one_or_none()
+            if (
+                approval is None
+                or approval.approved_at is None
+                or approval.role_sync_status != "SYNCED"
+            ):
+                raise MembershipStripeError("ACCESS_APPROVAL_REQUIRED")
         if not self.payments_enabled:
             raise MembershipStripeError("PAYMENTS_DISABLED")
         if self.gateway is None:

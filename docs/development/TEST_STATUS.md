@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 228 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 238 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -95,15 +95,18 @@ Daily Results Review:
 
 Membership / Stripe:
 
-- Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role reconciliation。
-- Free Trial 严格 7 Calendar Days：周末/美国市场休市日计入、领取时固化 duration/expiry、
-  不调用 TradingCalendarService、终身一次、已有访问不消耗、默认无 DM。
+- Newcomer Application、PENDING/FLAGGED/APPROVED/REJECTED、答案与两项 agreement 持久化、
+  duplicate protection 和 permanent Approval。
+- 首次审批自动 Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role
+  reconciliation；Approval 后中断的 Trial 创建可由 reconciliation 幂等恢复。
+- Free Trial 严格 7 Calendar Days：周末/美国市场休市日计入、批准时固化 duration/expiry、
+  不调用 TradingCalendarService、终身一次、默认无 DM、无 Stripe / Card / Auto Renewal。
 - Day Pass 保持 1 XNYS Trading Day；Trial 有效时阻止 Day Pass checkout，但允许 Monthly。
-- Welcome-first Category / Channel 顺序、公开入口、会员区隐藏和 Persistent Card 文案/按钮。
-- Welcome 极简卡固定提供 `START 7-DAY FREE TRIAL` 交互按钮与 `VIEW MEMBERSHIP` 链接；
-  Trial 按钮先检查 active access / lifetime claim，再进入带 `I UNDERSTAND` 的 Risk Disclosure。
-- 已使用 Trial 时仅返回 Membership 导流且不会重复授权；已有 active access 时不消耗终身一次资格；
-  确认后通过 MembershipAccessService 创建 $0 entitlement 并同步 Member Role，不调用 Stripe。
+- Welcome 唯一 onboarding CTA `APPLY TO JOIN AXIS`；旧 Apply / Start Trial / Membership CTA 均不存在。
+- Newcomer 只能只读 welcome/results/member-wins；所有其他 Blueprint channel 显式 DENY。
+- Approved / expired / renamed / active Monthly / never-approved / rejected rejoin 场景与 Trial permanent
+  history、database unique、Role sync failure、checkout fail-closed 均有覆盖。
+- Risk Scanner 七项规则、protected identity normalization、持久去重、非自动决定和 aggregate health。
 - Checkout / Portal、webhook signature、dedup、Price snapshot / Grandfathering。
 - renewal、failure、cancel-at-period-end、PAST_DUE 与 provider event ordering。
 - Test / Live config fallback rejection、environment-scoped Price/Entitlement/Session/Event。
@@ -131,7 +134,7 @@ Operations / Security:
 
 Database:
 
-- revision=20260831_0025
+- revision=20260831_0026
 - source_messages=21
 - trade_drafts=21
 - trades=16
@@ -145,6 +148,9 @@ Database:
 - daily_results_items=14
 - membership_entitlements=2
 - membership_trials=0
+- newcomer_profiles=4（全部为 cutover 前 baseline 的 existing Production users；未授予 Trial）
+- access_applications=0
+- newcomer_risk_flags=0
 - membership_prices=4（TEST 2 / LIVE 2；LIVE V1 已绑定并 current）
 - payment_events=0
 - system_alerts=2
@@ -163,15 +169,17 @@ Feature flags:
 Discord:
 
 - discord_runtime=PASS
-- Bootstrap dry-run=REUSE 29 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
+- Bootstrap apply 已创建缺失的 `🛂・join-review`，并只更新 AXIS 已登记频道的 Newcomer / Bot
+  overwrite；未删除、重命名或移动非 AXIS 资源。
+- Apply 后 Bootstrap dry-run=REUSE 31 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
-- Welcome 持久卡片已精简并显示 7 天完整会员体验、No Card / No Automatic Renewal、
-  `MY RISK IS NOT YOUR RISK`，底部只有 `START 7-DAY FREE TRIAL` 与 `VIEW MEMBERSHIP`。
-- Membership 持久卡片继续显示 Free Trial 7 Calendar Days、Day Pass 1 Trading Day、Monthly、
-  START FREE TRIAL 与 MANAGE MEMBERSHIP；Welcome / Membership 同标题消息各只有一条。
+- Welcome 持久卡片为全英文审批制文案并显示 7 天完整会员体验、No Card / No Automatic Renewal、
+  `MY RISK IS NOT YOUR RISK` 与 Safety Notice，唯一按钮为 `APPLY TO JOIN AXIS`。
+- Membership 卡片不再提供直接 Free Trial；Day Pass / Monthly checkout 在服务层要求 permanent
+  Approval + completed Role sync，Newcomer 无法通过旧 URL / component 绕过。
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
-- personas=public, member, manager, owner, bot
+- personas=public, newcomer, member, manager, owner, bot
 - GENERAL guides=idempotent
 - owner test commands=13
 
@@ -221,18 +229,19 @@ Schema drift check：
 
 Short-Term verifier evidence:
 
-- short_term_tracking=0
-- short_term_tracking_events=0
-- short_term_daily_snapshots=0
+- short_term_tracking=14
+- short_term_tracking_events=62
+- short_term_daily_snapshots=14
 - daily_results_publications=0
-- market_quote_snapshots=0
+- market_quote_snapshots=2
 
-Soft Open Reset 后没有正式 ST Trade；下一笔真实发布将是 ST-0001。真实 Massive quote、TP /
-Protection trigger、Discord event、Daily Results 和 restart recovery 必须完成后，Short-Term
-Live E2E 才能标记 PASS。Results Review 的代码、自动化、migration、Discord command 与 job
-ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live acceptance。
+数据库当前已有 14 条 Short-Term tracking 与 62 条 tracking event，但这些计数本身不能替代
+对真实 Massive quote、TP / Protection trigger、Discord event、Daily Results 和 restart recovery
+的逐项验收，因此 Short-Term Live E2E 仍不能标记 PASS。Results Review 的代码、自动化、
+migration、Discord command 与 job ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live
+acceptance。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 215 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 238 项测试结果。

@@ -11,6 +11,7 @@ from app.db.session import Database
 from app.domain.enums import OptionSide, TradeCategory, TradeState
 
 EXPECTED_TABLES = {
+    "access_applications",
     "analysis_draft_revisions",
     "analysis_drafts",
     "analysis_key_levels",
@@ -44,6 +45,8 @@ EXPECTED_TABLES = {
     "membership_acknowledgements",
     "membership_entitlements",
     "membership_trials",
+    "newcomer_profiles",
+    "newcomer_risk_flags",
     "payment_events",
     "subscriptions",
     "payment_webhook_events",
@@ -59,7 +62,7 @@ EXPECTED_TABLES = {
 def discord_ids() -> dict[str, object]:
     return {
         "guild_id": 1543309921066684567,
-        "roles": {"manager": 101, "member": 102},
+        "roles": {"manager": 101, "member": 102, "newcomer": 103},
         "channels": {
             "official_results": 201,
             "short_term_alerts": 202,
@@ -68,6 +71,7 @@ def discord_ids() -> dict[str, object]:
             "mentor_control": 205,
             "member_control": 206,
             "results_review": 207,
+            "join_review": 208,
         },
     }
 
@@ -91,6 +95,10 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "system_alerts_channel_id",
         "card_testing_channel_id",
         "results_review_channel_id",
+        "join_review_channel_id",
+        "newcomer_role_id",
+        "newcomer_status_message_id",
+        "newcomer_gate_activated_at",
     } <= set(Base.metadata.tables["guild_config"].columns.keys())
     memberships = Base.metadata.tables["memberships"]
     assert {
@@ -112,7 +120,23 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "started_at",
         "expires_at",
         "updated_at",
+        "application_id",
+        "approved_by_user_id",
     } <= set(trials.columns.keys())
+    applications = Base.metadata.tables["access_applications"]
+    assert {
+        "discord_user_id",
+        "discovery_source",
+        "referred_by_text",
+        "interests",
+        "risk_acknowledged",
+        "community_rules_acknowledged",
+        "status",
+        "reviewed_by_user_id",
+    } <= set(applications.columns.keys())
+    assert {"risk_code", "severity", "occurrence_count", "resolved_at"} <= set(
+        Base.metadata.tables["newcomer_risk_flags"].columns.keys()
+    )
     assert trials.c.first_trading_day.nullable
     assert trials.c.last_trading_day.nullable
     assert "source_kind" in Base.metadata.tables["source_messages"].columns

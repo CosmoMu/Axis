@@ -107,6 +107,12 @@ async def test_manager_actions_create_independent_entitlements_and_sync_manual_r
         expired = await service.get(GUILD_ID, expiring.user_id)
         assert expired_users == [expiring.user_id]
         assert expired is not None and expired.status == EntitlementStatus.EXPIRED.value
+        imported = await service.import_role_holder(
+            GUILD_ID,
+            expiring.user_id,
+            actor_user_id=999,
+        )
+        assert imported is not None and imported.status == EntitlementStatus.EXPIRED.value
 
         async with database.session() as session:
             audit_count = await session.scalar(select(func.count()).select_from(AuditLog))

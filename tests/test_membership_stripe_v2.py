@@ -13,9 +13,11 @@ from sqlalchemy import func, select
 
 from app.db.base import Base
 from app.db.models import (
+    AccessApplication,
     GuildConfig,
     MembershipEntitlement,
     MembershipPrice,
+    NewcomerProfile,
     PaymentEvent,
 )
 from app.db.session import Database
@@ -85,6 +87,35 @@ async def setup() -> tuple[
         await connection.run_sync(Base.metadata.create_all)
     async with database.session() as session:
         session.add(GuildConfig(guild_id=GUILD_ID))
+        approved_at = datetime(2026, 8, 31, 12, tzinfo=UTC)
+        session.add(
+            NewcomerProfile(
+                guild_id=GUILD_ID,
+                discord_user_id=USER_ID,
+                discord_username_snapshot="approved_user",
+                discord_display_name_snapshot="Approved User",
+                first_joined_at=approved_at,
+                last_joined_at=approved_at,
+                join_count=1,
+                approved_at=approved_at,
+            )
+        )
+        session.add(
+            AccessApplication(
+                guild_id=GUILD_ID,
+                discord_user_id=USER_ID,
+                discord_username_snapshot="approved_user",
+                discord_display_name_snapshot="Approved User",
+                discovery_source="DISCORD",
+                interests=["SWING"],
+                risk_acknowledged=True,
+                community_rules_acknowledged=True,
+                status="APPROVED",
+                submitted_at=approved_at,
+                reviewed_at=approved_at,
+                reviewed_by_user_id=999,
+            )
+        )
         session.add_all(
             [
                 MembershipPrice(
@@ -124,6 +155,7 @@ async def setup() -> tuple[
         calendar,
         acknowledgements,
         MembershipPriceCatalog(database),
+        approval_required=True,
     )
     await acknowledgements.accept_risk(GUILD_ID, USER_ID, interaction_id=1)
     return database, gateway, access, service
@@ -160,6 +192,31 @@ def checkout_event(
             }
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_checkout_backend_rejects_user_without_permanent_approval() -> None:
+    database, _, _, stripe_service = await setup()
+    try:
+        with pytest.raises(MembershipStripeError, match="ACCESS_APPROVAL_REQUIRED"):
+            await stripe_service.create_checkout(
+                GUILD_ID,
+                USER_ID + 1,
+                MembershipPlanType.MONTHLY.value,
+            )
+        async with database.session() as session:
+            profile = await session.get(NewcomerProfile, (GUILD_ID, USER_ID))
+            assert profile is not None
+            profile.role_sync_status = "FAILED"
+            await session.commit()
+        with pytest.raises(MembershipStripeError, match="ACCESS_APPROVAL_REQUIRED"):
+            await stripe_service.create_checkout(
+                GUILD_ID,
+                USER_ID,
+                MembershipPlanType.MONTHLY.value,
+            )
+    finally:
+        await database.dispose()
 
 
 @pytest.mark.asyncio
@@ -204,7 +261,18 @@ async def test_day_pass_checkout_duplicate_click_webhook_and_idempotency() -> No
 async def test_active_free_trial_blocks_day_pass_but_allows_monthly_checkout() -> None:
     database, gateway, access, stripe_service = await setup()
     try:
-        trial = await access.claim_free_trial(GUILD_ID, USER_ID, interaction_id=2)
+        async with database.session() as session:
+            application_id = await session.scalar(
+                select(AccessApplication.id).where(AccessApplication.discord_user_id == USER_ID)
+            )
+        assert application_id is not None
+        trial = await access.claim_free_trial(
+            GUILD_ID,
+            USER_ID,
+            interaction_id=2,
+            application_id=application_id,
+            approved_by_user_id=999,
+        )
         assert trial.entitlement_type == EntitlementType.FREE_TRIAL.value
         with pytest.raises(
             MembershipStripeError,

@@ -15,6 +15,7 @@ from app.db.models import (
     Membership,
     MembershipEvent,
     MembershipSession,
+    NewcomerProfile,
     PaymentWebhookEvent,
     Subscription,
 )
@@ -31,6 +32,20 @@ from app.services.membership_payments import (
 
 GUILD_ID = 1543309921066684567
 USER_ID = 100000000000000001
+
+
+def approved_profile() -> NewcomerProfile:
+    now = datetime(2026, 8, 31, 12, tzinfo=UTC)
+    return NewcomerProfile(
+        guild_id=GUILD_ID,
+        discord_user_id=USER_ID,
+        discord_username_snapshot="approved_user",
+        discord_display_name_snapshot="Approved User",
+        first_joined_at=now,
+        last_joined_at=now,
+        join_count=1,
+        approved_at=now,
+    )
 
 
 def event_payload(
@@ -84,6 +99,34 @@ def test_external_provider_preserves_discord_metadata_and_verifies_hmac() -> Non
 
 
 @pytest.mark.asyncio
+async def test_legacy_checkout_session_backend_also_requires_approval() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    async with database.engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    try:
+        async with database.session() as session:
+            session.add(GuildConfig(guild_id=GUILD_ID))
+            await session.commit()
+        service = MembershipPaymentService(
+            database,
+            ExternalCheckoutProvider(),
+            subscription_url="https://pay.example/axis",
+            session_ttl_minutes=30,
+        )
+        with pytest.raises(MembershipPaymentError, match="ACCESS_APPROVAL_REQUIRED"):
+            await service.create_checkout_session(GUILD_ID, USER_ID)
+        async with database.session() as session:
+            profile = approved_profile()
+            profile.role_sync_status = "FAILED"
+            session.add(profile)
+            await session.commit()
+        with pytest.raises(MembershipPaymentError, match="ACCESS_APPROVAL_REQUIRED"):
+            await service.create_checkout_session(GUILD_ID, USER_ID)
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_payment_activation_cancel_and_idempotency_drive_membership_role_state() -> None:
     database = Database("sqlite+aiosqlite:///:memory:")
     async with database.engine.begin() as connection:
@@ -97,7 +140,7 @@ async def test_payment_activation_cancel_and_idempotency_drive_membership_role_s
     )
     try:
         async with database.session() as session:
-            session.add(GuildConfig(guild_id=GUILD_ID))
+            session.add_all([GuildConfig(guild_id=GUILD_ID), approved_profile()])
             await session.commit()
 
         checkout = await service.create_checkout_session(GUILD_ID, USER_ID)
@@ -188,7 +231,7 @@ async def test_payment_metadata_mismatch_is_rejected_without_membership() -> Non
     )
     try:
         async with database.session() as session:
-            session.add(GuildConfig(guild_id=GUILD_ID))
+            session.add_all([GuildConfig(guild_id=GUILD_ID), approved_profile()])
             await session.commit()
         checkout = await service.create_checkout_session(GUILD_ID, USER_ID)
         payload = event_payload(

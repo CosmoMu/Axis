@@ -18,10 +18,11 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0025；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+- Alembic revisions 0001–0026；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
   0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
   Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称，
-  0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间。
+  0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间；
+  0026 增加永久 Approval、Application、Newcomer risk、Role sync 与 Trial 审批溯源。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -107,16 +108,35 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 ## Free Trial / Day Pass / Monthly
 
-- 版本化风险确认与 Trial 终身一次。
-- Free Trial 从领取时刻连续 7 个自然日，周末和美国市场休市日计入；duration/expiry 在领取时
-  固化，运行时不调用 `TradingCalendarService`。
+- Free Trial 只由 Manager APPROVE 自动创建；用户没有 Claim / Start / Confirm Trial 操作。
+- Trial 从批准时刻连续 7 个自然日，周末和美国市场休市日计入；duration/expiry 在创建时固化，
+  运行时不调用 `TradingCalendarService`，不使用 Stripe、信用卡或自动续费。
+- `membership_trial_lifetime_once(discord_user_id, trial_type)` 在数据库层保证每个 Discord User ID
+  终身最多一次 `NEW_MEMBER_FREE_TRIAL`；application、approver、起止时间和状态永久保留。
 - Day Pass 继续使用 XNYS 正式交易日历的一个交易日，逻辑未变。
-- 加入 Guild 只检查资格，不自动创建 entitlement、不授予 Role、不重置 Trial；默认不发 DM。
-- 已有 Paid / Gift / Manual / Extension 访问不消耗 Trial；Trial 有效时 Day Pass checkout 被阻止，
-  Monthly checkout 继续可用。
+- Trial 到期后按全部 Entitlement 决定 Member Role；没有其他访问则只移除 Member，不重新添加
+  Newcomer，永久 Approval 保留。
 - Monthly 自动续费、PAST_DUE、cancel-at-period-end 和 EXPIRED/CANCELLED/REVOKED lifecycle。
 - 多个有效 entitlement 任一有效即保留 Member Role。
 - Manager extension 创建独立 MANUAL_EXTENSION，不覆盖原 entitlement。
+
+## Newcomer Approval / Security Gate
+
+- 首次、从未获批的用户获得唯一 `Newcomer` Role；实际 Discord overwrite 只允许只读
+  `welcome`、`results`、`member-wins`，其余频道对 Newcomer 显式 DENY。
+- Welcome 的唯一 onboarding CTA 是 `APPLY TO JOIN AXIS`；所有申请、确认、no-access、Safety、
+  pending/rejected/flagged 和 Manager join-review 内容均为英文。
+- Application 保存 discovery source、optional referrer、multi-select interests、Risk / Community
+  agreements 和永久 PENDING / FLAGGED / APPROVED / REJECTED 审计。
+- `🛂・join-review` 只允许 Owner / Manager / AXIS BOT；APPROVE / REJECT / FLAG 幂等。
+- Approval 与 Entitlement 分离并永久存在；Approved rejoin 不再申请、不再得到 Trial，按当前
+  Entitlement 成为 Member 或普通 `@everyone` visitor。
+- `NewcomerRiskScanner` 覆盖 VERY_NEW_ACCOUNT、NEW_ACCOUNT、PREVIOUS_REJECTION、
+  PREVIOUS_FLAG、TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION；protected
+  identity 由 YAML 配置，风险只用于 Flag / Alert / Review，不自动 Kick / Ban / Reject。
+- 风险记录按 user + risk code 持久去重，High-risk 接入 system-alerts；`NEWCOMER SECURITY`
+  aggregate health、5 分钟 Role reconciliation 与 1 小时 risk scan 已实现。
+- Checkout 后端同时要求永久 Approval 和已完成 Role sync，旧按钮或 URL 不能绕过 Newcomer gate。
 
 ## Stripe
 
@@ -139,12 +159,10 @@ quote / TP / Protection 触发尚未验收，Live Gate 仍未通过。
 
 - Welcome、Membership、Results、Member Wins 和 Lobby Topic；Welcome 是第一个公共 AXIS
   Category 的第一个频道，Persistent Card 是默认 onboarding 入口。
-- Welcome 使用 Minimal / Clean / Premium 内容，只保留品牌、7 天体验、四项会员内容与风险提示；
-  Persistent `START 7-DAY FREE TRIAL` 直接进入 AXIS 资格与 Risk 流程，`VIEW MEMBERSHIP` 跳转
-  subscriptions，不使用公开 Trial URL。
-- Welcome / Membership 明确展示 `7 Calendar Days` Free Trial、无需信用卡、不自动续费，
-  并把 Day Pass 单独标为 `1 Trading Day`；Risk Disclosure 使用 `I UNDERSTAND` 并包含
-  `MY RISK IS NOT YOUR RISK`。
+- Welcome 使用 Minimal / Clean / Premium 英文内容；Persistent View 对 Newcomer 只提供
+  `APPLY TO JOIN AXIS`，不显示 Membership、Day Pass、Monthly 或 Stripe Checkout。
+- Welcome 明确说明 Approval 后自动提供 `7 DAYS OF FULL MEMBER ACCESS`、No Card、No Automatic
+  Renewal、`MY RISK IS NOT YOUR RISK` 和 staff never-DM-first Safety Notice。
 - Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。
 - 公开 Membership 卡片使用数据库 Price Catalog。

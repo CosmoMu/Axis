@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-EXPECTED_REVISION = "20260831_0025"
+EXPECTED_REVISION = "20260831_0026"
 
 COUNTED_TABLES = (
     "input_code_counters",
@@ -29,6 +29,9 @@ COUNTED_TABLES = (
     "membership_acknowledgements",
     "membership_entitlements",
     "membership_trials",
+    "newcomer_profiles",
+    "access_applications",
+    "newcomer_risk_flags",
     "payment_events",
     "payment_webhook_events",
     "system_alerts",
@@ -90,6 +93,8 @@ async def verify() -> None:
                 "calendar_days_granted",
                 "started_at",
                 "expires_at",
+                "application_id",
+                "approved_by_user_id",
             }
             if not required_trial_columns <= trial_columns:
                 raise RuntimeError("MEMBERSHIP_TRIAL_SCHEMA_MISMATCH")

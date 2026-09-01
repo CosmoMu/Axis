@@ -35,8 +35,15 @@ def _duration(seconds: int) -> str:
 def alert_embed(decision: AlertDecision) -> discord.Embed:
     alert = decision.alert
     recovered = decision.action == "RECOVERY"
+    newcomer_risk = alert.service == "Newcomer Security" and not recovered
     embed = discord.Embed(
-        title=("✅ AXIS SYSTEM RECOVERED" if recovered else "🚨 AXIS SYSTEM ALERT"),
+        title=(
+            "✅ AXIS SYSTEM RECOVERED"
+            if recovered
+            else "POSSIBLE NEWCOMER RISK"
+            if newcomer_risk
+            else "🚨 AXIS SYSTEM ALERT"
+        ),
         color=0x86F7A8 if recovered else 0xD66A6A,
     )
     embed.add_field(name="Service", value=alert.service, inline=False)
@@ -213,9 +220,9 @@ class SystemAlertsCog(commands.Cog):
                     resolved_at=None,
                 )
                 try:
-                    channel = self.bot.get_channel(
+                    channel = self.bot.get_channel(self.channel_id) or await self.bot.fetch_channel(
                         self.channel_id
-                    ) or await self.bot.fetch_channel(self.channel_id)
+                    )
                     await channel.send(embed=alert_embed(AlertDecision("ALERT", snapshot)))
                 except Exception as exc:
                     logger.warning(

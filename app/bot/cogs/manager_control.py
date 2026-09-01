@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.bot.cards import build_official_result_embed
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.views.management_views import MemberControlView, MentorControlView
-from app.db.models import GuildConfig
+from app.db.models import AuditLog, GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
 from app.services.mentor_management import MentorError, MentorManagementService
 from app.services.official_results import OfficialResultsService, ResultsError
@@ -230,6 +230,18 @@ class ManagerControlCog(commands.Cog):
             await member.add_roles(role, reason="AXIS membership active")
         else:
             await member.remove_roles(role, reason="AXIS membership inactive")
+        async with self.membership_service.database.session() as session:
+            session.add(
+                AuditLog(
+                    guild_id=self.guild_id,
+                    actor_user_id=self.bot.user.id if self.bot.user else self.owner_user_id or 0,
+                    action_type=("MEMBER_ROLE_ADDED" if should_have else "MEMBER_ROLE_REMOVED"),
+                    entity_type="discord_role",
+                    entity_id=str(user_id),
+                    after_json={"role": "Member"},
+                )
+            )
+            await session.commit()
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:

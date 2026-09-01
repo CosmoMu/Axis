@@ -2,9 +2,9 @@
 
 **Updated:** 2026-08-31
 
-**Current stage:** Production stabilization / Stripe Live enabled; first-payment E2E pending
+**Current stage:** Newcomer security gate rollout / Production stabilization
 
-**Database revision:** 20260831_0025
+**Database revision:** 20260831_0026
 
 **AXIS LAB:** DEFERRED
 
@@ -25,10 +25,13 @@ kill switch 已完成并迁移。Stripe 账户 activation/KYC/payout、Live Prod
 webhook、D1 relay、Customer Portal、顾客展示资料与政策页面已完成；当前
 `STRIPE_MODE=live`、`STRIPE_ENABLED=true`、`PAYMENTS_ENABLED=true`，readiness 为 PASS / 0
 blockers。第一笔真实 Live 付款及完整 lifecycle 尚未验收。
-当前最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
+Newcomer Approval / Free Trial Security Gate 已完成代码、迁移、权限矩阵和自动化回归；生产环境
+已执行 existing-user baseline 与 Discord structure 安全部署，但真实新账户的完整时钟 E2E 仍待验收。
+随后最高优先级仍是 Short-Term / Massive 真实端到端；Reset 后尚未产生正式 ST-0001，真实
 Massive quote、TP/Protection 触发和正式交易日 Discord E2E 仍未验收。
 
-Next execution boundary: 不新增产品功能。继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
+Next execution boundary: 不新增产品功能。先完成真实 Newcomer Join → Apply → Approve → Trial →
+Expiry → Rejoin 验收，再继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
 从 Discord 完成第一笔真实付款并验收 webhook → Entitlement → Member Role，再继续 renewal、
 failure、payment-method update、cancel 与重复/乱序事件。AXIS LAB 继续 Deferred，Signal /
 Analysis / Tracking 业务逻辑保持冻结。
@@ -159,24 +162,31 @@ Tests: searchable control / detail UI、会员时间字段、Role sync、到期�
 
 Production status: 已部署。
 
-## Free Trial — COMPLETE
+## Newcomer Approval / Free Trial Security Gate — CODE COMPLETE / LIVE E2E PENDING
 
-Implemented: 终身一次、版本化风险确认、领取时刻起连续 7 个 Calendar Days、周末/美国市场
-休市日计入、领取时固化 duration/expiry、加入 Guild 不自动领取、已有访问不消耗 Trial、
-Trial 期间阻止 Day Pass 但允许 Monthly，以及多 Entitlement 汇总后的 Member Role 同步。
-`TradingCalendarService` 不参与 Free Trial；Day Pass 的一交易日逻辑保持不变。旧 Trial 通过
-0025 migration 保留历史 `TRADING_DAY` duration 与原到期时间，不追溯改期。Welcome 已简化为
-品牌、7 天体验、会员内容与风险提示，并提供 Persistent `START 7-DAY FREE TRIAL` 交互按钮及
-`VIEW MEMBERSHIP` 链接；重复领取会返回 `AXIS FREE TRIAL` 状态卡和 Membership 跳转。
+Implemented: 永久 Approval 与当前 Entitlement 分离；首次加入使用 `Newcomer` Role，仅允许只读
+welcome/results/member-wins；其他频道显式 DENY，不能通过继承 `@everyone` 绕过。Welcome 唯一
+CTA 为 `APPLY TO JOIN AXIS`，申请、风险确认、Community Safety 和 join-review 全部使用英文。
 
-Remaining: Production 新用户真实领取、7×24 小时到期和 Discord Role reconciliation 时钟演练。
+Application 保存 source、optional referrer、multi-select interests、两项 agreement、PENDING /
+FLAGGED / APPROVED / REJECTED、reviewer/time/note。`🛂・join-review` 提供幂等 APPROVE / REJECT /
+FLAG。APPROVE 自动创建 7 Calendar Day $0 Trial、移除 Newcomer、添加 Member；无用户 Claim、
+无卡、无 Stripe、无续费。
 
-Tests: Welcome 双按钮与回调、Risk Disclosure、无 Stripe Trial 激活、Role sync、周末、美国市场
-休市日、严格 7 天、禁止调用交易日历、重复申请、已有访问不消耗、Trial/Day Pass checkout
-边界、到期和多 Entitlement。
+Trial 终身一次继续由 `membership_trial_lifetime_once(discord_user_id, trial_type)` 保护，并新增
+application/reviewer 溯源。到期保留 Trial 与 Approval 历史，只按 aggregate entitlement 移除
+Member，永不重新添加 Newcomer；Approved rejoin 直接恢复 entitlement 投影，Never-approved /
+Rejected rejoin 保持 Newcomer。
 
-Production status: 代码、数据库 migration、Welcome-first 顺序与持久卡片已部署并通过 runtime
-验证；Reset 已清除开发阶段 Trial。现有历史 claim 不被重算。
+NewcomerRiskScanner 已实现 VERY_NEW_ACCOUNT、NEW_ACCOUNT、PREVIOUS_REJECTION、PREVIOUS_FLAG、
+TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION，使用配置化 protected names、
+持久去重 flag、system-alerts fingerprint 去重和 NEWCOMER SECURITY aggregate health。Scanner
+只辅助 Review，不自动 Ban / Kick / Reject。
+
+Production safety: migration `20260831_0026` 与 pre-gate user baseline/cutover 工具已完成；必须先
+dry-run 再应用。Existing Production users 只 baseline 为 Approved，不获得 Trial。
+
+Remaining: 真实新 Discord 账户完成 Join → Apply → Approve → Trial → Expiry 的 Live 时钟验收。
 
 ## Day Pass — LIVE ENABLED / REAL PAYMENT E2E PENDING
 

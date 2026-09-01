@@ -10,15 +10,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    AccessApplication,
     AuditLog,
     MembershipAcknowledgement,
     MembershipEntitlement,
     MembershipPrice,
     MembershipTrial,
+    NewcomerProfile,
     utc_now,
 )
 from app.db.session import Database
 from app.domain.enums import (
+    AccessApplicationStatus,
     AcknowledgementDocumentType,
     EntitlementStatus,
     EntitlementType,
@@ -27,7 +30,7 @@ from app.domain.enums import (
 )
 from app.services.trading_calendar import TradingCalendarService
 
-RISK_DISCLOSURE_VERSION = "AXIS_RISK_DISCLOSURE_V1"
+RISK_DISCLOSURE_VERSION = "AXIS_APPLICATION_RISK_V1"
 ACCESS_STATUSES = {
     EntitlementStatus.ACTIVE.value,
     EntitlementStatus.PAST_DUE.value,
@@ -315,6 +318,14 @@ class MembershipAccessService:
             return "DISABLED"
         checked_at = _aware(now or utc_now())
         async with self.database.session() as session:
+            approved = await session.scalar(
+                select(NewcomerProfile.approved_at).where(
+                    NewcomerProfile.guild_id == guild_id,
+                    NewcomerProfile.discord_user_id == user_id,
+                )
+            )
+            if approved is None:
+                return "APPROVAL_REQUIRED"
             existing = await session.scalar(
                 select(MembershipTrial.id).where(
                     MembershipTrial.discord_user_id == user_id,
@@ -343,6 +354,8 @@ class MembershipAccessService:
         user_id: int,
         *,
         interaction_id: int | None,
+        application_id: uuid.UUID | None = None,
+        approved_by_user_id: int | None = None,
         now: datetime | None = None,
     ) -> EntitlementSnapshot:
         if not self.free_trial_enabled:
@@ -352,6 +365,18 @@ class MembershipAccessService:
         claimed_at = _aware(now or utc_now())
         expires_at = claimed_at + timedelta(days=self.free_trial_calendar_days)
         async with self.database.session() as session:
+            application = (
+                await session.get(AccessApplication, application_id)
+                if application_id is not None
+                else None
+            )
+            if (
+                application is None
+                or application.guild_id != guild_id
+                or application.discord_user_id != user_id
+                or application.status != AccessApplicationStatus.APPROVED.value
+            ):
+                raise MembershipAccessError("ACCESS_APPROVAL_REQUIRED")
             existing = await session.scalar(
                 select(MembershipTrial.id).where(
                     MembershipTrial.discord_user_id == user_id,
@@ -359,21 +384,19 @@ class MembershipAccessService:
                 )
             )
             if existing is not None:
-                raise MembershipAccessError("FREE_TRIAL_ALREADY_CLAIMED")
-            active = await session.scalar(
-                select(MembershipEntitlement.id).where(
-                    MembershipEntitlement.guild_id == guild_id,
-                    MembershipEntitlement.discord_user_id == user_id,
-                    MembershipEntitlement.status.in_(ACCESS_STATUSES),
-                    (
-                        (MembershipEntitlement.status == EntitlementStatus.PAST_DUE.value)
-                        | MembershipEntitlement.ends_at.is_(None)
-                        | (MembershipEntitlement.ends_at > claimed_at)
-                    ),
+                session.add(
+                    AuditLog(
+                        guild_id=guild_id,
+                        actor_user_id=approved_by_user_id or user_id,
+                        action_type="FREE_TRIAL_DUPLICATE_BLOCKED",
+                        entity_type="membership_trial",
+                        entity_id=str(user_id),
+                        after_json={"application_id": str(application_id)},
+                        discord_interaction_id=interaction_id,
+                    )
                 )
-            )
-            if active is not None:
-                raise MembershipAccessError("FREE_TRIAL_ACCESS_ALREADY_ACTIVE")
+                await session.commit()
+                raise MembershipAccessError("FREE_TRIAL_ALREADY_CLAIMED")
             entitlement = MembershipEntitlement(
                 guild_id=guild_id,
                 discord_user_id=user_id,
@@ -402,19 +425,34 @@ class MembershipAccessService:
                     expires_at=expires_at,
                     status=EntitlementStatus.ACTIVE.value,
                     entitlement_id=entitlement.id,
+                    application_id=application_id,
+                    approved_by_user_id=approved_by_user_id,
                 )
             )
             self._audit(
                 session,
                 entitlement,
-                "FREE_TRIAL_CLAIMED",
-                actor_user_id=user_id,
+                "FREE_TRIAL_CREATED",
+                actor_user_id=approved_by_user_id or user_id,
                 interaction_id=interaction_id,
             )
             try:
                 await session.commit()
             except IntegrityError as exc:
                 await session.rollback()
+                async with self.database.session() as audit_session:
+                    audit_session.add(
+                        AuditLog(
+                            guild_id=guild_id,
+                            actor_user_id=approved_by_user_id or user_id,
+                            action_type="FREE_TRIAL_DUPLICATE_BLOCKED",
+                            entity_type="membership_trial",
+                            entity_id=str(user_id),
+                            after_json={"application_id": str(application_id)},
+                            discord_interaction_id=interaction_id,
+                        )
+                    )
+                    await audit_session.commit()
                 raise MembershipAccessError("FREE_TRIAL_ALREADY_CLAIMED") from exc
             return self._snapshot(entitlement)
 
@@ -662,7 +700,17 @@ class MembershipAccessService:
                 entitlement.status = EntitlementStatus.EXPIRED.value
                 entitlement.cancel_at_period_end = False
                 entitlement.version += 1
-                self._audit(session, entitlement, "MEMBERSHIP_EXPIRED", actor_user_id, None)
+                self._audit(
+                    session,
+                    entitlement,
+                    (
+                        "FREE_TRIAL_EXPIRED"
+                        if entitlement.entitlement_type == EntitlementType.FREE_TRIAL.value
+                        else "MEMBERSHIP_EXPIRED"
+                    ),
+                    actor_user_id,
+                    None,
+                )
             if rows:
                 await session.execute(
                     update(MembershipTrial)

@@ -1,4 +1,4 @@
-version: 2
+version: 3
 # AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
 brand:
   server_name: "AXIS"
@@ -22,11 +22,17 @@ roles:
     color_hex: "#86F7A8"
     hoist: false
     mentionable: false
+  - key: newcomer
+    name: "Newcomer"
+    color_hex: "#6B7280"
+    hoist: false
+    mentionable: false
 
 role_order:
   - bot
   - manager
   - member
+  - newcomer
   - everyone
 
 categories:
@@ -40,13 +46,15 @@ categories:
         topic: "AXIS. Signals without the noise."
         everyone_view: true
         everyone_send: false
+        newcomer_view: true
+        newcomer_send: false
         member_send: false
         manager_send: false
         bot_send: true
       - key: subscriptions
         name: "💳・subscriptions"
         type: text
-        topic: "Free Trial, Day Pass, Monthly Membership, and account management."
+        topic: "Approved users can view Day Pass, Monthly Membership, and account management."
         everyone_view: true
         everyone_send: false
         member_send: false
@@ -58,6 +66,8 @@ categories:
         topic: "System-tracked completed trades and official AXIS performance records."
         everyone_view: true
         everyone_send: false
+        newcomer_view: true
+        newcomer_send: false
         member_send: false
         manager_send: false
         bot_send: true
@@ -78,6 +88,9 @@ categories:
         everyone_view: true
         everyone_send: true
         everyone_attach: true
+        newcomer_view: true
+        newcomer_send: false
+        newcomer_attach: false
         member_send: true
         member_attach: true
         manager_send: true
@@ -205,6 +218,20 @@ categories:
         manager_view: true
         manager_send: false
         manager_interact: true
+        bot_send: true
+      - key: join_review
+        name: "🛂・join-review"
+        type: text
+        topic: "AXIS Newcomer access applications, security context, and Manager decisions."
+        everyone_view: false
+        member_view: false
+        newcomer_view: false
+        manager_view: true
+        manager_send: false
+        manager_interact: true
+        owner_view: true
+        owner_send: false
+        owner_interact: true
         bot_send: true
       - key: manager_lounge
         name: "🤫・在这交流"

@@ -29,6 +29,8 @@ CONTROLLED_PERMISSION_NAMES = (
     "attach_files",
     "embed_links",
     "manage_messages",
+    "manage_channels",
+    "manage_roles",
     "pin_messages",
     "use_application_commands",
 )
@@ -163,6 +165,12 @@ def _print_inventory(state: GuildState) -> None:
     print(f"Guild: {state.name} ({state.id})")
     print(f"Owner ID: {state.owner_id}")
     print(f"Bot User ID: {state.bot_user_id}")
+    print(
+        "Bot Bootstrap Permissions: "
+        f"administrator={'yes' if 'administrator' in state.bot_permissions else 'no'}, "
+        f"manage_roles={'yes' if 'manage_roles' in state.bot_permissions else 'no'}, "
+        f"manage_channels={'yes' if 'manage_channels' in state.bot_permissions else 'no'}"
+    )
     print("Roles:")
     for role in state.roles:
         suffix = " [managed]" if role.managed else ""
@@ -276,12 +284,15 @@ async def _create_or_reuse_roles(
     bot_role = result["bot"]
     manager = result["manager"]
     member = result["member"]
-    if manager >= bot_role or member >= bot_role:
+    newcomer = result["newcomer"]
+    if manager >= bot_role or member >= bot_role or newcomer >= bot_role:
         raise ConfigurationError(
-            "Manager 或 Member Role 高于 Bot Role，Bot 无法安全调整；请 Owner 手动处理。"
+            "Manager、Member 或 Newcomer Role 高于 Bot Role，Bot 无法安全调整；请 Owner 手动处理。"
         )
     if manager <= member:
         await manager.edit(position=max(member.position + 1, 1), reason="AXIS Role 顺序")
+    if member <= newcomer:
+        await member.edit(position=max(newcomer.position + 1, 1), reason="AXIS Role 顺序")
     return result
 
 

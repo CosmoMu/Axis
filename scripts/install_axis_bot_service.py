@@ -67,6 +67,7 @@ def _deploy_runtime() -> None:
         "short_term_tracking.yaml",
         "short_term_tracking_v2.yaml",
         "short_term_tracking_v3.yaml",
+        "newcomer_security.yaml",
     ):
         shutil.copy2(
             PROJECT_ROOT / "config" / filename,

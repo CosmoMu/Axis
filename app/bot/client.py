@@ -14,6 +14,7 @@ from app.bot.cogs.daily_summary import DailySummaryCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.general_control import GeneralControlCog
 from app.bot.cogs.manager_control import ManagerControlCog
+from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
@@ -36,6 +37,7 @@ from app.services.membership_access import (
 from app.services.membership_management import MembershipManagementService
 from app.services.membership_stripe import MembershipStripeService
 from app.services.mentor_management import MentorManagementService
+from app.services.newcomer_access import NewcomerAccessService, NewcomerRiskScanner
 from app.services.official_results import OfficialResultsService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.signal_input import SignalInputService
@@ -72,6 +74,8 @@ class AxisBot(commands.Bot):
         stripe_gateway: StripeGateway | None,
         public_identity: PublicIdentityPolicy,
         system_alert_service: SystemAlertService,
+        newcomer_access_service: NewcomerAccessService,
+        newcomer_risk_scanner: NewcomerRiskScanner,
         results_service: OfficialResultsService,
         analysis_service: AnalysisPipelineService | None,
         daily_summary_service: DailySummaryService | None,
@@ -126,6 +130,20 @@ class AxisBot(commands.Bot):
             results_service=results_service,
             publish_individual_results=not settings.results_review_enabled,
         )
+        self._newcomer_access_cog = NewcomerAccessCog(
+            self,
+            guild_id=settings.discord_guild_id,
+            owner_user_id=settings.discord_owner_user_id,
+            manager_role_id=_required_snowflake(roles, "manager"),
+            member_role_id=_required_snowflake(roles, "member"),
+            newcomer_role_id=_required_snowflake(roles, "newcomer"),
+            join_review_channel_id=_required_snowflake(channels, "join_review"),
+            system_alerts_channel_id=_required_snowflake(channels, "system_alerts"),
+            service=newcomer_access_service,
+            access_service=membership_access_service,
+            risk_scanner=newcomer_risk_scanner,
+            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+        )
         results_channel_id = _required_snowflake(channels, "official_results")
         self._general_control_cog = GeneralControlCog(
             self,
@@ -144,6 +162,7 @@ class AxisBot(commands.Bot):
             price_catalog=membership_price_catalog,
             stripe_service=membership_stripe_service,
             public_identity=public_identity,
+            newcomer_controller=self._newcomer_access_cog,
             sync_role=self._manager_control_cog.sync_member_role,
             free_trial_enabled=settings.new_member_free_trial_enabled,
             free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
@@ -242,6 +261,7 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._short_term_tracking_cog)
         await self.add_cog(self._manager_control_cog)
         await self.add_cog(self._system_alerts_cog)
+        await self.add_cog(self._newcomer_access_cog)
         await self.add_cog(self._general_control_cog)
         await self.add_cog(self._payment_webhook_cog)
         await self.add_cog(self._card_testing_cog)

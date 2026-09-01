@@ -1,61 +1,45 @@
-# Free Trial Onboarding Operations
+# Approved Newcomer Free Trial Operations
 
-## Frozen production rule
+## Frozen duration rules
 
-Free Trial is seven consecutive calendar days from the exact successful claim timestamp. Weekends
-and U.S. market holidays count. Day Pass remains one U.S. equity trading day and is the only one of
-these two products that uses `TradingCalendarService`.
+- Free Trial: seven consecutive Calendar Days from the approval timestamp. Weekends and U.S.
+  market holidays count. `TradingCalendarService` is not called.
+- Day Pass: one U.S. Trading Day through `TradingCalendarService`.
+- Monthly: Stripe calendar billing period.
 
-## New-member flow
+## Final flow
 
-1. Discord shows `👋・welcome` first through category/channel ordering and public visibility.
-2. The persistent Welcome card has exactly two controls: `START 7-DAY FREE TRIAL` is a Discord
-   interaction and `VIEW MEMBERSHIP` links to `💳・subscriptions`.
-3. Joining does not create an entitlement or assign `Member`.
-4. The user selects `START 7-DAY FREE TRIAL`, reviews the current risk disclosure, and confirms
-   with `I UNDERSTAND`.
-5. AXIS rechecks lifetime eligibility and all active entitlements in the transaction.
-6. AXIS creates a `FREE_TRIAL` entitlement with `expires_at = started_at + 7 days`, then reconciles
-   the aggregate Member Role.
+1. First join after cutover adds `Newcomer` and isolates the user to welcome/results/member-wins.
+2. Welcome exposes only `APPLY TO JOIN AXIS`.
+3. The user completes the English Application, Risk Acknowledgement and Community Safety Agreement.
+4. Manager approves in `🛂・join-review`.
+5. AXIS rechecks permanent Trial history inside the approval workflow.
+6. AXIS creates `FREE_TRIAL` with `expires_at = approval timestamp + 7 Calendar Days`, removes
+   Newcomer and adds Member. There is no separate claim or confirmation button.
 
-The join listener ignores bots/wrong Guilds and only inspects eligibility. Personalized public join
-messages are prohibited. DMs remain off unless `NEW_MEMBER_FREE_TRIAL_DM_ENABLED=true`; even then a
-DM only links to Welcome and never grants access.
+At expiry, AXIS marks the Trial EXPIRED and reconciles all other entitlements. Without another
+active entitlement, Member is removed. Newcomer is never added because approval is permanent; the
+user becomes a normal `@everyone` visitor.
 
-## Eligibility outcomes
+## Permanent lifetime protection
 
-- `ELIGIBLE`: show the risk disclosure and allow explicit claim.
-- `USED`: do not create another Trial; return an `AXIS FREE TRIAL` ephemeral card with
-  `VIEW MEMBERSHIP`.
-- `ACCESS_ACTIVE`: do not consume the Trial; the existing access remains the source of truth.
-- `DISABLED`: hide/disable the offer and do not grant access.
+Query `membership_trials` using `discord_user_id` and `trial_type='FREE_TRIAL'`. The database
+constraint `membership_trial_lifetime_once` is unique across those fields. Rows are never deleted
+at expiry. `application_id` and `approved_by_user_id` preserve the approval origin.
 
-An active Trial blocks Day Pass checkout as unnecessary, but Monthly checkout remains available.
-Leaving and rejoining never resets the unique Discord User ID claim record.
-
-## Configuration
-
-```dotenv
-NEW_MEMBER_FREE_TRIAL_ENABLED=true
-NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS=7
-NEW_MEMBER_FREE_TRIAL_AUTO_OFFER=true
-NEW_MEMBER_FREE_TRIAL_DM_ENABLED=false
-```
-
-The deprecated `NEW_MEMBER_FREE_TRIAL_TRADING_DAYS` value is ignored. Never delete a historical
-`membership_trials` row to restore eligibility. Existing claims keep their stored duration unit,
-amount, start, and expiry after later configuration changes.
+Double click, concurrent approve, retry and restart all converge on the same Trial row. A duplicate
+attempt returns `FREE_TRIAL_ALREADY_CLAIMED` and writes `FREE_TRIAL_DUPLICATE_BLOCKED` audit evidence.
+The Trial uses $0, no card, no Stripe Checkout and no renewal.
 
 ## Verification
 
-Run the automated membership tests, database verifier, Discord Bootstrap dry-run, and Discord
-runtime verifier. Confirm:
+Confirm:
 
-- database revision `20260831_0025`;
-- Welcome is first among public categories/channels;
-- Welcome has only `START 7-DAY FREE TRIAL` and `VIEW MEMBERSHIP`, with no long navigation manual;
-- cards say `7 Calendar Days`, no card, no automatic renewal;
-- Risk Disclosure says `MY RISK IS NOT YOUR RISK` and requires `I UNDERSTAND`;
-- Day Pass still says `1 Trading Day`;
-- no `3 Trading Days` Trial copy remains;
-- a second Bootstrap makes no ordering or control-card duplicates.
+- database revision `20260831_0026`;
+- Welcome contains only `APPLY TO JOIN AXIS`;
+- Risk and Community agreements each require `I AGREE`;
+- Approval automatically creates exactly one seven-day entitlement;
+- Membership Trial has no trading-day fields for new claims;
+- Trial expiry removes Member only when aggregate access is inactive;
+- approved rejoin never creates Newcomer or another Trial;
+- Day Pass still says and behaves as `1 Trading Day`.

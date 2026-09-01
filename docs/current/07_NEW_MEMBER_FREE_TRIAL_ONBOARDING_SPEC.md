@@ -1,65 +1,57 @@
-# AXIS New Member Free Trial Onboarding — Current Specification
+# AXIS Final Newcomer Approval / Free Trial / Security Specification
 
 **Effective:** 2026-08-31
-**Status:** CURRENT / overrides every earlier New Member Free Trial duration or onboarding rule
+**Status:** CURRENT / supersedes immediate Trial claim and every earlier onboarding design
 
-## Product durations
+## Lifecycle lock
 
-- Free Trial is **7 Calendar Days** from the exact claim timestamp. Weekends and U.S. market
-  holidays count. It never calls `TradingCalendarService`.
-- Day Pass is **1 U.S. Trading Day** and continues to use `TradingCalendarService` unchanged.
-- Monthly remains a Stripe monthly subscription.
-- The duration is frozen when the entitlement is created. Configuration changes never rewrite an
-  existing Trial or its `expires_at`.
+First join → Newcomer → restricted onboarding → Apply → Manager APPROVE / REJECT / FLAG.
 
-## Eligibility and activation
+Newcomer sees only `👋・welcome`, `📊・results`, and `🏆・member-wins`; all are read-only. The Role has
+explicit DENY overwrites for subscriptions, lobby, Member, Manager, Owner and AXIS LAB channels so
+inherited `@everyone` access cannot bypass isolation.
 
-- Joining the Guild does not start or consume a Trial.
-- A user must accept the current risk disclosure and explicitly select `START FREE TRIAL`.
-- One Trial is allowed for the lifetime of each Discord User ID. Leaving/rejoining, username
-  changes, or a different Guild membership state do not reset eligibility.
-- Active paid, gifted, manual, or extension access prevents claiming but does not consume the Trial.
-- While Trial access is active, Monthly checkout remains available and Day Pass checkout is
-  blocked as unnecessary.
-- Expiry removes `Member` only when no other active entitlement remains.
+Welcome and all onboarding/review content are English. The only CTA is `APPLY TO JOIN AXIS`.
+Application collects normalized discovery source, optional referrer, multi-select interests, Risk
+Acknowledgement and Community Safety Agreement. Both agreements require `I AGREE`.
 
-## New-member entry
+## Approval and membership lock
 
-- `👋・welcome` is the first channel in the first public AXIS category and the default public entry
-  supported by Discord channel order and visibility.
-- Member-only categories stay hidden from users without `Member`.
-- The join listener ignores bots and other Guilds, checks eligibility only, and never grants a Role,
-  starts a Trial, resets a Trial, or sends a personalized public join message.
-- Direct-message onboarding is disabled by default. Discord cannot be made to force-open a channel;
-  channel order, visibility, and a persistent Welcome card are the supported implementation.
+APPROVE permanently records approval, reviewer and time. If permanent Trial history is absent, the
+same idempotent workflow creates a $0 Free Trial at approval time, removes Newcomer and adds Member.
+There is no user claim step, card, Stripe call, or auto-renewal.
 
-## Public copy and controls
+- Free Trial = exactly 7 Calendar Days; weekends and holidays count.
+- Day Pass = 1 U.S. Trading Day through `TradingCalendarService`.
+- Monthly = Stripe calendar billing period.
+- One Discord User ID = maximum one Free Trial for life.
+- Database protection = unique `membership_trials(discord_user_id, trial_type)`.
 
-The persistent Welcome and Membership cards must distinguish:
+Expiry marks Trial EXPIRED, retains permanent history and removes Member only when no other active
+entitlement exists. It never adds Newcomer. The approved user becomes a normal `@everyone` visitor
+and may later purchase Day Pass or Monthly without applying again.
 
-- `Free Trial — 7 Calendar Days` — no card, no automatic renewal.
-- `Day Pass — 1 Trading Day` — U.S. equity calendar; weekends and holidays do not count.
-- `Monthly` — automatic monthly renewal until canceled.
+Approved rejoin never receives Newcomer, another application or another Trial. Never-approved and
+rejected/flagged-without-later-approval users rejoin as Newcomer.
 
-Welcome 只保留品牌说明、7 天体验、四项会员内容和风险提示，不再展示完整频道导航或
-`NO ACCESS` 说明。底部固定两个按钮：交互按钮 `START 7-DAY FREE TRIAL` 直接进入资格检查与
-Risk Disclosure 流程，链接按钮 `VIEW MEMBERSHIP` 前往 `💳・subscriptions`。Membership 页面
-继续提供 Trial、Day Pass、Monthly 和 `MANAGE MEMBERSHIP`。Risk acknowledgement 的确认按钮
-为 `I UNDERSTAND`；公开及风险文案包含 `MY RISK IS NOT YOUR RISK`。
+## Security lock
 
-## Configuration
+`🛂・join-review` is visible only to Owner, Manager and AXIS BOT. APPROVE / REJECT / FLAG are
+idempotent; rejection is not an automatic ban. Checkout services verify permanent approval even if
+the user possesses an old URL/component.
 
-```dotenv
-NEW_MEMBER_FREE_TRIAL_ENABLED=true
-NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS=7
-NEW_MEMBER_FREE_TRIAL_AUTO_OFFER=true
-NEW_MEMBER_FREE_TRIAL_DM_ENABLED=false
-```
+Risk scanning runs on join, submission, review rendering and hourly reconciliation. Implemented
+codes are VERY_NEW_ACCOUNT, NEW_ACCOUNT, PREVIOUS_REJECTION, PREVIOUS_FLAG, TRIAL_ALREADY_USED,
+REJOIN_WITHOUT_APPROVAL and POSSIBLE_IMPERSONATION. Protected names come from
+`config/newcomer_security.yaml`. The scanner only flags/alerts/supports review; it never bans,
+kicks or rejects.
 
-`NEW_MEMBER_FREE_TRIAL_TRADING_DAYS` is deprecated and ignored by runtime business logic.
+Risk rows and system alerts are deduplicated. System Status exposes aggregate NEWCOMER SECURITY
+HEALTHY/ATTENTION metrics. Member and Newcomer role reconciliation repairs drift and records role
+sync failures without creating another Trial.
 
-## Acceptance lock
+## Production safety
 
-Tests must prove exact seven-day expiry across a weekend and a U.S. market holiday, lifetime-once
-enforcement, no Trial consumption for an already-entitled user, unchanged one-trading-day Day Pass,
-aggregate entitlement Role retention, Welcome-first ordering, and idempotent persistent cards.
+Pre-gate production users must be inventoried in dry-run and baselined as approved without a Trial
+before activating the gate. No Signal, Result, membership, Trial, public ID or official user history
+may be reset or deleted.

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     Membership,
     MembershipSession,
+    NewcomerProfile,
     PaymentWebhookEvent,
     Subscription,
     utc_now,
@@ -73,6 +74,24 @@ class MembershipPaymentService:
             raise MembershipPaymentError("SUBSCRIPTION_URL_NOT_CONFIGURED")
         if discord_user_id <= 0:
             raise MembershipPaymentError("DISCORD_USER_ID_INVALID")
+        async with self.database.session() as session:
+            approval = (
+                await session.execute(
+                    select(
+                        NewcomerProfile.approved_at,
+                        NewcomerProfile.role_sync_status,
+                    ).where(
+                        NewcomerProfile.guild_id == guild_id,
+                        NewcomerProfile.discord_user_id == discord_user_id,
+                    )
+                )
+            ).one_or_none()
+        if (
+            approval is None
+            or approval.approved_at is None
+            or approval.role_sync_status != "SYNCED"
+        ):
+            raise MembershipPaymentError("ACCESS_APPROVAL_REQUIRED")
         now = utc_now()
         expires_at = now + timedelta(minutes=self.session_ttl_minutes)
         session_id = secrets.token_urlsafe(32)
@@ -293,9 +312,7 @@ class MembershipPaymentService:
         webhook: PaymentWebhookEvent,
     ) -> PaymentApplication:
         if webhook.status == "FAILED":
-            raise MembershipPaymentError(
-                webhook.error_type or "PAYMENT_EVENT_PREVIOUSLY_FAILED"
-            )
+            raise MembershipPaymentError(webhook.error_type or "PAYMENT_EVENT_PREVIOUSLY_FAILED")
         user_id = await self._resolve_existing_user(session, event)
         membership = await session.scalar(
             select(Membership).where(

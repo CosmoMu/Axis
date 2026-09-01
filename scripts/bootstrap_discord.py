@@ -61,8 +61,12 @@ def main() -> int:
         print("Discord 登录失败。请检查本地 .env 中的 Token；Token 未被输出。", file=sys.stderr)
     except (ConfigurationError, BlueprintError) as exc:
         print(f"Bootstrap 已停止：{exc}", file=sys.stderr)
-    except discord.Forbidden:
-        print("Discord 拒绝请求：Bot 缺少读取或 Bootstrap 权限。", file=sys.stderr)
+    except discord.Forbidden as exc:
+        print(
+            "Discord 拒绝请求：Bot 缺少读取或 Bootstrap 权限"
+            f"（HTTP {exc.status}, code={exc.code}）。",
+            file=sys.stderr,
+        )
     except discord.HTTPException as exc:
         print(f"Discord API 请求失败（HTTP {exc.status}）；响应正文未写入日志。", file=sys.stderr)
     except aiohttp.ClientError:

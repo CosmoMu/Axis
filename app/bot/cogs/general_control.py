@@ -8,14 +8,17 @@ import discord
 from discord.ext import commands, tasks
 from sqlalchemy import select
 
+from app.bot.cogs.newcomer_access import (
+    ApplyAccessView,
+    NewcomerAccessCog,
+    risk_acknowledgement_embed,
+    welcome_application_embed,
+)
 from app.bot.general_cards import (
-    free_trial_used_embed,
     member_wins_guide_embed,
     results_guide_embed,
-    risk_disclosure_embed,
     short_term_risk_notice_embed,
     subscription_embed,
-    welcome_embed,
 )
 from app.db.models import GuildConfig
 from app.domain.enums import MembershipPlanType
@@ -36,33 +39,6 @@ class LinkView(discord.ui.View):
     def __init__(self, label: str, url: str) -> None:
         super().__init__(timeout=600)
         self.add_item(discord.ui.Button(label=label, style=discord.ButtonStyle.link, url=url))
-
-
-class WelcomeView(discord.ui.View):
-    def __init__(self, controller: GeneralControlCog) -> None:
-        super().__init__(timeout=None)
-        self.controller = controller
-        if controller.free_trial_enabled:
-            trial = discord.ui.Button(
-                label=f"START {controller.free_trial_calendar_days}-DAY FREE TRIAL",
-                style=discord.ButtonStyle.success,
-                custom_id="axis:welcome:free_trial:v1",
-            )
-            trial.callback = self.free_trial
-            self.add_item(trial)
-        self.add_item(
-            discord.ui.Button(
-                label="VIEW MEMBERSHIP",
-                style=discord.ButtonStyle.link,
-                url=(
-                    f"https://discord.com/channels/{controller.guild_id}/"
-                    f"{controller.subscriptions_channel_id}"
-                ),
-            )
-        )
-
-    async def free_trial(self, interaction: discord.Interaction) -> None:
-        await self.controller.request_plan(interaction, "FREE_TRIAL")
 
 
 class RiskDisclosureView(discord.ui.View):
@@ -87,7 +63,7 @@ class RiskDisclosureView(discord.ui.View):
             interaction.user.id,
             interaction_id=interaction.id,
         )
-        await self.controller.activate_plan(interaction, self.plan_type)
+        await self.controller.request_plan(interaction, self.plan_type)
 
 
 class MembershipView(discord.ui.View):
@@ -120,16 +96,6 @@ class MembershipView(discord.ui.View):
                 self.manage,
             ),
         )
-        if controller.free_trial_enabled:
-            definitions = (
-                (
-                    "START FREE TRIAL",
-                    "free_trial",
-                    discord.ButtonStyle.success,
-                    self.free_trial,
-                ),
-                *definitions,
-            )
         for label, action, style, callback in definitions:
             button = discord.ui.Button(
                 label=label[:80],
@@ -138,9 +104,6 @@ class MembershipView(discord.ui.View):
             )
             button.callback = callback
             self.add_item(button)
-
-    async def free_trial(self, interaction: discord.Interaction) -> None:
-        await self.controller.request_plan(interaction, "FREE_TRIAL")
 
     async def day_pass(self, interaction: discord.Interaction) -> None:
         await self.controller.request_plan(interaction, MembershipPlanType.DAY_PASS.value)
@@ -172,6 +135,7 @@ class GeneralControlCog(commands.Cog):
         price_catalog: MembershipPriceCatalog,
         stripe_service: MembershipStripeService,
         public_identity: PublicIdentityPolicy,
+        newcomer_controller: NewcomerAccessCog,
         sync_role: Callable[[int, bool], Awaitable[None]],
         free_trial_enabled: bool = True,
         free_trial_calendar_days: int = 7,
@@ -194,6 +158,7 @@ class GeneralControlCog(commands.Cog):
         self.price_catalog = price_catalog
         self.stripe_service = stripe_service
         self.public_identity = public_identity
+        self.newcomer_controller = newcomer_controller
         self.sync_role = sync_role
         self.free_trial_enabled = free_trial_enabled
         self.free_trial_calendar_days = free_trial_calendar_days
@@ -212,34 +177,17 @@ class GeneralControlCog(commands.Cog):
         if not self.is_current_guild(interaction):
             await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
             return
+        if await self.newcomer_controller.approval_required(interaction.user.id):
+            await self.newcomer_controller.deny_restricted_action(interaction)
+            return
         if plan_type == "FREE_TRIAL":
-            state = await self.access_service.free_trial_claim_state(
-                self.guild_id,
-                interaction.user.id,
+            await interaction.response.send_message(
+                "Free Trial begins automatically after application approval.",
+                ephemeral=True,
             )
-            if state == "USED":
-                await interaction.response.send_message(
-                    embed=free_trial_used_embed(),
-                    view=LinkView(
-                        "VIEW MEMBERSHIP",
-                        f"https://discord.com/channels/{self.guild_id}/"
-                        f"{self.subscriptions_channel_id}",
-                    ),
-                    ephemeral=True,
-                )
-                return
-            ineligible_messages = {
-                "DISABLED": "Free Trial 目前未开放。",
-                "ACCESS_ACTIVE": "You already have active AXIS member access.",
-            }
-            if state != "ELIGIBLE":
-                await interaction.response.send_message(
-                    ineligible_messages.get(state, "Free Trial 当前不可领取。"),
-                    ephemeral=True,
-                )
-                return
+            return
         if not await self.acknowledgements.has_current_risk(interaction.user.id):
-            notice = risk_disclosure_embed()
+            notice = risk_acknowledgement_embed()
             self.public_identity.assert_public(notice.to_dict(), field="risk_disclosure")
             await interaction.response.send_message(
                 embed=notice,
@@ -252,21 +200,6 @@ class GeneralControlCog(commands.Cog):
     async def activate_plan(self, interaction: discord.Interaction, plan_type: str) -> None:
         await interaction.response.defer(ephemeral=True)
         try:
-            if plan_type == "FREE_TRIAL":
-                entitlement = await self.access_service.claim_free_trial(
-                    self.guild_id,
-                    interaction.user.id,
-                    interaction_id=interaction.id,
-                )
-                await self.sync_role(interaction.user.id, True)
-                await interaction.followup.send(
-                    f"Free Trial 已启用，共 {self.free_trial_calendar_days} 个自然日。\n"
-                    f"开始：{entitlement.starts_at.isoformat()}\n"
-                    f"到期：{entitlement.ends_at.isoformat() if entitlement.ends_at else '—'}\n"
-                    "周末与美国市场休市日也计入；不会自动续费。",
-                    ephemeral=True,
-                )
-                return
             checkout = await self.stripe_service.create_checkout(
                 self.guild_id,
                 interaction.user.id,
@@ -303,6 +236,9 @@ class GeneralControlCog(commands.Cog):
         if not self.is_current_guild(interaction):
             await interaction.response.send_message("该入口不属于当前服务器。", ephemeral=True)
             return
+        if await self.newcomer_controller.approval_required(interaction.user.id):
+            await self.newcomer_controller.deny_restricted_action(interaction)
+            return
         await interaction.response.defer(ephemeral=True)
         try:
             url = await self.stripe_service.create_customer_portal(
@@ -330,24 +266,10 @@ class GeneralControlCog(commands.Cog):
             offers = await self.price_catalog.current_offers()
             membership_view = MembershipView(self, offers)
             self.bot.add_view(membership_view)
-            welcome_view = WelcomeView(self)
+            welcome_view = ApplyAccessView(self.newcomer_controller)
             self.bot.add_view(welcome_view)
             cards = (
-                welcome_embed(
-                    self.guild_id,
-                    {
-                        "subscriptions": self.subscriptions_channel_id,
-                        "official_results": self.results_channel_id,
-                        "lobby": self.lobby_channel_id,
-                        "member_wins": self.member_wins_channel_id,
-                        "short_term_alerts": self.short_term_channel_id,
-                        "swing_alerts": self.swing_channel_id,
-                        "leaps_alerts": self.leaps_channel_id,
-                        "member_chat": self.member_chat_channel_id,
-                    },
-                    free_trial_calendar_days=self.free_trial_calendar_days,
-                    free_trial_enabled=self.free_trial_enabled,
-                ),
+                welcome_application_embed(trial_days=self.free_trial_calendar_days),
                 subscription_embed(
                     offers,
                     free_trial_calendar_days=self.free_trial_calendar_days,
@@ -407,31 +329,6 @@ class GeneralControlCog(commands.Cog):
             )
         except Exception as exc:
             logger.warning("event=general_control_failed error_type=%s", type(exc).__name__)
-
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member) -> None:
-        if member.bot or member.guild.id != self.guild_id or not self.free_trial_auto_offer:
-            return
-        try:
-            state = await self.access_service.free_trial_claim_state(
-                self.guild_id,
-                member.id,
-            )
-            logger.info("event=new_member_trial_state user_id=%s state=%s", member.id, state)
-            if not self.free_trial_dm_enabled or state != "ELIGIBLE":
-                return
-            await member.send(
-                "欢迎加入 AXIS。请从 👋・welcome 开始，并在阅读风险说明后主动领取 "
-                f"{self.free_trial_calendar_days} 个自然日 Free Trial："
-                f"https://discord.com/channels/{self.guild_id}/{self.welcome_channel_id}"
-            )
-        except discord.HTTPException:
-            logger.info("event=new_member_trial_dm_unavailable user_id=%s", member.id)
-        except Exception as exc:
-            logger.warning(
-                "event=new_member_trial_state_failed error_type=%s",
-                type(exc).__name__,
-            )
 
     @control_loop.before_loop
     async def before_control_loop(self) -> None:
