@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 253 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 252 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -20,7 +20,7 @@
 - AXIS website build/tests: PASS — 4 passed；ESLint 0 errors
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
-- Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；真实 TP / Expiry E2E PENDING
+- Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；真实 TP / internal Expiry E2E PENDING
 
 ## Commands executed
 
@@ -77,8 +77,8 @@ Short-Term:
 - ST_TRACKING_V2 / V3 / V4 policy-version isolation；在途旧订单不会切换到新点位。
 - High / Low Watermark、Fast Momentum Reversal、Overnight Tracking、Expiry-only Tracking 和
   policy version；Momentum TP 不推进固定编号。
-- 验证任意回撤与隔夜跳空均不触发 SL / 保本 / trailing stop，只有合约到期结束追踪并生成
-  幂等「到期」卡。
+- 验证任意回撤与隔夜跳空均不触发 SL / 保本 / trailing stop；合约到期只在后台幂等结束
+  Tracking 并进入 Results / Audit，不向 Short-Term 频道发卡。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
@@ -245,9 +245,9 @@ Short-Term verifier evidence after the verified-contract deployment:
 `O:SPXW260901P07625000`，部署后实时 MID 报价、TP 和 Daily Snapshot 已更新。漏追踪窗口使用
 Massive 历史 MID 按分钟核验：最高 `$5.55` 已由实时轮询重新记录，最低 `$2.175 / -19.44%`
 已回补至 Low Watermark 与当日 Snapshot。Short-Term 不再生成 -50% / breakeven SL Card；
-Discord Live E2E 只保留真实固定 TP、Momentum TP 与到期事件验收。
+Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内部 Tracking / Results。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 253 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 252 项测试结果。

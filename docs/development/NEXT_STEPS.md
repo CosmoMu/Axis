@@ -41,7 +41,8 @@ Work:
   一次且没有 Runner。
 - 验证 ST_TRACKING_V2 / V3 在途订单与 ST_TRACKING_V4 新订单各自使用冻结策略，不混用点位。
 - 验证 Fast Momentum Reversal、Overnight Tracking 和 Expiry-only Tracking。
-- 核对 Discord Entry / TP / 到期、Daily Results 和数据库完整历史，并确认任何回撤都不发送 SL。
+- 核对 Discord Entry / TP、Daily Results 和数据库完整历史，并确认任何回撤都不发送 SL、
+  到期也不向 Short-Term 频道发卡。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。
 - 在存在 Eligible stopped / active / closed trade 时，验证收盘后 `📋・results-review` Draft、默认
   Include、Manager Review 与 `16:15 ET` 单次公开发布；保留数据库与 Discord 证据。

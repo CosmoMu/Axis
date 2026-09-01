@@ -684,12 +684,13 @@ async def test_contract_expiry_is_the_only_automatic_tracking_end() -> None:
                 )
             )
 
-        assert expired is not None and expiry_event is not None and claim is not None
+        assert expired is not None and expiry_event is not None
         assert expired.tracking_state == "STOPPED"
         assert expired.tracking_end_reason == "EXPIRED_CONTRACT"
-        assert expiry_event.public_card_type == "EXPIRED"
-        assert claim.card.card_type == "EXPIRED"
-        assert claim.card.highest_return_pct == Decimal("0.0000")
+        assert expiry_event.public_notification is False
+        assert expiry_event.public_card_type is None
+        assert expiry_event.public_ref is None
+        assert claim is None
     finally:
         await database.dispose()
 

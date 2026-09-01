@@ -125,7 +125,8 @@ Implemented:
   `SPXW` OCC root。批量报价中的单合约失败独立计数，不再被其他成功合约掩盖。
 - 启动轮询会幂等恢复仍未到期、但曾被旧 Protection 规则停止的订单；已发布历史事件保留，
   未发布的旧停止通知取消。
-- Overnight Tracking；到期后发送一次幂等「到期」卡并结束追踪。
+- Overnight Tracking；到期后在后台幂等结束追踪并进入 Results / Audit，不向 Short-Term
+  频道发送到期卡。
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
   每日 Active Summary 使用 Massive 当日 Options Daily OHLC 正式收盘价计算收益。

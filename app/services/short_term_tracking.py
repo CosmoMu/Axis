@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -632,7 +632,7 @@ class MarketTrackingService:
         snapshot.tracking_end_reason = tracking.tracking_end_reason
 
     async def next_public_event(self, guild_id: int) -> TrackingEventClaim | None:
-        await self._reconcile_no_sl_state(guild_id)
+        await self._reconcile_non_public_events(guild_id)
         async with self.database.session() as session:
             row = (
                 await session.execute(
@@ -675,15 +675,18 @@ class MarketTrackingService:
                 ),
             )
 
-    async def _reconcile_no_sl_state(self, guild_id: int) -> int:
-        """Suppress legacy SL cards and normalize active expiry-only tracking rows."""
+    async def _reconcile_non_public_events(self, guild_id: int) -> int:
+        """Suppress legacy SL/expiry cards and normalize active tracking rows."""
 
         async with self.database.session() as session:
             event_result = await session.execute(
                 update(ShortTermTrackingEvent)
                 .where(
                     ShortTermTrackingEvent.guild_id == guild_id,
-                    ShortTermTrackingEvent.event_type == "SL_ALERT",
+                    or_(
+                        ShortTermTrackingEvent.event_type == "SL_ALERT",
+                        ShortTermTrackingEvent.public_card_type == "EXPIRED",
+                    ),
                     ShortTermTrackingEvent.public_notification.is_(True),
                     ShortTermTrackingEvent.published_at.is_(None),
                 )
@@ -756,10 +759,7 @@ class MarketTrackingService:
                         received_at=now,
                         price=tracking.current_price or tracking.entry_price,
                         return_pct=tracking.current_return_pct or Decimal("0"),
-                        public_notification=True,
-                        public_card_type="EXPIRED",
-                        public_price=tracking.current_price or tracking.entry_price,
-                        public_return_pct=tracking.current_return_pct or Decimal("0"),
+                        public_notification=False,
                     )
                 )
             await session.commit()
