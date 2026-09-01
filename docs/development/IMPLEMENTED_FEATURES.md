@@ -87,10 +87,10 @@ LIVE_MODE_CHECKLIST.md 为准。
   `tp_levels_hit` 保证每一级只发送一次。
 - Tracking policy 按订单冻结；历史 ST_TRACKING_V2 / V3 订单继续使用各自原有点位。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送 plain TP，不推进固定 TP 编号。
-- Expiry-only Tracking：TP50 前向下穿越 -50% 发一次 SL Card；达到 TP50 或以上后向下穿越
-  成本价发一次保本 SL Card。提醒不改变 Active 状态，新旧 Short-Term 订单仍持续追踪至到期；
-  不执行 trailing protection 或隔夜跳空 Stop，到期只发送一次「到期」卡。High / Low
-  Watermark 与 Overnight Tracking 保留。
+- Expiry-only Tracking：Short-Term 不发送 SL、保本、trailing protection 或任何价格触发的
+  tracking-stop 卡；无论回撤或隔夜跳空都持续追踪至到期，到期只发送一次「到期」卡。旧 SL
+  事件仅保留为内部审计历史，尚未发布的旧事件会在出队前自动抑制。High / Low Watermark 与
+  Overnight Tracking 保留。
 - Massive tracking 直接使用 Review 验证并持久化的完整期权代码，兼容 `SPX` underlying /
   `SPXW` OCC root；批量中单合约失败独立写入该订单。
 - 仍未到期但曾被旧价格保护停止的订单会在轮询时幂等恢复；旧公开历史保留、未公开的旧停止

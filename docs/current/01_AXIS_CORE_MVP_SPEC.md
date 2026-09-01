@@ -861,8 +861,8 @@ Short-Term 是 Signal Core 的独立交易路径：
 - 发布编号使用 `ST-XXXX`，并创建独立 `short_term_tracking` 生命周期。
 - 行情 Provider 当前为 Massive，Provider 边界不得写进 Review、Trade 或 Public DTO。
 - 每笔 Tracking 固定保存 `price_source` 与 `tracking_policy_version`，同一订单不得混用来源。
-- High / Low Watermark、固定 TP1–TP41、Fast Momentum Reversal、Tracking Protection、
-  Overnight 与 Tracking Stop 必须幂等落库；Short-Term 不存在 Runner。
+- High / Low Watermark、固定 TP1–TP41、Fast Momentum Reversal、Overnight 与到期事件必须
+  幂等落库；Short-Term 不存在 Runner、SL 或任何价格触发的自动停止。
 - Short-Term 不提供 Active View 或 Daily Summary；Daily Results 只使用 Public DTO。
 
 代码完成不等于 Live Complete；真实期权报价、自动注册、触发卡片和重启恢复必须通过

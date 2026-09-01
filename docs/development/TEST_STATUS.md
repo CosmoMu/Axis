@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 255 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 253 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -20,7 +20,7 @@
 - AXIS website build/tests: PASS — 4 passed；ESLint 0 errors
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
-- Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；SL trigger E2E PENDING
+- Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；真实 TP / Expiry E2E PENDING
 
 ## Commands executed
 
@@ -230,7 +230,7 @@ Schema drift check：
 
 ## Explicit failed / pending Live gate
 
-Short-Term verifier evidence after the non-terminal SL / verified-contract deployment:
+Short-Term verifier evidence after the verified-contract deployment:
 
 - short_term_tracking=23
 - short_term_tracking_events=116
@@ -239,15 +239,15 @@ Short-Term verifier evidence after the non-terminal SL / verified-contract deplo
 - verified-contract mismatches=0
 - active rows without any quote=0
 - active rows with a current data-quality error=1 (`ST-0023 · MASSIVE_QUOTE_STALE`)
-- live SL_ALERT events=0（真实阈值尚未触发）
+- live SL_ALERT events=0；Short-Term SL 已移除，未发布的 legacy SL event 会自动抑制
 
 `ST-0022 · SPX 09/01 7625P` 已从错误重建的 `O:SPX...` 修复为 Review 验证的
 `O:SPXW260901P07625000`，部署后实时 MID 报价、TP 和 Daily Snapshot 已更新。漏追踪窗口使用
 Massive 历史 MID 按分钟核验：最高 `$5.55` 已由实时轮询重新记录，最低 `$2.175 / -19.44%`
-已回补至 Low Watermark 与当日 Snapshot。新的 -50% / breakeven SL Card 已有自动化覆盖，但
-尚未发生真实向下穿越，因此 Discord Live E2E 仍保持 PENDING。
+已回补至 Low Watermark 与当日 Snapshot。Short-Term 不再生成 -50% / breakeven SL Card；
+Discord Live E2E 只保留真实固定 TP、Momentum TP 与到期事件验收。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 255 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 253 项测试结果。

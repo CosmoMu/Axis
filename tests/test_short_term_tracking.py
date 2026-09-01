@@ -280,10 +280,15 @@ async def test_high_low_continue_tracking_without_a_price_stop() -> None:
                     ShortTermTrackingEvent.event_type == "TRACKING_STOPPED"
                 )
             )
-        assert saved is not None and stop is None
+            sl_alert = await session.scalar(
+                select(ShortTermTrackingEvent).where(
+                    ShortTermTrackingEvent.event_type == "SL_ALERT"
+                )
+            )
+        assert saved is not None and stop is None and sl_alert is None
         assert saved.tracking_protection_price == Decimal("1.0000")
         assert saved.tracking_protection_return_pct == Decimal("0.0000")
-        assert saved.tracking_protection_reason == "SL_ALERT_POST_TP50_BREAKEVEN_SENT"
+        assert saved.tracking_protection_reason == "EXPIRY_ONLY"
         assert saved.tracking_state == "ACTIVE"
         assert saved.tracking_end_reason is None
         assert saved.highest_return_pct == Decimal("100.0000")
@@ -293,7 +298,7 @@ async def test_high_low_continue_tracking_without_a_price_stop() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tp10_and_tp20_do_not_create_a_breakeven_stop() -> None:
+async def test_tp10_and_tp20_do_not_create_sl_or_a_price_stop() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
@@ -308,11 +313,16 @@ async def test_tp10_and_tp20_do_not_create_a_breakeven_stop() -> None:
                     ShortTermTrackingEvent.event_type == "TRACKING_STOPPED"
                 )
             )
-        assert saved is not None and stop is None
+            sl_alert = await session.scalar(
+                select(ShortTermTrackingEvent).where(
+                    ShortTermTrackingEvent.event_type == "SL_ALERT"
+                )
+            )
+        assert saved is not None and stop is None and sl_alert is None
         assert saved.tp_levels_hit == ["TP1", "TP2"]
-        assert saved.tracking_protection_price == Decimal("0.5000")
-        assert saved.tracking_protection_return_pct == Decimal("-50.0000")
-        assert saved.tracking_protection_reason == "SL_ALERT_PRE_TP50_NEGATIVE_50_SENT"
+        assert saved.tracking_protection_price == Decimal("1.0000")
+        assert saved.tracking_protection_return_pct == Decimal("0.0000")
+        assert saved.tracking_protection_reason == "EXPIRY_ONLY"
         assert saved.tracking_state == "ACTIVE"
         assert saved.tracking_end_reason is None
     finally:
@@ -320,7 +330,7 @@ async def test_tp10_and_tp20_do_not_create_a_breakeven_stop() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pre_tp50_negative_50_sl_alert_does_not_stop_tracking() -> None:
+async def test_pre_tp50_pullback_does_not_create_an_sl_event() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
@@ -341,16 +351,13 @@ async def test_pre_tp50_negative_50_sl_alert_does_not_stop_tracking() -> None:
 
         assert saved is not None and saved.tracking_state == "ACTIVE"
         assert saved.tracking_ended_at is None
-        assert len(alerts) == 1
-        assert alerts[0].public_card_type == "SL"
-        assert alerts[0].public_price == Decimal("0.5000")
-        assert alerts[0].public_return_pct == Decimal("-50.0000")
+        assert alerts == []
     finally:
         await database.dispose()
 
 
 @pytest.mark.asyncio
-async def test_post_tp50_breakeven_sl_alert_does_not_stop_tracking() -> None:
+async def test_post_tp50_pullback_does_not_create_an_sl_event() -> None:
     database, service, tracking = await registered_service()
     now = datetime.now(UTC)
     try:
@@ -375,10 +382,49 @@ async def test_post_tp50_breakeven_sl_alert_does_not_stop_tracking() -> None:
 
         assert saved is not None and saved.tracking_state == "ACTIVE"
         assert saved.tracking_ended_at is None
-        assert len(alerts) == 1
-        assert alerts[0].public_card_type == "SL"
-        assert alerts[0].public_price == Decimal("1.0000")
-        assert alerts[0].public_return_pct == Decimal("0.0000")
+        assert alerts == []
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_legacy_pending_sl_event_is_suppressed_before_publication() -> None:
+    database, service, tracking = await registered_service()
+    now = datetime.now(UTC)
+    try:
+        async with database.session() as session:
+            session.add(
+                service._event(  # noqa: SLF001
+                    tracking,
+                    event_type="SL_ALERT",
+                    event_key="SL_ALERT:LEGACY",
+                    market_time=now,
+                    received_at=now,
+                    price=Decimal("0.50"),
+                    return_pct=Decimal("-50"),
+                    public_notification=True,
+                    public_card_type="SL",
+                    public_price=Decimal("0.50"),
+                    public_return_pct=Decimal("-50"),
+                )
+            )
+            await session.commit()
+
+        assert await service.next_public_event(GUILD_ID) is None
+        async with database.session() as session:
+            legacy = await session.scalar(
+                select(ShortTermTrackingEvent).where(
+                    ShortTermTrackingEvent.event_key == "SL_ALERT:LEGACY"
+                )
+            )
+            reconciled = await session.get(ShortTermTracking, tracking.id)
+        assert legacy is not None
+        assert legacy.public_notification is False
+        assert legacy.published_at is None
+        assert reconciled is not None
+        assert reconciled.tracking_protection_price == reconciled.entry_price
+        assert reconciled.tracking_protection_return_pct == Decimal("0.0000")
+        assert reconciled.tracking_protection_reason == "EXPIRY_ONLY"
     finally:
         await database.dispose()
 
@@ -550,7 +596,7 @@ async def test_expiry_only_reactivates_unexpired_legacy_price_stops() -> None:
         assert resumed.tracking_state == "ACTIVE"
         assert resumed.tracking_end_reason is None
         assert resumed.current_return_pct == Decimal("-70.0000")
-        assert resumed.tracking_protection_reason == "SL_ALERT_POST_TP50_BREAKEVEN_PENDING"
+        assert resumed.tracking_protection_reason == "EXPIRY_ONLY"
         assert old_stop.public_notification is False
     finally:
         await database.dispose()

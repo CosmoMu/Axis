@@ -24,21 +24,14 @@ def test_short_term_policy_has_exact_configured_tp_levels() -> None:
     )
 
 
-def test_expiry_only_policy_exposes_non_terminal_sl_alert_references() -> None:
+def test_expiry_only_policy_has_no_price_based_protection() -> None:
     policy = ShortTermTrackingPolicy.load(POLICY_PATH)
     entry = Decimal("1.20")
-    for hit in (set(), {"TP1"}, {"TP1", "TP2"}):
+    for hit in (set(), {"TP1"}, {"TP1", "TP2"}, {"TP1", "TP2", "TP3"}):
         price, return_pct, reason = policy.protection_for(entry, hit)
-        assert price == Decimal("0.60")
-        assert return_pct == -50
-        assert reason == "SL_ALERT_PRE_TP50_NEGATIVE_50"
-
-    price, return_pct, reason = policy.protection_for(
-        entry, {"TP1", "TP2", "TP3"}
-    )
-    assert price == entry
-    assert return_pct == 0
-    assert reason == "SL_ALERT_POST_TP50_BREAKEVEN"
+        assert price == entry
+        assert return_pct == 0
+        assert reason == "EXPIRY_ONLY"
 
 
 def test_fast_momentum_and_slow_pullback_policy() -> None:

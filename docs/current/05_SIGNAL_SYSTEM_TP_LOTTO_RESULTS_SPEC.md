@@ -8,7 +8,7 @@ behavior not named here remains unchanged.
 
 ## Short-Term public lifecycle
 
-- Public events are ENTRY, fixed TP1–TP41, Momentum TP, non-terminal SL alerts, and 到期.
+- Public events are ENTRY, fixed TP1–TP41, Momentum TP, and 到期. Short-Term does not publish SL.
 - New tracking uses `ST_TRACKING_V4` from `config/short_term_tracking.yaml`: TP1 +10%, TP2 +20%,
   then one fixed TP every 25 percentage points from TP3 +50% through TP41 +1000%.
 - Existing orders keep their frozen policy version. `ST_TRACKING_V2` and `ST_TRACKING_V3` remain
@@ -19,16 +19,14 @@ behavior not named here remains unchanged.
 
 ## Expiry-only tracking
 
-- Before TP50, a downward crossing of -50% publishes one SL card. After TP50 or higher has been
-  reached, a downward crossing of entry cost publishes one breakeven SL card. Each stage is
-  idempotent.
-- These SL cards are alerts only: they never change the order to STOPPED and never end price
-  collection. No trailing protection or other price-based automatic tracking stop is enforced.
+- No pullback level publishes an SL, breakeven, trailing-protection, or price-based tracking-stop
+  card. Legacy SL event rows remain internal audit history; any unpublished legacy SL event is
+  suppressed before Discord publication.
 - A contract remains ACTIVE / OVERNIGHT_ACTIVE through pullbacks and overnight gaps until its
   expiry. This applies to existing V2 / V3 orders as well as new V4 orders; frozen versions still
   determine only each order's fixed TP ladder.
 - Expiry is the only automatic end condition and publishes one idempotent 到期 card.
-- Full Entry, TP, Momentum, watermark, end, overnight, and policy-version history remains stored.
+- Full Entry, TP, Momentum, watermark, expiry, overnight, and policy-version history remains stored.
 
 ## LOTTO
 

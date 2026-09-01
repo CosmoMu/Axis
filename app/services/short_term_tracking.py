@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -335,13 +335,13 @@ class MarketTrackingService:
                 tracking.tracking_end_return_pct = None
                 tracking.tracking_ended_at = None
                 policy = self.policies.get(tracking.tracking_policy_version, self.policy)
-                sl_price, sl_return, sl_reason = policy.sl_alert_reference(
+                protection_price, protection_return, protection_reason = policy.protection_for(
                     tracking.entry_price,
                     {str(value) for value in tracking.tp_levels_hit},
                 )
-                tracking.tracking_protection_price = sl_price
-                tracking.tracking_protection_return_pct = Decimal(sl_return)
-                tracking.tracking_protection_reason = f"{sl_reason}_PENDING"
+                tracking.tracking_protection_price = protection_price
+                tracking.tracking_protection_return_pct = Decimal(protection_return)
+                tracking.tracking_protection_reason = protection_reason
                 tracking.version += 1
                 logger.info(
                     "event=short_term_reactivated_expiry_only trade=%s "
@@ -373,7 +373,6 @@ class MarketTrackingService:
             if last_quote is not None and market_price.source_timestamp <= last_quote:
                 return
 
-            previous_return = tracking.current_return_pct
             previous_high = tracking.highest_price
             current_return = policy.return_pct(tracking.entry_price, market_price.price)
             market_date = market_price.source_timestamp.astimezone(ET).date()
@@ -458,60 +457,28 @@ class MarketTrackingService:
                 rule.label for rule in policy.tp_levels if rule.label in hit
             ]
             if expiry_only:
-                sl_price, sl_return, sl_reason = policy.sl_alert_reference(
-                    tracking.entry_price,
-                    hit,
+                tracking.tracking_protection_price = tracking.entry_price
+                tracking.tracking_protection_return_pct = Decimal("0")
+                tracking.tracking_protection_reason = "EXPIRY_ONLY"
+            else:
+                new_protection, new_protection_return, new_protection_reason = (
+                    policy.protection_for(tracking.entry_price, hit)
                 )
-                same_sl_stage = tracking.tracking_protection_reason.startswith(sl_reason)
-                sl_already_sent = (
-                    same_sl_stage
-                    and tracking.tracking_protection_reason == f"{sl_reason}_SENT"
-                )
-                tracking.tracking_protection_price = sl_price
-                tracking.tracking_protection_return_pct = Decimal(sl_return)
-                tracking.tracking_protection_reason = (
-                    f"{sl_reason}_SENT" if sl_already_sent else f"{sl_reason}_PENDING"
-                )
-                if (
-                    not sl_already_sent
-                    and previous_return is not None
-                    and previous_return > Decimal(sl_return)
-                    and current_return <= Decimal(sl_return)
-                ):
+                if new_protection > tracking.tracking_protection_price:
+                    tracking.tracking_protection_price = new_protection
+                    tracking.tracking_protection_return_pct = Decimal(new_protection_return)
+                    tracking.tracking_protection_reason = new_protection_reason
                     session.add(
                         self._event(
                             tracking,
-                            event_type="SL_ALERT",
-                            event_key=f"SL_ALERT:{sl_reason}",
+                            event_type="TRACKING_PROTECTION_MOVED",
+                            event_key=f"TRACKING_PROTECTION:{new_protection_return}",
                             market_time=market_price.source_timestamp,
                             received_at=market_price.received_at,
                             price=market_price.price,
                             return_pct=current_return,
-                            public_notification=True,
-                            public_card_type="SL",
-                            public_price=sl_price,
-                            public_return_pct=Decimal(sl_return),
                         )
                     )
-                    tracking.tracking_protection_reason = f"{sl_reason}_SENT"
-            new_protection, new_protection_return, new_protection_reason = (
-                policy.protection_for(tracking.entry_price, hit)
-            )
-            if not expiry_only and new_protection > tracking.tracking_protection_price:
-                tracking.tracking_protection_price = new_protection
-                tracking.tracking_protection_return_pct = Decimal(new_protection_return)
-                tracking.tracking_protection_reason = new_protection_reason
-                session.add(
-                    self._event(
-                        tracking,
-                        event_type="TRACKING_PROTECTION_MOVED",
-                        event_key=f"TRACKING_PROTECTION:{new_protection_return}",
-                        market_time=market_price.source_timestamp,
-                        received_at=market_price.received_at,
-                        price=market_price.price,
-                        return_pct=current_return,
-                    )
-                )
 
             elapsed = max(
                 0,
@@ -665,6 +632,7 @@ class MarketTrackingService:
         snapshot.tracking_end_reason = tracking.tracking_end_reason
 
     async def next_public_event(self, guild_id: int) -> TrackingEventClaim | None:
+        await self._reconcile_no_sl_state(guild_id)
         async with self.database.session() as session:
             row = (
                 await session.execute(
@@ -706,6 +674,37 @@ class MarketTrackingService:
                     is_lotto=trade.is_lotto,
                 ),
             )
+
+    async def _reconcile_no_sl_state(self, guild_id: int) -> int:
+        """Suppress legacy SL cards and normalize active expiry-only tracking rows."""
+
+        async with self.database.session() as session:
+            event_result = await session.execute(
+                update(ShortTermTrackingEvent)
+                .where(
+                    ShortTermTrackingEvent.guild_id == guild_id,
+                    ShortTermTrackingEvent.event_type == "SL_ALERT",
+                    ShortTermTrackingEvent.public_notification.is_(True),
+                    ShortTermTrackingEvent.published_at.is_(None),
+                )
+                .values(public_notification=False)
+            )
+            tracking_result = await session.execute(
+                update(ShortTermTracking)
+                .where(
+                    ShortTermTracking.guild_id == guild_id,
+                    ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
+                    ShortTermTracking.tracking_protection_reason != "EXPIRY_ONLY",
+                )
+                .values(
+                    tracking_protection_price=ShortTermTracking.entry_price,
+                    tracking_protection_return_pct=Decimal("0"),
+                    tracking_protection_reason="EXPIRY_ONLY",
+                    version=ShortTermTracking.version + 1,
+                )
+            )
+            await session.commit()
+            return int(event_result.rowcount or 0) + int(tracking_result.rowcount or 0)
 
     async def mark_event_published(self, event_id: uuid.UUID, message_id: int) -> None:
         async with self.database.session() as session:

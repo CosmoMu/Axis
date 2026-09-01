@@ -118,9 +118,9 @@ Implemented:
   混用策略。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送不推进固定编号的 Momentum TP。
 - High / Low Watermark。
-- Expiry-only Tracking：TP50 前向下穿越 -50% 发一次 SL Card；达到 TP50 或以上后向下穿越
-  成本价发一次保本 SL Card。两类 Card 都只提醒、不停止追踪；不执行 trailing protection 或
-  隔夜跳空 Stop，V2 / V3 / V4 在途订单均持续追踪至合约到期。
+- Expiry-only Tracking：Short-Term 不发送 SL、保本、trailing protection 或任何价格触发的
+  tracking-stop 卡；V2 / V3 / V4 在途订单均持续追踪至合约到期。旧 SL 事件保留为内部审计
+  历史，未发布事件会在出队前自动抑制。
 - Review 验证的完整期权代码持久化到 Trade 并直接用于 Massive tracking；SPX 合约保留真实
   `SPXW` OCC root。批量报价中的单合约失败独立计数，不再被其他成功合约掩盖。
 - 启动轮询会幂等恢复仍未到期、但曾被旧 Protection 规则停止的订单；已发布历史事件保留，

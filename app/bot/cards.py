@@ -315,26 +315,16 @@ def build_short_term_tracking_embed(
     card: ShortTermTrackingCard, *, public_ref: str | None = None
 ) -> discord.Embed:
     title = {
-        "SL": "SL",
         "STOP_TRACKING": "停止追踪",
         "EXPIRED": "到期",
     }.get(card.card_type, card.card_type)
     embed = discord.Embed(
         title=f"{title} · {card.public_trade_id}",
         description=_short_term_contract(card),
-        color=(
-            DANGER
-            if card.card_type == "SL"
-            else ACCENT_GREEN if card.return_pct >= 0 else MUTED
-        ),
+        color=ACCENT_GREEN if card.return_pct >= 0 else MUTED,
     )
     embed.add_field(name="价格", value=_money(card.price), inline=False)
-    if card.card_type == "SL":
-        sl_value = "成本价 · 0.00%" if card.return_pct == 0 else f"{card.return_pct:+.2f}%"
-        embed.add_field(name="SL", value=sl_value, inline=False)
-        embed.add_field(name="状态", value="继续追踪至到期", inline=False)
-    else:
-        embed.add_field(name="收益", value=f"{card.return_pct:+.2f}%", inline=False)
+    embed.add_field(name="收益", value=f"{card.return_pct:+.2f}%", inline=False)
     if card.card_type in {"STOP_TRACKING", "EXPIRED"} and card.highest_return_pct is not None:
         embed.add_field(name="最高收益", value=f"{card.highest_return_pct:+.2f}%", inline=False)
     if public_ref:
