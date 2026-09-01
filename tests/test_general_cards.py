@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -165,6 +167,20 @@ def test_short_term_expiry_card_replaces_tracking_stop_preview() -> None:
     embed = build_short_term_tracking_embed(_short_term_tracking_card("EXPIRED"))
     assert embed.title == "到期 · ST-TEST"
     assert any(field.name == "最高收益" for field in embed.fields)
+
+
+def test_short_term_sl_card_is_non_terminal_and_uses_breakeven_label() -> None:
+    card = replace(
+        _short_term_tracking_card("SL"),
+        price=Decimal("1.20"),
+        return_pct=Decimal("0"),
+    )
+    embed = build_short_term_tracking_embed(card)
+    rendered = str(embed.to_dict())
+
+    assert embed.title == "SL · ST-TEST"
+    assert "成本价 · 0.00%" in rendered
+    assert "继续追踪至到期" in rendered
 
 
 def test_short_term_risk_notice_is_stable_and_member_safe() -> None:

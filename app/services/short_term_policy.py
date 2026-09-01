@@ -145,7 +145,7 @@ class ShortTermTrackingPolicy:
         tp_levels_hit: set[str],
     ) -> tuple[Decimal, int, str]:
         if self.tracking_exit_mode == "EXPIRY_ONLY":
-            return entry_price, 0, "EXPIRY_ONLY"
+            return self.sl_alert_reference(entry_price, tp_levels_hit)
         protection_return = self.initial_protection_return_pct
         protection_reason = "INITIAL_TRACKING_PROTECTION"
         highest_index = max(
@@ -167,6 +167,23 @@ class ShortTermTrackingPolicy:
             self.price_at_return(entry_price, protection_return),
             protection_return,
             protection_reason,
+        )
+
+    def sl_alert_reference(
+        self,
+        entry_price: Decimal,
+        tp_levels_hit: set[str],
+    ) -> tuple[Decimal, int, str]:
+        reached_tp50 = any(
+            rule.label in tp_levels_hit and rule.return_pct >= 50
+            for rule in self.tp_levels
+        )
+        if reached_tp50:
+            return entry_price, 0, "SL_ALERT_POST_TP50_BREAKEVEN"
+        return (
+            self.price_at_return(entry_price, -50),
+            -50,
+            "SL_ALERT_PRE_TP50_NEGATIVE_50",
         )
 
     def momentum_drawdown(

@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 247 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 255 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -20,7 +20,7 @@
 - AXIS website build/tests: PASS — 4 passed；ESLint 0 errors
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
-- Short-Term / Massive real E2E: NOT PASSED
+- Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；SL trigger E2E PENDING
 
 ## Commands executed
 
@@ -230,25 +230,24 @@ Schema drift check：
 
 ## Explicit failed / pending Live gate
 
-Short-Term verifier evidence:
+Short-Term verifier evidence after the non-terminal SL / verified-contract deployment:
 
-- short_term_tracking=21
-- short_term_tracking_events=101
-- short_term_daily_snapshots=29
-- daily_results_publications=0
-- market_quote_snapshots=2
+- short_term_tracking=23
+- short_term_tracking_events=116
+- short_term_daily_snapshots=31
+- active_tracking=17
+- verified-contract mismatches=0
+- active rows without any quote=0
+- active rows with a current data-quality error=1 (`ST-0023 · MASSIVE_QUOTE_STALE`)
+- live SL_ALERT events=0（真实阈值尚未触发）
 
-2026-09-01 部署 Expiry-only Tracking 后，11 条仍未到期的旧 Protection Stop 已幂等恢复；
-当前所有 15 条未到期订单均为 ACTIVE、`tracking_end_reason=None`、Protection Reason 为
-`EXPIRY_ONLY`，待发布旧 Stop 通知为 0；当天 15 条订单均已建立独立 Daily High / Low
-Snapshot。数据库共有 21 条 Short-Term tracking、101 条 tracking event 与 29 条 daily
-snapshot，但这些计数本身不能替代
-对真实 Massive quote、TP / Expiry trigger、Discord event、Daily Results 和 restart recovery
-的逐项验收，因此 Short-Term Live E2E 仍不能标记 PASS。Results Review 的代码、自动化、
-migration、Discord command 与 job ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live
-acceptance。
+`ST-0022 · SPX 09/01 7625P` 已从错误重建的 `O:SPX...` 修复为 Review 验证的
+`O:SPXW260901P07625000`，部署后实时 MID 报价、TP 和 Daily Snapshot 已更新。漏追踪窗口使用
+Massive 历史 MID 按分钟核验：最高 `$5.55` 已由实时轮询重新记录，最低 `$2.175 / -19.44%`
+已回补至 Low Watermark 与当日 Snapshot。新的 -50% / breakeven SL Card 已有自动化覆盖，但
+尚未发生真实向下穿越，因此 Discord Live E2E 仍保持 PENDING。
 
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 247 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 255 项测试结果。

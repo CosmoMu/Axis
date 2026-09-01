@@ -346,6 +346,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
     strike: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     option_side: Mapped[str] = mapped_column(String(16), nullable=False)
+    option_contract_code: Mapped[str | None] = mapped_column(String(64))
     moomoo_option_code: Mapped[str | None] = mapped_column(String(64))
     state: Mapped[str] = mapped_column(String(16), default=TradeState.DRAFT.value, nullable=False)
     last_public_action: Mapped[str | None] = mapped_column(String(32))
@@ -474,7 +475,7 @@ class ShortTermTrackingEvent(UuidPrimaryKeyMixin, Base):
         UniqueConstraint("guild_id", "discord_message_id", name="short_term_event_message"),
         CheckConstraint(
             "event_type IN ('ENTRY_PUBLISHED','FIXED_TP_HIT',"
-            "'FAST_MOMENTUM_REVERSAL','TRACKING_PROTECTION_MOVED','TRACKING_STOPPED',"
+            "'FAST_MOMENTUM_REVERSAL','SL_ALERT','TRACKING_PROTECTION_MOVED','TRACKING_STOPPED',"
             "'OVERNIGHT_CARRY','OVERNIGHT_GAP_STOP')",
             name="short_term_event_type",
         ),

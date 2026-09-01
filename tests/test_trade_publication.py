@@ -455,6 +455,8 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
                 selected_category="SHORT_TERM",
                 ticker="NVDA",
                 expiry=date(2027, 1, 15),
+                option_contract_code="O:NVDA270115C00500000",
+                contract_validation_status="VALID",
                 strike=Decimal("500"),
                 option_side="CALL",
                 entry_low=Decimal("1.20"),
@@ -518,11 +520,15 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
             tracking_count = await session.scalar(
                 select(func.count()).select_from(ShortTermTracking)
             )
+            saved_tracking = await session.scalar(select(ShortTermTracking))
         assert saved_trade is not None
+        assert saved_trade.option_contract_code == "O:NVDA270115C00500000"
         assert saved_trade.is_lotto is True
         assert saved_trade.mentor_id is None
         assert saved_trade.position_eighths == 0
         assert saved_trade.state == TradeState.ACTIVE.value
         assert tracking_count == 1
+        assert saved_tracking is not None
+        assert saved_tracking.option_ticker == "O:NVDA270115C00500000"
     finally:
         await database.dispose()

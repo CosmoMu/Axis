@@ -570,6 +570,11 @@ class TradePublicationService:
             expiry=draft.expiry,
             strike=draft.strike,
             option_side=draft.option_side or "",
+            option_contract_code=(
+                draft.option_contract_code
+                if category == TradeCategory.SHORT_TERM.value
+                else None
+            ),
             state=TradeState.DRAFT.value,
             position_eighths=0,
             max_position_eighths=0,
@@ -752,6 +757,7 @@ class TradePublicationService:
         if trade.opened_at is None:
             trade.opened_at = now
         if trade.category == TradeCategory.SHORT_TERM.value:
+            trade.option_contract_code = draft.option_contract_code
             trade.state = TradeState.ACTIVE.value
             trade.closed_at = None
             trade.position_eighths = 0

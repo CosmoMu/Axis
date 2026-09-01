@@ -184,3 +184,32 @@ async def test_spxw_snapshot_lookup_uses_spx_underlying_path() -> None:
 
     assert "/v3/snapshot/options/SPX/O:SPXW260901P07655000" in session.calls[0][0]
     assert prices[0].price == Decimal("1.20")
+
+
+@pytest.mark.asyncio
+async def test_partial_batch_failures_remain_attributable_to_the_contract() -> None:
+    session = FakeSession(
+        [
+            FakeResponse({}, status=404),
+            FakeResponse(payload()),
+        ]
+    )
+    market = MassiveMarketDataProvider(
+        api_key="test-only",
+        price_source="MID",
+        max_quote_age_seconds=120,
+        last_trade_quote_guard_pct=Decimal("50"),
+        session=session,  # type: ignore[arg-type]
+    )
+
+    prices = await market.fetch_prices(
+        (
+            MarketPriceRequest("missing", "SPX", "O:SPX260901P07625000"),
+            MarketPriceRequest("valid", "NVDA", "O:NVDA260831C00500000"),
+        )
+    )
+
+    assert [price.key for price in prices] == ["valid"]
+    assert len(market.last_failures) == 1
+    assert market.last_failures[0].key == "missing"
+    assert market.last_failures[0].error_code == "OPTION_CONTRACT_NOT_FOUND"

@@ -106,8 +106,11 @@ class MarketTrackingService:
             tracking = ShortTermTracking(
                 guild_id=trade.guild_id,
                 trade_id=trade.id,
-                option_ticker=massive_option_ticker(
-                    trade.ticker, trade.expiry, trade.strike, trade.option_side
+                option_ticker=(
+                    trade.option_contract_code
+                    or massive_option_ticker(
+                        trade.ticker, trade.expiry, trade.strike, trade.option_side
+                    )
                 ),
                 entry_price=entry_price,
                 current_price=entry_price,
@@ -171,6 +174,7 @@ class MarketTrackingService:
 
     async def poll(self, guild_id: int) -> int:
         await self.reconcile_expiry_only(guild_id)
+        await self.reconcile_contract_codes(guild_id)
         await self._expire_contracts(guild_id)
         if self.provider is None:
             return 0
@@ -206,11 +210,47 @@ class MarketTrackingService:
                 exc.code,
             )
             return 0
+        for failure in getattr(self.provider, "last_failures", ()):
+            try:
+                failed_tracking_id = uuid.UUID(failure.key)
+            except (AttributeError, ValueError):
+                continue
+            await self._record_data_error((failed_tracking_id,), failure.error_code)
         processed = 0
         for market_price in prices:
             await self.process_price(uuid.UUID(market_price.key), market_price)
             processed += 1
         return processed
+
+    async def reconcile_contract_codes(self, guild_id: int) -> int:
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(ShortTermTracking, Trade)
+                    .join(Trade, Trade.id == ShortTermTracking.trade_id)
+                    .where(
+                        ShortTermTracking.guild_id == guild_id,
+                        ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
+                        Trade.option_contract_code.is_not(None),
+                        ShortTermTracking.option_ticker != Trade.option_contract_code,
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            for tracking, trade in rows:
+                previous = tracking.option_ticker
+                tracking.option_ticker = trade.option_contract_code or previous
+                tracking.consecutive_data_errors = 0
+                tracking.last_error_code = None
+                tracking.version += 1
+                logger.info(
+                    "event=short_term_contract_reconciled trade=%s previous=%s resolved=%s",
+                    trade.public_trade_id,
+                    previous,
+                    tracking.option_ticker,
+                )
+            await session.commit()
+            return len(rows)
 
     async def _record_data_error(
         self,
@@ -294,9 +334,14 @@ class MarketTrackingService:
                 tracking.tracking_end_price = None
                 tracking.tracking_end_return_pct = None
                 tracking.tracking_ended_at = None
-                tracking.tracking_protection_price = tracking.entry_price
-                tracking.tracking_protection_return_pct = Decimal("0")
-                tracking.tracking_protection_reason = "EXPIRY_ONLY"
+                policy = self.policies.get(tracking.tracking_policy_version, self.policy)
+                sl_price, sl_return, sl_reason = policy.sl_alert_reference(
+                    tracking.entry_price,
+                    {str(value) for value in tracking.tp_levels_hit},
+                )
+                tracking.tracking_protection_price = sl_price
+                tracking.tracking_protection_return_pct = Decimal(sl_return)
+                tracking.tracking_protection_reason = f"{sl_reason}_PENDING"
                 tracking.version += 1
                 logger.info(
                     "event=short_term_reactivated_expiry_only trade=%s "
@@ -328,6 +373,7 @@ class MarketTrackingService:
             if last_quote is not None and market_price.source_timestamp <= last_quote:
                 return
 
+            previous_return = tracking.current_return_pct
             previous_high = tracking.highest_price
             current_return = policy.return_pct(tracking.entry_price, market_price.price)
             market_date = market_price.source_timestamp.astimezone(ET).date()
@@ -362,10 +408,6 @@ class MarketTrackingService:
                 tracking.lowest_at = market_price.source_timestamp
 
             expiry_only = self.policy.tracking_exit_mode == "EXPIRY_ONLY"
-            if expiry_only and tracking.tracking_protection_reason != "EXPIRY_ONLY":
-                tracking.tracking_protection_price = tracking.entry_price
-                tracking.tracking_protection_return_pct = Decimal("0")
-                tracking.tracking_protection_reason = "EXPIRY_ONLY"
 
             if new_session and tracking.tracking_state == "OVERNIGHT_ACTIVE":
                 if not expiry_only and market_price.price <= tracking.tracking_protection_price:
@@ -415,6 +457,43 @@ class MarketTrackingService:
             tracking.tp_levels_hit = [
                 rule.label for rule in policy.tp_levels if rule.label in hit
             ]
+            if expiry_only:
+                sl_price, sl_return, sl_reason = policy.sl_alert_reference(
+                    tracking.entry_price,
+                    hit,
+                )
+                same_sl_stage = tracking.tracking_protection_reason.startswith(sl_reason)
+                sl_already_sent = (
+                    same_sl_stage
+                    and tracking.tracking_protection_reason == f"{sl_reason}_SENT"
+                )
+                tracking.tracking_protection_price = sl_price
+                tracking.tracking_protection_return_pct = Decimal(sl_return)
+                tracking.tracking_protection_reason = (
+                    f"{sl_reason}_SENT" if sl_already_sent else f"{sl_reason}_PENDING"
+                )
+                if (
+                    not sl_already_sent
+                    and previous_return is not None
+                    and previous_return > Decimal(sl_return)
+                    and current_return <= Decimal(sl_return)
+                ):
+                    session.add(
+                        self._event(
+                            tracking,
+                            event_type="SL_ALERT",
+                            event_key=f"SL_ALERT:{sl_reason}",
+                            market_time=market_price.source_timestamp,
+                            received_at=market_price.received_at,
+                            price=market_price.price,
+                            return_pct=current_return,
+                            public_notification=True,
+                            public_card_type="SL",
+                            public_price=sl_price,
+                            public_return_pct=Decimal(sl_return),
+                        )
+                    )
+                    tracking.tracking_protection_reason = f"{sl_reason}_SENT"
             new_protection, new_protection_return, new_protection_reason = (
                 policy.protection_for(tracking.entry_price, hit)
             )

@@ -39,7 +39,16 @@ class MarketPrice:
     market_status: str
 
 
+@dataclass(frozen=True, slots=True)
+class MarketPriceFailure:
+    key: str
+    option_ticker: str
+    error_code: str
+
+
 class MarketDataProvider(Protocol):
+    last_failures: tuple[MarketPriceFailure, ...]
+
     async def fetch_prices(
         self, requests: Sequence[MarketPriceRequest]
     ) -> tuple[MarketPrice, ...]: ...
@@ -107,8 +116,10 @@ class MassiveMarketDataProvider:
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         self.semaphore = asyncio.Semaphore(concurrency)
         self.session = session
+        self.last_failures: tuple[MarketPriceFailure, ...] = ()
 
     async def fetch_prices(self, requests: Sequence[MarketPriceRequest]) -> tuple[MarketPrice, ...]:
+        self.last_failures = ()
         if not requests:
             return ()
         own_session = self.session is None
@@ -126,6 +137,28 @@ class MassiveMarketDataProvider:
             if own_session:
                 await session.close()
         prices = tuple(item for item in results if isinstance(item, MarketPrice))
+        self.last_failures = tuple(
+            MarketPriceFailure(request.key, request.option_ticker, result.code)
+            for request, result in zip(requests, results, strict=True)
+            if isinstance(result, MarketDataProviderError)
+        )
+        fatal_error = next(
+            (
+                result
+                for result in results
+                if isinstance(result, MarketDataProviderError)
+                and result.code
+                not in {
+                    "LAST_TRADE_OUTLIER",
+                    "MASSIVE_PRICE_UNAVAILABLE",
+                    "MASSIVE_QUOTE_STALE",
+                    "OPTION_CONTRACT_NOT_FOUND",
+                }
+            ),
+            None,
+        )
+        if fatal_error is not None:
+            raise fatal_error
         if not prices:
             first_error = next(
                 (item for item in results if isinstance(item, MarketDataProviderError)),

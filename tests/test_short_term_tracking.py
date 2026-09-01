@@ -283,7 +283,7 @@ async def test_high_low_continue_tracking_without_a_price_stop() -> None:
         assert saved is not None and stop is None
         assert saved.tracking_protection_price == Decimal("1.0000")
         assert saved.tracking_protection_return_pct == Decimal("0.0000")
-        assert saved.tracking_protection_reason == "EXPIRY_ONLY"
+        assert saved.tracking_protection_reason == "SL_ALERT_POST_TP50_BREAKEVEN_SENT"
         assert saved.tracking_state == "ACTIVE"
         assert saved.tracking_end_reason is None
         assert saved.highest_return_pct == Decimal("100.0000")
@@ -310,11 +310,116 @@ async def test_tp10_and_tp20_do_not_create_a_breakeven_stop() -> None:
             )
         assert saved is not None and stop is None
         assert saved.tp_levels_hit == ["TP1", "TP2"]
-        assert saved.tracking_protection_price == Decimal("1.0000")
-        assert saved.tracking_protection_return_pct == Decimal("0.0000")
-        assert saved.tracking_protection_reason == "EXPIRY_ONLY"
+        assert saved.tracking_protection_price == Decimal("0.5000")
+        assert saved.tracking_protection_return_pct == Decimal("-50.0000")
+        assert saved.tracking_protection_reason == "SL_ALERT_PRE_TP50_NEGATIVE_50_SENT"
         assert saved.tracking_state == "ACTIVE"
         assert saved.tracking_end_reason is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_pre_tp50_negative_50_sl_alert_does_not_stop_tracking() -> None:
+    database, service, tracking = await registered_service()
+    now = datetime.now(UTC)
+    try:
+        await service.process_price(tracking.id, market_price(tracking.id, "0.50", now))
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "0.40", now + timedelta(seconds=5)),
+        )
+        async with database.session() as session:
+            saved = await session.get(ShortTermTracking, tracking.id)
+            alerts = list(
+                await session.scalars(
+                    select(ShortTermTrackingEvent).where(
+                        ShortTermTrackingEvent.event_type == "SL_ALERT"
+                    )
+                )
+            )
+
+        assert saved is not None and saved.tracking_state == "ACTIVE"
+        assert saved.tracking_ended_at is None
+        assert len(alerts) == 1
+        assert alerts[0].public_card_type == "SL"
+        assert alerts[0].public_price == Decimal("0.5000")
+        assert alerts[0].public_return_pct == Decimal("-50.0000")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_post_tp50_breakeven_sl_alert_does_not_stop_tracking() -> None:
+    database, service, tracking = await registered_service()
+    now = datetime.now(UTC)
+    try:
+        await service.process_price(tracking.id, market_price(tracking.id, "1.50", now))
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "1.00", now + timedelta(seconds=5)),
+        )
+        await service.process_price(
+            tracking.id,
+            market_price(tracking.id, "0.80", now + timedelta(seconds=10)),
+        )
+        async with database.session() as session:
+            saved = await session.get(ShortTermTracking, tracking.id)
+            alerts = list(
+                await session.scalars(
+                    select(ShortTermTrackingEvent).where(
+                        ShortTermTrackingEvent.event_type == "SL_ALERT"
+                    )
+                )
+            )
+
+        assert saved is not None and saved.tracking_state == "ACTIVE"
+        assert saved.tracking_ended_at is None
+        assert len(alerts) == 1
+        assert alerts[0].public_card_type == "SL"
+        assert alerts[0].public_price == Decimal("1.0000")
+        assert alerts[0].public_return_pct == Decimal("0.0000")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_verified_spxw_contract_is_preserved_and_reconciled() -> None:
+    database, trade = await tracking_database()
+    service = MarketTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        None,
+    )
+    try:
+        async with database.session() as session:
+            stored = await session.get(Trade, trade.id)
+            assert stored is not None
+            stored.ticker = "SPX"
+            stored.expiry = date(2026, 9, 1)
+            stored.strike = Decimal("7625")
+            stored.option_side = "PUT"
+            stored.option_contract_code = "O:SPXW260901P07625000"
+            await session.commit()
+
+        await service.register_trade(trade.id, Decimal("2.70"))
+        async with database.session() as session:
+            tracking = await session.scalar(select(ShortTermTracking))
+            assert tracking is not None
+            assert tracking.option_ticker == "O:SPXW260901P07625000"
+            tracking.option_ticker = "O:SPX260901P07625000"
+            tracking.consecutive_data_errors = 3
+            tracking.last_error_code = "OPTION_CONTRACT_NOT_FOUND"
+            await session.commit()
+
+        assert await service.reconcile_contract_codes(GUILD_ID) == 1
+        assert await service.reconcile_contract_codes(GUILD_ID) == 0
+        async with database.session() as session:
+            repaired = await session.scalar(select(ShortTermTracking))
+        assert repaired is not None
+        assert repaired.option_ticker == "O:SPXW260901P07625000"
+        assert repaired.consecutive_data_errors == 0
+        assert repaired.last_error_code is None
     finally:
         await database.dispose()
 
@@ -445,7 +550,7 @@ async def test_expiry_only_reactivates_unexpired_legacy_price_stops() -> None:
         assert resumed.tracking_state == "ACTIVE"
         assert resumed.tracking_end_reason is None
         assert resumed.current_return_pct == Decimal("-70.0000")
-        assert resumed.tracking_protection_reason == "EXPIRY_ONLY"
+        assert resumed.tracking_protection_reason == "SL_ALERT_POST_TP50_BREAKEVEN_PENDING"
         assert old_stop.public_notification is False
     finally:
         await database.dispose()
