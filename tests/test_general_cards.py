@@ -5,7 +5,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.bot.cogs.card_testing import _analysis_card, _preview_offers, _trade_card
+from app.bot.cards import build_short_term_tracking_embed
+from app.bot.cogs.card_testing import (
+    _analysis_card,
+    _preview_offers,
+    _short_term_tracking_card,
+    _trade_card,
+)
 from app.bot.cogs.general_control import (
     MembershipView,
 )
@@ -153,6 +159,12 @@ def test_card_testing_previews_are_pure_dtos() -> None:
     analysis = _analysis_card()
     assert analysis.analysis_code == "TEST-A-0001"
     assert "不写入数据库" in (analysis.summary or "")
+
+
+def test_short_term_expiry_card_replaces_tracking_stop_preview() -> None:
+    embed = build_short_term_tracking_embed(_short_term_tracking_card("EXPIRED"))
+    assert embed.title == "到期 · ST-TEST"
+    assert any(field.name == "最高收益" for field in embed.fields)
 
 
 def test_short_term_risk_notice_is_stable_and_member_safe() -> None:

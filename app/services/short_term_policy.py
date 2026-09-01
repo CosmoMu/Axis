@@ -31,6 +31,7 @@ class MomentumTriggerRule:
 class ShortTermTrackingPolicy:
     version: str
     price_source: str
+    tracking_exit_mode: str
     poll_seconds: int
     max_quote_age_seconds: int
     last_trade_quote_guard_pct: Decimal
@@ -54,7 +55,10 @@ class ShortTermTrackingPolicy:
                 TpLevelRule(str(label).upper(), int(return_pct))
                 for label, return_pct in payload["tp_levels"].items()
             )
-            protection = payload["tracking_protection"]
+            tracking_exit_mode = str(
+                payload.get("tracking_exit_mode", "LEGACY_PROTECTION")
+            ).upper()
+            protection = payload.get("tracking_protection", {})
             momentum = payload["momentum_reversal"]
             triggers = tuple(
                 MomentumTriggerRule(
@@ -66,11 +70,14 @@ class ShortTermTrackingPolicy:
             policy = cls(
                 version=str(payload["version"]),
                 price_source=str(payload["price_source"]).upper(),
+                tracking_exit_mode=tracking_exit_mode,
                 poll_seconds=int(payload["poll_seconds"]),
                 max_quote_age_seconds=int(payload["max_quote_age_seconds"]),
                 last_trade_quote_guard_pct=_decimal(payload["last_trade_quote_guard_pct"]),
                 tp_levels=tp_levels,
-                initial_protection_return_pct=int(protection["initial_return_pct"]),
+                initial_protection_return_pct=int(
+                    protection.get("initial_return_pct", 0)
+                ),
                 momentum_enabled=bool(momentum["enabled"]),
                 momentum_min_profit_pct=_decimal(momentum["min_profit_pct"]),
                 momentum_cooldown=timedelta(minutes=int(momentum["cooldown_minutes"])),
@@ -88,13 +95,21 @@ class ShortTermTrackingPolicy:
         if (
             not self.version.startswith("ST_TRACKING_V")
             or self.price_source not in {"BID", "MID", "LAST"}
+            or self.tracking_exit_mode not in {"EXPIRY_ONLY", "LEGACY_PROTECTION"}
             or self.poll_seconds <= 0
             or self.max_quote_age_seconds <= 0
             or self.last_trade_quote_guard_pct <= 0
             or labels != expected_labels
             or return_values != sorted(set(return_values))
             or any(item.return_pct <= 0 for item in self.tp_levels)
-            or self.initial_protection_return_pct >= 0
+            or (
+                self.tracking_exit_mode == "LEGACY_PROTECTION"
+                and self.initial_protection_return_pct >= 0
+            )
+            or (
+                self.tracking_exit_mode == "EXPIRY_ONLY"
+                and self.initial_protection_return_pct != 0
+            )
             or any(
                 trigger.seconds <= 0 or trigger.drawdown_pct <= 0
                 for trigger in self.momentum_triggers
@@ -129,6 +144,8 @@ class ShortTermTrackingPolicy:
         entry_price: Decimal,
         tp_levels_hit: set[str],
     ) -> tuple[Decimal, int, str]:
+        if self.tracking_exit_mode == "EXPIRY_ONLY":
+            return entry_price, 0, "EXPIRY_ONLY"
         protection_return = self.initial_protection_return_pct
         protection_reason = "INITIAL_TRACKING_PROTECTION"
         highest_index = max(

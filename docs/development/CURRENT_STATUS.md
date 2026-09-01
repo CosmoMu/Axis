@@ -1,6 +1,6 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-08-31
+**Updated:** 2026-09-01
 
 **Current stage:** Newcomer security gate rollout / Production stabilization
 
@@ -28,7 +28,7 @@ blockers。第一笔真实 Live 付款及完整 lifecycle 尚未验收。
 Newcomer Approval / Free Trial Security Gate 已完成代码、迁移、权限矩阵和自动化回归；生产环境
 已执行 existing-user baseline 与 Discord structure 安全部署，但真实新账户的完整时钟 E2E 仍待验收。
 随后最高优先级仍是 Short-Term / Massive 真实端到端；Production 已有 Short-Term tracking 与
-Massive quote，但 TP/Protection 触发和正式交易日 Discord 完整证据链仍未验收。
+Massive quote，但 TP/Expiry 触发和正式交易日 Discord 完整证据链仍未验收。
 
 Next execution boundary: 不新增产品功能。先完成真实 Newcomer Join → Apply → Approve → Trial →
 Expiry → Rejoin 验收，再继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
@@ -118,27 +118,29 @@ Implemented:
   混用策略。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送不推进固定编号的 Momentum TP。
 - High / Low Watermark。
-- Tracking Protection：初始 -50%；+10% 与 +20% 后均锁入场成本；从 +50% 起锁前一级 TP。
-- Overnight Tracking。
-- Tracking Stop。
+- Expiry-only Tracking：不设置或执行 SL、保本位、前一级 TP Protection 或隔夜跳空 Stop；
+  V2 / V3 / V4 在途订单均持续追踪至合约到期。
+- 启动轮询会幂等恢复仍未到期、但曾被旧 Protection 规则停止的订单；已发布历史事件保留，
+  未发布的旧停止通知取消。
+- Overnight Tracking；到期后发送一次幂等「到期」卡并结束追踪。
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
   每日 Active Summary 使用 Massive 当日 Options Daily OHLC 正式收盘价计算收益。
 - Results：当天停止与收盘时仍在追踪的全部 Short-Term 一并进入 Review；所有 Short-Term
-  统一使用从入场到停止追踪期间记录到的期权最高价相对入场价计算收益，不使用当前价、
+  统一使用从入场到到期或当前时刻记录到的期权最高价相对入场价计算收益，不使用当前价、
   停止价或单日快照。公开行只保留类似 `✅ ST-0001 · MU 08/31 970C +52.94%` 的状态、
   订单号、Ticker、到期日、合约代码与收益率；盈利用 `✅`、亏损用 `❌`、持平或不可用用
   `➖`，并按订单号数字升序排列。
 
-Remaining: 完成真实 Massive quote、TP、reversal/protection、Discord 事件、重启恢复和
+Remaining: 完成真实 Massive quote、TP、reversal/expiry、Discord 事件、重启恢复和
 Daily Results E2E。
 
 Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、watermark、momentum
-reversal、tracking protection、overnight、tracking stop、restart recovery、无 Short-Term Daily
+reversal、expiry-only、overnight、expiry stop、restart recovery、无 Short-Term Daily
 Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 
 Production status: **真实 Massive E2E 尚未验收。** 当前已有 Production tracking、event 与报价
-记录，但仍缺 TP / Protection / Discord / restart 的完整逐项验收，因此不能标记 Live Complete。
+记录，但仍缺 TP / Expiry / Discord / restart 的完整逐项验收，因此不能标记 Live Complete。
 
 ## Mentor Management — COMPLETE
 

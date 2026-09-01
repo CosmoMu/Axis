@@ -1,5 +1,6 @@
 version: ST_TRACKING_V4
 price_source: MID
+tracking_exit_mode: EXPIRY_ONLY
 poll_seconds: 5
 max_quote_age_seconds: 120
 last_trade_quote_guard_pct: 50
@@ -46,9 +47,6 @@ tp_levels:
   TP39: 950
   TP40: 975
   TP41: 1000
-
-tracking_protection:
-  initial_return_pct: -50
 
 momentum_reversal:
   enabled: true

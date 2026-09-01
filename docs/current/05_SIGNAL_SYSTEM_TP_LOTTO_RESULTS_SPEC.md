@@ -1,6 +1,6 @@
 # AXIS Signal System — TP / LOTTO / Results Current Specification
 
-**Effective:** 2026-08-31
+**Effective:** 2026-09-01
 
 This document supersedes older Short-Term Runner, Short-Term Active View, Short-Term Daily Summary,
 and daily-result presentation rules. Signal Input, Review, Publish, Mentor, Analysis, and Membership
@@ -8,7 +8,7 @@ behavior not named here remains unchanged.
 
 ## Short-Term public lifecycle
 
-- Public events are only ENTRY, fixed TP1–TP41, Momentum TP, and 停止追踪.
+- Public events are only ENTRY, fixed TP1–TP41, Momentum TP, and 到期.
 - New tracking uses `ST_TRACKING_V4` from `config/short_term_tracking.yaml`: TP1 +10%, TP2 +20%,
   then one fixed TP every 25 percentage points from TP3 +50% through TP41 +1000%.
 - Existing orders keep their frozen policy version. `ST_TRACKING_V2` and `ST_TRACKING_V3` remain
@@ -17,14 +17,14 @@ behavior not named here remains unchanged.
 - Fast Momentum Reversal remains a plain `TP` and never advances the fixed TP number.
 - Short-Term has no Runner card/status/milestone and never publishes SL, CLOSE, SELL, or SELL ALL.
 
-## Tracking protection
+## Expiry-only tracking
 
-- Before TP1: -50%.
-- After TP1 (+10%): entry / 0%.
-- After TP2 (+20%): entry / 0%.
-- From TP3 (+50%) onward: protect the immediately preceding fixed TP; TP3 protects +20%, TP4
-  protects +50%, and so on.
-- A protection touch publishes only 停止追踪. This is AXIS tracking state, not a member SL.
+- Short-Term does not set or enforce SL, breakeven protection, trailing protection, or any other
+  price-based automatic tracking stop.
+- A contract remains ACTIVE / OVERNIGHT_ACTIVE through pullbacks and overnight gaps until its
+  expiry. This applies to existing V2 / V3 orders as well as new V4 orders; frozen versions still
+  determine only each order's fixed TP ladder.
+- Expiry is the only automatic end condition and publishes one idempotent 到期 card.
 - Full Entry, TP, Momentum, watermark, end, overnight, and policy-version history remains stored.
 
 ## LOTTO
@@ -47,7 +47,7 @@ behavior not named here remains unchanged.
 - Swing and LEAPS each publish one Daily Summary containing 今日关闭 and 当前持仓.
 - Results publishes one `AXIS DAILY RESULTS` card with SHORT-TERM, SWING, and LEAPS sections.
 - Every Short-Term trade derives its displayed return from the highest option price recorded across
-  the complete tracking lifecycle relative to entry price, whether it stopped that day or remains
+  the complete tracking lifecycle relative to entry price, whether it expired that day or remains
   under tracking. Current return, tracking-end return, and daily-only snapshots stay internal.
 - Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
   `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
@@ -62,7 +62,7 @@ behavior not named here remains unchanged.
 
 - 每个实际 XNYS 交易日收盘后 `RESULTS_REVIEW_DRAFT_DELAY_MINUTES` 分钟生成唯一 Draft；Early
   Close 使用当日真实 close time。
-- Eligible Items 包含当天 STOPPED Short-Term、收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的全部
+- Eligible Items 包含当天到期的 Short-Term、收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的全部
   Short-Term，以及当天 CLOSED Swing / LEAPS，默认全部 Included；Loss Trade 不自动隐藏。
 - `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、PREVIEW
   与 PUBLISH NOW；不显示 EDIT CARD。

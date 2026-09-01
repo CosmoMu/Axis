@@ -40,6 +40,11 @@ RECOVERABLE_MARKET_DATA_ERRORS = {
     "MASSIVE_QUOTE_STALE",
     "OPTION_CONTRACT_NOT_FOUND",
 }
+REACTIVATABLE_PRICE_STOP_REASONS = {
+    "INITIAL_TRACKING_PROTECTION",
+    "TRAILING_TRACKING_PROTECTION",
+    "OVERNIGHT_GAP_TRACKING_PROTECTION",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +169,10 @@ class MarketTrackingService:
         return len(rows)
 
     async def poll(self, guild_id: int) -> int:
+        await self.reconcile_expiry_only(guild_id)
+        await self._expire_contracts(guild_id)
         if self.provider is None:
             return 0
-        await self._expire_contracts(guild_id)
         if not self.calendar.is_market_open(datetime.now(UTC)):
             return 0
         async with self.database.session() as session:
@@ -239,6 +245,68 @@ class MarketTrackingService:
     async def expire_contracts(self, guild_id: int) -> None:
         await self._expire_contracts(guild_id)
 
+    async def reconcile_expiry_only(self, guild_id: int) -> int:
+        if self.policy.tracking_exit_mode != "EXPIRY_ONLY":
+            return 0
+        today = datetime.now(ET).date()
+        async with self.database.session() as session:
+            rows = (
+                await session.execute(
+                    select(ShortTermTracking, Trade)
+                    .join(Trade, Trade.id == ShortTermTracking.trade_id)
+                    .where(
+                        ShortTermTracking.guild_id == guild_id,
+                        ShortTermTracking.tracking_state == "STOPPED",
+                        ShortTermTracking.tracking_end_reason.in_(
+                            REACTIVATABLE_PRICE_STOP_REASONS
+                        ),
+                        Trade.expiry >= today,
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            if not rows:
+                return 0
+            tracking_ids = [tracking.id for tracking, _trade in rows]
+            pending_stop_events = list(
+                await session.scalars(
+                    select(ShortTermTrackingEvent).where(
+                        ShortTermTrackingEvent.tracking_id.in_(tracking_ids),
+                        ShortTermTrackingEvent.event_type.in_(
+                            ("TRACKING_STOPPED", "OVERNIGHT_GAP_STOP")
+                        ),
+                        ShortTermTrackingEvent.published_at.is_(None),
+                    )
+                )
+            )
+            for event in pending_stop_events:
+                event.public_notification = False
+            for tracking, trade in rows:
+                previous_reason = tracking.tracking_end_reason
+                tracking.tracking_state = (
+                    "OVERNIGHT_ACTIVE"
+                    if tracking.last_session_date is not None
+                    and tracking.last_session_date < today
+                    else "ACTIVE"
+                )
+                tracking.tracking_end_reason = None
+                tracking.tracking_end_price = None
+                tracking.tracking_end_return_pct = None
+                tracking.tracking_ended_at = None
+                tracking.tracking_protection_price = tracking.entry_price
+                tracking.tracking_protection_return_pct = Decimal("0")
+                tracking.tracking_protection_reason = "EXPIRY_ONLY"
+                tracking.version += 1
+                logger.info(
+                    "event=short_term_reactivated_expiry_only trade=%s "
+                    "previous_reason=%s expiry=%s",
+                    trade.public_trade_id,
+                    previous_reason,
+                    trade.expiry,
+                )
+            await session.commit()
+            return len(rows)
+
     async def process_price(self, tracking_id: uuid.UUID, market_price: MarketPrice) -> None:
         async with self.database.session() as session:
             tracking = await session.scalar(
@@ -260,7 +328,6 @@ class MarketTrackingService:
                 return
 
             previous_high = tracking.highest_price
-            previous_protection = tracking.tracking_protection_price
             current_return = policy.return_pct(tracking.entry_price, market_price.price)
             market_date = market_price.source_timestamp.astimezone(ET).date()
             new_session = (
@@ -293,8 +360,14 @@ class MarketTrackingService:
                 tracking.lowest_return_pct = current_return
                 tracking.lowest_at = market_price.source_timestamp
 
+            expiry_only = self.policy.tracking_exit_mode == "EXPIRY_ONLY"
+            if expiry_only and tracking.tracking_protection_reason != "EXPIRY_ONLY":
+                tracking.tracking_protection_price = tracking.entry_price
+                tracking.tracking_protection_return_pct = Decimal("0")
+                tracking.tracking_protection_reason = "EXPIRY_ONLY"
+
             if new_session and tracking.tracking_state == "OVERNIGHT_ACTIVE":
-                if market_price.price <= previous_protection:
+                if not expiry_only and market_price.price <= tracking.tracking_protection_price:
                     self._stop(
                         session,
                         tracking,
@@ -337,7 +410,7 @@ class MarketTrackingService:
             new_protection, new_protection_return, new_protection_reason = (
                 policy.protection_for(tracking.entry_price, hit)
             )
-            if new_protection > tracking.tracking_protection_price:
+            if not expiry_only and new_protection > tracking.tracking_protection_price:
                 tracking.tracking_protection_price = new_protection
                 tracking.tracking_protection_return_pct = Decimal(new_protection_return)
                 tracking.tracking_protection_reason = new_protection_reason
@@ -373,7 +446,10 @@ class MarketTrackingService:
                 and (cooldown is None or market_price.received_at >= cooldown)
                 and tracking.momentum_anchor_version > tracking.momentum_last_event_anchor_version
                 and market_price.price < previous_high
-                and market_price.price > tracking.tracking_protection_price
+                and (
+                    expiry_only
+                    or market_price.price > tracking.tracking_protection_price
+                )
             ):
                 drawdown, _ = momentum
                 event_id = uuid.uuid4()
@@ -416,7 +492,7 @@ class MarketTrackingService:
                     },
                 ]
 
-            if market_price.price <= tracking.tracking_protection_price:
+            if not expiry_only and market_price.price <= tracking.tracking_protection_price:
                 reason = (
                     "INITIAL_TRACKING_PROTECTION"
                     if not hit or tracking.tracking_protection_return_pct < 0
@@ -470,7 +546,7 @@ class MarketTrackingService:
                     return_pct=event.public_return_pct or event.return_pct,
                     highest_return_pct=(
                         event.high_watermark_return_pct
-                        if event.public_card_type == "STOP_TRACKING"
+                        if event.public_card_type in {"STOP_TRACKING", "EXPIRED"}
                         else None
                     ),
                     is_lotto=trade.is_lotto,
@@ -528,7 +604,7 @@ class MarketTrackingService:
                         price=tracking.current_price or tracking.entry_price,
                         return_pct=tracking.current_return_pct or Decimal("0"),
                         public_notification=True,
-                        public_card_type="STOP_TRACKING",
+                        public_card_type="EXPIRED",
                         public_price=tracking.current_price or tracking.entry_price,
                         public_return_pct=tracking.current_return_pct or Decimal("0"),
                     )

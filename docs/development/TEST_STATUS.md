@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-08-31
+**Date:** 2026-09-01
 
 ## Summary
 
-- Full pytest suite: PASS — 243 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 246 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -75,9 +75,10 @@ Short-Term:
 - 可恢复的单合约 stale / unavailable / outlier / not-found 不触发系统级 ERROR，保存连续错误与
   精确错误码；新有效报价自动清零。认证等 provider 故障仍向上抛出并显示准确错误码。
 - ST_TRACKING_V2 / V3 / V4 policy-version isolation；在途旧订单不会切换到新点位。
-- High / Low Watermark、Tracking Protection、Fast Momentum Reversal、Overnight Tracking、
-  Tracking Stop 和 policy version；Momentum TP 不推进固定编号。
-- Tracking Protection 验证 +10% / +20% 后保持入场成本，+50% 起保护前一级固定 TP。
+- High / Low Watermark、Fast Momentum Reversal、Overnight Tracking、Expiry-only Tracking 和
+  policy version；Momentum TP 不推进固定编号。
+- 验证任意回撤与隔夜跳空均不触发 SL / 保本 / trailing stop，只有合约到期结束追踪并生成
+  幂等「到期」卡。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
@@ -231,14 +232,17 @@ Schema drift check：
 
 Short-Term verifier evidence:
 
-- short_term_tracking=14
-- short_term_tracking_events=62
+- short_term_tracking=21
+- short_term_tracking_events=98
 - short_term_daily_snapshots=14
 - daily_results_publications=0
 - market_quote_snapshots=2
 
-数据库当前已有 14 条 Short-Term tracking 与 62 条 tracking event，但这些计数本身不能替代
-对真实 Massive quote、TP / Protection trigger、Discord event、Daily Results 和 restart recovery
+2026-09-01 部署 Expiry-only Tracking 后，11 条仍未到期的旧 Protection Stop 已幂等恢复；
+当前所有 15 条未到期订单均为 ACTIVE、`tracking_end_reason=None`、Protection Reason 为
+`EXPIRY_ONLY`，待发布旧 Stop 通知为 0。数据库共有 21 条 Short-Term tracking 与 98 条
+tracking event，但这些计数本身不能替代
+对真实 Massive quote、TP / Expiry trigger、Discord event、Daily Results 和 restart recovery
 的逐项验收，因此 Short-Term Live E2E 仍不能标记 PASS。Results Review 的代码、自动化、
 migration、Discord command 与 job ready 已验证；首个真实 Eligible Trade 的定时公开仍是 Live
 acceptance。
@@ -246,4 +250,4 @@ acceptance。
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 243 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 246 项测试结果。

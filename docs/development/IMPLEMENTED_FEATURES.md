@@ -1,6 +1,6 @@
 # AXIS Implemented Features
 
-**Updated:** 2026-08-31
+**Updated:** 2026-09-01
 
 本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
 LIVE_MODE_CHECKLIST.md 为准。
@@ -87,14 +87,17 @@ LIVE_MODE_CHECKLIST.md 为准。
   `tp_levels_hit` 保证每一级只发送一次。
 - Tracking policy 按订单冻结；历史 ST_TRACKING_V2 / V3 订单继续使用各自原有点位。
 - Short-Term Runner 已删除；Fast Momentum Reversal 只发送 plain TP，不推进固定 TP 编号。
-- Tracking Protection（+10% / +20% 后保本，+50% 起保护前一级 TP）、High / Low Watermark、
-  Overnight 和 Tracking Stop。
-- LOTTO 持久化 display flag，不影响 tracking、TP、protection、仓位或结果计算。
-- Short-Term 不发送 Daily Summary；停止订单只进入极简 official Daily Results。Swing / LEAPS
+- Expiry-only Tracking：不设置或执行 SL、保本位、前一级 TP Protection 或隔夜跳空 Stop；新旧
+  Short-Term 订单都持续追踪至合约到期，到期只发送一次「到期」卡。High / Low Watermark 与
+  Overnight Tracking 保留。
+- 仍未到期但曾被旧价格保护停止的订单会在轮询时幂等恢复；旧公开历史保留、未公开的旧停止
+  通知取消。
+- LOTTO 持久化 display flag，不影响 tracking、TP、仓位或结果计算。
+- Short-Term 不发送 Daily Summary；到期订单只进入极简 official Daily Results。Swing / LEAPS
   Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-说明：Production 已有 Short-Term tracking 与 Massive quote；真实 TP / Protection / Discord /
+说明：Production 已有 Short-Term tracking 与 Massive quote；真实 TP / Expiry / Discord /
 restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 ## Mentor / Member

@@ -70,7 +70,7 @@ class ShortTermEntryCard:
 
 @dataclass(frozen=True, slots=True)
 class ShortTermTrackingCard:
-    """Public fixed TP, Momentum TP, or tracking-stop boundary."""
+    """Public fixed TP, Momentum TP, or contract-expiry boundary."""
 
     public_trade_id: str
     card_type: str

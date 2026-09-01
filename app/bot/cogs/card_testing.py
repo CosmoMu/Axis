@@ -202,7 +202,7 @@ def _short_term_tracking_card(card_type: str) -> ShortTermTrackingCard:
         option_side="CALL",
         price=Decimal("1.82"),
         return_pct=Decimal("52"),
-        highest_return_pct=Decimal("136") if card_type == "STOP_TRACKING" else None,
+        highest_return_pct=Decimal("136") if card_type == "EXPIRED" else None,
     )
 
 
@@ -268,13 +268,11 @@ class CardTestingCog(commands.Cog):
     async def test_short_tp(self, interaction: discord.Interaction) -> None:
         await self._send_short_term(interaction, "TP1")
 
-    @app_commands.command(
-        name="test-short-stop", description="Preview a Short-Term Tracking Stop Card"
-    )
+    @app_commands.command(name="test-short-expiry", description="Preview Short-Term Expiry Card")
     @app_commands.default_permissions(administrator=True)
     @app_commands.guild_only()
-    async def test_short_stop(self, interaction: discord.Interaction) -> None:
-        await self._send_short_term(interaction, "STOP_TRACKING")
+    async def test_short_expiry(self, interaction: discord.Interaction) -> None:
+        await self._send_short_term(interaction, "EXPIRED")
 
     @app_commands.command(name="test-signal-card", description="Preview a Signal Card safely")
     @app_commands.default_permissions(administrator=True)

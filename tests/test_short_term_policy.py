@@ -11,6 +11,7 @@ def test_short_term_policy_has_exact_configured_tp_levels() -> None:
 
     assert policy.version == "ST_TRACKING_V4"
     assert policy.price_source == "MID"
+    assert policy.tracking_exit_mode == "EXPIRY_ONLY"
     expected_returns = [10, 20, *range(50, 1001, 25)]
     assert [(item.label, item.return_pct) for item in policy.tp_levels] == [
         (f"TP{index}", return_pct)
@@ -23,21 +24,19 @@ def test_short_term_policy_has_exact_configured_tp_levels() -> None:
     )
 
 
-def test_tracking_protection_locks_the_previous_tp_level() -> None:
+def test_expiry_only_policy_never_creates_a_price_stop() -> None:
     policy = ShortTermTrackingPolicy.load(POLICY_PATH)
     entry = Decimal("1.20")
-    cases = (
-        (set(), "0.60", -50),
-        ({"TP1"}, "1.20", 0),
-        ({"TP1", "TP2"}, "1.20", 0),
-        ({"TP1", "TP2", "TP3"}, "1.44", 20),
-        ({"TP1", "TP2", "TP3", "TP4"}, "1.80", 50),
-        ({"TP1", "TP2", "TP3", "TP4", "TP5"}, "2.10", 75),
-    )
-    for hit, expected_price, expected_return in cases:
-        price, return_pct, _reason = policy.protection_for(entry, hit)
-        assert price == Decimal(expected_price)
-        assert return_pct == expected_return
+    for hit in (
+        set(),
+        {"TP1"},
+        {"TP1", "TP2"},
+        {"TP1", "TP2", "TP3", "TP4", "TP5"},
+    ):
+        price, return_pct, reason = policy.protection_for(entry, hit)
+        assert price == entry
+        assert return_pct == 0
+        assert reason == "EXPIRY_ONLY"
 
 
 def test_fast_momentum_and_slow_pullback_policy() -> None:
