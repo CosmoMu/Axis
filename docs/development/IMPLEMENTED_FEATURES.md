@@ -70,7 +70,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   绿色 PT1/PT2/PT3 和灰色 Fib 0.618。
 - 图和文字卡作为同一条 Discord 消息的 attachment + embed 发布。
 - 缺失 Add Zone、PT3 或 0.618 时相应字段和图层自动隐藏。
-- 新公开引用使用 P-0001 短编号；旧长内部 public_ref 不再显示在卡片。
+- `P-*` publication reference 全部保持内部使用，会员卡不显示长短格式；公开只显示
+  `ST-XXXX` / `SW-XXXX` / `LP-XXXX` 订单号。
 - Short-Term builder、tracking 和 policy 未修改。
 
 ## Short-Term Automated Tracking

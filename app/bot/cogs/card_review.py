@@ -48,6 +48,23 @@ from app.services.trade_publication import (
 logger = logging.getLogger(__name__)
 
 
+def _member_trade_embed_signature(embed: discord.Embed) -> dict[str, object]:
+    payload = embed.to_dict()
+    payload.pop("footer", None)
+    payload.pop("image", None)
+    payload.pop("thumbnail", None)
+    return payload
+
+
+def _same_member_trade_embed(existing: discord.Embed, expected: discord.Embed) -> bool:
+    """Match a published card without exposing its internal publication reference."""
+
+    title = expected.title or ""
+    if title.endswith("STARTER ENTRY") or title.startswith("入场 · "):
+        return existing.title == expected.title and existing.description == expected.description
+    return _member_trade_embed_signature(existing) == _member_trade_embed_signature(expected)
+
+
 class CardReviewCog(commands.Cog):
     def __init__(
         self,
@@ -405,13 +422,35 @@ class CardReviewCog(commands.Cog):
             )
             return await self.service.get(draft.id)
 
-        message = None
-        marker = f"AXIS · {claim.public_ref}"
         try:
+            public_card = claim.card
+            chart_png = None
+            if isinstance(public_card, PublicTradeCard) and self.trade_plan_service is not None:
+                artifact = await self.trade_plan_service.prepare(public_card)
+                public_card = artifact.card
+                chart_png = artifact.chart_png
+            embed = (
+                build_short_term_entry_embed(public_card, public_ref=claim.public_ref)
+                if isinstance(public_card, ShortTermEntryCard)
+                else build_public_trade_embed(public_card, public_ref=claim.public_ref)
+            )
+            filename = None
+            if chart_png is not None and isinstance(public_card, PublicTradeCard):
+                filename = (
+                    f"axis-{(public_card.public_trade_id or 'trade').lower()}-entry-plan.png"
+                )
+                embed.set_image(url=f"attachment://{filename}")
+
+            message = None
+            legacy_marker = f"AXIS · {claim.public_ref}"
             async for candidate in history(limit=200):
                 if self.bot.user is None or candidate.author.id != self.bot.user.id:
                     continue
-                if any(embed.footer.text == marker for embed in candidate.embeds):
+                if any(
+                    candidate_embed.footer.text == legacy_marker
+                    or _same_member_trade_embed(candidate_embed, embed)
+                    for candidate_embed in candidate.embeds
+                ):
                     message = candidate
                     break
             category = (
@@ -425,22 +464,7 @@ class CardReviewCog(commands.Cog):
                 else ActiveOrdersView(self, category)
             )
             if message is None:
-                public_card = claim.card
-                chart_png = None
-                if isinstance(public_card, PublicTradeCard) and self.trade_plan_service is not None:
-                    artifact = await self.trade_plan_service.prepare(public_card)
-                    public_card = artifact.card
-                    chart_png = artifact.chart_png
-                embed = (
-                    build_short_term_entry_embed(public_card, public_ref=claim.public_ref)
-                    if isinstance(public_card, ShortTermEntryCard)
-                    else build_public_trade_embed(public_card, public_ref=claim.public_ref)
-                )
-                if chart_png is not None and isinstance(public_card, PublicTradeCard):
-                    filename = (
-                        f"axis-{(public_card.public_trade_id or 'trade').lower()}-entry-plan.png"
-                    )
-                    embed.set_image(url=f"attachment://{filename}")
+                if chart_png is not None and filename is not None:
                     message = await send(
                         embed=embed,
                         file=discord.File(BytesIO(chart_png), filename=filename),

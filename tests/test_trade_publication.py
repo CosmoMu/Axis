@@ -476,16 +476,17 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
         publication = TradePublicationService(database)
         claim = await publication.claim(draft.id)
         assert claim.card is not None
-        public_text = str(
-            build_short_term_entry_embed(
-                claim.card,  # type: ignore[arg-type]
-                public_ref=claim.public_ref,
-            ).to_dict()
+        public_embed = build_short_term_entry_embed(
+            claim.card,  # type: ignore[arg-type]
+            public_ref=claim.public_ref,
         )
+        public_text = str(public_embed.to_dict())
         for forbidden in ("Mentor", "SL", "TP", "仓位", "Market", "Bid", "Ask"):
             assert forbidden not in public_text
         assert "MY RISK IS NOT YOUR RISK" in public_text
         assert "(LOTTO)" in public_text
+        assert claim.public_ref not in public_text
+        assert public_embed.footer.text == "AXIS"
         assert "01/15/27" in public_text
         assert "2027-01-15" not in public_text
         assert claim.claim_token is not None

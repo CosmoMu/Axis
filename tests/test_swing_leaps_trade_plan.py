@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.bot.cards import build_public_trade_embed
-from app.bot.cogs.card_review import CardReviewCog
+from app.bot.cogs.card_review import CardReviewCog, _same_member_trade_embed
 from app.domain.public_cards import PublicTradeCard
 from app.market_intelligence.stock_analyst.engine import analyze_stock
 from app.market_intelligence.stock_analyst.models import DailyBar, StockMarketBundle
@@ -88,7 +88,8 @@ def test_entry_public_card_uses_new_chinese_plan_format(category: str) -> None:
     assert "Add Zone" in rendered
     assert "Fib 0.618" in rendered
     assert "ENTRY TRIGGERED · 1/8 仓位" in rendered
-    assert payload["footer"]["text"] == "AXIS · P-0041"
+    assert payload["footer"]["text"] == f"AXIS · {category}"
+    assert "AXIS · P-0041" not in rendered
     assert "P-F0ECED1A6B6E" not in rendered
     assert "本次操作价格" not in rendered
     assert "AXIS Internal" not in rendered
@@ -105,6 +106,20 @@ def test_entry_card_hides_missing_optional_plan_fields_and_internal_long_ref() -
     assert "Fib 0.618" not in rendered
     assert "P-F0ECED1A6B6E" not in rendered
     assert embed.footer.text == "AXIS · SWING"
+
+
+def test_public_trade_dedupe_ignores_hidden_publication_ref() -> None:
+    card = _card()
+    expected = build_public_trade_embed(card, public_ref="P-0041")
+    legacy = build_public_trade_embed(card)
+    legacy.set_footer(text="AXIS · P-0041")
+    different = build_public_trade_embed(
+        replace(card, public_trade_id="SW-0042"),
+        public_ref="P-0042",
+    )
+
+    assert _same_member_trade_embed(legacy, expected)
+    assert not _same_member_trade_embed(different, expected)
 
 
 def test_mentor_points_win_and_axis_fills_only_missing_fields() -> None:

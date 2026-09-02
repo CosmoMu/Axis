@@ -926,7 +926,8 @@ Analysis、Results 或 Active Order 数据。
 - 图采用深黑背景、真实 K 线、白色预测路径、蓝色 Starter、橙色 Add Zone、红色 SL、
   绿色 PT 和低调灰色 0.618。
 - 公共卡只显示短交易编号、合约、期权入场价、当前股价、PT、Add Zone、SL、状态和可选逻辑。
-- 旧 P-XXXXXXXXXXXX 内部长追踪值不得出现在会员卡；新的公开引用使用短 P-0001 格式。
+- `P-*` publication reference 只用于后台幂等发布与审计，任何长短格式都不得出现在会员卡；
+  会员只看 `ST-XXXX` / `SW-XXXX` / `LP-XXXX` 订单号。
 - 没有数据的可选字段直接隐藏，不显示 N/A。
 - Signal Review 直接展示完整会员卡和预测图；Manager 可编辑正股点位与公开逻辑，并用
   「重新生成图片」按修改后的内容刷新图表。

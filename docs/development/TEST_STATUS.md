@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 254 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 255 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -62,7 +62,7 @@ Signal / Trade:
 - Publication claim / retry / finalize、单 Draft 单 Event 和 Public DTO 防泄漏。
 - Swing / LEAPS Entry / Add / TP / SL / Runner / Close、category-scoped Active View 和
   weighted Results。
-- SWING / LEAPS ENTRY 新中文卡、短公开引用和内部长 ID 隐藏。
+- SWING / LEAPS ENTRY 新中文卡；所有 `P-*` publication reference 隐藏，只显示正式订单号。
 - Mentor-first / AXIS-fill-missing 正股点位、真实 K 线、确定性 PNG、Fib 0.618 和
   Discord image attachment。
 - 完整会员卡 review、点位编辑、编辑后图片重建、PT 方向递进和 Active View 持仓成本。
@@ -250,4 +250,4 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 254 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 255 项测试结果。

@@ -307,7 +307,7 @@ def build_short_term_entry_embed(
     embed.add_field(name="价格", value=_money(card.entry_price), inline=False)
     embed.add_field(name="\u200b", value="MY RISK IS NOT YOUR RISK.", inline=False)
     if public_ref:
-        embed.set_footer(text=f"AXIS · {public_ref}")
+        embed.set_footer(text="AXIS")
     return _public(embed)
 
 
@@ -416,13 +416,11 @@ def build_public_trade_embed(
     for name, value in ((sl_label, card.sl), ("TP1", card.tp1), ("TP2", card.tp2)):
         if value is not None:
             embed.add_field(name=name, value=_money(value), inline=True)
-    embed.set_footer(text=_public_trade_footer(card, public_ref))
+    embed.set_footer(text=_public_trade_footer(card))
     return _public(embed)
 
 
-def _public_trade_footer(card: PublicTradeCard, public_ref: str | None) -> str:
-    if public_ref and re.fullmatch(r"P-\d{4,6}", public_ref):
-        return f"AXIS · {public_ref}"
+def _public_trade_footer(card: PublicTradeCard) -> str:
     category = "SWING" if card.category == "SWING" else "LEAPS"
     return f"AXIS · {category}"
 
@@ -484,7 +482,7 @@ def _build_swing_leaps_entry_embed(
     )
     if card.public_thesis:
         embed.add_field(name="交易逻辑", value=card.public_thesis[:600], inline=False)
-    embed.set_footer(text=_public_trade_footer(card, public_ref))
+    embed.set_footer(text=_public_trade_footer(card))
     return _public(embed)
 
 
