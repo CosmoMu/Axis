@@ -19,13 +19,13 @@
 - `PUBLIC_OPERATOR_NAME=VALE`：匿名 AXIS Brand Persona；不是专业履历。
 - `PUBLIC_IDENTITY_FORBIDDEN_TERMS`：额外的私有身份阻止词，逗号分隔。
 - `NEW_MEMBER_FREE_TRIAL_ENABLED=true`：控制新会员 Free Trial 领取入口。
-- `NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS=7`：领取时固化为连续七个自然日；周末与美股
-  休市日都计入。不得改用 `TradingCalendarService`。
+- `NEW_MEMBER_FREE_TRIAL_TRADING_DAYS=3`：批准时通过 XNYS `TradingCalendarService` 固化三个
+  交易日；周末与美股休市日不计入。
 - `NEW_MEMBER_FREE_TRIAL_AUTO_OFFER=true`：成员加入时只检查领取资格；不会自动发 Role、
   自动领取或重置 Trial。
 - `NEW_MEMBER_FREE_TRIAL_DM_ENABLED=false`：默认不发送新会员私信；持久 Welcome 卡片是
   默认入口。
-- `NEW_MEMBER_FREE_TRIAL_TRADING_DAYS`：已废弃且运行时忽略，只允许在短期部署迁移中存在。
+- `NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS`：已废弃且运行时忽略，只允许在短期部署迁移中存在。
 - `STRIPE_ENABLED=false`：控制 Stripe Gateway / Webhook 基础设施。
 - `STRIPE_MODE=test|live`：选择当前运行时环境；不会让一套 Key 覆盖另一环境。
 - `PAYMENTS_ENABLED=false`：只停止新 Checkout，不停止 Webhook、Portal、既有订阅同步或

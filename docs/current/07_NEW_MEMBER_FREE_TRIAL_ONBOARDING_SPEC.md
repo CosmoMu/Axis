@@ -1,6 +1,6 @@
 # AXIS Final Newcomer Approval / Free Trial / Security Specification
 
-**Effective:** 2026-08-31
+**Effective:** 2026-09-02
 **Status:** CURRENT / supersedes immediate Trial claim and every earlier onboarding design
 
 ## Lifecycle lock
@@ -21,7 +21,8 @@ APPROVE permanently records approval, reviewer and time. If permanent Trial hist
 same idempotent workflow creates a $0 Free Trial at approval time, removes Newcomer and adds Member.
 There is no user claim step, card, Stripe call, or auto-renewal.
 
-- Free Trial = exactly 7 Calendar Days; weekends and holidays count.
+- Free Trial = exactly 3 U.S. Trading Days through `TradingCalendarService`; weekends and U.S.
+  market holidays do not count.
 - Day Pass = 1 U.S. Trading Day through `TradingCalendarService`.
 - Monthly = Stripe calendar billing period.
 - One Discord User ID = maximum one Free Trial for life.

@@ -142,7 +142,7 @@ class AxisBot(commands.Bot):
             service=newcomer_access_service,
             access_service=membership_access_service,
             risk_scanner=newcomer_risk_scanner,
-            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+            free_trial_trading_days=settings.new_member_free_trial_trading_days,
         )
         results_channel_id = _required_snowflake(channels, "official_results")
         self._general_control_cog = GeneralControlCog(
@@ -165,7 +165,7 @@ class AxisBot(commands.Bot):
             newcomer_controller=self._newcomer_access_cog,
             sync_role=self._manager_control_cog.sync_member_role,
             free_trial_enabled=settings.new_member_free_trial_enabled,
-            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+            free_trial_trading_days=settings.new_member_free_trial_trading_days,
             free_trial_auto_offer=settings.new_member_free_trial_auto_offer,
             free_trial_dm_enabled=settings.new_member_free_trial_dm_enabled,
         )

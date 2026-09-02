@@ -11,7 +11,7 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [x] Revision 20260831_0026 schema、rollback 和 offline SQL dry-run 已准备。
 - [x] 现有 Production users baseline 工具要求 dry-run 和精确 Guild ID；不会授予 Trial。
 - [x] Newcomer 权限矩阵与真实 Discord runtime verifier 已实现。
-- [x] Application、join-review、APPROVE / REJECT / FLAG、7 Calendar Day automatic Trial 已实现。
+- [x] Application、join-review、APPROVE / REJECT / FLAG、3 U.S. Trading Day automatic Trial 已实现。
 - [x] Trial lifetime unique、permanent Approval、Role failure state 和 reconciliation 已实现。
 - [x] Risk Scanner、persistent dedup、system-alerts 和 NEWCOMER SECURITY health 已实现。
 - [ ] 一个真实 first-join 账户完成 Join → Apply → Approve → Trial。
@@ -54,8 +54,8 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [x] `STRIPE_MODE` 和 `PAYMENTS_ENABLED` kill switch 已实现。
 - [x] 数据库 revision 20260831_0023 按环境隔离 Price、Entitlement、Session 和 Payment Event。
 - [x] revision 20260831_0024 已规范本次 Stripe check constraint 名称。
-- [x] revision 20260831_0025 已将新 Free Trial 固化为 Calendar Day duration，并保留历史
-  Trial 的原 duration/expiry。
+- [x] revision 20260831_0025 支持 Calendar Day / Trading Day duration 并保留历史 Trial 的原
+  duration/expiry；当前新 Trial 固化为 3 个 Trading Days。
 - [x] revision 20260831_0026 已增加 permanent Approval / Application / Risk Flag / Role sync 与
   Trial application/approver trace。
 - [x] webhook 在 event reservation 前严格验证签名、`livemode` 和 metadata environment。

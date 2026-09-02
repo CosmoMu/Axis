@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-09-01
+**Date:** 2026-09-02
 
 ## Summary
 
-- Full pytest suite: PASS — 255 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 271 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -102,8 +102,9 @@ Membership / Stripe:
   duplicate protection 和 permanent Approval。
 - 首次审批自动 Free Trial、Day Pass、Monthly、Gift、Manual Extension、多 Entitlement 与 Role
   reconciliation；Approval 后中断的 Trial 创建可由 reconciliation 幂等恢复。
-- Free Trial 严格 7 Calendar Days：周末/美国市场休市日计入、批准时固化 duration/expiry、
-  不调用 TradingCalendarService、终身一次、默认无 DM、无 Stripe / Card / Auto Renewal。
+- Free Trial 严格 3 XNYS Trading Days：周末/美国市场休市日不计入、批准时通过
+  TradingCalendarService 固化首末交易日与 expiry、终身一次、默认无 DM、无 Stripe / Card /
+  Auto Renewal。
 - Day Pass 保持 1 XNYS Trading Day；Trial 有效时阻止 Day Pass checkout，但允许 Monthly。
 - Welcome 唯一 onboarding CTA `APPLY TO JOIN AXIS`；旧 Apply / Start Trial / Membership CTA 均不存在。
 - Newcomer 只能只读 welcome/results/member-wins；所有其他 Blueprint channel 显式 DENY。

@@ -163,9 +163,10 @@ async def test_approve_starts_exact_calendar_trial_once_and_approval_survives_ex
             approved_by_user_id=MANAGER_ID,
             now=approved_at,
         )
-        assert trial.ends_at == approved_at + timedelta(days=7)
-        assert trial.first_trading_day is None
-        assert trial.last_trading_day is None
+        window = access.calendar.trading_window(approved_at, 3)
+        assert trial.ends_at == window.expires_at
+        assert trial.first_trading_day == window.first_trading_day
+        assert trial.last_trading_day == window.last_trading_day
         with pytest.raises(MembershipAccessError, match="FREE_TRIAL_ALREADY_CLAIMED"):
             await access.claim_free_trial(
                 GUILD_ID,
@@ -227,14 +228,8 @@ async def test_approved_application_without_trial_is_recoverable_after_restart()
 
 
 @pytest.mark.asyncio
-async def test_trial_requires_approved_application_and_never_calls_trading_calendar() -> None:
+async def test_trial_requires_approved_application_and_uses_trading_calendar() -> None:
     database, newcomer, _, access = await setup_services()
-
-    class RejectTradingCalendar(TradingCalendarService):
-        def trading_window(self, *_: object, **__: object) -> object:
-            raise AssertionError("Free Trial must not use TradingCalendarService")
-
-    access.calendar = RejectTradingCalendar()
     try:
         application = await submit(newcomer)
         with pytest.raises(MembershipAccessError, match="ACCESS_APPROVAL_REQUIRED"):
@@ -260,7 +255,9 @@ async def test_trial_requires_approved_application_and_never_calls_trading_calen
             approved_by_user_id=MANAGER_ID,
             now=saturday,
         )
-        assert trial.ends_at == datetime(2026, 9, 12, 14, tzinfo=UTC)
+        assert trial.first_trading_day.isoformat() == "2026-09-08"
+        assert trial.last_trading_day.isoformat() == "2026-09-10"
+        assert trial.ends_at == datetime(2026, 9, 11, 3, 59, 59, tzinfo=UTC)
     finally:
         await database.dispose()
 

@@ -6,13 +6,12 @@ Membership access is entitlement-based. `Member` Role remains present while at l
 `FREE_TRIAL`, `DAY_PASS`, `MONTHLY`, `GIFT`, `MANUAL`, or `MANUAL_EXTENSION` is active.
 Removing or expiring one entitlement must not remove the Role while another remains active.
 
-Free Trial is seven consecutive calendar days from its exact claim timestamp; weekends and U.S.
-market holidays count, and this path never calls `TradingCalendarService`. Day Pass and explicit
-trading-day extensions use the XNYS calendar through `TradingCalendarService`; their last valid
-session expires at 23:59:59 America/New_York.
+Free Trial is three XNYS trading days from approval; weekends and U.S. market holidays do not
+count. Free Trial, Day Pass and explicit trading-day extensions use `TradingCalendarService`; their
+last valid session expires at 23:59:59 America/New_York.
 
-`👋・welcome` is the first public AXIS entry. Joining only triggers an eligibility inspection;
-the user must accept the risk disclosure and explicitly start the Trial. Full onboarding operations
+`👋・welcome` is the first public AXIS entry. Joining starts the application flow; Manager approval
+creates the Trial automatically after the required risk acknowledgement. Full onboarding operations
 are documented in `membership/FREE_TRIAL_ONBOARDING.md`.
 
 ## Stripe environment configuration

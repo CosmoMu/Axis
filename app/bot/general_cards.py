@@ -14,14 +14,14 @@ def welcome_embed(
     guild_id: int | None = None,
     channel_ids: Mapping[str, int] | None = None,
     *,
-    free_trial_calendar_days: int = 7,
+    free_trial_trading_days: int = 3,
     free_trial_enabled: bool = True,
 ) -> discord.Embed:
     del guild_id, channel_ids
     trial_copy = (
         "New members must complete a short access application before entering AXIS.\n\n"
         "Once approved, you will automatically receive:\n\n"
-        f"**{free_trial_calendar_days} DAYS OF FULL MEMBER ACCESS**\n\n"
+        f"**{free_trial_trading_days} U.S. TRADING DAYS OF FULL MEMBER ACCESS**\n\n"
         "No credit card required.\nNo automatic renewal."
         if free_trial_enabled
         else "New member applications are temporarily unavailable."
@@ -61,7 +61,7 @@ def welcome_embed(
 def subscription_embed(
     offers: Mapping[str, PriceSnapshot],
     *,
-    free_trial_calendar_days: int = 7,
+    free_trial_trading_days: int = 3,
     free_trial_enabled: bool = True,
 ) -> discord.Embed:
     day_pass = offers.get("DAY_PASS")
@@ -76,7 +76,7 @@ def subscription_embed(
     embed.add_field(
         name="FREE TRIAL",
         value=(
-            f"{free_trial_calendar_days} Calendar Days\n$0\n\n"
+            f"{free_trial_trading_days} U.S. Trading Days\n$0\n\n"
             "No card required. No automatic renewal."
             if free_trial_enabled
             else "Temporarily unavailable."
@@ -101,8 +101,8 @@ def subscription_embed(
     embed.add_field(
         name="HOW TIME IS COUNTED",
         value=(
-            f"Free Trial：申请获批后自动开始，连续 {free_trial_calendar_days} 个自然日，"
-            "周末与市场休市日计入。\n"
+            f"Free Trial：申请获批后自动开始，共 {free_trial_trading_days} 个美国股票市场交易日，"
+            "周末与市场休市日不计入。\n"
             "Day Pass：1 个美国股票市场交易日，周末与市场休市日不计入。"
         ),
         inline=False,

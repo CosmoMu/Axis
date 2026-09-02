@@ -64,7 +64,7 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
     assert "START HERE" not in welcome
     assert "NO ACCESS" not in welcome
     assert "complete a short access application" in welcome
-    assert "7 DAYS OF FULL MEMBER ACCESS" in welcome
+    assert "3 U.S. TRADING DAYS OF FULL MEMBER ACCESS" in welcome
     assert "No credit card required" in welcome
     assert "No automatic renewal" in welcome
     assert "⚡ Short-Term" in welcome
@@ -78,11 +78,11 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
     assert "$9.99" in subscription
     assert "$99.99" in subscription
     assert "Auto-renews monthly until canceled" in subscription
-    assert "7 Calendar Days" in subscription
+    assert "3 U.S. Trading Days" in subscription
     assert "1 Trading Day" in subscription
     assert "3 Trading Days" not in subscription
     assert "No card required. No automatic renewal." in subscription
-    assert "Free Trial：申请获批后自动开始，连续 7 个自然日" in subscription
+    assert "Free Trial：申请获批后自动开始，共 3 个美国股票市场交易日" in subscription
     for forbidden in ("Basic", "Premium", "VIP", "Stripe", "Whop"):
         assert forbidden not in subscription
     assert "System-tracked" in results

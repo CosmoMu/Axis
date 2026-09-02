@@ -279,7 +279,7 @@ async def verify() -> list[str]:
                         failures,
                     )
                     _check(
-                        "7 DAYS OF FULL MEMBER ACCESS" in payload,
+                        "3 U.S. TRADING DAYS OF FULL MEMBER ACCESS" in payload,
                         "welcome_trial_copy_missing",
                         failures,
                     )
@@ -332,7 +332,11 @@ async def verify() -> list[str]:
                         "monthly_auto_renew_copy_missing",
                         failures,
                     )
-                    _check("7 Calendar Days" in payload, "trial_calendar_days_missing", failures)
+                    _check(
+                        "3 U.S. Trading Days" in payload,
+                        "trial_trading_days_missing",
+                        failures,
+                    )
                     _check("3 Trading Days" not in payload, "legacy_trial_copy_present", failures)
                     _check("1 Trading Day" in payload, "day_pass_trading_day_missing", failures)
                     _check(

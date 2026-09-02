@@ -121,8 +121,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 ## Free Trial / Day Pass / Monthly
 
 - Free Trial 只由 Manager APPROVE 自动创建；用户没有 Claim / Start / Confirm Trial 操作。
-- Trial 从批准时刻连续 7 个自然日，周末和美国市场休市日计入；duration/expiry 在创建时固化，
-  运行时不调用 `TradingCalendarService`，不使用 Stripe、信用卡或自动续费。
+- Trial 从批准后覆盖 3 个 XNYS 交易日，周末和美国市场休市日不计入；首末交易日与 expiry
+  在创建时通过 `TradingCalendarService` 固化，不使用 Stripe、信用卡或自动续费。
 - `membership_trial_lifetime_once(discord_user_id, trial_type)` 在数据库层保证每个 Discord User ID
   终身最多一次 `NEW_MEMBER_FREE_TRIAL`；application、approver、起止时间和状态永久保留。
 - Day Pass 继续使用 XNYS 正式交易日历的一个交易日，逻辑未变。
@@ -173,7 +173,7 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   Category 的第一个频道，Persistent Card 是默认 onboarding 入口。
 - Welcome 使用 Minimal / Clean / Premium 英文内容；Persistent View 对 Newcomer 只提供
   `APPLY TO JOIN AXIS`，不显示 Membership、Day Pass、Monthly 或 Stripe Checkout。
-- Welcome 明确说明 Approval 后自动提供 `7 DAYS OF FULL MEMBER ACCESS`、No Card、No Automatic
+- Welcome 明确说明 Approval 后自动提供 `3 U.S. TRADING DAYS OF FULL MEMBER ACCESS`、No Card、No Automatic
   Renewal、`MY RISK IS NOT YOUR RISK` 和 staff never-DM-first Safety Notice。
 - Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。

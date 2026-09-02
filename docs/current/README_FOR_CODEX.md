@@ -24,7 +24,7 @@
    Daily Results 与 Daily Summary 覆盖规则。
 7. 06_STRIPE_LIVE_PAYMENT_SPEC.md — Test / Live 隔离、kill switch、价格版本和 Stripe Live Gate。
 8. 07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md — Final Newcomer security isolation、Application、
-   permanent Approval、automatic 7 Calendar Day Trial 与 Day Pass 交易日边界。
+   permanent Approval、automatic 3 U.S. Trading Day Trial 与 Day Pass 交易日边界。
 9. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：

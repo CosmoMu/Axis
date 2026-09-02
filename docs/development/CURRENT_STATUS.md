@@ -181,7 +181,7 @@ CTA 为 `APPLY TO JOIN AXIS`，申请、风险确认、Community Safety 和 join
 
 Application 保存 source、optional referrer、multi-select interests、两项 agreement、PENDING /
 FLAGGED / APPROVED / REJECTED、reviewer/time/note。`🛂・join-review` 提供幂等 APPROVE / REJECT /
-FLAG。APPROVE 自动创建 7 Calendar Day $0 Trial、移除 Newcomer、添加 Member；无用户 Claim、
+FLAG。APPROVE 自动创建 3 U.S. Trading Day $0 Trial、移除 Newcomer、添加 Member；无用户 Claim、
 无卡、无 Stripe、无续费。
 
 Trial 终身一次继续由 `membership_trial_lifetime_once(discord_user_id, trial_type)` 保护，并新增
@@ -202,7 +202,8 @@ Remaining: 真实新 Discord 账户完成 Join → Apply → Approve → Trial �
 ## Day Pass — LIVE ENABLED / REAL PAYMENT E2E PENDING
 
 Implemented: XNYS 一个交易日、动态 Checkout、payment event dedup 和 Role 同步；
-`TradingCalendarService` 逻辑未因 Free Trial 改为 Calendar Days 而改变。
+Free Trial 与 Day Pass 均使用 `TradingCalendarService` 的 XNYS 交易日边界，但分别固化 3 个和
+1 个交易日；Monthly 仍按 Stripe 账期。
 
 Remaining: Owner 完成真实付款、交易日到期与 Discord Role reconciliation 验收。
 

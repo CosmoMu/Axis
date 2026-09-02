@@ -1,9 +1,9 @@
 # Approved Newcomer Free Trial Operations
 
-## Frozen duration rules
+## Duration rules
 
-- Free Trial: seven consecutive Calendar Days from the approval timestamp. Weekends and U.S.
-  market holidays count. `TradingCalendarService` is not called.
+- Free Trial: three XNYS Trading Days from approval through `TradingCalendarService`. Weekends and
+  U.S. market holidays do not count.
 - Day Pass: one U.S. Trading Day through `TradingCalendarService`.
 - Monthly: Stripe calendar billing period.
 
@@ -14,8 +14,9 @@
 3. The user completes the English Application, Risk Acknowledgement and Community Safety Agreement.
 4. Manager approves in `🛂・join-review`.
 5. AXIS rechecks permanent Trial history inside the approval workflow.
-6. AXIS creates `FREE_TRIAL` with `expires_at = approval timestamp + 7 Calendar Days`, removes
-   Newcomer and adds Member. There is no separate claim or confirmation button.
+6. AXIS creates `FREE_TRIAL` with a three-session trading window, persists `first_trading_day`,
+   `last_trading_day` and the final-session expiry, removes Newcomer and adds Member. There is no
+   separate claim or confirmation button.
 
 At expiry, AXIS marks the Trial EXPIRED and reconciles all other entitlements. Without another
 active entitlement, Member is removed. Newcomer is never added because approval is permanent; the

@@ -169,7 +169,7 @@ class Settings:
     lab_enabled: bool = False
     model_ab_enabled: bool = False
     new_member_free_trial_enabled: bool = True
-    new_member_free_trial_calendar_days: int = 7
+    new_member_free_trial_trading_days: int = 3
     new_member_free_trial_auto_offer: bool = True
     new_member_free_trial_dm_enabled: bool = False
     membership_price_display: str = "价格见支付页面"
@@ -310,8 +310,8 @@ class Settings:
             lab_enabled=_parse_bool("FEATURE_LAB_ENABLED", False),
             model_ab_enabled=_parse_bool("FEATURE_MODEL_AB_ENABLED", False),
             new_member_free_trial_enabled=_parse_bool("NEW_MEMBER_FREE_TRIAL_ENABLED", True),
-            new_member_free_trial_calendar_days=_parse_positive_int(
-                "NEW_MEMBER_FREE_TRIAL_CALENDAR_DAYS", 7
+            new_member_free_trial_trading_days=_parse_positive_int(
+                "NEW_MEMBER_FREE_TRIAL_TRADING_DAYS", 3
             ),
             new_member_free_trial_auto_offer=_parse_bool("NEW_MEMBER_FREE_TRIAL_AUTO_OFFER", True),
             new_member_free_trial_dm_enabled=_parse_bool("NEW_MEMBER_FREE_TRIAL_DM_ENABLED", False),

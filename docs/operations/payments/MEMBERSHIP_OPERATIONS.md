@@ -8,8 +8,8 @@
 
 ## Flows
 
-- Free Trial：AXIS 内部能力，终身一次，从领取时刻连续 7 个自然日；周末和美国市场休市日
-  都计入，不调用 `TradingCalendarService`，也不经过 Stripe。
+- Free Trial：AXIS 内部能力，终身一次，从批准后覆盖 3 个 XNYS 交易日；周末和美国市场休市日
+  不计入，通过 `TradingCalendarService` 固化边界，但不经过 Stripe。
 - Day Pass：Stripe one-time payment 成功后，按 XNYS 一个交易日创建 Entitlement。
 - Monthly：Stripe recurring subscription；价格和版本在 signup 时快照，后续自动续费。
 - Gift / Manual：Manager/Owner 授权并写 Audit；不冒充 Stripe payment。

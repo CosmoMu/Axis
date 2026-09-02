@@ -1,5 +1,12 @@
 # Payment Operations Changelog
 
+## 2026-09-02 — Free Trial set to three trading days
+
+- 新批准成员的 Free Trial 从 7 个自然日调整为 3 个 XNYS 交易日；周末和美国市场休市日不计入。
+- 已创建 Trial 的固化到期时间保持不变，不追溯缩短。
+- Free Trial 和 Day Pass 分别使用 3 个和 1 个 XNYS Trading Day；Stripe 产品、Price、订阅与
+  续费逻辑不变。
+
 ## 2026-08-31 — Free Trial calendar-day separation
 
 - Free Trial 从三个交易日改为领取时刻起连续 7 个自然日；周末和美国市场休市日计入。

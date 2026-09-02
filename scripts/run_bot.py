@@ -246,7 +246,7 @@ async def run() -> None:
             calendar,
             acknowledgements,
             free_trial_enabled=settings.new_member_free_trial_enabled,
-            free_trial_calendar_days=settings.new_member_free_trial_calendar_days,
+            free_trial_trading_days=settings.new_member_free_trial_trading_days,
         )
         newcomer_access_service = NewcomerAccessService(database, acknowledgements)
         newcomer_risk_scanner = NewcomerRiskScanner.load(

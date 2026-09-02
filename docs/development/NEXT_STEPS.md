@@ -20,7 +20,7 @@ Work:
 
 - 用一个真实、从未获批的 Discord 测试账户完成 Join → Newcomer → Apply → Manager Review。
 - 在 Desktop / Mobile 实测该账户只能看到 welcome、results、member-wins，且三处均不能发言。
-- APPROVE 后核对 Newcomer 移除、Member 添加、Trial 起止时间为批准时刻 + 7 Calendar Days。
+- APPROVE 后核对 Newcomer 移除、Member 添加、Trial 为 3 个 XNYS Trading Days。
 - 使用受控时钟/短期验收环境验证 Trial expiry 只移除 Member、不重新添加 Newcomer；随后 leave /
   rejoin 不重复 Application 或 Trial。
 - 验证一个 never-approved / rejected 账户 rejoin 后仍是 Newcomer，并核对风险告警去重、Role

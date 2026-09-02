@@ -117,10 +117,11 @@ async def test_free_trial_requires_versioned_ack_and_is_lifetime_once() -> None:
             approved_by_user_id=99,
             now=claimed_at,
         )
+        window = access.calendar.trading_window(claimed_at, 3)
         assert trial.starts_at == claimed_at
-        assert trial.ends_at == claimed_at + timedelta(days=7)
-        assert trial.first_trading_day is None
-        assert trial.last_trading_day is None
+        assert trial.ends_at == window.expires_at
+        assert trial.first_trading_day == window.first_trading_day
+        assert trial.last_trading_day == window.last_trading_day
         assert await access.should_have_access(GUILD_ID, USER_ID)
         with pytest.raises(MembershipAccessError, match="FREE_TRIAL_ALREADY_CLAIMED"):
             await access.claim_free_trial(
@@ -134,25 +135,19 @@ async def test_free_trial_requires_versioned_ack_and_is_lifetime_once() -> None:
         async with database.session() as session:
             stored = await session.scalar(select(MembershipTrial))
         assert stored is not None
-        assert stored.duration_unit == "CALENDAR_DAY"
-        assert stored.duration_amount == 7
-        assert stored.calendar_days_granted == 7
-        assert stored.trading_days_granted is None
-        assert stored.first_trading_day is None
-        assert stored.last_trading_day is None
+        assert stored.duration_unit == "TRADING_DAY"
+        assert stored.duration_amount == 3
+        assert stored.calendar_days_granted is None
+        assert stored.trading_days_granted == 3
+        assert stored.first_trading_day == window.first_trading_day
+        assert stored.last_trading_day == window.last_trading_day
     finally:
         await database.dispose()
 
 
 @pytest.mark.asyncio
-async def test_free_trial_counts_weekends_and_holidays_without_calling_trading_calendar() -> None:
+async def test_free_trial_skips_weekends_and_holidays_with_trading_calendar() -> None:
     database, acknowledgements, access = await services()
-
-    class CalendarThatRejectsTradingWindows(TradingCalendarService):
-        def trading_window(self, *_: object, **__: object) -> object:
-            raise AssertionError("Free Trial must not call TradingCalendarService.trading_window")
-
-    access.calendar = CalendarThatRejectsTradingWindows()
     claims = (
         (USER_ID + 1, datetime(2026, 9, 5, 14, tzinfo=UTC)),  # Saturday
         (USER_ID + 2, datetime(2026, 9, 7, 14, tzinfo=UTC)),  # U.S. Labor Day
@@ -168,7 +163,10 @@ async def test_free_trial_counts_weekends_and_holidays_without_calling_trading_c
                 approved_by_user_id=99,
                 now=claimed_at,
             )
-            assert trial.ends_at == claimed_at + timedelta(days=7)
+            window = access.calendar.trading_window(claimed_at, 3)
+            assert trial.ends_at == window.expires_at
+            assert trial.first_trading_day == window.first_trading_day
+            assert trial.last_trading_day == window.last_trading_day
     finally:
         await database.dispose()
 

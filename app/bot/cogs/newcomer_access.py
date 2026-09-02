@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/Toronto")
 
 
-def welcome_application_embed(*, trial_days: int = 7) -> discord.Embed:
+def welcome_application_embed(*, trial_days: int = 3) -> discord.Embed:
     embed = discord.Embed(
         title="WELCOME TO AXIS",
         description=(
             "**Signals without the noise.**\n\n"
             "New members must complete a short access application before entering AXIS.\n\n"
             "Once approved, you will automatically receive:\n\n"
-            f"**{trial_days} DAYS OF FULL MEMBER ACCESS**\n\n"
+            f"**{trial_days} U.S. TRADING DAYS OF FULL MEMBER ACCESS**\n\n"
             "No credit card required.\nNo automatic renewal."
         ),
         color=0x86F7A8,
@@ -72,7 +72,7 @@ def access_required_embed() -> discord.Embed:
         description=(
             "Please complete the AXIS application first.\n\n"
             "Once approved, you will automatically receive\n"
-            "7 days of full member access."
+            "3 U.S. trading days of full member access."
         ),
         color=0x111411,
     )
@@ -334,7 +334,7 @@ class NewcomerAccessCog(commands.Cog):
         service: NewcomerAccessService,
         access_service: MembershipAccessService,
         risk_scanner: NewcomerRiskScanner,
-        free_trial_calendar_days: int = 7,
+        free_trial_trading_days: int = 3,
     ) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -347,7 +347,7 @@ class NewcomerAccessCog(commands.Cog):
         self.service = service
         self.access_service = access_service
         self.risk_scanner = risk_scanner
-        self.free_trial_calendar_days = free_trial_calendar_days
+        self.free_trial_trading_days = free_trial_trading_days
         self._ready = False
         self.reconcile_loop.start()
         self.security_loop.start()
@@ -464,7 +464,8 @@ class NewcomerAccessCog(commands.Cog):
                     description=(
                         "Your application has been submitted.\n\n"
                         "A member of the AXIS team will review it.\n\n"
-                        "If approved, your 7-day free member access will begin automatically.\n\n"
+                        "If approved, your 3-U.S.-trading-day free member access will begin "
+                        "automatically.\n\n"
                         "No credit card is required."
                     ),
                     color=0x86F7A8,
@@ -546,7 +547,7 @@ class NewcomerAccessCog(commands.Cog):
                         detail="Approval persisted; Discord role reconciliation is pending.",
                     )
                 trial_message = (
-                    " The 7-day Free Trial started automatically."
+                    " The 3-U.S.-trading-day Free Trial started automatically."
                     if trial_created
                     else " No second Free Trial was created because permanent history exists."
                 )

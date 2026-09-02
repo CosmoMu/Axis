@@ -138,7 +138,7 @@ class GeneralControlCog(commands.Cog):
         newcomer_controller: NewcomerAccessCog,
         sync_role: Callable[[int, bool], Awaitable[None]],
         free_trial_enabled: bool = True,
-        free_trial_calendar_days: int = 7,
+        free_trial_trading_days: int = 3,
         free_trial_auto_offer: bool = True,
         free_trial_dm_enabled: bool = False,
     ) -> None:
@@ -161,7 +161,7 @@ class GeneralControlCog(commands.Cog):
         self.newcomer_controller = newcomer_controller
         self.sync_role = sync_role
         self.free_trial_enabled = free_trial_enabled
-        self.free_trial_calendar_days = free_trial_calendar_days
+        self.free_trial_trading_days = free_trial_trading_days
         self.free_trial_auto_offer = free_trial_auto_offer
         self.free_trial_dm_enabled = free_trial_dm_enabled
         self._ready = False
@@ -269,10 +269,10 @@ class GeneralControlCog(commands.Cog):
             welcome_view = ApplyAccessView(self.newcomer_controller)
             self.bot.add_view(welcome_view)
             cards = (
-                welcome_application_embed(trial_days=self.free_trial_calendar_days),
+                welcome_application_embed(trial_days=self.free_trial_trading_days),
                 subscription_embed(
                     offers,
-                    free_trial_calendar_days=self.free_trial_calendar_days,
+                    free_trial_trading_days=self.free_trial_trading_days,
                     free_trial_enabled=self.free_trial_enabled,
                 ),
                 results_guide_embed(),
