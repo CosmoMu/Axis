@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 252 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 254 passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -250,4 +250,4 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 252 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 254 项测试结果。

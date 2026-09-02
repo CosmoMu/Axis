@@ -238,6 +238,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 - Owner-only preview commands（包括 `/test-results-review`）不创建假 Trade、不写 Results。
 - ERROR / WARNING / RECOVERY 持久化告警和 fingerprint 去重。
+- Stripe Webhook Relay / Subscription Reconciliation 成功轮询会关闭对应失败 fingerprint 并
+  发送单次恢复卡；不依赖 Relay 队列中必须存在 event。
 - 数据库只读 verifier、Discord runtime verifier、Analysis Fusion verifier 和 Stripe Test verifier。
 - PostgreSQL custom backup、pg_restore list、SHA-256 与双确认 restore 工具。
 - Secret-safe build context、错误信息脱敏和结构化日志。

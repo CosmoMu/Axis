@@ -52,6 +52,8 @@ Publish Now 仅返回测试回执，不会发送到 `📊・results`。
 - Scheduled Jobs / Membership Expiry / Backup Job
 - Signal Processing / Analysis Processing
 - Membership Payment / Role sync
+- Stripe Webhook Relay / Subscription Reconciliation；故障后的下一次成功轮询即使没有待处理
+  event，也会发送一次 `RECOVERY`
 - Moomoo OpenD / Quote（仅 feature enabled 时）
 
 每个 fingerprint 按 Guild、service、error type 与 affected scope 生成，并持久化：

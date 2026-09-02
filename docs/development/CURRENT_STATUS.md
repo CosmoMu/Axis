@@ -340,7 +340,9 @@ Preview 使用内存 TEST DTO，不写 Production 数据或发布到 `📊・res
 
 ## System Alerts — PARTIAL
 
-Implemented: ERROR / WARNING / RECOVERY、fingerprint 去重、occurrence count 和持久化状态。
+Implemented: ERROR / WARNING / RECOVERY、fingerprint 去重、occurrence count 和持久化状态；
+Stripe Webhook Relay 与 Subscription Reconciliation 在下一次成功轮询时按原 fingerprint
+关闭故障并发送单次恢复卡，空 Relay 队列同样可确认恢复。
 
 Remaining: 数据库、OpenAI、Discord、Jobs、Membership 与行情依赖的真实故障/恢复演练。
 

@@ -143,6 +143,12 @@ class PaymentWebhookCog(commands.Cog):
                     raise MembershipStripeError("STRIPE_RELAY_RESPONSE_INVALID")
                 for item in events:
                     await self._process_relay_item(client, item)
+                await report_system_recovery(
+                    self.bot,
+                    service="Stripe Webhook Relay",
+                    error_type="PAYMENT_WEBHOOK_RELAY_FAILED",
+                    affected="Stripe → Membership Access",
+                )
         except MembershipStripeError as exc:
             await report_system_failure(
                 self.bot,
@@ -191,12 +197,6 @@ class PaymentWebhookCog(commands.Cog):
                 event_id,
                 "ack",
                 lease_token=lease_token,
-            )
-            await report_system_recovery(
-                self.bot,
-                service="Stripe Webhook Relay",
-                error_type="PAYMENT_WEBHOOK_RELAY_FAILED",
-                affected="Stripe → Membership Access",
             )
         except MembershipStripeError as exc:
             await self._relay_update(
@@ -264,6 +264,12 @@ class PaymentWebhookCog(commands.Cog):
                     and item.should_have_role is not None
                 ):
                     await self.sync_role(item.discord_user_id, item.should_have_role)
+            await report_system_recovery(
+                self.bot,
+                service="Stripe Reconciliation",
+                error_type="STRIPE_RECONCILIATION_FAILED",
+                affected="Stripe ↔ AXIS Membership ↔ Discord Role",
+            )
             if unresolved:
                 await report_system_failure(
                     self.bot,

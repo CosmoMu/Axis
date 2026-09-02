@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from app.bot.cogs import payment_webhook
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.services.membership_stripe import (
     MembershipStripeError,
+    StripeReconciliationResult,
     StripeWebhookApplication,
 )
 
@@ -17,6 +19,25 @@ class _Response:
 
     async def __aexit__(self, *args: object) -> None:
         return None
+
+
+class _RelayResponse(_Response):
+    async def json(self) -> dict[str, list[object]]:
+        return {"events": []}
+
+
+class _RelaySession:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    async def __aenter__(self) -> _RelaySession:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    def get(self, _url: str) -> _RelayResponse:
+        return _RelayResponse()
 
 
 class _Client:
@@ -46,6 +67,18 @@ class _PaymentService:
         if self.error is not None:
             raise self.error
         return StripeWebhookApplication(False, 99, "ACTIVE", True)
+
+    async def reconcile_subscriptions(
+        self,
+        guild_id: int,
+        *,
+        actor_user_id: int,
+        apply: bool,
+    ) -> StripeReconciliationResult:
+        assert guild_id == 1543309921066684567
+        assert actor_user_id == 42
+        assert apply is True
+        return StripeReconciliationResult("LIVE", 0, 0, 0, ())
 
 
 class _User:
@@ -136,3 +169,44 @@ async def test_relay_item_schedules_retry_with_safe_error_code() -> None:
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_successful_empty_relay_poll_reports_recovery(monkeypatch) -> None:
+    recoveries: list[dict[str, object]] = []
+
+    async def record_recovery(_bot, **kwargs: object) -> None:
+        recoveries.append(kwargs)
+
+    monkeypatch.setattr(payment_webhook, "ClientSession", _RelaySession)
+    monkeypatch.setattr(payment_webhook, "report_system_recovery", record_recovery)
+    cog = _cog(_PaymentService(), [])
+
+    await PaymentWebhookCog.relay_loop.coro(cog)
+
+    assert recoveries == [
+        {
+            "service": "Stripe Webhook Relay",
+            "error_type": "PAYMENT_WEBHOOK_RELAY_FAILED",
+            "affected": "Stripe → Membership Access",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_successful_reconciliation_reports_failed_alert_recovery(monkeypatch) -> None:
+    recoveries: list[dict[str, object]] = []
+
+    async def record_recovery(_bot, **kwargs: object) -> None:
+        recoveries.append(kwargs)
+
+    monkeypatch.setattr(payment_webhook, "report_system_recovery", record_recovery)
+    cog = _cog(_PaymentService(), [])
+
+    await PaymentWebhookCog.reconciliation_loop.coro(cog)
+
+    assert {
+        "service": "Stripe Reconciliation",
+        "error_type": "STRIPE_RECONCILIATION_FAILED",
+        "affected": "Stripe ↔ AXIS Membership ↔ Discord Role",
+    } in recoveries
