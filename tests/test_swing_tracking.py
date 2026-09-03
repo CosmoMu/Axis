@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
+from app.bot.cards import build_swing_tracking_embed
 from app.db.base import Base
 from app.db.models import (
     GuildConfig,
@@ -291,6 +292,10 @@ async def test_simple_swing_entry_and_reviewed_close_publication_lifecycle() -> 
         close_claim = await publications.claim(close.id)
         assert isinstance(close_claim.card, SwingTrackingCard)
         assert close_claim.card.highest_return_pct == Decimal("100.0000")
+        public_close = str(build_swing_tracking_embed(close_claim.card).to_dict())
+        assert "平仓参考" not in public_close
+        assert "+50" not in public_close
+        assert "+100.00%" in public_close
         assert close_claim.claim_token is not None
         await publications.finalize(
             close_claim.publication_id,

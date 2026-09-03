@@ -385,7 +385,6 @@ def build_swing_tracking_embed(
             value=_percent(card.highest_return_pct),
             inline=False,
         )
-        embed.add_field(name="平仓参考价格", value=_money(card.price), inline=False)
     else:
         embed.add_field(name="价格", value=_money(card.price), inline=False)
         embed.add_field(name="收益", value=_percent(card.return_pct), inline=False)

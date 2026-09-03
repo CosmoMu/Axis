@@ -86,8 +86,8 @@ available. A quote failure must not block a Manager-approved safe stop. The clos
 the official performance result.
 
 After close, High Watermark is frozen. Public CLOSE and Daily Results use the verified lifetime
-highest return from entry through the close boundary. The close card may show the close reference
-as context, but it must not label that value as realized performance.
+highest return from entry through the close boundary. Close Reference Price/Return remain internal
+review and audit data and are not shown on the member-facing CLOSE card.
 
 ## Public tracking events
 

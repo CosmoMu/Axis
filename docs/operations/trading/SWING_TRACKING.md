@@ -80,9 +80,9 @@ Reference. Publish writes the CLOSE event/publication and then stops the tracker
 cannot be fetched, the Manager-approved close still succeeds using the optional reference or last
 valid price as context.
 
-`close_reference_price` and `close_reference_return_pct` are audit fields only. The public close
-card may show the reference as context, while the headline performance and Daily Result use the
-frozen lifetime High.
+`close_reference_price` and `close_reference_return_pct` are internal review/audit fields only and
+are not shown on the member-facing CLOSE card. Public CLOSE and Daily Result use the frozen
+lifetime High.
 
 ## Active View quote fallback
 
