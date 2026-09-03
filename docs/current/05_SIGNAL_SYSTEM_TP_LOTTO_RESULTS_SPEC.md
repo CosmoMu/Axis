@@ -6,6 +6,11 @@ This document supersedes older Short-Term Runner, Short-Term Active View, Short-
 and daily-result presentation rules. Signal Input, Review, Publish, Mentor, Analysis, and Membership
 behavior not named here remains unchanged.
 
+For newly created Swing orders, `08_SIMPLE_TRACKED_SWING_SPEC.md` is authoritative. References in
+this document to Swing Mentor events, realized TP/SL lists, or complex position cards apply only to
+`LEGACY_SWING`; Simple Tracked Swing shares this document's active fixed-TP source but has its own
+lifecycle and highest-return Results rule.
+
 ## Short-Term public lifecycle
 
 - Public events are ENTRY, fixed TP1–TP41, and Momentum TP. Short-Term does not publish SL or
@@ -49,14 +54,17 @@ behavior not named here remains unchanged.
 - Short-Term does not publish a Daily Summary.
 - Swing and LEAPS each publish one Daily Summary containing 今日关闭 and 当前持仓.
 - Results publishes one `AXIS DAILY RESULTS` card with SHORT-TERM, SWING, and LEAPS sections.
-- Every Short-Term trade derives its displayed return from the highest option price recorded during
-  that Results trading date relative to entry price. A contract expiring that day therefore reports
-  its expiry-day maximum profit point, not a high carried forward from an earlier session. Active
-  contracts use the same daily-high rule. Current return and tracking-end return stay internal.
+- Every Short-Term trade derives its displayed return from the highest option price recorded from
+  entry until expiry or tracking completion, relative to entry price. A high recorded in an earlier
+  session remains the result when it is the lifecycle maximum. Active contracts use the same
+  lifetime-high rule. Daily high, current return and tracking-end return stay internal.
+- A Short-Term trade enters a new Daily Results Review only when that lifetime-high return is
+  strictly greater than the best value previously published for the same order. Equal or lower
+  values are suppressed; a new order with no prior published result remains eligible.
 - Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
   `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
-  LOTTO labels are omitted from this section. Lines are sorted by the numeric part of the order ID
-  in ascending order.
+  LOTTO orders append `(LOTTO)` after the option contract. Lines are sorted by the numeric part of
+  the order ID in ascending order.
 - Closed Swing/LEAPS trades list realized TP event returns in numeric TP order and the highest
   recorded return. An SL close lists SL return and highest return.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are
@@ -66,8 +74,9 @@ behavior not named here remains unchanged.
 
 - 每个实际 XNYS 交易日收盘后 `RESULTS_REVIEW_DRAFT_DELAY_MINUTES` 分钟生成唯一 Draft；Early
   Close 使用当日真实 close time。
-- Eligible Items 包含当天到期的 Short-Term、收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的全部
-  Short-Term，以及当天 CLOSED Swing / LEAPS，默认全部 Included；Loss Trade 不自动隐藏。
+- Short-Term 候选包含当天到期以及收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的订单；只有全生命周期
+  最高收益严格超过该订单此前已发布的最佳 Results 才进入 Review。当天 CLOSED Swing / LEAPS
+  仍默认 Included；Loss Trade 不自动隐藏。
 - `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、PREVIEW
   与 PUBLISH NOW；不显示 EDIT CARD。
 - Exclude / Re-Include 只改变当天公开快照，保存 actor、time、reason 与 before/after Audit，

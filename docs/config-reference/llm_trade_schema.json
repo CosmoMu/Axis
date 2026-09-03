@@ -6,6 +6,7 @@
   "required": [
     "intent",
     "action",
+    "target_public_trade_id",
     "add_stage",
     "ticker",
     "expiry_input",
@@ -63,6 +64,10 @@
         "ROLL",
         "UNKNOWN"
       ]
+    },
+    "target_public_trade_id": {
+      "type": ["string", "null"],
+      "pattern": "^(ST|SW|LP)-[0-9]{4,}$"
     },
     "add_stage": {
       "type": "string",

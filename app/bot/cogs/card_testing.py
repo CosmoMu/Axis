@@ -385,10 +385,10 @@ def _preview_offers() -> dict[str, PriceSnapshot]:
         "MONTHLY": PriceSnapshot(
             id=uuid.UUID("00000000-0000-4000-8000-000000000102"),
             plan_type="MONTHLY",
-            pricing_version="MONTHLY_V1",
+            pricing_version="MONTHLY_V2",
             stripe_product_id=None,
             stripe_price_id=None,
-            unit_amount=9999,
+            unit_amount=14999,
             currency="usd",
             billing_interval="month",
         ),

@@ -19,6 +19,8 @@ from app.db.models import (
     ShortTermDailySnapshot,
     ShortTermTracking,
     ShortTermTrackingEvent,
+    SwingDailySnapshot,
+    SwingTracking,
     Trade,
     TradeEvent,
     utc_now,
@@ -39,6 +41,7 @@ from app.integrations.moomoo_market_data import (
     PostCloseMarketData,
 )
 from app.services.short_term_policy import ShortTermTrackingPolicy
+from app.services.swing_tracking import SIMPLE_TRACKED_SWING
 from app.services.trading_calendar import TradingCalendarService
 
 ET = ZoneInfo("America/New_York")
@@ -229,6 +232,16 @@ def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
                     else None
                 ),
                 is_lotto=bool(item.get("is_lotto", False)),
+                tracking_mode=(
+                    str(item["tracking_mode"]) if item.get("tracking_mode") else None
+                ),
+                highest_tp_level=(
+                    str(item["highest_tp_level"])
+                    if item.get("highest_tp_level")
+                    else None
+                ),
+                highest_price=_optional_decimal(item.get("highest_price")),
+                highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
             )
             for item in payload.get("active", [])
         )
@@ -290,11 +303,7 @@ def _deserialize_results(payload: dict[str, Any]) -> DailyResultsCard:
                 ticker=str(item["ticker"]),
                 strike=Decimal(str(item["strike"])),
                 option_side=str(item["option_side"]),
-                expiry=(
-                    date.fromisoformat(str(item["expiry"]))
-                    if item.get("expiry")
-                    else None
-                ),
+                expiry=(date.fromisoformat(str(item["expiry"])) if item.get("expiry") else None),
                 tracking_end_return_pct=_optional_decimal(item.get("tracking_end_return_pct")),
                 maximum_return_pct=_optional_decimal(item.get("maximum_return_pct")),
                 maximum_drawdown_pct=_optional_decimal(item.get("maximum_drawdown_pct")),
@@ -434,6 +443,17 @@ class DailySummaryService:
                 if tracking_ids
                 else []
             )
+            swing_tracking_rows = (
+                await session.execute(
+                    select(SwingTracking, Trade)
+                    .join(Trade, Trade.id == SwingTracking.trade_id)
+                    .where(
+                        SwingTracking.guild_id == guild_id,
+                        SwingTracking.tracking_state == "ACTIVE",
+                        Trade.tracking_mode == SIMPLE_TRACKED_SWING,
+                    )
+                )
+            ).all()
 
         requests = tuple(
             OptionQuoteRequest(
@@ -471,14 +491,10 @@ class DailySummaryService:
         for tracking, trade in tracking_rows:
             snapshot = daily_snapshots_by_tracking.get(tracking.id)
             if snapshot is None:
-                _high_price, peak_return_pct, _low_price, daily_low_return = (
+                _high_price, _daily_high_return, _low_price, daily_low_return = (
                     _tracking_daily_extremes(tracking, session_date)
                 )
             else:
-                peak_return_pct = ShortTermTrackingPolicy.return_pct(
-                    tracking.entry_price,
-                    snapshot.highest_price,
-                )
                 daily_low_return = ShortTermTrackingPolicy.return_pct(
                     tracking.entry_price,
                     snapshot.lowest_price,
@@ -491,13 +507,14 @@ class DailySummaryService:
                 option_side=trade.option_side,
                 current_return_pct=tracking.current_return_pct,
                 tracking_end_return_pct=tracking.tracking_end_return_pct,
-                highest_return_pct=peak_return_pct,
+                highest_return_pct=tracking.highest_return_pct,
                 lowest_return_pct=daily_low_return,
                 is_lotto=trade.is_lotto,
             )
             short_term_rows.append(row)
 
         summaries: list[DailyCategorySummary] = []
+        swing_tracking_by_trade = {trade.id: tracking for tracking, trade in swing_tracking_rows}
         for category in (TradeCategory.SWING.value, TradeCategory.LEAPS.value):
             active_rows = []
             for trade in active_trades:
@@ -505,13 +522,13 @@ class DailySummaryService:
                     continue
                 quote = quotes.get(str(trade.id))
                 reference = (
-                    quote.last_price
-                    if quote is not None and quote.price_type == "CLOSE"
-                    else None
+                    quote.last_price if quote is not None and quote.price_type == "CLOSE" else None
                 )
                 pnl = None
-                if reference is not None and trade.avg_cost is not None and trade.avg_cost > 0:
-                    pnl = ((reference - trade.avg_cost) / trade.avg_cost) * Decimal("100")
+                swing_tracking = swing_tracking_by_trade.get(trade.id)
+                cost = swing_tracking.entry_price if swing_tracking is not None else trade.avg_cost
+                if reference is not None and cost is not None and cost > 0:
+                    pnl = ((reference - cost) / cost) * Decimal("100")
                 active_rows.append(
                     DailyActiveTrade(
                         public_trade_id=trade.public_trade_id,
@@ -520,16 +537,32 @@ class DailySummaryService:
                         strike=trade.strike,
                         option_side=trade.option_side,
                         position_eighths=trade.position_eighths,
-                        avg_cost=trade.avg_cost,
+                        avg_cost=cost,
                         reference_price=reference,
                         unrealized_pnl_pct=pnl,
                         quote_time=quote.quote_time if quote is not None else None,
                         is_lotto=trade.is_lotto,
+                        tracking_mode=trade.tracking_mode,
+                        highest_tp_level=(
+                            swing_tracking.highest_tp_level
+                            if swing_tracking is not None
+                            else None
+                        ),
+                        highest_price=(
+                            swing_tracking.highest_price if swing_tracking is not None else None
+                        ),
+                        highest_return_pct=(
+                            swing_tracking.highest_return_pct
+                            if swing_tracking is not None
+                            else None
+                        ),
                     )
                 )
             closed_rows = []
             for trade in closed_trades:
                 if trade.category != category:
+                    continue
+                if trade.tracking_mode == SIMPLE_TRACKED_SWING:
                     continue
                 final_return = trade.final_return_pct
                 if final_return is None:
@@ -567,11 +600,7 @@ class DailySummaryService:
                 if quote is None:
                     continue
                 current = await session.get(Trade, trade.id)
-                if (
-                    current is not None
-                    and quote.instrument_code
-                    and market_provider == "MOOMOO"
-                ):
+                if current is not None and quote.instrument_code and market_provider == "MOOMOO":
                     current.moomoo_option_code = quote.instrument_code
                 if (
                     quote.price_type != "CLOSE"
@@ -666,6 +695,47 @@ class DailySummaryService:
                         public_notification=False,
                     )
                 )
+            for original, trade in swing_tracking_rows:
+                current = await session.get(SwingTracking, original.id)
+                if current is None:
+                    continue
+                quote = quotes.get(str(trade.id))
+                closing_price = (
+                    quote.last_price
+                    if quote is not None and quote.price_type == "CLOSE"
+                    else None
+                )
+                closing_return = (
+                    ShortTermTrackingPolicy.return_pct(current.entry_price, closing_price)
+                    if closing_price is not None
+                    else None
+                )
+                snapshot = await session.scalar(
+                    select(SwingDailySnapshot).where(
+                        SwingDailySnapshot.tracking_id == current.id,
+                        SwingDailySnapshot.session_date == session_date,
+                    )
+                )
+                if snapshot is None:
+                    session.add(
+                        SwingDailySnapshot(
+                            guild_id=guild_id,
+                            tracking_id=current.id,
+                            trade_id=current.trade_id,
+                            session_date=session_date,
+                            closing_price=closing_price,
+                            closing_return_pct=closing_return,
+                            highest_price=current.highest_price,
+                            highest_return_pct=current.highest_return_pct,
+                            lowest_price=current.lowest_price,
+                            lowest_return_pct=current.lowest_return_pct,
+                            tracking_state=current.tracking_state,
+                        )
+                    )
+                else:
+                    snapshot.closing_price = closing_price
+                    snapshot.closing_return_pct = closing_return
+                    snapshot.tracking_state = current.tracking_state
             for summary in summaries:
                 if summary.category in existing:
                     continue

@@ -21,7 +21,7 @@ Entitlement 保存 signup 时的 `stripe_price_id`、版本、金额和币种快
 ```bash
 .venv/bin/python scripts/manage_membership_pricing.py create \
   --environment live --confirm-environment live \
-  --plan MONTHLY --version MONTHLY_V2 --unit-amount 10999 \
+  --plan MONTHLY --version MONTHLY_V2 --unit-amount 14999 \
   --product-id prod_... --price-id price_...
 ```
 

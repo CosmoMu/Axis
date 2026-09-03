@@ -7,8 +7,9 @@ AXIS BOT 在每个美股交易日 `16:15 ET` 只向以下频道发送 Daily Summ
 - `〽️・swing`
 - `♾️・leaps`
 
-每条消息包含该类别的今日关闭与当前持仓。`⚡・short-term` 不发送 Daily Summary；已停止
-追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。Daily Results 先进入
+Legacy Swing / LEAPS 继续显示原有今日关闭与当前持仓；Simple Tracked Swing 只进入 Swing 的
+Active section，已经 Close/Expiry 的 Simple Swing 不在该 Summary 中。`⚡・short-term` 不发送
+Daily Summary；已停止追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。Daily Results 先进入
 `📋・results-review`，不再由 Daily Summary job 直接发布；完整流程见
 `docs/operations/daily-results-review.md`。Active 收益只使用 Massive 对应期权合约在该交易日的
 正式 Daily OHLC `close`，不使用盘后实时价、Bid、Ask、Mid 或最后 snapshot。
@@ -46,5 +47,5 @@ DAILY_SUMMARY_TIME_ET=16:15
 launchctl print gui/$(id -u)/com.axis.bot
 ```
 
-正常数据库 revision 为 `20260830_0022`。`market_quote_snapshots` 与
+正常数据库 revision 为 `20260903_0029`。`market_quote_snapshots` 与
 `daily_summary_publications` 在第一个真实交易日、且存在相关 Trade 后才会出现行数。

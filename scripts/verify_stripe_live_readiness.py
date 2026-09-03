@@ -128,7 +128,7 @@ def main() -> int:
                     price.get("active")
                     and price.get("livemode") is True
                     and price.get("currency") == "usd"
-                    and price.get("unit_amount") == 9999
+                    and price.get("unit_amount") == 14999
                     and recurring.get("interval") == "month"
                     and price.get("product") == live.monthly_product_id
                 )

@@ -16,6 +16,7 @@ from app.db.models import (
     LlmInvocation,
     SourceAttachment,
     SourceMessage,
+    Trade,
     TradeDraft,
 )
 from app.db.session import Database
@@ -39,7 +40,9 @@ from app.services.option_contracts import (
     extract_expiry_input,
     parse_expiry_input,
     parse_fast_signal,
+    parse_swing_close,
 )
+from app.services.swing_tracking import SIMPLE_TRACKED_SWING
 
 
 class TradeParser(Protocol):
@@ -96,6 +99,39 @@ def _unique_strings(values: Any) -> list[str]:
 
 
 def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> None:
+    close = parse_swing_close(raw_text)
+    if close is not None:
+        payload.update(
+            {
+                "intent": "UPDATE_TRADE",
+                "action": "CLOSE",
+                "add_stage": None,
+                "category_suggestion": "SWING",
+                "selected_category": "SWING",
+                "_swing_mode": SIMPLE_TRACKED_SWING,
+                "target_public_trade_id": close.public_trade_id,
+                "ticker": close.ticker,
+                "expiry_input": close.expiry_input,
+                "expiry_precision": (
+                    close.expiry_precision.value if close.expiry_precision is not None else None
+                ),
+                "strike": str(close.strike) if close.strike is not None else None,
+                "option_side": close.option_side,
+                "action_price": (
+                    str(close.reference_price) if close.reference_price is not None else None
+                ),
+                "entry_low": None,
+                "entry_high": None,
+                "avg_cost": None,
+                "sl": None,
+                "tp1": None,
+                "tp2": None,
+                "mentor_hint": None,
+                "position_delta_eighths": None,
+                "position_after_eighths": 0,
+            }
+        )
+        return
     fast = parse_fast_signal(raw_text)
     if fast is not None:
         payload["ticker"] = fast.ticker
@@ -110,9 +146,7 @@ def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> No
             payload["entry_high"] = None
             payload["action_price"] = None
         payload["price_parse_confidence"] = (
-            float(fast.price_parse_confidence)
-            if fast.price_parse_confidence is not None
-            else None
+            float(fast.price_parse_confidence) if fast.price_parse_confidence is not None else None
         )
         if fast.warning:
             payload["warnings"] = [*_unique_strings(payload.get("warnings")), fast.warning]
@@ -153,6 +187,8 @@ def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> No
                 "EXPIRY_IN_PAST_REQUIRES_REVIEW",
             ]
     payload["expiry"] = payload.get("resolved_expiry")
+    if payload.get("category_suggestion") == "SWING" and payload.get("intent") == "NEW_TRADE":
+        payload["_swing_mode"] = SIMPLE_TRACKED_SWING
 
 
 def _apply_expiry_resolution(payload: dict[str, Any], result: ExpiryResolution) -> None:
@@ -183,7 +219,10 @@ def _apply_expiry_resolution(payload: dict[str, Any], result: ExpiryResolution) 
 
 
 def _apply_position_ladder(payload: dict[str, Any]) -> None:
-    if payload.get("category_suggestion") == "SHORT_TERM":
+    if (
+        payload.get("category_suggestion") == "SHORT_TERM"
+        or payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+    ):
         payload["position_delta_eighths"] = None
         payload["position_after_eighths"] = None
         for field in (
@@ -241,6 +280,7 @@ def _add_required_missing_fields(payload: dict[str, Any]) -> None:
             missing.append("entry_price")
     if (
         payload.get("category_suggestion") != "SHORT_TERM"
+        and payload.get("_swing_mode") != SIMPLE_TRACKED_SWING
         and payload.get("action") in {"ENTRY", "ADD"}
         and (
             payload.get("position_delta_eighths") is None
@@ -318,6 +358,7 @@ class DraftGenerationService:
             parse_trace = parse_result.trace
             payload = dict(parse_result.payload)
             _prepare_signal_payload(payload, source_snapshot[1])
+            await self._match_simple_swing_close(payload, source_snapshot[0])
             await self._resolve_expiry(payload)
             await self._fill_missing_entry_price(payload)
             _apply_position_ladder(payload)
@@ -344,6 +385,84 @@ class DraftGenerationService:
                 reason_code="DRAFT_GENERATION_FAILED",
                 trace=parse_trace,
             )
+
+    async def _match_simple_swing_close(self, payload: dict[str, Any], guild_id: int) -> None:
+        if not (
+            payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+            and payload.get("intent") == "UPDATE_TRADE"
+            and payload.get("action") == "CLOSE"
+        ):
+            return
+        async with self.database.session() as session:
+            statement = select(Trade).where(
+                Trade.guild_id == guild_id,
+                Trade.category == "SWING",
+                Trade.tracking_mode == SIMPLE_TRACKED_SWING,
+                Trade.state == "ACTIVE",
+            )
+            target_id = payload.get("target_public_trade_id")
+            if target_id:
+                statement = statement.where(Trade.public_trade_id == str(target_id).upper())
+            else:
+                statement = statement.where(
+                    Trade.ticker == str(payload.get("ticker") or "").upper(),
+                    Trade.strike == _decimal(payload.get("strike")),
+                    Trade.option_side == _optional_enum(payload.get("option_side")),
+                )
+            candidates = list(await session.scalars(statement.order_by(Trade.public_trade_id)))
+        expiry_input = str(payload.get("expiry_input") or "")
+        if expiry_input and "/" in expiry_input:
+            month, day = (int(part) for part in expiry_input.split("/"))
+            candidates = [
+                trade
+                for trade in candidates
+                if trade.expiry.month == month and trade.expiry.day == day
+            ]
+        elif expiry_input:
+            try:
+                exact = date.fromisoformat(expiry_input)
+            except ValueError:
+                exact = None
+            if exact is not None:
+                candidates = [trade for trade in candidates if trade.expiry == exact]
+        payload["close_candidates"] = [trade.public_trade_id for trade in candidates]
+        if len(candidates) != 1:
+            payload["matched_trade_id"] = None
+            payload["missing_fields"] = [
+                *_unique_strings(payload.get("missing_fields")),
+                "matched_trade",
+            ]
+            payload["warnings"] = [
+                *_unique_strings(payload.get("warnings")),
+                (
+                    "SWING_CLOSE_NOT_FOUND"
+                    if not candidates
+                    else "MULTIPLE_SWING_CLOSE_MATCHES_REQUIRE_MANAGER"
+                ),
+            ]
+            return
+        trade = candidates[0]
+        payload.update(
+            {
+                "matched_trade_id": str(trade.id),
+                "target_public_trade_id": trade.public_trade_id,
+                "ticker": trade.ticker,
+                "expiry": trade.expiry.isoformat(),
+                "resolved_expiry": trade.expiry.isoformat(),
+                "expiry_input": trade.expiry.isoformat(),
+                "expiry_precision": ExpiryPrecision.EXACT_DATE.value,
+                "expiry_resolution_status": ExpiryResolutionStatus.EXPLICIT.value,
+                "option_contract_code": trade.option_contract_code,
+                "contract_validation_status": ContractValidationStatus.VALID.value,
+                "strike": str(trade.strike),
+                "option_side": trade.option_side,
+            }
+        )
+        payload["missing_fields"] = [
+            field
+            for field in _unique_strings(payload.get("missing_fields"))
+            if field not in {"matched_trade", "expiry", "contract"}
+        ]
 
     async def _resolve_expiry(self, payload: dict[str, Any]) -> None:
         precision_value = payload.get("expiry_precision")
@@ -380,8 +499,7 @@ class DraftGenerationService:
         if payload.get("intent") != "NEW_TRADE" or payload.get("action") != "ENTRY":
             return
         if any(
-            payload.get(field) is not None
-            for field in ("entry_low", "entry_high", "action_price")
+            payload.get(field) is not None for field in ("entry_low", "entry_high", "action_price")
         ):
             return
         if payload.get("contract_validation_status") != ContractValidationStatus.VALID.value:
@@ -664,7 +782,11 @@ class DraftGenerationService:
             guild_id=guild_id,
             draft_code="S-PENDING",
             source_message_id=source_message_id,
-            matched_trade_id=None,
+            matched_trade_id=(
+                uuid.UUID(str(payload["matched_trade_id"]))
+                if payload.get("matched_trade_id")
+                else None
+            ),
             mentor_id=None,
             status=status,
             intent=str(payload.get("intent", "UNKNOWN")),

@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-09-02
+**Date:** 2026-09-03
 
 ## Summary
 
-- Full pytest suite: PASS — 271 passed、0 failed、0 skipped
+- Full pytest suite: PASS — 282 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -21,12 +21,16 @@
 - Daily Results Review regression: PASS
 - Soft Open Reset database / Discord verification: PASS
 - Short-Term / Massive real E2E: PARTIAL — live SPXW quote PASS；真实 TP / internal Expiry E2E PENDING
+- Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
+- Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
+  Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
 
 ## Commands executed
 
 - .venv/bin/ruff check app tests scripts
 - .venv/bin/python -m compileall -q app scripts
 - .venv/bin/pytest -q
+- .venv/bin/alembic upgrade 20260902_0028:20260903_0029 --sql
 - .venv/bin/python scripts/verify_database.py
 - .venv/bin/python scripts/verify_analysis_fusion.py
 - .venv/bin/python scripts/verify_discord_runtime.py
@@ -82,8 +86,21 @@ Short-Term:
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
-- 极简 Daily Results 使用对应交易日独立 Daily High；覆盖跨日高点隔离、到期日当天最高利润点、
-  ST 订单号升序、Ticker、到期日、合约代码和幂等。
+- 极简 Daily Results 使用从入场到到期/停止追踪期间的 lifetime high；覆盖历史高点高于当日
+  High 的跨日场景、ST 订单号升序、Ticker、到期日、合约代码和幂等。
+- Short-Term Results New-High Suppression：相同订单只有 lifetime high 严格超过此前已发布最佳
+  值才进入下一轮 Review；相同或更低值被抑制，新订单首次仍正常显示。
+
+Simple Tracked Swing:
+
+- Simple Entry 无 Mentor/Position/ADD/SL/Runner/chart，Category 切换和显式到期日校验。
+- 与 Short-Term 共享同一个 active fixed-TP policy source，同时验证 Swing 没有 protection 或
+  Momentum；policy version、TP event、High/Low Watermark 和跨日状态幂等。
+- `close SW-XXXX`、完整合约与 optional `@price` parser；零/多匹配阻塞和 Dropdown 路径。
+- Entry publication → tracker → verified high → Manager Close → tracker stop → lifetime-high final
+  result 的端到端集成；Close Reference 不替代最高收益。
+- Active View、forced refresh fallback、daily snapshot、expiry、restart reconciliation 和 Legacy
+  Swing isolation。
 
 Daily Results Review:
 
@@ -106,7 +123,9 @@ Membership / Stripe:
   TradingCalendarService 固化首末交易日与 expiry、终身一次、默认无 DM、无 Stripe / Card /
   Auto Renewal。
 - Day Pass 保持 1 XNYS Trading Day；Trial 有效时阻止 Day Pass checkout，但允许 Monthly。
-- Welcome 唯一 onboarding CTA `APPLY TO JOIN AXIS`；旧 Apply / Start Trial / Membership CTA 均不存在。
+- Welcome 与完整申请/审核流程为中文，唯一 onboarding CTA 为 `申请加入 AXIS`；来源、兴趣、
+  推荐人、两份协议、提交结果与 Manager 审核按钮中文化，内部状态码不变；旧 Apply /
+  Start Trial / Membership CTA 均不存在。
 - Newcomer 只能只读 welcome/results/member-wins；所有其他 Blueprint channel 显式 DENY。
 - Approved / expired / renamed / active Monthly / never-approved / rejected rejoin 场景与 Trial permanent
   history、database unique、Role sync failure、checkout fail-closed 均有覆盖。
@@ -138,26 +157,27 @@ Operations / Security:
 
 Database:
 
-- revision=20260831_0026
-- source_messages=21
-- trade_drafts=21
-- trades=16
-- trade_events=16
-- trade_publications=16
+- revision=20260903_0029
+- source_messages=63
+- trade_drafts=63
+- trades=52
+- trade_events=54
+- trade_publications=54
 - analysis_drafts=0
 - mentor_analyses=0
 - analysis_publications=0
-- market_quote_snapshots=2
-- daily_results_reviews=1
-- daily_results_items=14
-- membership_entitlements=2
-- membership_trials=0
-- newcomer_profiles=4（全部为 cutover 前 baseline 的 existing Production users；未授予 Trial）
-- access_applications=0
-- newcomer_risk_flags=0
-- membership_prices=4（TEST 2 / LIVE 2；LIVE V1 已绑定并 current）
+- market_quote_snapshots=17
+- daily_results_reviews=4
+- daily_results_items=84
+- membership_entitlements=6
+- membership_trials=2
+- newcomer_profiles=7
+- access_applications=2
+- newcomer_risk_flags=2
+- membership_prices=6
 - payment_events=0
-- system_alerts=2
+- system_alerts=4
+- swing_tracking=0 / swing_tracking_events=0 / swing_daily_snapshots=0（migration 后尚无新 Simple Swing）
 
 Feature flags:
 
@@ -178,14 +198,14 @@ Discord:
 - Apply 后 Bootstrap dry-run=REUSE 31 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
-- Welcome 持久卡片为全英文审批制文案并显示 7 天完整会员体验、No Card / No Automatic Renewal、
-  `MY RISK IS NOT YOUR RISK` 与 Safety Notice，唯一按钮为 `APPLY TO JOIN AXIS`。
+- Welcome 持久卡片为纯中文审批制文案并显示 3 个美国股票市场交易日完整会员体验、无需信用卡、
+  不会自动续费、中文风险与安全提示，唯一按钮为 `申请加入 AXIS`。
 - Membership 卡片不再提供直接 Free Trial；Day Pass / Monthly checkout 在服务层要求 permanent
   Approval + completed Role sync，Newcomer 无法通过旧 URL / component 绕过。
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, newcomer, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=13
+- owner test commands=12
 
 Analysis Fusion:
 
@@ -207,6 +227,8 @@ Stripe Test（Pre-Soft-Open historical acceptance evidence）：
 - Discord Member Role E2E 曾为 PRESENT。
 - Soft Open Reset 已清除这些 Stripe Test membership / payment records；当前数据库不再把它们
   视为 Production entitlement。Stripe Test 配置本身保留；当前运行环境已切换为 Live。
+- 当前 Test / Live 新购 Monthly 已切换为 V2 USD 149.99；以上 USD 99.99 为 V1 历史验收证据，
+  既有订阅不自动迁移。
 - 2026-08-31 只读 Dashboard 审计后，Test key 按暴露处理；外部 Test verifier 未重跑，
   `STRIPE_ENABLED=false` 且 Test listener 已禁用，等待轮换。
 
@@ -228,6 +250,15 @@ Schema drift check：
 - 本次 Stripe Price / Entitlement / Session / Payment Event schema 与 ORM 已一致。
 - Alembic 仍报告两个早于本次工作的 constraint-name-only baseline drift：
   `membership_acknowledgements` 与 `short_term_tracking`；约束逻辑存在，未在 Stripe 任务中改动。
+
+Swing V2 migration evidence（2026-09-03）：
+
+- before revision=`20260902_0028`
+- after revision=`20260903_0029`
+- pre-migration Swing=5，Active Legacy Swing=4
+- post-migration classification=`LEGACY_SWING ACTIVE:4 / CLOSED:1`
+- `swing_tracking`、`swing_tracking_events`、`swing_daily_snapshots` 已创建；Production Simple Swing=0
+- offline SQL dry-run 与 post-migration read-only verification PASS；无删除、重编号或历史重写
 
 ## Explicit failed / pending Live gate
 
@@ -251,4 +282,4 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 255 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 282 项测试结果。

@@ -84,6 +84,17 @@ class FastSignalFields:
     warning: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class SwingCloseFields:
+    public_trade_id: str | None
+    ticker: str | None
+    expiry_input: str | None
+    expiry_precision: ExpiryPrecision | None
+    strike: Decimal | None
+    option_side: str | None
+    reference_price: Decimal | None
+
+
 _EXACT_DATE = re.compile(r"(?<!\d)(20\d{2}-\d{1,2}-\d{1,2})(?!\d)", re.IGNORECASE)
 _ZERO_DTE = re.compile(r"(?<![A-Z0-9])0\s*DTE(?![A-Z0-9])", re.IGNORECASE)
 _MONTH_YEAR = re.compile(r"(?<!\d)(0?[1-9]|1[0-2])/(20\d{2})(?!\d)")
@@ -110,6 +121,18 @@ _FAST_SIGNAL = re.compile(
     r"(?P<strike>\d+(?:\.\d+)?)\s*(?P<side>C|P|CALL|PUT)\b"
     r"(?:\s*(?P<at>@)?\s*(?P<price>(?:\d+\.\d+|\.\d+|\d+)))?"
     r"(?:\s+.*)?$",
+    re.IGNORECASE,
+)
+_SWING_CLOSE_ID = re.compile(
+    r"^\s*(?:CLOSE|平仓|关闭)\s+(?P<id>SW-\d{4,})"
+    r"(?:\s*@?\s*(?P<price>\d+(?:\.\d+)?))?\s*$",
+    re.IGNORECASE,
+)
+_SWING_CLOSE_CONTRACT = re.compile(
+    r"^\s*(?:CLOSE|平仓|关闭)\s+\$?(?P<ticker>[A-Z][A-Z0-9.\-]{0,11})\s+"
+    r"(?P<expiry>20\d{2}-\d{1,2}-\d{1,2}|(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[12]\d|3[01]))\s+"
+    r"(?P<strike>\d+(?:\.\d+)?)\s*(?P<side>C|P|CALL|PUT)"
+    r"(?:\s*@?\s*(?P<price>\d+(?:\.\d+)?))?\s*$",
     re.IGNORECASE,
 )
 
@@ -204,6 +227,40 @@ def parse_fast_signal(raw_text: str | None) -> FastSignalFields | None:
     )
 
 
+def parse_swing_close(raw_text: str | None) -> SwingCloseFields | None:
+    """Parse the intentionally small Manager close grammar without guessing."""
+
+    if not raw_text:
+        return None
+    identifier = _SWING_CLOSE_ID.fullmatch(raw_text.strip())
+    if identifier is not None:
+        raw_price = identifier.group("price")
+        return SwingCloseFields(
+            public_trade_id=identifier.group("id").upper(),
+            ticker=None,
+            expiry_input=None,
+            expiry_precision=None,
+            strike=None,
+            option_side=None,
+            reference_price=Decimal(raw_price) if raw_price else None,
+        )
+    contract = _SWING_CLOSE_CONTRACT.fullmatch(raw_text.strip())
+    if contract is None:
+        return None
+    expiry_input, precision = parse_expiry_input(contract.group("expiry"))
+    side = contract.group("side").upper()
+    raw_price = contract.group("price")
+    return SwingCloseFields(
+        public_trade_id=None,
+        ticker=contract.group("ticker").upper(),
+        expiry_input=expiry_input,
+        expiry_precision=precision,
+        strike=Decimal(contract.group("strike")),
+        option_side="CALL" if side in {"C", "CALL"} else "PUT",
+        reference_price=Decimal(raw_price) if raw_price else None,
+    )
+
+
 class OptionContractResolver:
     def __init__(self, catalog: OptionContractCatalog, *, today: date | None = None) -> None:
         self.catalog = catalog
@@ -255,9 +312,7 @@ class OptionContractResolver:
                 return self._unresolved(request, ContractValidationStatus.NOT_FOUND)
             month, year = (int(part) for part in parsed_input.split("/"))
             start = date(year, month, 1)
-            end = date(year + (month == 12), 1 if month == 12 else month + 1, 1) - timedelta(
-                days=1
-            )
+            end = date(year + (month == 12), 1 if month == 12 else month + 1, 1) - timedelta(days=1)
             contracts = await self._contracts(request, start, end)
             if contracts is None:
                 return self._unresolved(request, ContractValidationStatus.UNAVAILABLE)

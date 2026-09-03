@@ -11,6 +11,9 @@ from app.db.session import Database
 from app.domain.enums import OptionSide, TradeCategory, TradeState
 
 EXPECTED_TABLES = {
+    "swing_tracking",
+    "swing_tracking_events",
+    "swing_daily_snapshots",
     "access_applications",
     "analysis_draft_revisions",
     "analysis_drafts",

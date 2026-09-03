@@ -21,6 +21,7 @@ from app.bot.cogs.newcomer_access import (
     ApplicationFormView,
     ApplyAccessView,
     JoinReviewView,
+    ReferralModal,
     RiskAgreementView,
     SafetyAgreementView,
     risk_acknowledgement_embed,
@@ -36,6 +37,7 @@ from app.bot.general_cards import (
     subscription_embed,
     welcome_embed,
 )
+from app.bot.member_welcomes import community_welcome_message, member_lounge_welcome_message
 
 
 def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> None:
@@ -59,24 +61,37 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
     lobby = str(lobby_guide_embed().to_dict())
     wins = str(member_wins_guide_embed().to_dict())
 
-    assert "Signals without the noise" in welcome
+    assert "👋 欢迎来到 AXIS" in welcome
+    assert "这里只是 AXIS 欢迎界面" in welcome
+    assert "看到这个页面并不代表你已经加入 AXIS" in welcome
+    assert "申请加入 AXIS" in welcome
+    assert "如需加入，请点击下方绿色" in welcome
     assert "https://discord.com/channels/1543309921066684567/" not in welcome
     assert "START HERE" not in welcome
     assert "NO ACCESS" not in welcome
-    assert "complete a short access application" in welcome
-    assert "3 U.S. TRADING DAYS OF FULL MEMBER ACCESS" in welcome
-    assert "No credit card required" in welcome
-    assert "No automatic renewal" in welcome
-    assert "⚡ Short-Term" in welcome
-    assert "〽️ Swing" in welcome
-    assert "♾️ LEAPS" in welcome
-    assert "🛋️ Member Lounge" in welcome
-    assert "MY RISK IS NOT YOUR RISK" in welcome
-    assert "AXIS staff will never DM you first" in welcome
+    assert "填写简短的加入申请" in welcome
+    assert "3 个美国股票市场交易日" in welcome
+    assert "无需信用卡，不会自动续费" in welcome
+    assert "⚡ 短线" in welcome
+    assert "〽️ 波段" in welcome
+    assert "♾️ 长期" in welcome
+    assert "🛋️ 会员交流区" in welcome
+    assert "请独立判断并自行承担风险" in welcome
+    assert "AXIS 工作人员绝不会主动私信" in welcome
+    for forbidden_english in (
+        "WELCOME TO AXIS",
+        "THIS IS THE AXIS WELCOME PAGE",
+        "APPLY TO JOIN AXIS",
+        "HOW TO JOIN",
+        "AFTER APPROVAL",
+        "RISK NOTICE",
+        "SAFETY NOTICE",
+    ):
+        assert forbidden_english not in welcome
     assert "signal-input" not in welcome
     assert "AXIS MEMBERSHIP" in subscription
     assert "$9.99" in subscription
-    assert "$99.99" in subscription
+    assert "$149.99" in subscription
     assert "Auto-renews monthly until canceled" in subscription
     assert "3 U.S. Trading Days" in subscription
     assert "1 Trading Day" in subscription
@@ -98,17 +113,22 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
     )
     labels = [item.label for item in membership_view.children]
     assert "START FREE TRIAL" not in labels
-    assert labels[:2] == ["DAY PASS · $9.99", "MONTHLY · $99.99"]
+    assert labels[:2] == ["DAY PASS · $9.99", "MONTHLY · $149.99"]
     assert "MANAGE MEMBERSHIP" in labels
 
     welcome_view = ApplyAccessView(SimpleNamespace())
     welcome_labels = [item.label for item in welcome_view.children]
-    assert welcome_labels == ["APPLY TO JOIN AXIS"]
+    assert welcome_labels == ["申请加入 AXIS"]
     assert welcome_view.children[0].custom_id == "axis:newcomer:apply:v1"
     assert welcome_view.children[0].url is None
-    assert "MY RISK IS NOT YOUR RISK" in str(risk_acknowledgement_embed().to_dict())
-    assert "impersonate AXIS staff" in str(safety_agreement_embed().to_dict())
-    assert "APPLY FOR MEMBER ACCESS" not in str(welcome_application_embed().to_dict())
+    assert "我的风险不等于你的风险" in str(risk_acknowledgement_embed().to_dict())
+    assert "冒充 AXIS 工作人员" in str(safety_agreement_embed().to_dict())
+    application_welcome = str(welcome_application_embed().to_dict())
+    assert "APPLY FOR MEMBER ACCESS" not in application_welcome
+    assert "这里只是 AXIS 欢迎界面" in application_welcome
+    assert "申请加入 AXIS" in application_welcome
+    assert "APPLY TO JOIN AXIS" not in application_welcome
+    assert "AXIS Welcome" not in application_welcome
 
 
 @pytest.mark.asyncio
@@ -125,33 +145,58 @@ async def test_welcome_apply_button_enters_application_flow() -> None:
     assert calls == [interaction]
 
 
-def test_application_ui_uses_final_english_questions_agreements_and_review_actions() -> None:
+def test_application_ui_uses_chinese_questions_agreements_and_review_actions() -> None:
     controller = SimpleNamespace()
     form = ApplicationFormView(controller, 123)
-    assert form.children[0].placeholder == "How did you hear about AXIS?"
+    assert form.children[0].placeholder == "你是通过什么渠道了解到 AXIS 的？"
     assert [option.label for option in form.children[0].options] == [
-        "Friend / Referral",
-        "X / Social Media",
+        "朋友推荐",
+        "X / 社交媒体",
         "Discord",
-        "Online Community",
-        "Other",
+        "网络社区",
+        "其他",
     ]
-    assert form.children[1].placeholder == "What are you mainly interested in?"
+    assert form.children[1].placeholder == "你主要对哪些内容感兴趣？"
     assert [option.label for option in form.children[1].options] == [
-        "Short-Term",
-        "Swing",
-        "LEAPS",
-        "Market Analysis",
+        "短线",
+        "波段",
+        "长期",
+        "市场分析",
     ]
+    assert form.children[2].label == "继续"
     answers = form.answers
+    referral = ReferralModal(controller, 123, answers)
+    assert referral.title == "AXIS 加入申请"
+    assert referral.referred_by.label == "谁推荐你加入 AXIS？（选填）"
+    assert referral.referred_by.placeholder == "可填写 Discord 用户名、昵称或推荐人名称"
     assert [item.label for item in RiskAgreementView(controller, 123, answers).children] == [
-        "I AGREE"
+        "我已阅读并同意"
     ]
     assert [item.label for item in SafetyAgreementView(controller, 123, answers).children] == [
-        "I AGREE"
+        "我已阅读并同意"
     ]
     review = JoinReviewView(controller, uuid.uuid4(), status="PENDING")
-    assert [item.label for item in review.children] == ["APPROVE", "REJECT", "FLAG"]
+    assert [item.label for item in review.children] == ["批准", "拒绝", "标记"]
+
+
+def test_approval_welcomes_mention_the_member_in_both_destinations() -> None:
+    lobby = community_welcome_message(123)
+    member_lounge = member_lounge_welcome_message(
+        123,
+        short_term_channel_id=201,
+        swing_channel_id=202,
+        leaps_channel_id=203,
+    )
+
+    assert "<@123>" in lobby
+    assert "Lobby" in lobby
+    assert "<@123>" in member_lounge
+    assert "Member Lounge" in member_lounge
+    assert "保持独立判断" in member_lounge
+    assert "尊重风险，尊重市场" in member_lounge
+    assert "⚡ Short-Term · <#201>" in member_lounge
+    assert "〽️ Swing · <#202>" in member_lounge
+    assert "♾️ LEAPS · <#203>" in member_lounge
 
 
 def test_card_testing_previews_are_pure_dtos() -> None:

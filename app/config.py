@@ -197,7 +197,7 @@ class Settings:
     stripe_test_day_pass_pricing_version: str = "DAY_PASS_V1"
     stripe_test_monthly_product_id: str | None = None
     stripe_test_monthly_price_id: str | None = None
-    stripe_test_monthly_pricing_version: str = "MONTHLY_V1"
+    stripe_test_monthly_pricing_version: str = "MONTHLY_V2"
     stripe_live_secret_key: str = ""
     stripe_live_publishable_key: str = ""
     stripe_live_webhook_secret: str = ""
@@ -210,7 +210,7 @@ class Settings:
     stripe_live_day_pass_pricing_version: str = "DAY_PASS_V1"
     stripe_live_monthly_product_id: str | None = None
     stripe_live_monthly_price_id: str | None = None
-    stripe_live_monthly_pricing_version: str = "MONTHLY_V1"
+    stripe_live_monthly_pricing_version: str = "MONTHLY_V2"
     stripe_live_webhook_relay_url: str | None = None
     stripe_live_webhook_relay_secret: str = ""
     stripe_live_webhook_relay_poll_seconds: int = 5
@@ -387,8 +387,8 @@ class Settings:
             ),
             stripe_test_monthly_pricing_version=(
                 os.getenv("STRIPE_TEST_MONTHLY_PRICING_VERSION", "").strip()
-                or os.getenv("STRIPE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
-                or "MONTHLY_V1"
+                or os.getenv("STRIPE_MONTHLY_PRICING_VERSION", "MONTHLY_V2").strip()
+                or "MONTHLY_V2"
             ),
             stripe_live_secret_key=os.getenv("STRIPE_LIVE_SECRET_KEY", "").strip(),
             stripe_live_publishable_key=os.getenv("STRIPE_LIVE_PUBLISHABLE_KEY", "").strip(),
@@ -414,8 +414,8 @@ class Settings:
                 os.getenv("STRIPE_LIVE_MONTHLY_PRICE_ID", "").strip() or None
             ),
             stripe_live_monthly_pricing_version=(
-                os.getenv("STRIPE_LIVE_MONTHLY_PRICING_VERSION", "MONTHLY_V1").strip()
-                or "MONTHLY_V1"
+                os.getenv("STRIPE_LIVE_MONTHLY_PRICING_VERSION", "MONTHLY_V2").strip()
+                or "MONTHLY_V2"
             ),
             stripe_live_webhook_relay_url=_parse_optional_url("STRIPE_LIVE_WEBHOOK_RELAY_URL"),
             stripe_live_webhook_relay_secret=os.getenv(

@@ -85,6 +85,55 @@ class ShortTermTrackingCard:
 
 
 @dataclass(frozen=True, slots=True)
+class SwingTrackedEntryCard:
+    """Member-safe Simple Tracked Swing entry payload."""
+
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    entry_price: Decimal
+    is_lotto: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SwingTrackingCard:
+    """Member-safe Simple Tracked Swing TP or terminal payload."""
+
+    public_trade_id: str
+    card_type: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    price: Decimal
+    return_pct: Decimal
+    highest_price: Decimal | None = None
+    highest_return_pct: Decimal | None = None
+    is_lotto: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SwingActivePosition:
+    public_trade_id: str
+    ticker: str
+    expiry: date
+    strike: Decimal
+    option_side: str
+    entry_price: Decimal
+    highest_tp_level: str | None
+    highest_tp_return_pct: int | None
+    highest_price: Decimal
+    highest_return_pct: Decimal
+    current_price: Decimal | None
+    current_return_pct: Decimal | None
+    last_quote_at: datetime | None
+    stale: bool
+    is_lotto: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class ShortTermDailyRow:
     public_trade_id: str
     ticker: str
@@ -140,6 +189,10 @@ class DailyActiveTrade:
     unrealized_pnl_pct: Decimal | None
     quote_time: datetime | None
     is_lotto: bool = False
+    tracking_mode: str | None = None
+    highest_tp_level: str | None = None
+    highest_price: Decimal | None = None
+    highest_return_pct: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)

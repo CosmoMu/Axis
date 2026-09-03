@@ -1,12 +1,12 @@
 # AXIS Known Issues
 
-**Updated:** 2026-09-01
+**Updated:** 2026-09-03
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
 ## P0 — Newcomer Gate 真实用户生命周期 E2E 待验收
 
-Newcomer Role、Discord overwrite、英文 Application、join-review、审批后自动 Trial、终身唯一约束、
+Newcomer Role、Discord overwrite、中文 Application、join-review、审批后自动 Trial、终身唯一约束、
 Risk Scanner 与 Role reconciliation 已完成自动化和 production-safe rollout 工具。仍需使用真实
 Discord 新账户完成 Join → Apply → Approve → Trial → Expiry → Rejoin 的时钟验收；在此之前不能把
 Newcomer Gate 标记为 Live Complete。
@@ -29,6 +29,15 @@ daily snapshot，但尚未完成按验收清单逐项核对的真实 Massive / D
 
 下一步在美股交易时段做一笔可控的真实端到端验收，并记录 quote timestamp、event、Discord
 message 与重启幂等证据。
+
+## P0 — Simple Tracked Swing 真实 E2E 待验收
+
+Swing V2 code、280 项全量回归、forward-only migration 与生产分类检查已经通过，但尚未用一笔
+真实新 Swing 完成 Entry → Massive quote → fixed TP → Manager Close → EOD / Results → restart
+证据链。当前状态必须保持 `CODE COMPLETE / DB MIGRATED / LIVE E2E PENDING`。
+
+迁移时发现五笔既有 Swing，其中四笔 Active；全部已标记为 `LEGACY_SWING` 并保留原 Mentor、
+Position、事件和公开历史。它们继续旧引擎直到关闭，不是迁移错误，也不得手工改成 Simple。
 
 ## P1 — Daily Results Review 首个 Production Day E2E 待验收
 
@@ -72,10 +81,10 @@ Analysis Fusion 已有真实 Published 数据，确定性 chart renderer 也已�
 Mentor、Trade 和 Active View 受 Discord 单个 Select / Embed 25 项限制。当前规模可用；
 超过 25 项时需要分页或搜索，不应通过丢弃数据规避。
 
-## P2 — SWING / LEAPS 后续卡片尚未视觉统一
+## P2 — Legacy Swing / LEAPS 后续卡片尚未视觉统一
 
-ENTRY / STARTER ENTRY 已升级为结构图 + 新文字卡。ADD、TP、RUNNER、CLOSE / SL 仍沿用
-现有公开卡样式；这是本轮明确保留的后续视觉工作，不影响现有交易状态机。
+Legacy Swing 与 LEAPS 的 ENTRY / STARTER ENTRY 已升级为结构图 + 新文字卡。ADD、TP、RUNNER、
+CLOSE / SL 仍沿用现有公开卡样式；Simple Tracked Swing 不使用这些动作或结构图。
 
 ## P2 — 两个旧 check constraint 名称与 ORM naming convention 不一致
 

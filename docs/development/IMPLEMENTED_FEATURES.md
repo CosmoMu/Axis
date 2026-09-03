@@ -1,6 +1,6 @@
 # AXIS Implemented Features
 
-**Updated:** 2026-09-01
+**Updated:** 2026-09-03
 
 本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
 LIVE_MODE_CHECKLIST.md 为准。
@@ -18,17 +18,20 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0026；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+- Alembic revisions 0001–0029；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
   0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
   Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称，
   0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间；
-  0026 增加永久 Approval、Application、Newcomer risk、Role sync 与 Trial 审批溯源。
+  0026 增加永久 Approval、Application、Newcomer risk、Role sync 与 Trial 审批溯源；0027–0028
+  增加当前支付/迎新状态；0029 增加 Swing tracking mode 及独立 tracking/event/snapshot 表，并将
+  既有 Swing 安全回填为 `LEGACY_SWING`。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
 - Input code counters：Signal S-00001、Analysis A-00001、Public Trade ST/SW/LP。
 - Membership Price Catalog、Acknowledgement、Entitlement、Payment Event 和 System Alert。
 - Short-Term Tracking、Event、Daily Snapshot 与 Results 数据结构。
+- Simple Swing Tracking、Event、Daily Snapshot、High/Low Watermark 与冻结 policy version。
 - `daily_results_reviews` / `daily_results_items`、不可变 Final Snapshot、Exclude / Correction
   Audit 与 `guild + trading_date` 唯一约束。
 - Publication claim / retry / finalize 和必要的唯一约束。
@@ -56,7 +59,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   Active View，并显示最近持仓成本；Short-Term 不提供按钮或 Active View。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
-## SWING / LEAPS Entry Plan Visual
+## Legacy Swing / LEAPS Entry Plan Visual
 
 - ENTRY / STARTER ENTRY 使用新的中文结构化交易卡。
 - 期权 Premium 与正股计划点位严格分开。
@@ -72,7 +75,27 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 缺失 Add Zone、PT3 或 0.618 时相应字段和图层自动隐藏。
 - `P-*` publication reference 全部保持内部使用，会员卡不显示长短格式；公开只显示
   `ST-XXXX` / `SW-XXXX` / `LP-XXXX` 订单号。
-- Short-Term builder、tracking 和 policy 未修改。
+- 新 Simple Swing、Short-Term builder/tracker 和 LEAPS 逻辑不使用本节 Legacy Swing 视觉规则。
+
+## Simple Tracked Swing
+
+- 新 Swing 自动标记为 `SIMPLE_TRACKED_SWING`；旧 Swing 永久标记为 `LEGACY_SWING`。
+- Mentor-free、Position-free；不包含 ADD、SL、Runner、Momentum、Prediction Chart、Fib 或交易计划。
+- signal-input → minimal review → publish；Category、完整合约、Entry Price 与 LOTTO 可审核。
+- 独立 `SW-XXXX`，公开 Entry 使用 Short-Term 同类紧凑布局且不泄露内部 publication/event ID。
+- 直接复用当前 Short-Term `ShortTermTrackingPolicy.tp_levels`；没有 Swing TP 数组副本。每笔订单
+  冻结 `tracking_policy_version` 与 `price_source`，每个固定 TP 幂等发布一次。
+- 独立 `SwingTrackingService`、表与 Discord loop；跨 EOD 持续追踪，保存 current/high/low、
+  timestamp、error state、TP history 和每日 snapshot。
+- `close SW-XXXX [@price]` 或 `close TICKER MM/DD STRIKEC/P [@price]` 进入同一 Signal Review；
+  零匹配阻止、多匹配下拉选择，Manager 发布后才停止追踪。
+- 当前报价失败不阻止 Close；可选输入价/最新有效价只保存为 Close Reference。公开 Close 与
+  Results 始终使用追踪窗口内 lifetime verified highest return，并在终止时冻结。
+- Active View 显示成本、最高 TP、High、Current、timestamp 与 stale fallback，并支持分页。
+- EOD 只发布 Active Swing Summary，不关闭订单；Active Simple Swing 不进 Results。Close/Expiry
+  当日进入独立 Swing review candidate，最终仍合并为单条 AXIS DAILY RESULTS。
+- 重启时幂等补注册、恢复 Active tracking、修复 Trade 已关闭但 tracker 尚未结束的窗口。
+- Legacy Swing 保留原 Mentor / Position / Event / UI，四笔迁移时 Active 订单不被新 tracker 接管。
 
 ## Short-Term Automated Tracking
 
@@ -97,8 +120,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 仍未到期但曾被旧价格保护停止的订单会在轮询时幂等恢复；旧公开历史保留、未公开的旧停止
   通知取消。
 - LOTTO 持久化 display flag，不影响 tracking、TP、仓位或结果计算。
-- Short-Term 不发送 Daily Summary；盘中报价按交易日持续更新独立 Daily High / Low，极简
-  official Daily Results 使用对应交易日最高利润点；当天到期订单不会继承此前交易日高点。
+- Short-Term 不发送 Daily Summary；盘中报价按交易日持续更新独立 Daily High / Low 供内部
+  分析，极简 official Daily Results 使用从入场到到期/停止追踪期间的全生命周期最高利润点。
   Swing / LEAPS
   Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
@@ -130,19 +153,26 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   Newcomer，永久 Approval 保留。
 - Monthly 自动续费、PAST_DUE、cancel-at-period-end 和 EXPIRED/CANCELLED/REVOKED lifecycle。
 - 多个有效 entitlement 任一有效即保留 Member Role。
+- Day Pass、Monthly、Gift 与手动 Member Role 首次激活都会在 Member Lounge @mention 欢迎；
+  续费或重复 Role reconciliation 不重复发送。
 - Manager extension 创建独立 MANUAL_EXTENSION，不覆盖原 entitlement。
 
 ## Newcomer Approval / Security Gate
 
 - 首次、从未获批的用户获得唯一 `Newcomer` Role；实际 Discord overwrite 只允许只读
   `welcome`、`results`、`member-wins`，其余频道对 Newcomer 显式 DENY。
-- Welcome 的唯一 onboarding CTA 是 `APPLY TO JOIN AXIS`；所有申请、确认、no-access、Safety、
-  pending/rejected/flagged 和 Manager join-review 内容均为英文。
+- Welcome 与后续申请流程使用纯中文，唯一 onboarding CTA 是 `申请加入 AXIS`，并明确说明
+  欢迎页本身不代表已加入；来源与兴趣选择、推荐人弹窗、风险确认、社区安全协议、提交结果和
+  Manager join-review 均使用中文展示，内部状态码保持不变。
 - Application 保存 discovery source、optional referrer、multi-select interests、Risk / Community
   agreements 和永久 PENDING / FLAGGED / APPROVED / REJECTED 审计。
 - `🛂・join-review` 只允许 Owner / Manager / AXIS BOT；APPROVE / REJECT / FLAG 幂等。
 - Approval 与 Entitlement 分离并永久存在；Approved rejoin 不再申请、不再得到 Trial，按当前
   Entitlement 成为 Member 或普通 `@everyone` visitor。
+- Approval 完成且 Member Role 同步成功后，Bot 在 Lobby 与 Member Lounge 分别 @mention 欢迎；
+  两个 Discord message ID 独立持久化，重启只恢复缺失的一边。
+- Bot 管理的 Approval Role 变更会预先标记为 expected，不再被 Discord member-update 监听器
+  错误导入为永久 MANUAL Entitlement。
 - `NewcomerRiskScanner` 覆盖 VERY_NEW_ACCOUNT、NEW_ACCOUNT、PREVIOUS_REJECTION、
   PREVIOUS_FLAG、TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION；protected
   identity 由 YAML 配置，风险只用于 Flag / Alert / Review，不自动 Kick / Ban / Reject。
@@ -171,10 +201,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 - Welcome、Membership、Results、Member Wins 和 Lobby Topic；Welcome 是第一个公共 AXIS
   Category 的第一个频道，Persistent Card 是默认 onboarding 入口。
-- Welcome 使用 Minimal / Clean / Premium 英文内容；Persistent View 对 Newcomer 只提供
-  `APPLY TO JOIN AXIS`，不显示 Membership、Day Pass、Monthly 或 Stripe Checkout。
-- Welcome 明确说明 Approval 后自动提供 `3 U.S. TRADING DAYS OF FULL MEMBER ACCESS`、No Card、No Automatic
-  Renewal、`MY RISK IS NOT YOUR RISK` 和 staff never-DM-first Safety Notice。
+- Welcome 使用 Minimal / Clean / Premium 中文内容；Persistent View 对 Newcomer 只提供
+  `申请加入 AXIS`，不显示 Membership、Day Pass、Monthly 或 Stripe Checkout。
+- Welcome 明确说明必须先提交加入申请；Approval 后自动提供 3 个美国股票市场交易日完整会员
+  权限、无需信用卡、不会自动续费，并保留中文风险与防诈骗提示。
 - Member Wins 向所有人开放发言和截图上传，并与官方 AXIS Results 严格隔离。
 - AXIS / AXIS BOT / VALE 的 Public Identity Policy。
 - 公开 Membership 卡片使用数据库 Price Catalog。
@@ -210,7 +240,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 ## Daily Results Review
 
 - 实际 XNYS Close + 可配置延迟后生成每日唯一 Draft，Early Close 使用真实收盘时间。
-- 当天 STOPPED 与仍在追踪的全部 Short-Term，以及 CLOSED Swing / LEAPS 默认 Included；
+- 当天 STOPPED 与仍在追踪的全部 Short-Term、当天终止的 Simple Swing，以及 CLOSED Legacy
+  Swing / LEAPS 默认 Included；Active Simple Swing 不进入 Results。
   亏损交易不会被自动隐藏。
 - Manager / Owner 可 Manage Trades、Exclude with Reason、Re-Include、Edit Display、Correct
   Result、Preview、Publish Now；普通 Edit 不修改 Trade History。
@@ -220,9 +251,13 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   Snapshot 不可变，Public Correction 另记 Audit。
 - 全部 Short-Term Results 统一使用完整追踪周期内的期权最高价相对入场价计算收益；不使用
   当前价、停止价或单日快照。公开行显示 ST 订单号、Ticker、到期日、合约代码和收益率，
-  前置 `✅` / `❌` / `➖` 状态并按订单号数字升序排列。Swing / LEAPS 显示 TP / SL 与
-  最高收益；Daily Results 不显示 totals。
-- Results Review 不影响 Swing / LEAPS Daily Summary；Short-Term 继续不发 Daily Summary。
+  前置 `✅` / `❌` / `➖` 状态并按订单号数字升序排列。Simple Swing 使用冻结的 lifetime
+  verified highest return；Legacy Swing / LEAPS 显示原有 TP / SL 与最高收益；Daily Results
+  不显示 totals。
+- Short-Term 跨日 Results 启用 New-High Suppression：只有本次全生命周期最高收益严格超过
+  同订单此前已发布最佳值才再次进入 Review；相同或更低收益不重复发送，新订单首次正常显示。
+- Results Review 不影响 Swing / LEAPS Daily Summary；Simple Swing 的 Summary 只含 Active，
+  Short-Term 继续不发 Daily Summary。
 
 ## Soft Open Reset / Production Boundary
 

@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-01
+**Updated:** 2026-09-03
 
-**Current stage:** Newcomer security gate rollout / Production stabilization
+**Current stage:** Simple Tracked Swing rollout / Production stabilization
 
-**Database revision:** 20260831_0026
+**Database revision:** 20260903_0029
 
 **AXIS LAB:** DEFERRED
 
@@ -27,11 +27,13 @@ webhook、D1 relay、Customer Portal、顾客展示资料与政策页面已完�
 blockers。第一笔真实 Live 付款及完整 lifecycle 尚未验收。
 Newcomer Approval / Free Trial Security Gate 已完成代码、迁移、权限矩阵和自动化回归；生产环境
 已执行 existing-user baseline 与 Discord structure 安全部署，但真实新账户的完整时钟 E2E 仍待验收。
-随后最高优先级仍是 Short-Term / Massive 真实端到端；Production 已有 Short-Term tracking 与
-Massive quote，但 TP/Expiry 触发和正式交易日 Discord 完整证据链仍未验收。
+Swing V2 已实现为独立 Simple Tracked Swing；生产 migration 已把四笔 Active 既有订单明确标记为
+Legacy Swing，未删除或改写历史。新 Simple Swing 代码、迁移与自动化通过，真实 Discord / Massive
+端到端尚未验收。Short-Term 已有 Production tracking 与 Massive quote，但 TP/Expiry 触发和正式
+交易日 Discord 完整证据链仍未验收。
 
-Next execution boundary: 不新增产品功能。先完成真实 Newcomer Join → Apply → Approve → Trial →
-Expiry → Rejoin 验收，再继续 Short-Term / Massive 真实 E2E；Stripe 由 Owner
+Next execution boundary: 不新增产品功能。先完成 Simple Tracked Swing 真实 Entry → TP → Close →
+Results 与 Legacy isolation 验收，再完成 Newcomer 和 Short-Term / Massive 真实 E2E；Stripe 由 Owner
 从 Discord 完成第一笔真实付款并验收 webhook → Entitlement → Member Role，再继续 renewal、
 failure、payment-method update、cancel 与重复/乱序事件。AXIS LAB 继续 Deferred，Signal /
 Analysis / Tracking 业务逻辑保持冻结。
@@ -65,7 +67,7 @@ Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最�
 Implemented: signal-input 文字、图片、多图和转发输入；Structured Output；S-00001 编号；
 Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication；新建
 ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
-已识别价格。行情失败时保留手工审核，不影响草稿生成。Swing / LEAPS 编辑已改为分区向导：
+已识别价格。行情失败时保留手工审核，不影响草稿生成。Legacy Swing / LEAPS 编辑使用分区向导：
 订单类型、Call / Put、仓位等固定值使用下拉菜单，每个输入框只填写一个数据，发布阻塞项使用
 中文逐项显示。
 
@@ -76,18 +78,39 @@ Tests: 解析、附件安全、幂等、并发、审核、发布重试、Public 
 Production status: 已投入使用；Soft Open Reset 后正式 Trade 为 0，2026-08-31 起第一笔真实
 发布将分配新的正式编号并永久保存。
 
-## Swing Pipeline — COMPLETE
+## Simple Tracked Swing — CODE COMPLETE / DB MIGRATED / LIVE E2E PENDING
 
-Implemented: 独立 SW 编号、订单事件、Active View、加仓阶梯、TP / SL / Runner / Close；
-ENTRY 已升级为真实日 K 结构图 + 中文交易计划卡，并使用 Mentor-first / AXIS-fill-missing 点位。
+Implemented: 新 Swing 默认 `SIMPLE_TRACKED_SWING`，不需要 Mentor、Position、ADD、SL、Runner、
+Prediction Chart、Fib 或交易计划；使用精简 Review、独立 `SW-XXXX`、紧凑公开 Entry。Swing
+Tracker 独立于 Short-Term 命名域，但直接读取 Short-Term 当前固定 TP policy，因此没有第二份 TP
+hardcode；每笔订单冻结 policy version 与 price source。支持跨日 High / Low Watermark、幂等 TP、
+Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
-Remaining: 完成真实 Discord Desktop / Mobile ENTRY UX 验收；后续再统一 ADD / TP /
-RUNNER / CLOSE 的视觉样式。
+Manager 可在 `signal-input` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
+追踪。报价失败不阻止已审核 Close；Close Reference 仅作内部参考，公开 Close 与 Results 使用从
+Entry 到 Close/Expiry 的 lifetime verified highest return。Active Simple Swing 不进入 Results，
+终止当日才进入 Swing candidate；最终仍与 Short-Term / LEAPS 合并为一条 AXIS DAILY RESULTS。
 
-Tests: 状态流转、仓位、发布幂等、关闭订单排除、Results、Mentor 点位优先、0.618、
-确定性图片和 Discord attachment。
+Migration: `20260903_0029` 新增 `tracking_mode` 与独立 Swing tracking/event/snapshot 表。迁移前
+五笔 Swing（其中四笔 Active）全部回填为 `LEGACY_SWING`，继续旧 Mentor / Position / event / UI
+流程直至关闭；无删除、无重编号、无历史重写。
 
-Production status: 可用；Soft Open Reset 后正式 Swing 数据为 0，下一笔为 SW-0001。
+Remaining: 完成真实 Discord Desktop / Mobile Entry、真实 Massive quote/TP、Close matching、
+EOD、Results 与重启 E2E。
+
+Tests: Simple Entry、共享 TP 来源、无 protection/momentum、跨日 watermark、TP 幂等、Close ID/
+contract parser、Close publication、quote-failure safe stop、最高收益冻结、Active View、snapshot、
+Legacy isolation 与端到端 publication/tracking 均有自动化覆盖。
+
+Production status: schema 与 Bot runtime 已部署，重启后 Database / Discord verifier 均 PASS；
+尚无新 Simple Swing，真实行情和业务链路仍待验收，不能标记 Live Complete。
+
+## Legacy Swing — COMPATIBILITY MODE / LIVE
+
+Implemented: 所有迁移前 Swing 由持久化 `LEGACY_SWING` 明确识别，并保留原 Mentor、Position、
+ADD、TP、SL、Runner、Close、结构图、Active View 和 Daily Summary。新订单不会进入该模式。
+
+Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭。
 
 ## LEAPS Pipeline — COMPLETE
 
@@ -130,10 +153,11 @@ Implemented:
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
   每日 Active Summary 使用 Massive 当日 Options Daily OHLC 正式收盘价计算收益。
-- Results：当天到期与收盘时仍在追踪的全部 Short-Term 一并进入 Review；盘中 Massive 报价
-  按交易日写入独立 High / Low Snapshot，所有 Short-Term 只使用 Results 当天最高期权价相对
-  入场价计算收益。到期订单显示到期日当天最高利润点，不继承前几天的历史高点，也不使用
-  当前价或到期价。公开行只保留类似 `✅ ST-0001 · MU 08/31 970C +52.94%` 的状态、
+- Results：当天到期与收盘时仍在追踪的 Short-Term 先进入候选集；盘中 Massive 报价继续按
+  交易日写入独立 High / Low Snapshot，但公开收益统一使用从入场到到期/停止追踪期间的
+  全生命周期最高期权价相对入场价计算。只有该值严格超过同订单此前已发布 Results 的最佳值
+  才进入新一轮 Review，相同或更低不重复发送；新订单首次正常显示。公开行只保留
+  类似 `✅ ST-0001 · MU 08/31 970C +52.94%` 的状态、
   订单号、Ticker、到期日、合约代码与收益率；盈利用 `✅`、亏损用 `❌`、持平或不可用用
   `➖`，并按订单号数字升序排列。
 
@@ -177,12 +201,22 @@ Production status: 已部署。
 
 Implemented: 永久 Approval 与当前 Entitlement 分离；首次加入使用 `Newcomer` Role，仅允许只读
 welcome/results/member-wins；其他频道显式 DENY，不能通过继承 `@everyone` 绕过。Welcome 唯一
-CTA 为 `APPLY TO JOIN AXIS`，申请、风险确认、Community Safety 和 join-review 全部使用英文。
+CTA 为 `申请加入 AXIS`；Welcome 卡片为纯中文并重点说明看到欢迎页不等于已加入，必须点击按钮
+提交申请。来源与兴趣选择、推荐人弹窗、风险确认、社区安全协议、提交结果以及 join-review
+卡片和操作按钮均已中文化；数据库状态码与审核幂等逻辑保持不变。
 
 Application 保存 source、optional referrer、multi-select interests、两项 agreement、PENDING /
 FLAGGED / APPROVED / REJECTED、reviewer/time/note。`🛂・join-review` 提供幂等 APPROVE / REJECT /
 FLAG。APPROVE 自动创建 3 U.S. Trading Day $0 Trial、移除 Newcomer、添加 Member；无用户 Claim、
 无卡、无 Stripe、无续费。
+
+Member Role 同步成功后，AXIS BOT 会分别在 `💬・lobby` 与 `🛋️・member-lounge` 真实 @mention
+并欢迎新会员。两个频道各自持久化消息 ID；重启 reconciliation 只补发缺失的一边。生产环境已
+完成首位获批用户的双频道发送与 Discord mention 验证。Member Lounge 使用独立的 premium
+文案；Day Pass、Monthly、Gift 与手动开通导致 Member Role 首次激活时也会发送，续费和重复
+同步不会重复发送。Approval 的 Bot-managed Role 事件已与 manual-role import 隔离；上线核验中
+发现的一条误建永久 MANUAL Entitlement 已审计撤销，原 3 个交易日 Free Trial 与 Member Role
+保持有效。
 
 Trial 终身一次继续由 `membership_trial_lifetime_once(discord_user_id, trial_type)` 保护，并新增
 application/reviewer 溯源。到期保留 Trial 与 Approval 历史，只按 aggregate entitlement 移除
@@ -194,8 +228,9 @@ TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION，使用�
 持久去重 flag、system-alerts fingerprint 去重和 NEWCOMER SECURITY aggregate health。Scanner
 只辅助 Review，不自动 Ban / Kick / Reject。
 
-Production safety: migration `20260831_0026` 与 pre-gate user baseline/cutover 工具已完成；必须先
-dry-run 再应用。Existing Production users 只 baseline 为 Approved，不获得 Trial。
+Production safety: migrations `20260831_0026` / `20260902_0028` / `20260903_0029` 与 pre-gate user baseline/cutover
+工具已完成；必须先 dry-run 再应用。Existing Production users 只 baseline 为 Approved，不获得
+Trial。
 
 Remaining: 真实新 Discord 账户完成 Join → Apply → Approve → Trial → Expiry 的 Live 时钟验收。
 
@@ -239,8 +274,9 @@ payment-method update、cancel、重复/乱序 delivery 与真实 Price Grandfat
 Tests: 单元/集成、Test 历史外部 verifier、dual-mode fallback rejection、kill switch、livemode
 mismatch-before-reservation、environment dedup、价格版本/grandfathering 和 reconciliation repair。
 
-Production status: `STRIPE_ENABLED=true`、`STRIPE_MODE=live`、`PAYMENTS_ENABLED=true`；Live V1
-Day Pass USD 9.99 与 Monthly USD 99.99 catalog 均已绑定，Customer Portal 和公开 webhook 已启用，
+Production status: `STRIPE_ENABLED=true`、`STRIPE_MODE=live`、`PAYMENTS_ENABLED=true`；Live
+Day Pass V1 USD 9.99 与 Monthly V2 USD 149.99 catalog 均已绑定；已有 Monthly V1 订阅保持
+USD 99.99 grandfathered 价格。Customer Portal 和公开 webhook 已启用，
 最终 verifier 为 PASS / 0 blockers。Live billing 接口已上线，但没有执行或伪造真实付款，完整
 Live E2E 仍以 Owner 第一笔真实付款为准。
 
@@ -316,7 +352,8 @@ Implemented: position-event 加权收益、关闭订单 Public DTO，以及统�
 公开展示、纠错、预览或 Publish Now；`16:15 ET` 自动发布，Final Snapshot 不可变保存。
 
 Safety: Exclude 只影响当天 Public Results，保存原因与完整 Audit；不会删除 Trade、Event、
-Tracking、Mentor Dataset、内部绩效或 Swing / LEAPS Summary。Active Trade 不进入 Review，
+Tracking、Mentor Dataset、内部绩效或 Swing / LEAPS Summary。Active Trade（包括 Simple Swing）
+不进入 Review，
 亏损订单不自动隐藏，不显示 Daily Totals。
 
 Remaining: 在第一个有 Eligible Trade 的正式交易日完成 Manager Desktop / Mobile click-through

@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的九份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的十份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -25,7 +25,9 @@
 7. 06_STRIPE_LIVE_PAYMENT_SPEC.md — Test / Live 隔离、kill switch、价格版本和 Stripe Live Gate。
 8. 07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md — Final Newcomer security isolation、Application、
    permanent Approval、automatic 3 U.S. Trading Day Trial 与 Day Pass 交易日边界。
-9. README_FOR_CODEX.md — 本入口和文档使用规则。
+9. 08_SIMPLE_TRACKED_SWING_SPEC.md — Swing V2、Legacy compatibility、固定 TP 追踪、手动关闭、
+   Active View、EOD 与 Results 的最终规则。
+10. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -52,6 +54,9 @@
   `16:15 ET` 幂等发布；Exclude 绝不删除或改写真实 Trade 历史。
 - Short-Term Automated Tracking 的代码和测试已完成，但真实 Massive quote、tracking 注册、
   trigger、Discord 事件和重启恢复尚未完成端到端验收。
+- Swing V2 Simple Tracked Swing 已完成代码、自动化测试、生产 schema migration 与 Bot runtime
+  部署；四笔既有 Active Swing 已安全标记为 `LEGACY_SWING` 并继续旧流程。新 Simple Swing 的
+  真实 Discord / Massive 端到端验收仍待完成。
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
@@ -62,7 +67,7 @@
 当前继续维护：
 
 - Discord Core、权限、持久化控制面板与幂等 Bootstrap
-- Signal / Swing / LEAPS / Short-Term Pipeline
+- Signal / Simple Tracked Swing / Legacy Swing / LEAPS / Short-Term Pipeline
 - Short-Term Automated Tracking、LOTTO、Daily Results Review；Swing / LEAPS Active Position View
 - Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive

@@ -847,7 +847,8 @@ async def test_category_switch_rebuilds_short_term_and_mentor_review_requirement
             actor_user_id=501,
             interaction_id=711,
         )
-        assert publication_missing_fields(swing) == ("mentor", "position_after_eighths")
+        assert publication_missing_fields(swing) == ()
+        assert swing.swing_mode == "SIMPLE_TRACKED_SWING"
         swing_view = ReviewDraftView(
             SimpleNamespace(),
             swing,
@@ -855,7 +856,7 @@ async def test_category_switch_rebuilds_short_term_and_mentor_review_requirement
             trade_choices=[],
         )
         assert (
-            len([item for item in swing_view.children if isinstance(item, discord.ui.Select)]) == 3
+            len([item for item in swing_view.children if isinstance(item, discord.ui.Select)]) == 1
         )
 
         leaps = await service.select_category(

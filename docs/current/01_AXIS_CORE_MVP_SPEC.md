@@ -1,5 +1,10 @@
 # AXIS — Discord Core & Signal MVP Specification
 
+> **Swing V2 override (2026-09-03):** 新建 Swing 已由
+> `08_SIMPLE_TRACKED_SWING_SPEC.md` 覆盖为 Mentor-free、Position-free 的 Simple Tracked Swing。
+> 本文中的 Swing Mentor、ADD、SL、Runner、图表和仓位规则只适用于迁移前的 `LEGACY_SWING`；
+> LEAPS 规则保持不变。
+
 **版本：** MVP v2  
 **品牌：** AXIS  
 **默认时区：** `America/Toronto`  

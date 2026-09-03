@@ -37,6 +37,28 @@ class EarlyCloseCalendar:
         return datetime(2026, 8, 28, 17, 0, tzinfo=UTC)
 
 
+def test_results_renderer_splits_long_sections_without_dropping_lotto_rows() -> None:
+    lines = [
+        f"✅ ST-{index:04d} · TICK {TRADING_DATE:%m/%d} 100C"
+        f"{' (LOTTO)' if index == 35 else ''} +100%"
+        for index in range(1, 36)
+    ]
+    embed = build_daily_results_snapshot_embed(
+        {
+            "title": "AXIS DAILY RESULTS",
+            "trading_date": TRADING_DATE.isoformat(),
+            "sections": [{"label": "SHORT-TERM", "lines": lines}],
+        },
+        review=False,
+    ).to_dict()
+    fields = embed["fields"]
+    rendered = "\n".join(str(field["value"]) for field in fields)
+    assert len(fields) >= 2
+    assert all(len(str(field["value"])) <= 1024 for field in fields)
+    assert fields[1]["name"] == "SHORT-TERM · PAGE 2"
+    assert "ST-0035 · TICK 08/28 100C (LOTTO) +100%" in rendered
+
+
 async def review_database() -> Database:
     database = Database("sqlite+aiosqlite:///:memory:")
     async with database.engine.begin() as connection:
@@ -278,12 +300,12 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         }
         assert all(item.included for item in first.items)
         short = next(item for item in first.items if item.public_trade_id == "ST-0001")
-        assert short.display_result_pct == Decimal("80.0000")
+        assert short.display_result_pct == Decimal("130.0000")
         short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
-        assert short_active.display_result_pct == Decimal("15.0000")
+        assert short_active.display_result_pct == Decimal("19.0000")
         rendered = str(first.snapshot)
-        assert "✅ ST-0001 · NVDA 08/28 200C +80%" in rendered
-        assert "✅ ST-0002 · QQQ 08/28 714C +15%" in rendered
+        assert "✅ ST-0001 · NVDA 08/28 200C (LOTTO) +130%" in rendered
+        assert "✅ ST-0002 · QQQ 08/28 714C +19%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
         async with database.session() as session:
             stored_items = list(
@@ -308,6 +330,161 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         async with database.session() as session:
             assert await session.scalar(select(func.count()).select_from(DailyResultsReview)) == 1
             assert await session.scalar(select(func.count()).select_from(DailyResultsItem)) == 4
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_existing_draft_reconciles_lifetime_high_without_overwriting_correction() -> None:
+    database = await review_database()
+    service = DailyResultsReviewService(database)
+    try:
+        review = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        target = next(item for item in review.items if item.public_trade_id == "ST-0002")
+        async with database.session() as session:
+            tracking = await session.scalar(
+                select(ShortTermTracking).where(ShortTermTracking.trade_id == target.trade_id)
+            )
+            assert tracking is not None
+            tracking.highest_return_pct = Decimal("55")
+            await session.commit()
+
+        refreshed = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        refreshed_target = next(item for item in refreshed.items if item.id == target.id)
+        assert refreshed_target.display_result_pct == Decimal("55.0000")
+
+        await service.correct_result(
+            target.id,
+            corrected_value=Decimal("44"),
+            reason="BAD_QUOTE",
+            actor_user_id=99,
+        )
+        async with database.session() as session:
+            tracking = await session.scalar(
+                select(ShortTermTracking).where(ShortTermTracking.trade_id == target.trade_id)
+            )
+            assert tracking is not None
+            tracking.highest_return_pct = Decimal("75")
+            await session.commit()
+
+        corrected = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        corrected_target = next(item for item in corrected.items if item.id == target.id)
+        assert corrected_target.display_result_pct == Decimal("44.0000")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_existing_draft_adds_simple_swing_closed_after_initial_creation() -> None:
+    database = await review_database()
+    service = DailyResultsReviewService(database)
+    try:
+        initial = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        assert "SW-0003" not in {item.public_trade_id for item in initial.items}
+        async with database.session() as session:
+            session.add(
+                Trade(
+                    guild_id=GUILD_ID,
+                    public_trade_id="SW-0003",
+                    category="SWING",
+                    tracking_mode="SIMPLE_TRACKED_SWING",
+                    ticker="TSLA",
+                    expiry=date(2026, 10, 16),
+                    strike=Decimal("400"),
+                    option_side="CALL",
+                    state="CLOSED",
+                    position_eighths=0,
+                    max_position_eighths=0,
+                    closed_at=ENDED_AT,
+                    final_return_pct=Decimal("125"),
+                )
+            )
+            await session.commit()
+
+        refreshed = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        result = next(item for item in refreshed.items if item.public_trade_id == "SW-0003")
+        assert result.display_result_pct == Decimal("125.0000")
+        assert "最高收益 +125%" in result.display_text
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_short_term_results_only_return_after_beating_prior_published_high() -> None:
+    database = await review_database()
+    service = DailyResultsReviewService(database)
+    try:
+        async with database.session() as session:
+            trades = {
+                trade.public_trade_id: trade
+                for trade in await session.scalars(
+                    select(Trade).where(
+                        Trade.public_trade_id.in_(("ST-0001", "ST-0002"))
+                    )
+                )
+            }
+            prior = DailyResultsReview(
+                guild_id=GUILD_ID,
+                trading_date=date(2026, 8, 27),
+                status="PUBLISHED",
+                draft_snapshot={},
+                final_snapshot={},
+                display_overrides={},
+                scheduled_publish_at=datetime(2026, 8, 27, 20, 15, tzinfo=UTC),
+                discord_public_message_id=700,
+            )
+            session.add(prior)
+            await session.flush()
+            session.add_all(
+                [
+                    DailyResultsItem(
+                        review_id=prior.id,
+                        trade_id=trades["ST-0001"].id,
+                        category="SHORT_TERM",
+                        display_result_pct=Decimal("130"),
+                        included=True,
+                        display_order=0,
+                        snapshot_json=service._trade_payload(trades["ST-0001"]),
+                    ),
+                    DailyResultsItem(
+                        review_id=prior.id,
+                        trade_id=trades["ST-0002"].id,
+                        category="SHORT_TERM",
+                        display_result_pct=Decimal("10"),
+                        included=True,
+                        display_order=1,
+                        snapshot_json=service._trade_payload(trades["ST-0002"]),
+                    ),
+                ]
+            )
+            await session.commit()
+
+        review = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        short_ids = {
+            item.public_trade_id for item in review.items if item.category == "SHORT_TERM"
+        }
+        assert short_ids == {"ST-0002"}
+
+        async with database.session() as session:
+            tracking = await session.scalar(
+                select(ShortTermTracking).where(
+                    ShortTermTracking.trade_id == trades["ST-0001"].id
+                )
+            )
+            assert tracking is not None
+            tracking.highest_return_pct = Decimal("140")
+            await session.commit()
+
+        refreshed = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        short_results = {
+            item.public_trade_id: item.display_result_pct
+            for item in refreshed.items
+            if item.category == "SHORT_TERM"
+        }
+        assert short_results == {
+            "ST-0001": Decimal("140.0000"),
+            "ST-0002": Decimal("19.0000"),
+        }
     finally:
         await database.dispose()
 
@@ -368,7 +545,7 @@ async def test_display_edit_and_result_correction_do_not_modify_trade() -> None:
             saved = await session.get(DailyResultsItem, item.id)
             assert trade is not None and trade.final_return_pct is None
             assert saved is not None
-            assert saved.original_result_pct == Decimal("80.0000")
+            assert saved.original_result_pct == Decimal("130.0000")
             assert saved.display_result_pct == Decimal("140.0000")
             actions = set(await session.scalars(select(AuditLog.action_type)))
             assert "DAILY_RESULTS_DISPLAY_EDITED" in actions

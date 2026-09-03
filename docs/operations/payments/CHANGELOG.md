@@ -1,5 +1,11 @@
 # Payment Operations Changelog
 
+## 2026-09-02 — Monthly V2 set to USD 149.99
+
+- 在 Stripe Test 与 Live 分别创建 `MONTHLY_V2`：USD 149.99/month recurring。
+- Test / Live current catalog 与运行配置均切换到 V2；Discord 和公开网站同步显示 USD 149.99。
+- Monthly V1 保持不可变；已有 USD 99.99 订阅不自动迁移，继续 grandfathering。
+
 ## 2026-09-02 — Free Trial set to three trading days
 
 - 新批准成员的 Free Trial 从 7 个自然日调整为 3 个 XNYS 交易日；周末和美国市场休市日不计入。

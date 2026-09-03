@@ -12,6 +12,8 @@ from app.db.models import (
     DailySummaryPublication,
     MarketQuoteSnapshot,
     Mentor,
+    SwingDailySnapshot,
+    SwingTracking,
     Trade,
     TradeEvent,
 )
@@ -240,6 +242,85 @@ async def test_realtime_last_price_never_substitutes_official_close() -> None:
 
 
 @pytest.mark.asyncio
+async def test_simple_swing_eod_summary_is_active_and_keeps_lifetime_high() -> None:
+    database = await seeded_database()
+    try:
+        async with database.session() as session:
+            trade = Trade(
+                guild_id=GUILD_ID,
+                public_trade_id="SW-0003",
+                category=TradeCategory.SWING.value,
+                tracking_mode="SIMPLE_TRACKED_SWING",
+                mentor_id=None,
+                ticker="TSLA",
+                expiry=date(2026, 10, 16),
+                strike=Decimal("400"),
+                option_side=OptionSide.CALL.value,
+                option_contract_code="O:TSLA261016C00400000",
+                state=TradeState.ACTIVE.value,
+                position_eighths=0,
+                max_position_eighths=0,
+            )
+            session.add(trade)
+            await session.flush()
+            session.add(
+                SwingTracking(
+                    guild_id=GUILD_ID,
+                    trade_id=trade.id,
+                    option_ticker="O:TSLA261016C00400000",
+                    entry_price=Decimal("1"),
+                    current_price=Decimal("1.25"),
+                    current_return_pct=Decimal("25"),
+                    highest_price=Decimal("2"),
+                    highest_return_pct=Decimal("100"),
+                    highest_at=datetime(2026, 8, 28, 18, 0, tzinfo=UTC),
+                    lowest_price=Decimal("0.8"),
+                    lowest_return_pct=Decimal("-20"),
+                    lowest_at=datetime(2026, 8, 28, 17, 0, tzinfo=UTC),
+                    tp_levels_hit=["TP1", "TP2", "TP3", "TP4", "TP5"],
+                    highest_tp_level="TP5",
+                    tracking_state="ACTIVE",
+                    tracking_started_at=datetime(2026, 8, 27, 15, 0, tzinfo=UTC),
+                    last_session_date=SESSION_DATE,
+                    tracking_policy_version="ST_TRACKING_V4",
+                    price_source="MID",
+                    consecutive_data_errors=0,
+                    version=1,
+                )
+            )
+            await session.commit()
+
+        service = DailySummaryService(database, FakeMarketData())
+        assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
+        async with database.session() as session:
+            publication = await session.scalar(
+                select(DailySummaryPublication).where(
+                    DailySummaryPublication.category == TradeCategory.SWING.value
+                )
+            )
+            snapshot = await session.scalar(select(SwingDailySnapshot))
+            stored_trade = await session.scalar(
+                select(Trade).where(Trade.public_trade_id == "SW-0003")
+            )
+        assert publication is not None and snapshot is not None and stored_trade is not None
+        active = next(
+            item
+            for item in publication.snapshot_json["active"]
+            if item["public_trade_id"] == "SW-0003"
+        )
+        assert active["tracking_mode"] == "SIMPLE_TRACKED_SWING"
+        assert active["highest_tp_level"] == "TP5"
+        assert Decimal(active["highest_return_pct"]) == Decimal("100")
+        assert Decimal(active["reference_price"]) == Decimal("1.5")
+        assert Decimal(active["unrealized_pnl_pct"]) == Decimal("50")
+        assert snapshot.closing_price == Decimal("1.5000")
+        assert snapshot.highest_return_pct == Decimal("100.0000")
+        assert stored_trade.state == TradeState.ACTIVE.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_results_review_mode_disables_legacy_direct_results_publication() -> None:
     database = await seeded_database()
     service = DailySummaryService(
@@ -318,7 +399,7 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
         ),
     )
     rendered = str(build_daily_results_embed(card).to_dict())
-    assert "✅ ST-0001 · NVDA 08/28 500C +136.00%" in rendered
+    assert "✅ ST-0001 · NVDA 08/28 500C (LOTTO) +136.00%" in rendered
     assert "❌ ST-0002 · QQQ 08/28 714C -50.00%" in rendered
     assert rendered.index("ST-0001") < rendered.index("ST-0002")
     assert "TP1 +42.00% · TP2 +70.00% · 最高收益 +84.00%" in rendered

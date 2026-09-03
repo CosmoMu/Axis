@@ -11,14 +11,21 @@ Newcomer sees only `👋・welcome`, `📊・results`, and `🏆・member-wins`;
 explicit DENY overwrites for subscriptions, lobby, Member, Manager, Owner and AXIS LAB channels so
 inherited `@everyone` access cannot bypass isolation.
 
-Welcome and all onboarding/review content are English. The only CTA is `APPLY TO JOIN AXIS`.
-Application collects normalized discovery source, optional referrer, multi-select interests, Risk
-Acknowledgement and Community Safety Agreement. Both agreements require `I AGREE`.
+Welcome and the complete application/review experience are Chinese. Welcome clearly states that it
+is only the welcome page, not completed access, and its only CTA is `申请加入 AXIS`. The application
+collects normalized discovery source, optional referrer, multi-select interests, risk confirmation
+and community safety agreement. Both agreements require the Chinese `我已阅读并同意` confirmation;
+the Manager review card and its `批准` / `拒绝` / `标记` actions are also Chinese.
 
 ## Approval and membership lock
 
 APPROVE permanently records approval, reviewer and time. If permanent Trial history is absent, the
 same idempotent workflow creates a $0 Free Trial at approval time, removes Newcomer and adds Member.
+After Member-role reconciliation succeeds, AXIS BOT mentions and welcomes the approved user once in
+both `💬・lobby` and `🛋️・member-lounge`. Each destination stores its Discord message ID separately;
+restart reconciliation retries only a missing destination and never intentionally duplicates a
+completed welcome. Lobby uses a friendly community greeting; Member Lounge uses the restrained,
+premium AXIS member greeting shared by paid and gifted Member activations.
 There is no user claim step, card, Stripe call, or auto-renewal.
 
 - Free Trial = exactly 3 U.S. Trading Days through `TradingCalendarService`; weekends and U.S.

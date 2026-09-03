@@ -15,7 +15,6 @@ from app.db.models import (
     DailyResultsItem,
     DailyResultsReview,
     GuildConfig,
-    ShortTermDailySnapshot,
     ShortTermTracking,
     Trade,
     TradeEvent,
@@ -23,12 +22,7 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import TradeCategory, TradeState
-from app.services.daily_summary import (
-    _tracking_daily_extremes,
-    _trade_result_details,
-    _weighted_return,
-)
-from app.services.short_term_policy import ShortTermTrackingPolicy
+from app.services.daily_summary import _trade_result_details, _weighted_return
 from app.services.trading_calendar import TradingCalendarService
 
 DEFAULT_SECTION_ORDER = ("SHORT_TERM", "SWING", "LEAPS")
@@ -125,6 +119,7 @@ def _contract(payload: dict[str, object]) -> str:
 
 def _short_term_result_contract(payload: dict[str, object]) -> str:
     side = "C" if payload["option_side"] == "CALL" else "P"
+    lotto = "(LOTTO)" if payload.get("is_lotto") else ""
     expiry_value = payload.get("expiry")
     expiry = ""
     if expiry_value:
@@ -138,6 +133,7 @@ def _short_term_result_contract(payload: dict[str, object]) -> str:
             str(payload["ticker"]),
             expiry,
             f"{_number(payload['strike'])}{side}",
+            lotto,
         )
         if part
     )
@@ -246,6 +242,38 @@ class DailyResultsReviewService:
             )
             if existing is not None:
                 review_id = existing.id
+                if existing.final_snapshot is None and existing.status not in {
+                    "PUBLISHED",
+                    "CORRECTED",
+                }:
+                    previous_snapshot = existing.draft_snapshot
+                    updated, added, removed = await self._sync_short_term_lifetime_results(
+                        session,
+                        existing,
+                    )
+                    terminal_updated, terminal_added = await self._sync_terminal_results(
+                        session,
+                        existing,
+                    )
+                    changed = updated + added + removed + terminal_updated + terminal_added
+                    if changed == 0:
+                        await self._refresh_draft_snapshot(session, existing)
+                    if changed:
+                        self._audit(
+                            session,
+                            existing,
+                            actor_user_id=0,
+                            action_type="DAILY_RESULTS_LIFETIME_HIGH_SYNCED",
+                            after={
+                                "updated_trade_count": updated,
+                                "added_trade_count": added,
+                                "removed_trade_count": removed,
+                                "terminal_updated_trade_count": terminal_updated,
+                                "terminal_added_trade_count": terminal_added,
+                            },
+                        )
+                    if changed or existing.draft_snapshot != previous_snapshot:
+                        await session.commit()
             else:
                 config = await session.get(GuildConfig, guild_id)
                 if config is None:
@@ -255,42 +283,17 @@ class DailyResultsReviewService:
                 if config.results_channel_id is None:
                     raise ResultsReviewError("RESULTS_CHANNEL_NOT_CONFIGURED")
                 start, end = _bounds(trading_date, self.timezone_name)
-                tracking_rows = (
-                    await session.execute(
-                        select(ShortTermTracking, Trade)
-                        .join(Trade, Trade.id == ShortTermTracking.trade_id)
-                        .where(
-                            ShortTermTracking.guild_id == guild_id,
-                            (
-                                ShortTermTracking.tracking_state.in_(
-                                    ACTIVE_SHORT_TERM_STATES
-                                )
-                                | (
-                                    (ShortTermTracking.tracking_state == "STOPPED")
-                                    & (ShortTermTracking.tracking_ended_at >= start)
-                                    & (ShortTermTracking.tracking_ended_at < end)
-                                )
-                            ),
-                        )
-                        .order_by(Trade.public_trade_id)
-                    )
-                ).all()
-                tracking_ids = [tracking.id for tracking, _trade in tracking_rows]
-                daily_snapshots = (
-                    list(
-                        await session.scalars(
-                            select(ShortTermDailySnapshot).where(
-                                ShortTermDailySnapshot.tracking_id.in_(tracking_ids),
-                                ShortTermDailySnapshot.session_date == trading_date,
-                            )
-                        )
-                    )
-                    if tracking_ids
-                    else []
+                tracking_rows = await self._eligible_short_term_rows(
+                    session,
+                    guild_id,
+                    trading_date,
                 )
-                daily_snapshots_by_tracking = {
-                    snapshot.tracking_id: snapshot for snapshot in daily_snapshots
-                }
+                prior_peaks = await self._prior_published_short_term_peaks(
+                    session,
+                    guild_id,
+                    trading_date,
+                    {trade.id for _, trade in tracking_rows},
+                )
                 closed = list(
                     await session.scalars(
                         select(Trade)
@@ -334,16 +337,10 @@ class DailyResultsReviewService:
                 await session.flush()
                 order = 0
                 for tracking, trade in tracking_rows:
-                    snapshot = daily_snapshots_by_tracking.get(tracking.id)
-                    daily_high_price = (
-                        snapshot.highest_price
-                        if snapshot is not None
-                        else _tracking_daily_extremes(tracking, trading_date)[0]
-                    )
-                    peak_return_pct = ShortTermTrackingPolicy.return_pct(
-                        tracking.entry_price,
-                        daily_high_price,
-                    )
+                    peak_return_pct = tracking.highest_return_pct
+                    prior_peak = prior_peaks.get(trade.id)
+                    if prior_peak is not None and peak_return_pct <= prior_peak:
+                        continue
                     session.add(
                         DailyResultsItem(
                             review_id=review.id,
@@ -808,6 +805,251 @@ class DailyResultsReviewService:
             )
         )
         review.draft_snapshot = self._snapshot(review, items, public=False)
+
+    async def _sync_short_term_lifetime_results(
+        self,
+        session,
+        review: DailyResultsReview,
+    ) -> tuple[int, int, int]:
+        tracking_rows = await self._eligible_short_term_rows(
+            session,
+            review.guild_id,
+            review.trading_date,
+        )
+        tracking_by_trade = {
+            trade.id: (tracking, trade) for tracking, trade in tracking_rows
+        }
+        prior_peaks = await self._prior_published_short_term_peaks(
+            session,
+            review.guild_id,
+            review.trading_date,
+            set(tracking_by_trade),
+        )
+        items = list(
+            await session.scalars(
+                select(DailyResultsItem).where(
+                    DailyResultsItem.review_id == review.id,
+                    DailyResultsItem.category == TradeCategory.SHORT_TERM.value,
+                )
+            )
+        )
+        items_by_trade = {item.trade_id: item for item in items}
+        updated = 0
+        added = 0
+        removed = 0
+        for item in items:
+            candidate = tracking_by_trade.get(item.trade_id)
+            if candidate is None:
+                continue
+            tracking, _ = candidate
+            prior_peak = prior_peaks.get(item.trade_id)
+            improved = prior_peak is None or tracking.highest_return_pct > prior_peak
+            manager_owned = (
+                item.corrected_at is not None
+                or item.display_text_override is not None
+                or not item.included
+            )
+            if not improved and not manager_owned:
+                await session.delete(item)
+                removed += 1
+                continue
+            if item.corrected_at is None and item.display_result_pct != tracking.highest_return_pct:
+                item.display_result_pct = tracking.highest_return_pct
+                updated += 1
+
+        next_order = max((item.display_order for item in items), default=-1) + 1
+        for trade_id, (tracking, trade) in tracking_by_trade.items():
+            if trade_id in items_by_trade:
+                continue
+            prior_peak = prior_peaks.get(trade_id)
+            if prior_peak is not None and tracking.highest_return_pct <= prior_peak:
+                continue
+            session.add(
+                DailyResultsItem(
+                    review_id=review.id,
+                    trade_id=trade.id,
+                    category=TradeCategory.SHORT_TERM.value,
+                    display_result_pct=tracking.highest_return_pct,
+                    included=True,
+                    display_order=next_order,
+                    snapshot_json=self._trade_payload(trade),
+                )
+            )
+            next_order += 1
+            added += 1
+
+        if updated or added or removed:
+            await self._refresh_draft_snapshot(session, review)
+        return updated, added, removed
+
+    async def _eligible_short_term_rows(
+        self,
+        session,
+        guild_id: int,
+        trading_date: date,
+    ) -> list[tuple[ShortTermTracking, Trade]]:
+        start, end = _bounds(trading_date, self.timezone_name)
+        return list(
+            (
+                await session.execute(
+                    select(ShortTermTracking, Trade)
+                    .join(Trade, Trade.id == ShortTermTracking.trade_id)
+                    .where(
+                        ShortTermTracking.guild_id == guild_id,
+                        (
+                            ShortTermTracking.tracking_state.in_(ACTIVE_SHORT_TERM_STATES)
+                            | (
+                                (ShortTermTracking.tracking_state == "STOPPED")
+                                & (ShortTermTracking.tracking_ended_at >= start)
+                                & (ShortTermTracking.tracking_ended_at < end)
+                            )
+                        ),
+                    )
+                    .order_by(Trade.public_trade_id)
+                )
+            ).all()
+        )
+
+    async def _sync_terminal_results(
+        self,
+        session,
+        review: DailyResultsReview,
+    ) -> tuple[int, int]:
+        """Add Swing/LEAPS that became terminal after the EOD draft was first created."""
+
+        start, end = _bounds(review.trading_date, self.timezone_name)
+        trades = list(
+            await session.scalars(
+                select(Trade)
+                .where(
+                    Trade.guild_id == review.guild_id,
+                    Trade.category.in_((TradeCategory.SWING.value, TradeCategory.LEAPS.value)),
+                    Trade.state == TradeState.CLOSED.value,
+                    Trade.closed_at >= start,
+                    Trade.closed_at < end,
+                )
+                .order_by(Trade.category, Trade.public_trade_id)
+            )
+        )
+        trade_ids = [trade.id for trade in trades]
+        events = (
+            list(
+                await session.scalars(
+                    select(TradeEvent)
+                    .where(TradeEvent.trade_id.in_(trade_ids))
+                    .order_by(TradeEvent.trade_id, TradeEvent.created_at, TradeEvent.id)
+                )
+            )
+            if trade_ids
+            else []
+        )
+        events_by_trade: dict[uuid.UUID, list[TradeEvent]] = {}
+        for event in events:
+            events_by_trade.setdefault(event.trade_id, []).append(event)
+        items = list(
+            await session.scalars(
+                select(DailyResultsItem).where(
+                    DailyResultsItem.review_id == review.id,
+                    DailyResultsItem.category.in_(
+                        (TradeCategory.SWING.value, TradeCategory.LEAPS.value)
+                    ),
+                )
+            )
+        )
+        items_by_trade = {item.trade_id: item for item in items}
+        next_order = max(
+            await session.scalars(
+                select(DailyResultsItem.display_order).where(
+                    DailyResultsItem.review_id == review.id
+                )
+            ),
+            default=-1,
+        ) + 1
+        updated = 0
+        added = 0
+        for trade in trades:
+            trade_events = events_by_trade.get(trade.id, [])
+            final_return = trade.final_return_pct
+            if final_return is None:
+                final_return = _weighted_return(trade_events)
+            tp_returns, highest, exit_label, exit_return = _trade_result_details(
+                trade_events, final_return
+            )
+            payload = self._trade_payload(trade)
+            payload.update(
+                {
+                    "tp_returns": [
+                        [label, str(return_pct)] for label, return_pct in tp_returns
+                    ],
+                    "highest_return_pct": str(highest) if highest is not None else None,
+                    "exit_label": exit_label,
+                    "exit_return_pct": str(exit_return) if exit_return is not None else None,
+                }
+            )
+            item = items_by_trade.get(trade.id)
+            if item is None:
+                session.add(
+                    DailyResultsItem(
+                        review_id=review.id,
+                        trade_id=trade.id,
+                        category=trade.category,
+                        display_result_pct=final_return,
+                        included=True,
+                        display_order=next_order,
+                        snapshot_json=payload,
+                    )
+                )
+                next_order += 1
+                added += 1
+                continue
+            item_changed = False
+            if item.corrected_at is None and item.display_result_pct != final_return:
+                item.display_result_pct = final_return
+                item_changed = True
+            if item.snapshot_json != payload:
+                item.snapshot_json = payload
+                item_changed = True
+            if item_changed:
+                updated += 1
+        if updated or added:
+            await self._refresh_draft_snapshot(session, review)
+        return updated, added
+
+    @staticmethod
+    async def _prior_published_short_term_peaks(
+        session,
+        guild_id: int,
+        trading_date: date,
+        trade_ids: set[uuid.UUID],
+    ) -> dict[uuid.UUID, Decimal]:
+        if not trade_ids:
+            return {}
+        rows = (
+            await session.execute(
+                select(DailyResultsItem.trade_id, DailyResultsItem.display_result_pct)
+                .join(
+                    DailyResultsReview,
+                    DailyResultsReview.id == DailyResultsItem.review_id,
+                )
+                .where(
+                    DailyResultsReview.guild_id == guild_id,
+                    DailyResultsReview.trading_date < trading_date,
+                    DailyResultsReview.discord_public_message_id.is_not(None),
+                    DailyResultsItem.category == TradeCategory.SHORT_TERM.value,
+                    DailyResultsItem.included.is_(True),
+                    DailyResultsItem.trade_id.in_(trade_ids),
+                    DailyResultsItem.display_result_pct.is_not(None),
+                )
+            )
+        ).all()
+        peaks: dict[uuid.UUID, Decimal] = {}
+        for trade_id, value in rows:
+            if value is None:
+                continue
+            previous = peaks.get(trade_id)
+            if previous is None or value > previous:
+                peaks[trade_id] = value
+        return peaks
 
     def _snapshot(
         self,

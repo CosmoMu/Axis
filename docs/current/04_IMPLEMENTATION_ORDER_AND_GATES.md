@@ -1,12 +1,16 @@
 # AXIS — Codex Implementation Order & Release Gates
 
-## Current execution state — 2026-08-31
+> **Swing V2 override (2026-09-03):** Simple Tracked Swing is implemented and deployed under
+> `08_SIMPLE_TRACKED_SWING_SPEC.md`. Any older Swing gate below that requires Mentor, Position,
+> ADD, SL, Runner, or chart applies only to `LEGACY_SWING`; LEAPS and Short-Term remain unchanged.
+
+## Current execution state — 2026-09-03
 
 Core Stage 1–4 implementation is complete, automated Gate A and Gate B are PASS, and the project is
-now in Stage 5 production live validation. The current blocking priority is the real Short-Term /
-Massive end-to-end path. Stripe dual-environment foundation is complete, but account activation/KYC
-and external Live resources remain blocked; `PAYMENTS_ENABLED=false` until every Live checklist item
-is complete.
+now in Stage 5 production live validation. Simple Tracked Swing code/schema/runtime is deployed and
+awaits its first real Discord/Massive E2E; four active Legacy Swing orders remain isolated on the old
+engine. Short-Term/Massive and Newcomer still require their recorded live E2E. Stripe Live is enabled
+with zero readiness blockers, while its first real payment lifecycle remains pending Owner acceptance.
 AXIS LAB remains deferred and is not part of Stage 5.
 
 ## 0. 先读文档

@@ -18,6 +18,7 @@ from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
+from app.bot.cogs.swing_tracking import SwingTrackingCog
 from app.bot.cogs.system_alerts import SystemAlertsCog
 from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
@@ -41,6 +42,7 @@ from app.services.newcomer_access import NewcomerAccessService, NewcomerRiskScan
 from app.services.official_results import OfficialResultsService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.signal_input import SignalInputService
+from app.services.swing_tracking import SwingTrackingService
 from app.services.system_alerts import SystemAlertService
 from app.services.trade_publication import TradePublicationService
 
@@ -65,6 +67,7 @@ class AxisBot(commands.Bot):
         card_review_service: CardReviewService,
         trade_publication_service: TradePublicationService,
         short_term_tracking_service: MarketTrackingService,
+        swing_tracking_service: SwingTrackingService,
         mentor_service: MentorManagementService,
         membership_service: MembershipManagementService,
         membership_access_service: MembershipAccessService,
@@ -110,6 +113,7 @@ class AxisBot(commands.Bot):
             service=card_review_service,
             publication_service=trade_publication_service,
             tracking_service=short_term_tracking_service,
+            swing_tracking_service=swing_tracking_service,
             trade_plan_service=swing_leaps_trade_plan_service,
             guild_id=settings.discord_guild_id,
             channel_id=_required_snowflake(channels, "card_review"),
@@ -125,6 +129,10 @@ class AxisBot(commands.Bot):
             member_role_id=_required_snowflake(roles, "member"),
             mentor_channel_id=_required_snowflake(channels, "mentor_control"),
             member_channel_id=_required_snowflake(channels, "member_control"),
+            member_lounge_channel_id=_required_snowflake(channels, "member_chat"),
+            short_term_channel_id=_required_snowflake(channels, "short_term_alerts"),
+            swing_channel_id=_required_snowflake(channels, "swing_alerts"),
+            leaps_channel_id=_required_snowflake(channels, "leaps_alerts"),
             mentor_service=mentor_service,
             membership_service=membership_service,
             results_service=results_service,
@@ -138,10 +146,16 @@ class AxisBot(commands.Bot):
             member_role_id=_required_snowflake(roles, "member"),
             newcomer_role_id=_required_snowflake(roles, "newcomer"),
             join_review_channel_id=_required_snowflake(channels, "join_review"),
+            lobby_channel_id=_required_snowflake(channels, "lobby"),
+            member_lounge_channel_id=_required_snowflake(channels, "member_chat"),
+            short_term_channel_id=_required_snowflake(channels, "short_term_alerts"),
+            swing_channel_id=_required_snowflake(channels, "swing_alerts"),
+            leaps_channel_id=_required_snowflake(channels, "leaps_alerts"),
             system_alerts_channel_id=_required_snowflake(channels, "system_alerts"),
             service=newcomer_access_service,
             access_service=membership_access_service,
             risk_scanner=newcomer_risk_scanner,
+            expect_member_role_change=self._manager_control_cog.expect_member_role_change,
             free_trial_trading_days=settings.new_member_free_trial_trading_days,
         )
         results_channel_id = _required_snowflake(channels, "official_results")
@@ -250,6 +264,12 @@ class AxisBot(commands.Bot):
             guild_id=settings.discord_guild_id,
             poll_seconds=short_term_tracking_service.policy.poll_seconds,
         )
+        self._swing_tracking_cog = SwingTrackingCog(
+            self,
+            service=swing_tracking_service,
+            guild_id=settings.discord_guild_id,
+            poll_seconds=swing_tracking_service.policy.poll_seconds,
+        )
         self._guild_command_target = discord.Object(id=settings.discord_guild_id)
         self._guild_commands_synced = False
 
@@ -259,6 +279,7 @@ class AxisBot(commands.Bot):
             await self.add_cog(self._draft_worker_cog)
         await self.add_cog(self._card_review_cog)
         await self.add_cog(self._short_term_tracking_cog)
+        await self.add_cog(self._swing_tracking_cog)
         await self.add_cog(self._manager_control_cog)
         await self.add_cog(self._system_alerts_cog)
         await self.add_cog(self._newcomer_access_cog)

@@ -1,6 +1,6 @@
 # AXIS Next Steps
 
-**Updated:** 2026-08-31
+**Updated:** 2026-09-03
 
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
@@ -14,7 +14,26 @@ Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production 
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・card-testing`。
 
-## Priority 0 — Newcomer Gate Live E2E
+## Priority 0A — Simple Tracked Swing Live E2E
+
+Work:
+
+- 用下一笔真实新 Swing 验证 minimal review 不出现 Mentor、Position、ADD、SL、Runner 或图表。
+- 核对 `SIMPLE_TRACKED_SWING`、SW ID、真实 Massive quote、High/Low Watermark 和冻结 policy。
+- 触发至少一个 shared fixed TP，确认编号来自 Short-Term policy 且重启不重复。
+- 分别验证 `close SW-XXXX` 和完整合约 matching；确认 Manager Review 后才停止追踪，报价失败时
+  仍能安全 Close，Close Reference 不替代 lifetime highest return。
+- 检查 Active View forced refresh/stale fallback、EOD Active Summary、终止当日 Results、单条合并
+  public results，以及 expiry/restart recovery。
+- 确认四笔 Active `LEGACY_SWING` 继续原 Mentor/Position UI 和旧事件引擎，LEAPS/Short-Term 无变化。
+
+Exit criteria:
+
+- Discord message、trade/tracking/event/snapshot/result 数据一致且没有重复 TP 或公开 Results。
+- Active Simple Swing 不进入 Results；Close/Expiry 当日结果等于冻结 lifetime verified high。
+- Legacy Swing 没有被注册到 Simple tracker，生产历史未删除、重编号或改写。
+
+## Priority 0B — Newcomer Gate Live E2E
 
 Work:
 

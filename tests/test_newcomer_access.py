@@ -228,6 +228,48 @@ async def test_approved_application_without_trial_is_recoverable_after_restart()
 
 
 @pytest.mark.asyncio
+async def test_approved_member_welcomes_are_persisted_per_destination() -> None:
+    database, newcomer, _, _ = await setup_services()
+    try:
+        application = await submit(newcomer)
+        approved = await newcomer.review(
+            application.id,
+            action="APPROVED",
+            actor_user_id=MANAGER_ID,
+            interaction_id=260,
+        )
+        pending = await newcomer.approved_applications_pending_welcome(GUILD_ID)
+        assert [item.id for item in pending] == [approved.id]
+
+        assert await newcomer.attach_approval_welcome_message(
+            approved.id,
+            destination="LOBBY",
+            message_id=701,
+            actor_user_id=MANAGER_ID,
+        )
+        assert not await newcomer.attach_approval_welcome_message(
+            approved.id,
+            destination="LOBBY",
+            message_id=702,
+            actor_user_id=MANAGER_ID,
+        )
+        partially_sent = await newcomer.get_application(approved.id)
+        assert partially_sent is not None
+        assert partially_sent.lobby_welcome_message_id == 701
+        assert partially_sent.member_lounge_welcome_message_id is None
+
+        assert await newcomer.attach_approval_welcome_message(
+            approved.id,
+            destination="MEMBER_LOUNGE",
+            message_id=703,
+            actor_user_id=MANAGER_ID,
+        )
+        assert await newcomer.approved_applications_pending_welcome(GUILD_ID) == ()
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_trial_requires_approved_application_and_uses_trading_calendar() -> None:
     database, newcomer, _, access = await setup_services()
     try:

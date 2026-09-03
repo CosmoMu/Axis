@@ -19,7 +19,7 @@
 
 - Product：`AXIS Membership`。
 - Day Pass V1：USD 9.99 one-time，一个 XNYS Trading Day。
-- Monthly V1：USD 99.99/month，自动续费。
+- Monthly V2：USD 149.99/month，自动续费；V1 已有订阅继续按 USD 99.99/month grandfathering。
 - Free Trial 继续是 AXIS 内部 Entitlement，不通过 Stripe。
 - Price 不可变；新金额创建 V2，只有新 Checkout 使用 current 版本。既有 subscription 保留
   signup Price、版本、金额和币种快照，不自动迁移。
@@ -32,6 +32,9 @@
 - Portal 取消必须为 period end；payment failed 进入 `PAST_DUE`，不立即删除访问；最终无效后
   再结束对应 Entitlement。
 - `MembershipAccessService` 汇总全部 Entitlement 决定访问，Discord Member Role 只是投影。
+- Day Pass、Monthly、Gift 或手动开通使用户从无 Member Role 转为有 Member Role 时，AXIS BOT
+  在 `🛋️・member-lounge` 发送一次带真实 @mention 的高级会员欢迎语。续费及重复 Role sync
+  不改变 Role，因此不重复欢迎。
 
 ## Live gate
 

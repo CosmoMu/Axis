@@ -42,9 +42,10 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260830_0022`。0019 增加持久化 `is_lotto`，把 Short-Term tracking 迁移为
-TP1–TP10 与 tracking protection 命名；0020 清除旧 Short-Term Mentor 关联并保留完整历史；
-0021 增加期权到期日解析 trace；0022 增加 Daily Results Review：
+当前 revision `20260903_0029`。0019–0022 增加 LOTTO、Short-Term policy/history、expiry trace
+与 Daily Results Review；0023–0028 增加 Stripe 环境隔离、永久 Approval / Newcomer Gate 和会员
+欢迎状态；0029 增加明确的 Swing `tracking_mode` 与独立 Simple Swing tracking/event/snapshot
+表，并将迁移前 Swing 回填为 `LEGACY_SWING`：
 
 ```text
 guild_config
@@ -83,9 +84,13 @@ daily_summary_publications
 daily_results_publications
 daily_results_reviews
 daily_results_items
+swing_tracking
+swing_tracking_events
+swing_daily_snapshots
 ```
 
 交易持仓以 `position_eighths` 保存，数据库约束范围为 `0..8`；事件增减范围为 `-8..8`。
+Simple Tracked Swing 固定使用 0 仓位单位；`tracking_mode` 防止 Legacy Swing 被新 tracker 接管。
 管理员写操作所需的 actor、before/after JSON 与 Discord Interaction ID 由 `audit_logs` 保存。
 `llm_invocations` 保存实际 provider、model、workload、Prompt/Schema version、latency、
 success 与 error_type；旧调用无法证明的字段不会伪造回填。

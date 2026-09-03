@@ -13,11 +13,12 @@ this` 成功提示会在 4 秒后删除，错误提示在 12 秒后删除；Prev
 
 - `Select Category`：LLM 根据持有周期、到期日和输入语境预选短线、波段或长期；
   Manager 只需在判断不正确时直接用卡片顶部的下拉框修改。
-- `Select Mentor`：卡片内固定下拉菜单，只显示当前有效 Mentor，不使用 LLM 自动分配。
+- `Select Mentor`：只用于 LEAPS 与 Legacy Swing；新 Simple Swing 和 Short-Term 不显示。
 - `Link Order`：卡片内固定下拉菜单，只显示当前 `ACTIVE/RUNNER` 订单，用于更新类 Draft。
   暂无可选项时下拉框会禁用，不再弹出额外的临时菜单。
-- `完整编辑`：编辑操作、合约、价格、SL/TP 和仓位。
-- `重新生成图片`：按当前已编辑的 Swing / LEAPS 内容重建确定性交易计划图。
+- `完整编辑`：LEAPS / Legacy Swing 编辑操作、合约、价格、SL/TP 和仓位；Simple Swing 使用
+  精简的合约与 Entry Price 编辑。
+- `重新生成图片`：只按当前已编辑的 LEAPS / Legacy Swing 内容重建确定性交易计划图。
 - `LOTTO · YES/NO`：三种 Category 都可切换；只影响公开显示，不改变业务逻辑。
 - `确认发布`：校验发布条件、预约幂等 Publication，并发送到对应会员频道。
 - `删除`：需要二次确认，仅软删除为 `DELETED`。
@@ -55,12 +56,16 @@ SL | TP1 | TP2 | 当前收益%
 
 ## 发布前条件
 
-Swing / LEAPS 新订单需要 Mentor、已确认的分类、Ticker、Expiry、Strike、Call/Put、入场价格
-或区间以及操作后持仓。更新订单需要 Mentor、已关联订单、操作类型、价格或
+LEAPS 与 Legacy Swing 新订单需要 Mentor、已确认的分类、Ticker、Expiry、Strike、Call/Put、
+入场价格或区间以及操作后持仓。更新订单需要 Mentor、已关联订单、操作类型、价格或
 明确更新内容以及操作后持仓。
 
 Short-Term 只需要 Category、Ticker、Expiry、Strike、Call/Put 与 Entry Price，不选择
 Mentor、不关联订单、不填写仓位。
+
+新 Simple Swing 与 Short-Term 相同，只需要 Category、Ticker、明确 Expiry、Strike、Call/Put 与
+Entry Price，并可切换 LOTTO。Close 可用 SW ID 或完整合约匹配 active Simple Swing，必须经过
+Review/Publish 才停止追踪；详情见 `trading/SWING_TRACKING.md`。
 
 全部平仓、完全触发 SL 或取消订单时，操作后持仓必须为 0。加仓不能降低已有
 持仓，减仓不能增加已有持仓。任何改变仓位的更新都必须填写本次操作价格。
@@ -81,6 +86,6 @@ Mentor、不关联订单、不填写仓位。
 - 会员发布预约、失败与完成；
 - 软删除。
 
-发布后会创建或更新 Trade 并写入唯一 Trade Event。Swing / LEAPS 卡片附加 persistent
-`查看当前持仓订单`；Short-Term 不附加按钮。发送后数据库回写中断时，Bot 使用 Public
+发布后会创建或更新 Trade 并写入唯一 Trade Event。Simple/Legacy Swing 与 LEAPS 卡片附加
+persistent `查看当前持仓订单`；Short-Term 不附加按钮。发送后数据库回写中断时，Bot 使用 Public
 Footer marker 恢复原消息，不会重复发卡。

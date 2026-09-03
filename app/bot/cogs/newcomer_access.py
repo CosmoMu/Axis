@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -11,6 +13,7 @@ import discord
 from discord.ext import commands, tasks
 
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
+from app.bot.member_welcomes import community_welcome_message, member_lounge_welcome_message
 from app.db.models import GuildConfig
 from app.domain.enums import AccessApplicationStatus
 from app.services.membership_access import MembershipAccessError, MembershipAccessService
@@ -27,52 +30,81 @@ from app.services.newcomer_access import (
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/Toronto")
 
+APPLICATION_STATUS_LABELS = {
+    "PENDING": "待审核",
+    "FLAGGED": "已标记",
+    "APPROVED": "已批准",
+    "REJECTED": "已拒绝",
+}
+RISK_CODE_LABELS = {
+    "VERY_NEW_ACCOUNT": "Discord 账户注册时间不足 7 天",
+    "NEW_ACCOUNT": "Discord 账户注册时间不足 30 天",
+    "PREVIOUS_REJECTION": "曾有申请被拒绝",
+    "PREVIOUS_FLAG": "曾有申请被标记",
+    "TRIAL_ALREADY_USED": "已使用免费体验",
+    "REJOIN_WITHOUT_APPROVAL": "未获批准重复加入",
+    "POSSIBLE_IMPERSONATION": "疑似身份冒充",
+}
+
 
 def welcome_application_embed(*, trial_days: int = 3) -> discord.Embed:
     embed = discord.Embed(
-        title="WELCOME TO AXIS",
+        title="👋 欢迎来到 AXIS",
         description=(
-            "**Signals without the noise.**\n\n"
-            "New members must complete a short access application before entering AXIS.\n\n"
-            "Once approved, you will automatically receive:\n\n"
-            f"**{trial_days} U.S. TRADING DAYS OF FULL MEMBER ACCESS**\n\n"
-            "No credit card required.\nNo automatic renewal."
+            "**这里只是 AXIS 欢迎界面**\n\n"
+            "看到这个页面并不代表你已经加入 AXIS。\n\n"
+            "**如需加入，请点击下方绿色「申请加入 AXIS」按钮并提交申请。**"
         ),
         color=0x86F7A8,
     )
     embed.add_field(
-        name="MEMBER ACCESS INCLUDES",
-        value="⚡ Short-Term\n〽️ Swing\n♾️ LEAPS\n🛋️ Member Lounge",
-        inline=False,
-    )
-    embed.add_field(
-        name="RISK NOTICE",
+        name="🚪 如何加入",
         value=(
-            "AXIS provides market analysis, research, and educational content only.\n\n"
-            "Nothing provided by AXIS constitutes investment or financial advice.\n\n"
-            "Trading involves risk.\n\n**MY RISK IS NOT YOUR RISK.**"
+            "1. 点击下方「申请加入 AXIS」按钮。\n"
+            "2. 填写简短的加入申请。\n"
+            "3. 提交后等待管理员审核。"
         ),
         inline=False,
     )
     embed.add_field(
-        name="SAFETY NOTICE",
+        name="🎁 审核通过后",
         value=(
-            "AXIS staff will never DM you first asking for private payment, passwords, "
-            "brokerage credentials, crypto transfers, or remote access."
+            f"自动获得 **{trial_days} 个美国股票市场交易日**的完整会员权限。\n\n"
+            "无需信用卡，不会自动续费。"
         ),
         inline=False,
     )
-    embed.set_footer(text="AXIS Welcome v1")
+    embed.add_field(
+        name="会员权限",
+        value="⚡ 短线\n〽️ 波段\n♾️ 长期\n🛋️ 会员交流区",
+        inline=False,
+    )
+    embed.add_field(
+        name="风险提示",
+        value=(
+            "AXIS 仅提供市场研究与教育内容，不构成投资、财务或交易建议。\n"
+            "交易存在风险，请独立判断并自行承担风险。"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="安全提示",
+        value=(
+            "AXIS 工作人员绝不会主动私信索取私人付款、密码、券商账户信息、"
+            "加密货币转账或远程访问权限。"
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="AXIS 欢迎界面")
     return embed
 
 
 def access_required_embed() -> discord.Embed:
     return discord.Embed(
-        title="AXIS ACCESS",
+        title="AXIS 访问权限",
         description=(
-            "Please complete the AXIS application first.\n\n"
-            "Once approved, you will automatically receive\n"
-            "3 U.S. trading days of full member access."
+            "请先完成 AXIS 加入申请。\n\n"
+            "审核通过后，你将自动获得 3 个美国股票市场交易日的完整会员权限。"
         ),
         color=0x111411,
     )
@@ -80,17 +112,14 @@ def access_required_embed() -> discord.Embed:
 
 def risk_acknowledgement_embed() -> discord.Embed:
     return discord.Embed(
-        title="RISK ACKNOWLEDGEMENT",
+        title="风险确认",
         description=(
-            "AXIS provides content for market analysis, research, and "
-            "educational purposes only.\n\n"
-            "AXIS does not provide personalized investment, financial, or trading advice.\n\n"
-            "Options and other financial markets involve significant risk and may result in "
-            "partial or total loss of capital.\n\n"
-            "All entries, exits, position sizing, and risk-management decisions remain the "
-            "responsibility of the individual user.\n\n"
-            "Past performance does not guarantee future results.\n\n"
-            "**MY RISK IS NOT YOUR RISK.**"
+            "AXIS 提供的内容仅用于市场分析、研究与金融教育，"
+            "不构成个性化投资、财务或交易建议。\n\n"
+            "期权及其他金融市场具有较高风险，可能造成部分或全部本金损失。\n\n"
+            "所有入场、离场、仓位和风险管理决定均由用户本人负责。\n\n"
+            "历史表现不代表未来结果。\n\n"
+            "**我的风险不等于你的风险。**"
         ),
         color=0x111411,
     )
@@ -98,16 +127,16 @@ def risk_acknowledgement_embed() -> discord.Embed:
 
 def safety_agreement_embed() -> discord.Embed:
     return discord.Embed(
-        title="COMMUNITY SAFETY AGREEMENT",
+        title="社区安全协议",
         description=(
-            "I agree that I will not:\n\n"
-            "- impersonate AXIS staff\n"
-            "- scam or solicit AXIS members\n"
-            "- request private payments from members\n"
-            "- spam or maliciously DM members\n"
-            "- redistribute or resell private AXIS content\n"
-            "- request passwords or brokerage credentials\n"
-            "- request remote account access"
+            "我同意不会：\n\n"
+            "- 冒充 AXIS 工作人员\n"
+            "- 诈骗、诱导或骚扰 AXIS 成员\n"
+            "- 向成员索取私人付款\n"
+            "- 发送垃圾信息或恶意私信成员\n"
+            "- 转发或转售 AXIS 私密内容\n"
+            "- 索取密码或券商账户信息\n"
+            "- 索取远程账户访问权限"
         ),
         color=0x111411,
     )
@@ -118,7 +147,7 @@ class ApplyAccessView(discord.ui.View):
         super().__init__(timeout=None)
         self.controller = controller
         button = discord.ui.Button(
-            label="APPLY TO JOIN AXIS",
+            label="申请加入 AXIS",
             style=discord.ButtonStyle.success,
             custom_id="axis:newcomer:apply:v1",
         )
@@ -143,7 +172,7 @@ class ApplicationFormView(discord.ui.View):
         self.user_id = user_id
         self.answers = ApplicationAnswers()
         source = discord.ui.Select(
-            placeholder="How did you hear about AXIS?",
+            placeholder="你是通过什么渠道了解到 AXIS 的？",
             min_values=1,
             max_values=1,
             options=[
@@ -155,7 +184,7 @@ class ApplicationFormView(discord.ui.View):
         self.source_select = source
         self.add_item(source)
         interests = discord.ui.Select(
-            placeholder="What are you mainly interested in?",
+            placeholder="你主要对哪些内容感兴趣？",
             min_values=1,
             max_values=4,
             options=[
@@ -166,7 +195,7 @@ class ApplicationFormView(discord.ui.View):
         interests.callback = self.select_interests
         self.interests_select = interests
         self.add_item(interests)
-        continue_button = discord.ui.Button(label="CONTINUE", style=discord.ButtonStyle.success)
+        continue_button = discord.ui.Button(label="继续", style=discord.ButtonStyle.success)
         continue_button.callback = self.continue_application
         self.add_item(continue_button)
 
@@ -174,7 +203,7 @@ class ApplicationFormView(discord.ui.View):
         if interaction.user.id == self.user_id:
             return True
         await interaction.response.send_message(
-            "This application belongs to another user.", ephemeral=True
+            "该申请属于其他用户。", ephemeral=True
         )
         return False
 
@@ -195,7 +224,7 @@ class ApplicationFormView(discord.ui.View):
             return
         if self.answers.discovery_source is None or not self.answers.interests:
             await interaction.response.send_message(
-                "Please select your source and at least one interest.", ephemeral=True
+                "请选择了解渠道和至少一项感兴趣的内容。", ephemeral=True
             )
             return
         await interaction.response.send_modal(
@@ -203,10 +232,10 @@ class ApplicationFormView(discord.ui.View):
         )
 
 
-class ReferralModal(discord.ui.Modal, title="AXIS ACCESS APPLICATION"):
+class ReferralModal(discord.ui.Modal, title="AXIS 加入申请"):
     referred_by = discord.ui.TextInput(
-        label="Who referred you to AXIS? (optional)",
-        placeholder="Discord username, nickname, or referral name",
+        label="谁推荐你加入 AXIS？（选填）",
+        placeholder="可填写 Discord 用户名、昵称或推荐人名称",
         required=False,
         max_length=200,
     )
@@ -225,7 +254,7 @@ class ReferralModal(discord.ui.Modal, title="AXIS ACCESS APPLICATION"):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
-                "This application belongs to another user.", ephemeral=True
+                "该申请属于其他用户。", ephemeral=True
             )
             return
         self.answers.referred_by = str(self.referred_by.value).strip() or None
@@ -247,13 +276,13 @@ class RiskAgreementView(discord.ui.View):
         self.controller = controller
         self.user_id = user_id
         self.answers = answers
-        button = discord.ui.Button(label="I AGREE", style=discord.ButtonStyle.success)
+        button = discord.ui.Button(label="我已阅读并同意", style=discord.ButtonStyle.success)
         button.callback = self.agree
         self.add_item(button)
 
     async def agree(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("This agreement is not yours.", ephemeral=True)
+            await interaction.response.send_message("该确认不属于你。", ephemeral=True)
             return
         await interaction.response.edit_message(
             embed=safety_agreement_embed(),
@@ -272,13 +301,13 @@ class SafetyAgreementView(discord.ui.View):
         self.controller = controller
         self.user_id = user_id
         self.answers = answers
-        button = discord.ui.Button(label="I AGREE", style=discord.ButtonStyle.success)
+        button = discord.ui.Button(label="我已阅读并同意", style=discord.ButtonStyle.success)
         button.callback = self.agree
         self.add_item(button)
 
     async def agree(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("This agreement is not yours.", ephemeral=True)
+            await interaction.response.send_message("该确认不属于你。", ephemeral=True)
             return
         await self.controller.submit_application(interaction, self.answers)
 
@@ -295,13 +324,13 @@ class JoinReviewView(discord.ui.View):
         self.controller = controller
         self.application_id = application_id
         actions = (
-            ("APPROVE", discord.ButtonStyle.success),
-            ("REJECT", discord.ButtonStyle.danger),
-            ("FLAG", discord.ButtonStyle.secondary),
+            ("APPROVE", "批准", discord.ButtonStyle.success),
+            ("REJECT", "拒绝", discord.ButtonStyle.danger),
+            ("FLAG", "标记", discord.ButtonStyle.secondary),
         )
-        for action, style in actions:
+        for action, label, style in actions:
             button = discord.ui.Button(
-                label=action,
+                label=label,
                 style=style,
                 custom_id=f"axis:join:{action.lower()}:{application_id}",
                 disabled=(
@@ -330,10 +359,16 @@ class NewcomerAccessCog(commands.Cog):
         member_role_id: int,
         newcomer_role_id: int,
         join_review_channel_id: int,
+        lobby_channel_id: int,
+        member_lounge_channel_id: int,
+        short_term_channel_id: int,
+        swing_channel_id: int,
+        leaps_channel_id: int,
         system_alerts_channel_id: int,
         service: NewcomerAccessService,
         access_service: MembershipAccessService,
         risk_scanner: NewcomerRiskScanner,
+        expect_member_role_change: Callable[[int, bool], None] | None = None,
         free_trial_trading_days: int = 3,
     ) -> None:
         self.bot = bot
@@ -343,11 +378,20 @@ class NewcomerAccessCog(commands.Cog):
         self.member_role_id = member_role_id
         self.newcomer_role_id = newcomer_role_id
         self.join_review_channel_id = join_review_channel_id
+        self.lobby_channel_id = lobby_channel_id
+        self.member_lounge_channel_id = member_lounge_channel_id
+        self.short_term_channel_id = short_term_channel_id
+        self.swing_channel_id = swing_channel_id
+        self.leaps_channel_id = leaps_channel_id
         self.system_alerts_channel_id = system_alerts_channel_id
         self.service = service
         self.access_service = access_service
         self.risk_scanner = risk_scanner
+        self.expect_member_role_change = expect_member_role_change or (
+            lambda _user_id, _state: None
+        )
         self.free_trial_trading_days = free_trial_trading_days
+        self._welcome_locks: dict[uuid.UUID, asyncio.Lock] = {}
         self._ready = False
         self.reconcile_loop.start()
         self.security_loop.start()
@@ -359,15 +403,15 @@ class NewcomerAccessCog(commands.Cog):
     async def begin_application(self, interaction: discord.Interaction) -> None:
         if interaction.guild_id != self.guild_id:
             await interaction.response.send_message(
-                "This application does not belong to the current AXIS server.", ephemeral=True
+                "该申请不属于当前 AXIS 服务器。", ephemeral=True
             )
             return
         state = await self.service.application_state(self.guild_id, interaction.user.id)
         if state in {"PENDING", "FLAGGED"}:
             await interaction.response.send_message(
                 embed=discord.Embed(
-                    title="AXIS APPLICATION",
-                    description="Your application is already under review.",
+                    title="AXIS 加入申请",
+                    description="你的申请已提交，正在等待审核。",
                     color=0x111411,
                 ),
                 ephemeral=True,
@@ -376,8 +420,8 @@ class NewcomerAccessCog(commands.Cog):
         if state == "APPROVED":
             await interaction.response.send_message(
                 embed=discord.Embed(
-                    title="AXIS APPLICATION",
-                    description="Your AXIS access application has already been approved.",
+                    title="AXIS 加入申请",
+                    description="你的 AXIS 加入申请已经通过。",
                     color=0x111411,
                 ),
                 ephemeral=True,
@@ -385,10 +429,10 @@ class NewcomerAccessCog(commands.Cog):
             return
         await interaction.response.send_message(
             embed=discord.Embed(
-                title="AXIS ACCESS APPLICATION",
+                title="AXIS 加入申请",
                 description=(
-                    "This short application helps AXIS protect the community.\n\n"
-                    "Select your answers below, then continue."
+                    "这份简短申请用于帮助 AXIS 维护社区安全。\n\n"
+                    "请在下方选择答案，然后点击「继续」。"
                 ),
                 color=0x86F7A8,
             ),
@@ -400,10 +444,10 @@ class NewcomerAccessCog(commands.Cog):
         profile = await self.service.profile(self.guild_id, interaction.user.id)
         if profile is not None and profile.approved and profile.role_sync_status != "SYNCED":
             embed = discord.Embed(
-                title="AXIS ACCESS",
+                title="AXIS 访问权限",
                 description=(
-                    "Your application is approved. AXIS is synchronizing your Discord access.\n\n"
-                    "Please try again shortly. No second application is required."
+                    "你的申请已经通过，AXIS 正在同步 Discord 访问权限。\n\n"
+                    "请稍后重试，无需重复提交申请。"
                 ),
                 color=0x111411,
             )
@@ -460,13 +504,12 @@ class NewcomerAccessCog(commands.Cog):
             await self.ensure_review_card(application.id)
             await interaction.followup.send(
                 embed=discord.Embed(
-                    title="AXIS APPLICATION",
+                    title="AXIS 加入申请",
                     description=(
-                        "Your application has been submitted.\n\n"
-                        "A member of the AXIS team will review it.\n\n"
-                        "If approved, your 3-U.S.-trading-day free member access will begin "
-                        "automatically.\n\n"
-                        "No credit card is required."
+                        "你的申请已提交。\n\n"
+                        "AXIS 管理员将进行审核。\n\n"
+                        "审核通过后，3 个美国股票市场交易日的免费会员权限将自动开始。\n\n"
+                        "无需信用卡。"
                     ),
                     color=0x86F7A8,
                 ),
@@ -474,11 +517,11 @@ class NewcomerAccessCog(commands.Cog):
             )
         except NewcomerAccessError as exc:
             message = {
-                "APPLICATION_ALREADY_PENDING": "Your application is already under review.",
-                "APPLICATION_ALREADY_APPROVED": "Your AXIS application is already approved.",
-            }.get(exc.code, "Your application could not be submitted. Please try again.")
+                "APPLICATION_ALREADY_PENDING": "你的申请已提交，正在等待审核。",
+                "APPLICATION_ALREADY_APPROVED": "你的 AXIS 加入申请已经通过。",
+            }.get(exc.code, "申请暂时无法提交，请稍后重试。")
             await interaction.followup.send(
-                embed=discord.Embed(title="AXIS APPLICATION", description=message, color=0x111411),
+                embed=discord.Embed(title="AXIS 加入申请", description=message, color=0x111411),
                 ephemeral=True,
             )
 
@@ -504,6 +547,7 @@ class NewcomerAccessCog(commands.Cog):
                 interaction_id=interaction.id,
             )
             trial_message = ""
+            role_sync_succeeded = False
             if target == AccessApplicationStatus.APPROVED.value:
                 trial_created = False
                 try:
@@ -530,6 +574,7 @@ class NewcomerAccessCog(commands.Cog):
                         status="SYNCED",
                         actor_user_id=interaction.user.id,
                     )
+                    role_sync_succeeded = True
                 except (discord.HTTPException, NewcomerAccessError) as exc:
                     await self.service.mark_role_sync(
                         self.guild_id,
@@ -547,16 +592,30 @@ class NewcomerAccessCog(commands.Cog):
                         detail="Approval persisted; Discord role reconciliation is pending.",
                     )
                 trial_message = (
-                    " The 3-U.S.-trading-day Free Trial started automatically."
+                    "已自动开始 3 个美国股票市场交易日的免费体验。"
                     if trial_created
-                    else " No second Free Trial was created because permanent history exists."
+                    else "已有永久免费体验记录，因此没有重复创建免费体验。"
                 )
+                if role_sync_succeeded:
+                    await self.ensure_approval_welcomes(application)
             await self.ensure_review_card(application.id)
+            status_label = APPLICATION_STATUS_LABELS.get(
+                application.status, application.status
+            )
             await interaction.followup.send(
-                f"Application {application.status}.{trial_message}", ephemeral=True
+                f"申请状态：{status_label}。{trial_message}",
+                ephemeral=True,
             )
         except (NewcomerAccessError, MembershipAccessError) as exc:
-            await interaction.followup.send(f"Review not completed: {exc.code}", ephemeral=True)
+            logger.warning(
+                "event=application_review_failed application_id=%s error_code=%s",
+                application_id,
+                exc.code,
+            )
+            await interaction.followup.send(
+                "审核暂时无法完成，请稍后重试。系统错误已记录。",
+                ephemeral=True,
+            )
 
     async def sync_user_roles(
         self,
@@ -592,6 +651,7 @@ class NewcomerAccessCog(commands.Cog):
                 self.guild_id, user_id
             )
             if should_have_member and member_role not in member.roles:
+                self.expect_member_role_change(user_id, True)
                 await member.add_roles(member_role, reason="AXIS approved access active")
                 await self.service.record_role_event(
                     self.guild_id,
@@ -601,6 +661,7 @@ class NewcomerAccessCog(commands.Cog):
                     role_name="Member",
                 )
             if not should_have_member and member_role in member.roles:
+                self.expect_member_role_change(user_id, False)
                 await member.remove_roles(member_role, reason="AXIS entitlement inactive")
                 await self.service.record_role_event(
                     self.guild_id,
@@ -620,6 +681,7 @@ class NewcomerAccessCog(commands.Cog):
                     role_name="Newcomer",
                 )
             if member_role in member.roles:
+                self.expect_member_role_change(user_id, False)
                 await member.remove_roles(member_role, reason="AXIS approval required")
                 await self.service.record_role_event(
                     self.guild_id,
@@ -787,6 +849,82 @@ class NewcomerAccessCog(commands.Cog):
                     actor_user_id=self.bot.user.id,
                 )
 
+        for application in await self.service.approved_applications_pending_welcome(
+            self.guild_id
+        ):
+            profile = await self.service.profile(self.guild_id, application.user_id)
+            if profile is None or profile.role_sync_status != "SYNCED":
+                continue
+            if not await self.access_service.should_have_access(
+                self.guild_id, application.user_id
+            ):
+                continue
+            await self.ensure_approval_welcomes(application)
+
+    async def ensure_approval_welcomes(self, application: ApplicationSnapshot) -> None:
+        if application.status != AccessApplicationStatus.APPROVED.value or self.bot.user is None:
+            return
+        lock = self._welcome_locks.setdefault(application.id, asyncio.Lock())
+        async with lock:
+            current = await self.service.get_application(application.id)
+            if current is None:
+                return
+            destinations = (
+                ("LOBBY", self.lobby_channel_id, current.lobby_welcome_message_id),
+                (
+                    "MEMBER_LOUNGE",
+                    self.member_lounge_channel_id,
+                    current.member_lounge_welcome_message_id,
+                ),
+            )
+            allowed_mentions = discord.AllowedMentions(
+                everyone=False,
+                roles=False,
+                users=True,
+                replied_user=False,
+            )
+            for destination, channel_id, existing_message_id in destinations:
+                if existing_message_id is not None:
+                    continue
+                try:
+                    channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(
+                        channel_id
+                    )
+                    content = (
+                        community_welcome_message(current.user_id)
+                        if destination == "LOBBY"
+                        else member_lounge_welcome_message(
+                            current.user_id,
+                            short_term_channel_id=self.short_term_channel_id,
+                            swing_channel_id=self.swing_channel_id,
+                            leaps_channel_id=self.leaps_channel_id,
+                        )
+                    )
+                    message = await channel.send(
+                        content,
+                        allowed_mentions=allowed_mentions,
+                    )
+                    await self.service.attach_approval_welcome_message(
+                        current.id,
+                        destination=destination,
+                        message_id=message.id,
+                        actor_user_id=self.bot.user.id,
+                    )
+                except (discord.HTTPException, NewcomerAccessError) as exc:
+                    logger.exception(
+                        "event=approval_welcome_failed user_id=%s destination=%s",
+                        current.user_id,
+                        destination,
+                    )
+                    await report_system_failure(
+                        self.bot,
+                        severity="ERROR",
+                        service="Newcomer Security",
+                        error_type="APPROVAL_WELCOME_FAILED",
+                        affected=f"Discord User {current.user_id} · {destination}",
+                        detail=type(exc).__name__,
+                    )
+
     @reconcile_loop.before_loop
     async def before_reconcile_loop(self) -> None:
         await self.bot.wait_until_ready()
@@ -901,7 +1039,7 @@ class NewcomerAccessCog(commands.Cog):
         if allowed:
             return True
         await interaction.response.send_message(
-            "You do not have permission to review AXIS applications.", ephemeral=True
+            "你没有审核 AXIS 加入申请的权限。", ephemeral=True
         )
         return False
 
@@ -923,52 +1061,61 @@ class NewcomerAccessCog(commands.Cog):
         age_days = max((now - created).days, 0)
         years, remaining_days = divmod(age_days, 365)
         months = remaining_days // 30
-        age_text = f"{years} year(s) {months} month(s)" if years else f"{age_days} day(s)"
+        age_text = f"{years} 年 {months} 个月" if years else f"{age_days} 天"
         icons = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "⚪"}
         risk_text = (
             "\n\n".join(
-                f"{icons.get(flag.severity, '⚪')} **{flag.risk_code}**\n"
-                f"{flag.details or 'No details.'}"
+                f"{icons.get(flag.severity, '⚪')} "
+                f"**{RISK_CODE_LABELS.get(flag.risk_code, flag.risk_code)}**\n"
+                f"{flag.details or '无详细信息。'}"
                 for flag in flags
             )
-            or "None"
+            or "无"
         )
-        embed = discord.Embed(title="AXIS JOIN REQUEST", color=0x86F7A8)
+        embed = discord.Embed(title="AXIS 加入审核", color=0x86F7A8)
         embed.add_field(
-            name="User",
+            name="用户",
             value=f"<@{application.user_id}>\n`{application.user_id}`",
             inline=False,
         )
-        embed.add_field(name="Discord Account Age", value=age_text, inline=True)
+        embed.add_field(name="Discord 账号年龄", value=age_text, inline=True)
         embed.add_field(
-            name="Joined AXIS",
-            value=joined_at.astimezone(ET).strftime("%b %d, %Y"),
+            name="加入 AXIS 时间",
+            value=joined_at.astimezone(ET).strftime("%Y年%m月%d日"),
             inline=True,
         )
         embed.add_field(
-            name="Source",
+            name="了解渠道",
             value=DISCOVERY_SOURCES.get(application.discovery_source, application.discovery_source),
             inline=True,
         )
-        embed.add_field(name="Referred By", value=application.referred_by or "None", inline=True)
+        embed.add_field(name="推荐人", value=application.referred_by or "无", inline=True)
         embed.add_field(
-            name="Interests",
+            name="感兴趣的内容",
             value=" · ".join(INTEREST_LABELS.get(item, item) for item in application.interests),
             inline=True,
         )
-        embed.add_field(name="Previous Application", value=previous_status or "None", inline=True)
-        embed.add_field(name="Previous Trial", value="Yes" if previous_trial else "No", inline=True)
         embed.add_field(
-            name="Risk Acknowledgement",
-            value="Accepted" if application.risk_acknowledged else "Missing",
+            name="历史申请",
+            value=APPLICATION_STATUS_LABELS.get(previous_status, previous_status or "无"),
+            inline=True,
+        )
+        embed.add_field(name="历史免费体验", value="有" if previous_trial else "无", inline=True)
+        embed.add_field(
+            name="风险确认",
+            value="已同意" if application.risk_acknowledged else "未完成",
             inline=True,
         )
         embed.add_field(
-            name="Community Safety",
-            value="Accepted" if application.community_rules_acknowledged else "Missing",
+            name="社区安全协议",
+            value="已同意" if application.community_rules_acknowledged else "未完成",
             inline=True,
         )
-        embed.add_field(name="Risk Flags", value=risk_text[:1024], inline=False)
-        embed.add_field(name="Status", value=application.status, inline=False)
-        embed.set_footer(text=f"AXIS Join Review · {application.id}")
+        embed.add_field(name="风险标记", value=risk_text[:1024], inline=False)
+        embed.add_field(
+            name="当前状态",
+            value=APPLICATION_STATUS_LABELS.get(application.status, application.status),
+            inline=False,
+        )
+        embed.set_footer(text=f"AXIS 加入审核 · {application.id}")
         return embed

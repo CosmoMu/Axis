@@ -10,8 +10,9 @@
 ## Final flow
 
 1. First join after cutover adds `Newcomer` and isolates the user to welcome/results/member-wins.
-2. Welcome exposes only `APPLY TO JOIN AXIS`.
-3. The user completes the English Application, Risk Acknowledgement and Community Safety Agreement.
+2. The Chinese Welcome page emphasizes that viewing it is not the same as joining AXIS and exposes
+   only `申请加入 AXIS`; the user must click it and submit an application to continue.
+3. The user completes the Chinese application, risk confirmation and community safety agreement.
 4. Manager approves in `🛂・join-review`.
 5. AXIS rechecks permanent Trial history inside the approval workflow.
 6. AXIS creates `FREE_TRIAL` with a three-session trading window, persists `first_trading_day`,
@@ -37,8 +38,8 @@ The Trial uses $0, no card, no Stripe Checkout and no renewal.
 Confirm:
 
 - database revision `20260831_0026`;
-- Welcome contains only `APPLY TO JOIN AXIS`;
-- Risk and Community agreements each require `I AGREE`;
+- Welcome contains only `申请加入 AXIS`;
+- Risk and Community agreements each require `我已阅读并同意`;
 - Approval automatically creates exactly one seven-day entitlement;
 - Membership Trial has no trading-day fields for new claims;
 - Trial expiry removes Member only when aggregate access is inactive;

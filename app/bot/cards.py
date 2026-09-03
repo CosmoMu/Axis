@@ -18,6 +18,9 @@ from app.domain.public_cards import (
     PublicTradeCard,
     ShortTermEntryCard,
     ShortTermTrackingCard,
+    SwingActivePosition,
+    SwingTrackedEntryCard,
+    SwingTrackingCard,
 )
 from app.domain.public_identity import PublicIdentityPolicy
 from app.services.analysis_pipeline import AnalysisDraftSnapshot
@@ -135,7 +138,7 @@ def _contract(draft: ReviewDraft | PublicTradeCard) -> str:
 
 
 def _short_term_contract(
-    card: ShortTermEntryCard | ShortTermTrackingCard,
+    card: ShortTermEntryCard | ShortTermTrackingCard | SwingTrackedEntryCard | SwingTrackingCard,
 ) -> str:
     expiry = _expiry_display(card.expiry, "SHORT_TERM")
     side = {"CALL": "C", "PUT": "P"}.get(card.option_side, "?")
@@ -162,9 +165,7 @@ def _review_warning(warning: str) -> str:
         "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE": (
             "行情补全：输入未识别到入场价，已填入当前期权参考价，请审核。"
         ),
-        "CURRENT_OPTION_QUOTE_UNAVAILABLE": (
-            "行情补全失败：当前期权参考价不可用，请手动填写。"
-        ),
+        "CURRENT_OPTION_QUOTE_UNAVAILABLE": ("行情补全失败：当前期权参考价不可用，请手动填写。"),
     }.get(warning, warning)
 
 
@@ -173,7 +174,9 @@ def _review_warnings(warnings: tuple[str, ...]) -> str:
 
 
 def build_review_embed(draft: ReviewDraft) -> discord.Embed:
-    if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
+    if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM" or (
+        draft.swing_mode == "SIMPLE_TRACKED_SWING"
+    ):
         return build_short_term_review_embed(draft)
     color = DANGER if draft.status == "PARSE_FAILED" else MUTED
     title = "待审核订单"
@@ -249,22 +252,37 @@ def build_review_embed(draft: ReviewDraft) -> discord.Embed:
 
 
 def build_short_term_review_embed(draft: ReviewDraft) -> discord.Embed:
+    category = draft.selected_category or draft.category_suggestion or "SHORT_TERM"
+    simple_swing = category == "SWING" and draft.swing_mode == "SIMPLE_TRACKED_SWING"
+    label = "SWING" if simple_swing else "SHORT-TERM"
     color = DANGER if draft.status in {"PARSE_FAILED", "DELETED", "PUBLISH_FAILED"} else MUTED
-    title = "待审核 · SHORT-TERM"
+    title = f"待审核 · {label}"
     if draft.status == "READY":
-        title, color = "审核通过 · SHORT-TERM", ACCENT_GREEN
+        title, color = f"审核通过 · {label}", ACCENT_GREEN
     elif draft.status == "PUBLISHED":
-        title, color = "已发布 · SHORT-TERM", ACCENT_GREEN
+        title, color = f"已发布 · {label}", ACCENT_GREEN
     elif draft.status == "PUBLISH_FAILED":
-        title = "发布失败 · SHORT-TERM"
+        title = f"发布失败 · {label}"
     elif draft.status == "DELETED":
-        title = "已删除 · SHORT-TERM"
+        title = f"已删除 · {label}"
     embed = discord.Embed(
         title=title,
         description=_contract(draft),
         color=color,
     )
-    embed.add_field(name="入场价格", value=_money(_draft_entry_price(draft)), inline=False)
+    if draft.action == "CLOSE":
+        embed.add_field(
+            name="平仓目标",
+            value=draft.matched_trade_code or "待选择 Active Simple Swing",
+            inline=False,
+        )
+        embed.add_field(
+            name="平仓参考价格（可选）",
+            value=_money(draft.action_price),
+            inline=False,
+        )
+    else:
+        embed.add_field(name="入场价格", value=_money(_draft_entry_price(draft)), inline=False)
     if draft.expiry is None:
         expiry_text = "待解析"
     elif draft.expiry_precision == "ZERO_DTE" or (
@@ -283,7 +301,7 @@ def build_short_term_review_embed(draft: ReviewDraft) -> discord.Embed:
             value=f"{draft.expiry_input} → {resolved}",
             inline=False,
         )
-    embed.add_field(name="分类", value="SHORT-TERM", inline=False)
+    embed.add_field(name="分类", value=label, inline=False)
     if draft.contract_validation_status == "NOT_FOUND":
         embed.add_field(
             name="Contract not found.",
@@ -329,6 +347,95 @@ def build_short_term_tracking_embed(
         embed.add_field(name="最高收益", value=f"{card.highest_return_pct:+.2f}%", inline=False)
     if public_ref:
         embed.set_footer(text="AXIS")
+    return _public(embed)
+
+
+def build_swing_entry_embed(
+    card: SwingTrackedEntryCard, *, public_ref: str | None = None
+) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"入场 · {card.public_trade_id}",
+        description=_short_term_contract(card),
+        color=ACCENT_GREEN,
+    )
+    embed.add_field(name="价格", value=_money(card.entry_price), inline=False)
+    embed.add_field(name="\u200b", value="MY RISK IS NOT YOUR RISK.", inline=False)
+    if public_ref:
+        embed.set_footer(text="AXIS")
+    return _public(embed)
+
+
+def build_swing_tracking_embed(
+    card: SwingTrackingCard, *, public_ref: str | None = None
+) -> discord.Embed:
+    title = "全部平仓" if card.card_type == "CLOSE" else card.card_type
+    embed = discord.Embed(
+        title=f"{title} · {card.public_trade_id}",
+        description=_short_term_contract(card),
+        color=ACCENT_GREEN,
+    )
+    if card.card_type == "CLOSE":
+        embed.add_field(
+            name="追踪期间最高价格",
+            value=_money(card.highest_price),
+            inline=False,
+        )
+        embed.add_field(
+            name="追踪期间最高收益",
+            value=_percent(card.highest_return_pct),
+            inline=False,
+        )
+        embed.add_field(name="平仓参考价格", value=_money(card.price), inline=False)
+    else:
+        embed.add_field(name="价格", value=_money(card.price), inline=False)
+        embed.add_field(name="收益", value=_percent(card.return_pct), inline=False)
+    if public_ref:
+        embed.set_footer(text="AXIS")
+    return _public(embed)
+
+
+def build_swing_active_embed(trades: tuple[SwingActivePosition, ...]) -> discord.Embed:
+    embed = discord.Embed(title="当前波段订单", color=ACCENT_GREEN)
+    if not trades:
+        embed.description = "当前没有进行中的 Simple Tracked Swing。"
+        return _public(embed)
+    for trade in trades:
+        side = "C" if trade.option_side == "CALL" else "P"
+        lotto = " (LOTTO)" if trade.is_lotto else ""
+        contract = (
+            f"{trade.ticker} {_expiry_display(trade.expiry, 'SWING')} "
+            f"{_number(trade.strike)}{side}{lotto}"
+        )
+        current = (
+            f"{_money(trade.current_price)} · {_percent(trade.current_return_pct)}"
+            if trade.current_price is not None
+            else "行情暂不可用"
+        )
+        if trade.stale:
+            current += " · STALE"
+        updated = (
+            trade.last_quote_at.astimezone(ZoneInfo("America/New_York")).strftime(
+                "%m/%d · %H:%M ET"
+            )
+            if trade.last_quote_at is not None
+            else "暂无有效报价"
+        )
+        highest_tp = (
+            f"{trade.highest_tp_level} · +{trade.highest_tp_return_pct}%"
+            if trade.highest_tp_level and trade.highest_tp_return_pct is not None
+            else "—"
+        )
+        embed.add_field(
+            name=trade.public_trade_id,
+            value=(
+                f"{contract}\n成本 {_money(trade.entry_price)}"
+                f"\n最高 TP {highest_tp}"
+                f"\n最高 {_money(trade.highest_price)} · {_percent(trade.highest_return_pct)}"
+                f"\n当前 {current}"
+                f"\n更新 {updated}"
+            ),
+            inline=False,
+        )
     return _public(embed)
 
 
@@ -574,11 +681,25 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 )
             )
         )
-        active_lines.append(
-            f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-            f"{close_result} · 当前持仓 {_position(trade.position_eighths)}"
-            + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
-        )
+        if trade.tracking_mode == "SIMPLE_TRACKED_SWING":
+            active_lines.append(
+                f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
+                f"{close_result}"
+                + (f" · 成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
+                + f"\n最高 TP {trade.highest_tp_level or '—'}"
+                + (
+                    f"\n追踪最高 {_money(trade.highest_price)} · "
+                    f"{_percent(trade.highest_return_pct)}"
+                    if trade.highest_price is not None
+                    else ""
+                )
+            )
+        else:
+            active_lines.append(
+                f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
+                f"{close_result} · 当前持仓 {_position(trade.position_eighths)}"
+                + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
+            )
     if len(summary.active) > 12:
         active_lines.append(f"另有 {len(summary.active) - 12} 个订单，请使用「查看当前持仓订单」。")
     embed.add_field(
@@ -611,6 +732,33 @@ def _closed_result_text(
     return f"最终收益 {_percent(fallback)}"
 
 
+def _add_results_section(
+    embed: discord.Embed,
+    *,
+    label: str,
+    lines: list[str],
+    empty_text: str,
+) -> None:
+    if not lines:
+        embed.add_field(name=label[:256], value=empty_text[:1024], inline=False)
+        return
+    chunks: list[str] = []
+    current = ""
+    for line in lines:
+        candidate = f"{current}\n\n{line}" if current else line
+        if len(candidate) <= 1024:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        current = line[:1024]
+    if current:
+        chunks.append(current)
+    for index, chunk in enumerate(chunks):
+        field_name = label if index == 0 else f"{label} · PAGE {index + 1}"
+        embed.add_field(name=field_name[:256], value=chunk, inline=False)
+
+
 def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
     embed = discord.Embed(title="AXIS DAILY RESULTS", color=ACCENT_GREEN)
     for label, rows in (
@@ -619,7 +767,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
         ("LEAPS", card.leaps),
     ):
         lines: list[str] = []
-        for row in sorted(rows, key=lambda item: _public_trade_sort_key(item.public_trade_id))[:10]:
+        for row in sorted(rows, key=lambda item: _public_trade_sort_key(item.public_trade_id)):
             lotto = " (LOTTO)" if row.is_lotto else ""
             contract = (
                 f"{row.ticker} {_number(row.strike)}"
@@ -631,7 +779,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
                     f"{_result_status_emoji(row.displayed_result_pct)} "
                     f"{row.public_trade_id} · {row.ticker} "
                     f"{expiry + ' ' if expiry else ''}{_number(row.strike)}"
-                    f"{'C' if row.option_side == 'CALL' else 'P'} "
+                    f"{'C' if row.option_side == 'CALL' else 'P'}{lotto} "
                     f"{_percent(row.displayed_result_pct)}"
                 )
             else:
@@ -645,10 +793,11 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
                         fallback=row.mentor_final_return_pct,
                     )
                 )
-        embed.add_field(
-            name=label,
-            value=("\n\n".join(lines) or "今日无已完成订单")[:1024],
-            inline=False,
+        _add_results_section(
+            embed,
+            label=label,
+            lines=lines,
+            empty_text="今日无已完成订单",
         )
     embed.description = (
         f"{card.session_date.isoformat()} ET\nPast performance does not guarantee future results."
@@ -677,13 +826,12 @@ def build_daily_results_snapshot_embed(
         if not isinstance(section, dict):
             continue
         lines = section.get("lines")
-        value = "今日无已完成订单"
-        if isinstance(lines, list) and lines:
-            value = "\n\n".join(str(line) for line in lines)
-        embed.add_field(
-            name=str(section.get("label") or "RESULTS")[:256],
-            value=value[:1024],
-            inline=False,
+        section_lines = [str(line) for line in lines] if isinstance(lines, list) else []
+        _add_results_section(
+            embed,
+            label=str(section.get("label") or "RESULTS"),
+            lines=section_lines,
+            empty_text="今日无已完成订单",
         )
     embed.set_footer(text=str(snapshot.get("footer") or "AXIS Results")[:2048])
     return _public(embed)

@@ -30,6 +30,15 @@ Rules:
   price. Do not infer Mentor, Position, TP1, TP2, SL, Average Cost, or Add Stage. Keep all
   corresponding fields and every plan_* field null; Short-Term is an independent non-Mentor
   tracking flow.
+- New SWING entries use the Simple Tracked Swing flow. Extract only the option contract,
+  one entry price, category, and LOTTO intent when explicitly present. Keep Mentor,
+  Position, ADD, SL, Runner, chart, plan_* fields, and public_thesis null. Never apply the
+  legacy Mentor ladder to a new SWING entry.
+- Treat "close SW-0001" and "close TSLA 10/16 400C" (including Chinese 平仓/关闭)
+  as UPDATE_TRADE + CLOSE + SWING. Put an explicit SW-XXXX identifier in
+  target_public_trade_id. A trailing @price is an optional close reference only. Do not
+  invent a close price and do not treat this input itself as approval or execution.
+- target_public_trade_id must be null unless the source explicitly supplies a public ID.
 - plan_current_stock, plan_starter, plan_add_zone_low/high, plan_stock_sl,
   plan_stock_pt1/2/3, and plan_fib_0618 are underlying-stock plan levels for SWING / LEAPS.
   Never place an option premium into a plan_* field. Extract only levels explicitly supplied

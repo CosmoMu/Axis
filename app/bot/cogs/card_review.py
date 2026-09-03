@@ -14,6 +14,8 @@ from app.bot.cards import (
     build_public_trade_embed,
     build_review_embed,
     build_short_term_entry_embed,
+    build_swing_entry_embed,
+    build_swing_tracking_embed,
 )
 from app.bot.ephemeral import ERROR_DELETE_AFTER, send_temporary_ephemeral
 from app.bot.views.review_views import (
@@ -22,7 +24,12 @@ from app.bot.views.review_views import (
     ReviewDraftView,
 )
 from app.domain.enums import DraftStatus, TradeCategory
-from app.domain.public_cards import PublicTradeCard, ShortTermEntryCard
+from app.domain.public_cards import (
+    PublicTradeCard,
+    ShortTermEntryCard,
+    SwingTrackedEntryCard,
+    SwingTrackingCard,
+)
 from app.market_intelligence.trade_plan import (
     SwingLeapsTradePlanService,
     TradePlanArtifact,
@@ -38,6 +45,7 @@ from app.services.card_review import (
     public_preview_payload,
 )
 from app.services.short_term_tracking import MarketTrackingService
+from app.services.swing_tracking import SIMPLE_TRACKED_SWING, SwingTrackingService
 from app.services.trade_publication import (
     PublicationConflictError,
     PublicationError,
@@ -73,6 +81,7 @@ class CardReviewCog(commands.Cog):
         service: CardReviewService,
         publication_service: TradePublicationService,
         tracking_service: MarketTrackingService,
+        swing_tracking_service: SwingTrackingService,
         trade_plan_service: SwingLeapsTradePlanService | None,
         guild_id: int,
         channel_id: int,
@@ -84,6 +93,7 @@ class CardReviewCog(commands.Cog):
         self.service = service
         self.publication_service = publication_service
         self.tracking_service = tracking_service
+        self.swing_tracking_service = swing_tracking_service
         self.trade_plan_service = trade_plan_service
         self.guild_id = guild_id
         self.channel_id = channel_id
@@ -263,9 +273,7 @@ class CardReviewCog(commands.Cog):
                     continue
                 message = await fetch_message(target.message_id)
                 await message.edit(view=None)
-                await self.publication_service.mark_legacy_component_removed(
-                    target.publication_id
-                )
+                await self.publication_service.mark_legacy_component_removed(target.publication_id)
             except discord.HTTPException as exc:
                 logger.warning(
                     "event=short_term_legacy_button_cleanup_failed status=%s",
@@ -285,6 +293,19 @@ class CardReviewCog(commands.Cog):
                     draft,
                     mentor_choices=[],
                     trade_choices=[],
+                    preview_card=preview_card,
+                )
+            if draft.swing_mode == SIMPLE_TRACKED_SWING:
+                trade_choices = (
+                    await self.service.trade_choices(draft.guild_id, simple_swing_only=True)
+                    if draft.action == "CLOSE"
+                    else []
+                )
+                return ReviewDraftView(
+                    self,
+                    draft,
+                    mentor_choices=[],
+                    trade_choices=trade_choices,
                     preview_card=preview_card,
                 )
             mentor_choices, trade_choices = await asyncio.gather(
@@ -333,6 +354,7 @@ class CardReviewCog(commands.Cog):
         complete_entry = (
             draft.status in ACTIVE_REVIEW_STATUSES
             and category in {TradeCategory.SWING.value, TradeCategory.LEAPS.value}
+            and draft.swing_mode != SIMPLE_TRACKED_SWING
             and draft.intent == "NEW_TRADE"
             and draft.action == "ENTRY"
         )
@@ -399,6 +421,12 @@ class CardReviewCog(commands.Cog):
             draft.selected_category or draft.category_suggestion
         ) == TradeCategory.SHORT_TERM.value and not self.tracking_service.enabled:
             raise PublicationValidationError("SHORT_TERM_TRACKING_DISABLED")
+        if (
+            getattr(draft, "swing_mode", None) == SIMPLE_TRACKED_SWING
+            and draft.action == "ENTRY"
+            and not self.swing_tracking_service.enabled
+        ):
+            raise PublicationValidationError("SWING_TRACKING_DISABLED")
         claim = await self.publication_service.claim(
             draft.id,
             actor_user_id=actor_user_id,
@@ -432,13 +460,15 @@ class CardReviewCog(commands.Cog):
             embed = (
                 build_short_term_entry_embed(public_card, public_ref=claim.public_ref)
                 if isinstance(public_card, ShortTermEntryCard)
+                else build_swing_entry_embed(public_card, public_ref=claim.public_ref)
+                if isinstance(public_card, SwingTrackedEntryCard)
+                else build_swing_tracking_embed(public_card, public_ref=claim.public_ref)
+                if isinstance(public_card, SwingTrackingCard)
                 else build_public_trade_embed(public_card, public_ref=claim.public_ref)
             )
             filename = None
             if chart_png is not None and isinstance(public_card, PublicTradeCard):
-                filename = (
-                    f"axis-{(public_card.public_trade_id or 'trade').lower()}-entry-plan.png"
-                )
+                filename = f"axis-{(public_card.public_trade_id or 'trade').lower()}-entry-plan.png"
                 embed.set_image(url=f"attachment://{filename}")
 
             message = None
@@ -456,6 +486,8 @@ class CardReviewCog(commands.Cog):
             category = (
                 TradeCategory.SHORT_TERM.value
                 if isinstance(claim.card, ShortTermEntryCard)
+                else TradeCategory.SWING.value
+                if isinstance(claim.card, (SwingTrackedEntryCard, SwingTrackingCard))
                 else claim.card.category
             )
             view = (
@@ -489,6 +521,18 @@ class CardReviewCog(commands.Cog):
         )
         if isinstance(claim.card, ShortTermEntryCard):
             await self.tracking_service.register_trade(result.trade_id, claim.card.entry_price)
+        elif isinstance(claim.card, SwingTrackedEntryCard):
+            await self.swing_tracking_service.register_trade(
+                result.trade_id, claim.card.entry_price
+            )
+        elif isinstance(claim.card, SwingTrackingCard) and claim.card.card_type == "CLOSE":
+            await self.swing_tracking_service.close_trade(
+                result.trade_id,
+                reference_price=claim.card.price,
+                reference_source=(
+                    "MANAGER_INPUT" if draft.action_price is not None else "LAST_VALID"
+                ),
+            )
         return await self.service.get(draft.id)
 
     async def _ensure_review_message(self, draft: ReviewDraft) -> None:

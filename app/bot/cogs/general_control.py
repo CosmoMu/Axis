@@ -182,7 +182,7 @@ class GeneralControlCog(commands.Cog):
             return
         if plan_type == "FREE_TRIAL":
             await interaction.response.send_message(
-                "Free Trial begins automatically after application approval.",
+                "免费体验将在加入申请审核通过后自动开始。",
                 ephemeral=True,
             )
             return

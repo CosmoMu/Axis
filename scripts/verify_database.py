@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-EXPECTED_REVISION = "20260831_0026"
+EXPECTED_REVISION = "20260903_0029"
 
 COUNTED_TABLES = (
     "input_code_counters",
@@ -45,6 +45,9 @@ COUNTED_TABLES = (
     "short_term_tracking",
     "short_term_tracking_events",
     "short_term_daily_snapshots",
+    "swing_tracking",
+    "swing_tracking_events",
+    "swing_daily_snapshots",
     "daily_results_publications",
     "daily_results_reviews",
     "daily_results_items",
@@ -98,6 +101,29 @@ async def verify() -> None:
             }
             if not required_trial_columns <= trial_columns:
                 raise RuntimeError("MEMBERSHIP_TRIAL_SCHEMA_MISMATCH")
+            swing_columns = {
+                row[0]
+                for row in (
+                    await session.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_name='trades'"
+                        )
+                    )
+                ).all()
+            }
+            if "tracking_mode" not in swing_columns:
+                raise RuntimeError("SWING_TRACKING_MODE_SCHEMA_MISMATCH")
+            unclassified_swing_count = (
+                await session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM trades "
+                        "WHERE category='SWING' AND tracking_mode IS NULL"
+                    )
+                )
+            ).scalar_one()
+            if unclassified_swing_count:
+                raise RuntimeError("SWING_TRACKING_MODE_BACKFILL_INCOMPLETE")
             counts = {}
             for table in COUNTED_TABLES:
                 exists = (

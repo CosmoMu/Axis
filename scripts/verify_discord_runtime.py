@@ -23,7 +23,7 @@ from app.db.models import GuildConfig  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
 GUIDE_TITLES = {
-    "welcome": ("welcome_message_id", "WELCOME TO AXIS"),
+    "welcome": ("welcome_message_id", "👋 欢迎来到 AXIS"),
     "subscriptions": ("subscription_message_id", "AXIS MEMBERSHIP"),
     "official_results": ("results_guide_message_id", "AXIS RESULTS"),
     "member_wins": ("member_wins_guide_message_id", "COMMUNITY WINS"),
@@ -41,10 +41,9 @@ TEST_COMMANDS = {
     "test-payment-ui",
     "test-short-entry",
     "test-short-tp",
-    "test-short-stop",
     "test-results-review",
 }
-REMOVED_COMMANDS = {"test-short-runner", "test-short-daily"}
+REMOVED_COMMANDS = {"test-short-runner", "test-short-stop", "test-short-daily"}
 
 
 def _check(condition: bool, label: str, failures: list[str]) -> None:
@@ -263,10 +262,17 @@ async def verify() -> list[str]:
                 saved_id = getattr(config, field_name)
                 _check(saved_id is not None, f"{field_name}_missing", failures)
                 matching = []
-                async for message in guide_channel.history(limit=100):
-                    if any(embed.title == title for embed in message.embeds):
-                        matching.append(message)
-                _check(len(matching) == 1, f"{channel_key}_guide_count", failures)
+                if saved_id is not None:
+                    try:
+                        saved_message = await guide_channel.fetch_message(saved_id)
+                    except (discord.NotFound, discord.Forbidden):
+                        failures.append(f"{channel_key}_guide_missing")
+                    else:
+                        if any(embed.title == title for embed in saved_message.embeds):
+                            matching.append(saved_message)
+                        else:
+                            failures.append(f"{channel_key}_guide_title")
+                _check(len(matching) == 1, f"{channel_key}_guide_identity", failures)
                 if matching and saved_id is not None:
                     _check(matching[0].id == saved_id, f"{field_name}_mismatch", failures)
                 if channel_key == "welcome" and matching:
@@ -274,25 +280,20 @@ async def verify() -> list[str]:
                     _check("START HERE" not in payload, "welcome_navigation_not_removed", failures)
                     _check("NO ACCESS" not in payload, "welcome_no_access_not_removed", failures)
                     _check(
-                        "complete a short access application" in payload,
-                        "welcome_application_copy_missing",
+                        "这里只是 AXIS 欢迎界面" in payload,
+                        "welcome_gate_copy_missing",
                         failures,
                     )
+                    _check("申请加入 AXIS" in payload, "welcome_application_copy_missing", failures)
                     _check(
-                        "3 U.S. TRADING DAYS OF FULL MEMBER ACCESS" in payload,
+                        "3 个美国股票市场交易日" in payload,
                         "welcome_trial_copy_missing",
                         failures,
                     )
-                    _check(
-                        "No credit card required" in payload, "welcome_no_card_missing", failures
-                    )
-                    _check("No automatic renewal" in payload, "welcome_no_renew_missing", failures)
-                    _check("SAFETY NOTICE" in payload, "welcome_safety_notice_missing", failures)
-                    _check(
-                        "MY RISK IS NOT YOUR RISK" in payload,
-                        "welcome_personal_risk_copy_missing",
-                        failures,
-                    )
+                    _check("无需信用卡" in payload, "welcome_no_card_missing", failures)
+                    _check("不会自动续费" in payload, "welcome_no_renew_missing", failures)
+                    _check("安全提示" in payload, "welcome_safety_notice_missing", failures)
+                    _check("风险提示" in payload, "welcome_risk_copy_missing", failures)
                     components = [
                         component
                         for row in matching[0].components
@@ -300,7 +301,7 @@ async def verify() -> list[str]:
                     ]
                     labels = [getattr(component, "label", None) for component in components]
                     _check(
-                        labels == ["APPLY TO JOIN AXIS"],
+                        labels == ["申请加入 AXIS"],
                         "welcome_buttons_mismatch",
                         failures,
                     )
@@ -308,7 +309,7 @@ async def verify() -> list[str]:
                         (
                             component
                             for component in components
-                            if getattr(component, "label", None) == "APPLY TO JOIN AXIS"
+                            if getattr(component, "label", None) == "申请加入 AXIS"
                         ),
                         None,
                     )

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     AuditLog,
     GuildConfig,
+    SwingTracking,
     Trade,
     TradeDraft,
     TradeEvent,
@@ -29,9 +30,17 @@ from app.domain.enums import (
     TradeCategory,
     TradeState,
 )
-from app.domain.public_cards import ActivePublicTrade, PublicTradeCard, ShortTermEntryCard
+from app.domain.public_cards import (
+    ActivePublicTrade,
+    PublicTradeCard,
+    ShortTermEntryCard,
+    SwingTrackedEntryCard,
+    SwingTrackingCard,
+)
 from app.services.card_review import _plan_decimal, _public_thesis
 from app.services.option_contracts import ContractValidationStatus, OptionContractResolver
+from app.services.short_term_policy import ShortTermTrackingPolicy
+from app.services.swing_tracking import SIMPLE_TRACKED_SWING
 
 ACTIVE_CUSTOM_IDS = {
     TradeCategory.SWING.value: "axis:active:swing:v1",
@@ -68,7 +77,7 @@ class PublicationClaim:
     already_published: bool
     channel_id: int
     public_ref: str
-    card: PublicTradeCard | ShortTermEntryCard | None
+    card: PublicTradeCard | ShortTermEntryCard | SwingTrackedEntryCard | SwingTrackingCard | None
     message_id: int | None
 
 
@@ -93,7 +102,9 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
-def _payload_hash(card: PublicTradeCard | ShortTermEntryCard) -> str:
+def _payload_hash(
+    card: PublicTradeCard | ShortTermEntryCard | SwingTrackedEntryCard | SwingTrackingCard,
+) -> str:
     payload = {
         key: (item.isoformat() if hasattr(item, "isoformat") else str(item))
         for key, item in asdict(card).items()
@@ -181,8 +192,7 @@ class TradePublicationService:
                 and draft.intent == "NEW_TRADE"
                 and (
                     draft.expiry is None
-                    or draft.contract_validation_status
-                    != ContractValidationStatus.VALID.value
+                    or draft.contract_validation_status != ContractValidationStatus.VALID.value
                     or not draft.option_contract_code
                 )
             ):
@@ -216,7 +226,7 @@ class TradePublicationService:
 
             category = trade.category
             channel_id = self._channel_id(config, category)
-            card = self._public_card(draft, trade)
+            card = await self._public_card(session, draft, trade)
             token = uuid.uuid4().hex
             if publication is None:
                 publication = TradePublication(
@@ -242,9 +252,8 @@ class TradePublicationService:
                 publication.trade_id = trade.id
                 publication.channel_id = channel_id
                 publication.custom_id = ACTIVE_CUSTOM_IDS.get(category)
-                if (
-                    category != TradeCategory.SHORT_TERM.value
-                    and not re.fullmatch(r"P-\d{4,6}", publication.public_ref or "")
+                if category != TradeCategory.SHORT_TERM.value and not re.fullmatch(
+                    r"P-\d{4,6}", publication.public_ref or ""
                 ):
                     publication.public_ref = await self._next_public_ref(session, config)
                 publication.payload_hash = _payload_hash(card)
@@ -351,14 +360,17 @@ class TradePublicationService:
             }:
                 raise PublicationValidationError("DRAFT_NOT_READY")
 
-            short_term = trade.category == TradeCategory.SHORT_TERM.value
+            tracked = trade.category == TradeCategory.SHORT_TERM.value or (
+                trade.category == TradeCategory.SWING.value
+                and trade.tracking_mode == SIMPLE_TRACKED_SWING
+            )
             before_position = trade.position_eighths
-            after_position = 0 if short_term else draft.position_after_eighths
+            after_position = 0 if tracked else draft.position_after_eighths
             if after_position is None:
                 raise PublicationValidationError("POSITION_AFTER_REQUIRED")
             position_delta = after_position - before_position
             if (
-                not short_term
+                not tracked
                 and draft.position_delta_eighths is not None
                 and draft.position_delta_eighths != position_delta
             ):
@@ -395,6 +407,18 @@ class TradePublicationService:
                 after_position,
                 avg_cost_after=avg_cost_after,
             )
+            if (
+                trade.tracking_mode == SIMPLE_TRACKED_SWING
+                and draft.action == TradeAction.CLOSE.value
+            ):
+                tracking = await session.scalar(
+                    select(SwingTracking)
+                    .where(SwingTracking.trade_id == trade.id)
+                    .with_for_update()
+                )
+                if tracking is None:
+                    raise PublicationValidationError("SWING_TRACKING_NOT_FOUND")
+                trade.final_return_pct = tracking.highest_return_pct
             await session.flush()
 
             publication.trade_event_id = event.id
@@ -474,9 +498,7 @@ class TradePublicationService:
                 )
         return output
 
-    async def legacy_short_term_components(
-        self, guild_id: int
-    ) -> list[LegacyComponentTarget]:
+    async def legacy_short_term_components(self, guild_id: int) -> list[LegacyComponentTarget]:
         async with self.database.session() as session:
             rows = (
                 await session.execute(
@@ -536,17 +558,30 @@ class TradePublicationService:
             trade = await session.scalar(
                 select(Trade).where(Trade.id == draft.matched_trade_id).with_for_update()
             )
+            simple_swing = draft.parse_payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
             if (
                 trade is None
                 or trade.guild_id != draft.guild_id
                 or trade.category == TradeCategory.SHORT_TERM.value
                 or trade.state not in {TradeState.ACTIVE.value, TradeState.RUNNER.value}
+                or (
+                    simple_swing
+                    and (
+                        trade.category != TradeCategory.SWING.value
+                        or trade.tracking_mode != SIMPLE_TRACKED_SWING
+                        or draft.action != TradeAction.CLOSE.value
+                    )
+                )
             ):
                 raise PublicationValidationError("TRADE_UNAVAILABLE")
             return trade
         if draft.intent != "NEW_TRADE":
             raise PublicationValidationError("INTENT_INVALID")
         category = draft.selected_category or ""
+        simple_swing = (
+            category == TradeCategory.SWING.value
+            and draft.parse_payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+        )
         required = (
             draft.selected_category,
             draft.ticker,
@@ -554,7 +589,7 @@ class TradePublicationService:
             draft.strike,
             draft.option_side,
         )
-        if category != TradeCategory.SHORT_TERM.value:
+        if category != TradeCategory.SHORT_TERM.value and not simple_swing:
             required = (*required, draft.mentor_id)
         if any(value is None for value in required):
             raise PublicationValidationError("DRAFT_INCOMPLETE")
@@ -565,14 +600,19 @@ class TradePublicationService:
             guild_id=draft.guild_id,
             public_trade_id=public_trade_id,
             category=category,
-            mentor_id=(None if category == TradeCategory.SHORT_TERM.value else draft.mentor_id),
+            tracking_mode=SIMPLE_TRACKED_SWING if simple_swing else None,
+            mentor_id=(
+                None
+                if category == TradeCategory.SHORT_TERM.value or simple_swing
+                else draft.mentor_id
+            ),
             ticker=draft.ticker or "",
             expiry=draft.expiry,
             strike=draft.strike,
             option_side=draft.option_side or "",
             option_contract_code=(
                 draft.option_contract_code
-                if category == TradeCategory.SHORT_TERM.value
+                if category == TradeCategory.SHORT_TERM.value or simple_swing
                 else None
             ),
             state=TradeState.DRAFT.value,
@@ -619,9 +659,9 @@ class TradePublicationService:
     async def _next_public_ref(session: AsyncSession, config: GuildConfig) -> str:
         await session.refresh(config, with_for_update=True)
         count = await session.scalar(
-            select(func.count()).select_from(TradePublication).where(
-                TradePublication.guild_id == config.guild_id
-            )
+            select(func.count())
+            .select_from(TradePublication)
+            .where(TradePublication.guild_id == config.guild_id)
         )
         return f"P-{int(count or 0) + 1:04d}"
 
@@ -637,7 +677,9 @@ class TradePublicationService:
         return channel_id
 
     @staticmethod
-    def _public_card(draft: TradeDraft, trade: Trade) -> PublicTradeCard | ShortTermEntryCard:
+    async def _public_card(
+        session: AsyncSession, draft: TradeDraft, trade: Trade
+    ) -> PublicTradeCard | ShortTermEntryCard | SwingTrackedEntryCard | SwingTrackingCard:
         if trade.category == TradeCategory.SHORT_TERM.value:
             entry_price = TradePublicationService._event_price(draft)
             if entry_price is None or entry_price <= 0:
@@ -649,6 +691,45 @@ class TradePublicationService:
                 strike=trade.strike,
                 option_side=trade.option_side,
                 entry_price=entry_price,
+                is_lotto=trade.is_lotto,
+            )
+        if (
+            trade.category == TradeCategory.SWING.value
+            and trade.tracking_mode == SIMPLE_TRACKED_SWING
+        ):
+            if draft.action == TradeAction.ENTRY.value:
+                entry_price = TradePublicationService._event_price(draft)
+                if entry_price is None or entry_price <= 0:
+                    raise PublicationValidationError("SWING_ENTRY_PRICE_REQUIRED")
+                return SwingTrackedEntryCard(
+                    public_trade_id=trade.public_trade_id,
+                    ticker=trade.ticker,
+                    expiry=trade.expiry,
+                    strike=trade.strike,
+                    option_side=trade.option_side,
+                    entry_price=entry_price,
+                    is_lotto=trade.is_lotto,
+                )
+            if draft.action != TradeAction.CLOSE.value:
+                raise PublicationValidationError("SIMPLE_SWING_ACTION_INVALID")
+            tracking = await session.scalar(
+                select(SwingTracking).where(SwingTracking.trade_id == trade.id)
+            )
+            if tracking is None:
+                raise PublicationValidationError("SWING_TRACKING_NOT_FOUND")
+            reference = draft.action_price or tracking.current_price or tracking.entry_price
+            reference_return = ShortTermTrackingPolicy.return_pct(tracking.entry_price, reference)
+            return SwingTrackingCard(
+                public_trade_id=trade.public_trade_id,
+                card_type="CLOSE",
+                ticker=trade.ticker,
+                expiry=trade.expiry,
+                strike=trade.strike,
+                option_side=trade.option_side,
+                price=reference,
+                return_pct=reference_return,
+                highest_price=tracking.highest_price,
+                highest_return_pct=tracking.highest_return_pct,
                 is_lotto=trade.is_lotto,
             )
         return PublicTradeCard(
@@ -715,9 +796,7 @@ class TradePublicationService:
             and event_price is not None
         ):
             added = after_position - before_position
-            return (
-                trade.avg_cost * before_position + event_price * added
-            ) / after_position
+            return (trade.avg_cost * before_position + event_price * added) / after_position
         return trade.avg_cost
 
     @staticmethod
@@ -760,6 +839,21 @@ class TradePublicationService:
             trade.option_contract_code = draft.option_contract_code
             trade.state = TradeState.ACTIVE.value
             trade.closed_at = None
+            trade.position_eighths = 0
+            trade.max_position_eighths = 0
+            trade.version += 1
+            return
+        if (
+            trade.category == TradeCategory.SWING.value
+            and trade.tracking_mode == SIMPLE_TRACKED_SWING
+        ):
+            trade.option_contract_code = draft.option_contract_code or trade.option_contract_code
+            if draft.action == TradeAction.CLOSE.value:
+                trade.state = TradeState.CLOSED.value
+                trade.closed_at = now
+            else:
+                trade.state = TradeState.ACTIVE.value
+                trade.closed_at = None
             trade.position_eighths = 0
             trade.max_position_eighths = 0
             trade.version += 1

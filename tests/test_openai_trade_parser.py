@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def valid_payload() -> dict[str, object]:
     return {
+        "target_public_trade_id": None,
         "intent": "NEW_TRADE",
         "action": "ENTRY",
         "add_stage": "NONE",

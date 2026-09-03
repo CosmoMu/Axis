@@ -77,7 +77,7 @@ def _ensure_price(
             or interval != ("month" if recurring else None)
             or price.get("livemode") is not True
         ):
-            raise RuntimeError(f"Existing Stripe Price {lookup_key} does not match AXIS V1")
+            raise RuntimeError(f"Existing Stripe Price {lookup_key} does not match AXIS")
         return price, False
     params: dict[str, Any] = {
         "product": product_id,
@@ -172,8 +172,8 @@ def main() -> int:
     monthly, monthly_created = _ensure_price(
         client,
         product_id=product_id,
-        lookup_key="axis_monthly_v1",
-        unit_amount=9999,
+        lookup_key="axis_monthly_v2",
+        unit_amount=14999,
         recurring=True,
     )
     endpoints = _plain(client.v1.webhook_endpoints.list({"limit": 100})).get("data", [])
@@ -264,7 +264,7 @@ def main() -> int:
             "STRIPE_LIVE_DAY_PASS_PRICE_ID": str(day_pass.get("id") or ""),
             "STRIPE_LIVE_MONTHLY_PRICE_ID": str(monthly.get("id") or ""),
             "STRIPE_LIVE_DAY_PASS_PRICING_VERSION": "DAY_PASS_V1",
-            "STRIPE_LIVE_MONTHLY_PRICING_VERSION": "MONTHLY_V1",
+            "STRIPE_LIVE_MONTHLY_PRICING_VERSION": "MONTHLY_V2",
             "STRIPE_LIVE_WEBHOOK_SECRET": webhook_secret,
         }
     )

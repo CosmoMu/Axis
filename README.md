@@ -10,10 +10,12 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Daily Results Review / Exclude Workflow: COMPLETE / LIVE
 - Newcomer Approval / Security Gate: CODE COMPLETE / LIVE E2E PENDING
 - Short-Term TP1–TP41 / Expiry-only Tracking / LOTTO: CODE COMPLETE / LIVE E2E PENDING
+- Simple Tracked Swing: CODE COMPLETE / DB MIGRATED / LIVE E2E PENDING
+- Legacy Swing: COMPATIBILITY MODE / 4 ACTIVE AT MIGRATION
 - Stripe Payment: LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
 - Production Stabilization: PARTIAL
 - AXIS LAB: DEFERRED
-- Latest automated regression: 255 passed、0 failed、0 skipped；Ruff / compileall PASS
+- Latest automated regression: 282 passed、0 failed、0 skipped；Ruff / compileall PASS
 
 ## 文档入口
 
@@ -31,9 +33,11 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 
 ## 下一优先级
 
-Newcomer Role、英文申请、Manager join-review、自动 3 U.S. Trading Day Trial、风险扫描和
-reconciliation 已实现并部署；下一步优先完成真实 Join → Apply → Approve → Trial → Expiry
-时钟验收。Stripe 账户、KYC、payout、Live Product/Prices、Customer Portal、顾客展示资料和
+Simple Tracked Swing 已完成独立 tracker 与安全 schema migration，下一步优先验证真实 Entry →
+TP → Close → Results，并确认四笔 Active Legacy Swing 继续旧流程。Newcomer Role、中文申请、
+Manager join-review、自动 3 U.S. Trading Day Trial、风险扫描和 reconciliation 已实现并部署，
+仍需真实 Join → Apply → Approve → Trial → Expiry 时钟验收。Stripe 账户、KYC、payout、Live
+Product/Prices、Customer Portal、顾客展示资料和
 `https://axisdesk.fyi/webhooks/stripe` 已完成；`STRIPE_MODE=live`、`STRIPE_ENABLED=true`、
 `PAYMENTS_ENABLED=true`，Live readiness 为 PASS / 0 blockers。下一步由 Owner 在 Discord
 完成第一笔真实 Day Pass 或 Monthly 付款，并记录 webhook、Entitlement 与 Member Role E2E；

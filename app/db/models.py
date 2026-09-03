@@ -117,9 +117,7 @@ class GuildConfig(TimestampMixin, Base):
     member_wins_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     short_term_notice_message_id: Mapped[int | None] = mapped_column(BigInteger)
     newcomer_status_message_id: Mapped[int | None] = mapped_column(BigInteger)
-    newcomer_gate_activated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    newcomer_gate_activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class InputCodeCounter(Base):
@@ -328,6 +326,10 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("position_eighths BETWEEN 0 AND 8", name="trade_position"),
         CheckConstraint("max_position_eighths BETWEEN 0 AND 8", name="trade_max_position"),
         CheckConstraint(
+            "tracking_mode IS NULL OR tracking_mode IN ('LEGACY_SWING','SIMPLE_TRACKED_SWING')",
+            name="trade_tracking_mode",
+        ),
+        CheckConstraint(
             "entry_low IS NULL OR entry_high IS NULL OR entry_low <= entry_high",
             name="trade_entry_range",
         ),
@@ -339,6 +341,7 @@ class Trade(UuidPrimaryKeyMixin, TimestampMixin, Base):
     )
     public_trade_id: Mapped[str] = mapped_column(String(32), nullable=False)
     category: Mapped[str] = mapped_column(String(32), nullable=False)
+    tracking_mode: Mapped[str | None] = mapped_column(String(32), index=True)
     mentor_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("mentors.id", ondelete="RESTRICT"), index=True, nullable=True
     )
@@ -552,6 +555,131 @@ class ShortTermDailySnapshot(UuidPrimaryKeyMixin, Base):
     tracking_protection_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     tracking_state: Mapped[str] = mapped_column(String(24), nullable=False)
     tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class SwingTracking(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "swing_tracking"
+    __table_args__ = (
+        UniqueConstraint("trade_id", name="swing_tracking_trade"),
+        CheckConstraint("tracking_state IN ('ACTIVE','STOPPED')", name="swing_tracking_state"),
+        CheckConstraint("entry_price > 0", name="swing_tracking_entry_positive"),
+        CheckConstraint("price_source IN ('BID','MID','LAST')", name="swing_price_source"),
+        Index("ix_swing_tracking_guild_state", "guild_id", "tracking_state"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    option_ticker: Mapped[str] = mapped_column(String(64), nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    current_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    current_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    highest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    highest_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    lowest_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tp_levels_hit: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    highest_tp_level: Mapped[str | None] = mapped_column(String(16))
+    tracking_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    tracking_end_reason: Mapped[str | None] = mapped_column(String(64))
+    tracking_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tracking_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_session_date: Mapped[date | None] = mapped_column(Date)
+    last_quote_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tracking_policy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    price_source: Mapped[str] = mapped_column(String(8), nullable=False)
+    close_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    close_reference_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    close_reference_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    close_reference_source: Mapped[str | None] = mapped_column(String(32))
+    consecutive_data_errors: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class SwingTrackingEvent(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "swing_tracking_events"
+    __table_args__ = (
+        UniqueConstraint("tracking_id", "event_key", name="swing_tracking_event_key"),
+        UniqueConstraint("guild_id", "public_ref", name="swing_event_public_ref"),
+        UniqueConstraint("guild_id", "discord_message_id", name="swing_event_message"),
+        CheckConstraint(
+            "event_type IN ('ENTRY_PUBLISHED','FIXED_TP_HIT','MANUAL_SIGNAL_CLOSE',"
+            "'OPTION_EXPIRED')",
+            name="swing_event_type",
+        ),
+        Index("ix_swing_events_public_queue", "guild_id", "public_notification", "published_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    tracking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("swing_tracking.id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    event_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    tp_return_pct: Mapped[int | None] = mapped_column(Integer)
+    source_market_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    high_watermark_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    high_watermark_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    high_watermark_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    low_watermark_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    low_watermark_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    tracking_policy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    price_source: Mapped[str] = mapped_column(String(8), nullable=False)
+    public_notification: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    public_card_type: Mapped[str | None] = mapped_column(String(24))
+    public_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    public_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    public_ref: Mapped[str | None] = mapped_column(String(32))
+    discord_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class SwingDailySnapshot(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "swing_daily_snapshots"
+    __table_args__ = (
+        UniqueConstraint("tracking_id", "session_date", name="swing_daily_tracking_session"),
+        Index("ix_swing_daily_guild_session", "guild_id", "session_date"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    tracking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("swing_tracking.id", ondelete="CASCADE"), index=True
+    )
+    trade_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trades.id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    closing_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    closing_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    highest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    lowest_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    lowest_return_pct: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    tracking_state: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -1204,6 +1332,8 @@ class AccessApplication(UuidPrimaryKeyMixin, TimestampMixin, Base):
     review_note: Mapped[str | None] = mapped_column(Text)
     review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     review_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    lobby_welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    member_lounge_welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class NewcomerRiskFlag(UuidPrimaryKeyMixin, Base):

@@ -23,6 +23,7 @@ from app.services.option_contracts import (
     parse_expiry_input,
     parse_fast_signal,
 )
+from app.services.swing_tracking import SIMPLE_TRACKED_SWING
 
 
 class ReviewError(RuntimeError):
@@ -148,6 +149,7 @@ class ReviewDraft:
     fib_0618: Decimal | None
     public_thesis: str | None
     is_lotto: bool
+    swing_mode: str | None = None
 
 
 ACTIVE_REVIEW_STATUSES = {
@@ -187,6 +189,37 @@ def missing_field_labels(fields: tuple[str, ...]) -> tuple[str, ...]:
 def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ...]:
     missing: list[str] = []
     category = draft.selected_category or draft.category_suggestion
+    swing_mode = (
+        draft.parse_payload.get("_swing_mode")
+        if isinstance(draft, TradeDraft)
+        else draft.swing_mode
+    )
+    if category == "SWING" and swing_mode == SIMPLE_TRACKED_SWING:
+        if draft.selected_category != "SWING":
+            missing.append("category")
+        if draft.intent == "NEW_TRADE" and draft.action == "ENTRY":
+            for field in ("ticker", "expiry", "strike", "option_side"):
+                value = getattr(draft, field)
+                if value is None or (field == "expiry" and value < date.today()):
+                    missing.append(field)
+            if getattr(draft, "contract_validation_status", None) in {
+                ContractValidationStatus.NOT_FOUND.value,
+                ContractValidationStatus.UNAVAILABLE.value,
+            }:
+                missing.append("contract")
+            if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
+                missing.append("entry_price")
+        elif draft.intent == "UPDATE_TRADE" and draft.action == "CLOSE":
+            matched = (
+                draft.matched_trade_id
+                if isinstance(draft, TradeDraft)
+                else draft.matched_trade_code
+            )
+            if matched is None:
+                missing.append("matched_trade")
+        else:
+            missing.append("action")
+        return tuple(missing)
     if category == "SHORT_TERM":
         if draft.intent != "NEW_TRADE":
             missing.append("intent")
@@ -196,14 +229,12 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             value = getattr(draft, field)
             if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
-        if (
-            getattr(draft, "expiry_precision", None) is not None
-            and getattr(draft, "contract_validation_status", None)
-            in {
-                ContractValidationStatus.NOT_FOUND.value,
-                ContractValidationStatus.UNAVAILABLE.value,
-            }
-        ):
+        if getattr(draft, "expiry_precision", None) is not None and getattr(
+            draft, "contract_validation_status", None
+        ) in {
+            ContractValidationStatus.NOT_FOUND.value,
+            ContractValidationStatus.UNAVAILABLE.value,
+        }:
             missing.append("contract")
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
@@ -224,14 +255,12 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             value = getattr(draft, field)
             if value is None or (field == "expiry" and value < date.today()):
                 missing.append(field)
-        if (
-            getattr(draft, "expiry_precision", None) is not None
-            and getattr(draft, "contract_validation_status", None)
-            in {
-                ContractValidationStatus.NOT_FOUND.value,
-                ContractValidationStatus.UNAVAILABLE.value,
-            }
-        ):
+        if getattr(draft, "expiry_precision", None) is not None and getattr(
+            draft, "contract_validation_status", None
+        ) in {
+            ContractValidationStatus.NOT_FOUND.value,
+            ContractValidationStatus.UNAVAILABLE.value,
+        }:
             missing.append("contract")
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
@@ -570,20 +599,27 @@ class CardReviewService:
             for mentor_id, name, short_code in rows
         ]
 
-    async def trade_choices(self, guild_id: int) -> list[ReviewChoice]:
+    async def trade_choices(
+        self, guild_id: int, *, simple_swing_only: bool = False
+    ) -> list[ReviewChoice]:
         async with self.database.session() as session:
-            rows = (
-                await session.execute(
-                    select(Trade.id, Trade.public_trade_id, Trade.ticker, Trade.option_side)
-                    .where(
-                        Trade.guild_id == guild_id,
-                        Trade.category.in_(("SWING", "LEAPS")),
-                        Trade.state.in_([TradeState.ACTIVE.value, TradeState.RUNNER.value]),
-                    )
-                    .order_by(Trade.updated_at.desc())
-                    .limit(25)
+            statement = (
+                select(Trade.id, Trade.public_trade_id, Trade.ticker, Trade.option_side)
+                .where(
+                    Trade.guild_id == guild_id,
+                    Trade.category.in_(("SWING", "LEAPS")),
+                    Trade.state.in_([TradeState.ACTIVE.value, TradeState.RUNNER.value]),
                 )
-            ).all()
+                .order_by(Trade.updated_at.desc())
+                .limit(25)
+            )
+            if simple_swing_only:
+                statement = statement.where(
+                    Trade.category == "SWING",
+                    Trade.tracking_mode == SIMPLE_TRACKED_SWING,
+                    Trade.state == TradeState.ACTIVE.value,
+                )
+            rows = (await session.execute(statement)).all()
         return [
             ReviewChoice(str(trade_id), public_id[:100], f"{ticker} · {side}"[:100])
             for trade_id, public_id, ticker, side in rows
@@ -600,8 +636,10 @@ class CardReviewService:
     ) -> ReviewDraft:
         async with self.database.session() as session:
             draft = await self._locked_draft(session, draft_id, expected_version)
-            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
-                raise ReviewValidationError("SHORT_TERM_MENTOR_FORBIDDEN")
+            if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM" or (
+                draft.parse_payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+            ):
+                raise ReviewValidationError("TRACKED_TRADE_MENTOR_FORBIDDEN")
             mentor = await session.get(Mentor, mentor_id)
             if mentor is None or mentor.guild_id != draft.guild_id or not mentor.is_active:
                 raise ReviewValidationError("MENTOR_UNAVAILABLE")
@@ -628,11 +666,38 @@ class CardReviewService:
             if (draft.selected_category or draft.category_suggestion) == "SHORT_TERM":
                 raise ReviewValidationError("SHORT_TERM_TRADE_LINK_FORBIDDEN")
             trade = await session.get(Trade, trade_id)
-            if trade is None or trade.guild_id != draft.guild_id or trade.category == "SHORT_TERM":
+            simple_swing = draft.parse_payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+            if (
+                trade is None
+                or trade.guild_id != draft.guild_id
+                or trade.category == "SHORT_TERM"
+                or (
+                    simple_swing
+                    and (
+                        trade.category != "SWING"
+                        or trade.tracking_mode != SIMPLE_TRACKED_SWING
+                        or trade.state != TradeState.ACTIVE.value
+                    )
+                )
+            ):
                 raise ReviewValidationError("TRADE_UNAVAILABLE")
             before = _audit_payload(draft)
             draft.matched_trade_id = trade.id
             draft.is_lotto = trade.is_lotto
+            if simple_swing:
+                draft.selected_category = "SWING"
+                draft.category_suggestion = "SWING"
+                draft.intent = "UPDATE_TRADE"
+                draft.action = "CLOSE"
+                draft.ticker = trade.ticker
+                draft.expiry = trade.expiry
+                draft.expiry_input = trade.expiry.isoformat()
+                draft.expiry_precision = ExpiryPrecision.EXACT_DATE.value
+                draft.option_contract_code = trade.option_contract_code
+                draft.contract_validation_status = ContractValidationStatus.VALID.value
+                draft.strike = trade.strike
+                draft.option_side = trade.option_side
+                draft.position_after_eighths = 0
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session, draft, actor_user_id, interaction_id, "TRADE_DRAFT_TRADE_SELECTED", before
@@ -688,8 +753,24 @@ class CardReviewService:
                 return await self._snapshot(session, draft)
             before = _audit_payload(draft)
             draft.selected_category = category
-            if category == "SHORT_TERM":
+            if category in {"SHORT_TERM", "SWING"}:
                 self._clear_short_term_fields(draft)
+                payload = dict(draft.parse_payload)
+                if category == "SWING":
+                    payload["_swing_mode"] = SIMPLE_TRACKED_SWING
+                else:
+                    payload.pop("_swing_mode", None)
+                draft.parse_payload = payload
+                if (
+                    category == "SWING"
+                    and draft.expiry_precision == ExpiryPrecision.AUTO_NEAREST.value
+                ):
+                    draft.expiry = None
+                    draft.expiry_input = None
+                    draft.expiry_precision = None
+                    draft.expiry_resolution_status = ExpiryResolutionStatus.UNRESOLVED.value
+                    draft.option_contract_code = None
+                    draft.contract_validation_status = ContractValidationStatus.UNVALIDATED.value
                 if draft.expiry_precision is None:
                     if draft.expiry is not None:
                         draft.expiry_input = draft.expiry.isoformat()
@@ -704,6 +785,10 @@ class CardReviewService:
                 draft.expiry_resolution_status = ExpiryResolutionStatus.UNRESOLVED.value
                 draft.option_contract_code = None
                 draft.contract_validation_status = ContractValidationStatus.UNVALIDATED.value
+            if category == "LEAPS":
+                payload = dict(draft.parse_payload)
+                payload.pop("_swing_mode", None)
+                draft.parse_payload = payload
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session,
@@ -715,7 +800,7 @@ class CardReviewService:
             )
             await session.commit()
             updated = await self._snapshot(session, draft)
-        if category == "SHORT_TERM":
+        if category in {"SHORT_TERM", "SWING"}:
             return await self.ensure_expiry_resolution(
                 updated.id,
                 expected_version=updated.version,
@@ -822,6 +907,8 @@ class CardReviewService:
             draft.option_side = values.option_side
             expiry_input, precision = parse_expiry_input(values.expiry_input)
             if precision is None:
+                if values.selected_category == "SWING":
+                    raise ReviewValidationError("SWING_EXPIRY_REQUIRED")
                 expiry_input = None
                 precision = ExpiryPrecision.AUTO_NEAREST
             draft.expiry = None
@@ -842,6 +929,12 @@ class CardReviewService:
             draft.tp1 = None
             draft.tp2 = None
             draft.current_pnl_pct = None
+            payload = dict(draft.parse_payload)
+            if values.selected_category == "SWING":
+                payload["_swing_mode"] = SIMPLE_TRACKED_SWING
+            else:
+                payload.pop("_swing_mode", None)
+            draft.parse_payload = payload
             self._mark_edited(draft, actor_user_id)
             await self._add_audit(
                 session, draft, actor_user_id, interaction_id, "SHORT_TERM_DRAFT_EDITED", before
@@ -982,6 +1075,7 @@ class CardReviewService:
                 raise ReviewValidationError("DRAFT_INCOMPLETE", missing)
             if (
                 (draft.selected_category or draft.category_suggestion) in {"SWING", "LEAPS"}
+                and draft.parse_payload.get("_swing_mode") != SIMPLE_TRACKED_SWING
                 and draft.intent == "NEW_TRADE"
                 and draft.action == "ENTRY"
             ):
@@ -1345,22 +1439,13 @@ class CardReviewService:
             fib_0618,
         )
         if any(
-            value is not None and (not value.is_finite() or value <= 0)
-            for value in plan_values
+            value is not None and (not value.is_finite() or value <= 0) for value in plan_values
         ):
             raise ReviewValidationError("PLAN_PRICE_INVALID")
-        if (
-            add_zone_low is not None
-            and add_zone_high is not None
-            and add_zone_low > add_zone_high
-        ):
+        if add_zone_low is not None and add_zone_high is not None and add_zone_low > add_zone_high:
             raise ReviewValidationError("PLAN_ADD_ZONE_INVALID")
         reference = starter or current_stock
-        targets = [
-            value
-            for value in (stock_pt1, stock_pt2, stock_pt3)
-            if value is not None
-        ]
+        targets = [value for value in (stock_pt1, stock_pt2, stock_pt3) if value is not None]
         if reference is not None and option_side == "CALL":
             if stock_sl is not None and stock_sl >= reference:
                 raise ReviewValidationError("PLAN_SL_DIRECTION_INVALID")
@@ -1387,6 +1472,8 @@ class CardReviewService:
         _, precision = parse_expiry_input(values.expiry_input)
         if values.expiry_input and precision is None:
             raise ReviewValidationError("EXPIRY_INVALID")
+        if values.selected_category == "SWING" and precision is None:
+            raise ReviewValidationError("SWING_EXPIRY_REQUIRED")
         if not 1 <= len(values.ticker) <= 12 or any(
             character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for character in values.ticker
         ):
@@ -1510,4 +1597,9 @@ class CardReviewService:
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
             is_lotto=draft.is_lotto,
+            swing_mode=(
+                str(draft.parse_payload.get("_swing_mode"))
+                if draft.parse_payload.get("_swing_mode")
+                else None
+            ),
         )

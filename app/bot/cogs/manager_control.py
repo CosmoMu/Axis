@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.bot.cards import build_official_result_embed
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
+from app.bot.member_welcomes import member_lounge_welcome_message
 from app.bot.views.management_views import MemberControlView, MentorControlView
 from app.db.models import AuditLog, GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
@@ -29,6 +30,10 @@ class ManagerControlCog(commands.Cog):
         member_role_id: int,
         mentor_channel_id: int,
         member_channel_id: int,
+        member_lounge_channel_id: int,
+        short_term_channel_id: int,
+        swing_channel_id: int,
+        leaps_channel_id: int,
         mentor_service: MentorManagementService,
         membership_service: MembershipManagementService,
         results_service: OfficialResultsService,
@@ -41,6 +46,10 @@ class ManagerControlCog(commands.Cog):
         self.member_role_id = member_role_id
         self.mentor_channel_id = mentor_channel_id
         self.member_channel_id = member_channel_id
+        self.member_lounge_channel_id = member_lounge_channel_id
+        self.short_term_channel_id = short_term_channel_id
+        self.swing_channel_id = swing_channel_id
+        self.leaps_channel_id = leaps_channel_id
         self.mentor_service = mentor_service
         self.membership_service = membership_service
         self.results_service = results_service
@@ -242,6 +251,47 @@ class ManagerControlCog(commands.Cog):
                 )
             )
             await session.commit()
+        if should_have:
+            await self._send_member_lounge_welcome(user_id)
+
+    def expect_member_role_change(self, user_id: int, should_have: bool) -> None:
+        self._role_expectations[user_id] = should_have
+
+    async def _send_member_lounge_welcome(self, user_id: int) -> None:
+        if self.bot.user is None:
+            return
+        try:
+            channel = self.bot.get_channel(
+                self.member_lounge_channel_id
+            ) or await self.bot.fetch_channel(self.member_lounge_channel_id)
+            await channel.send(
+                member_lounge_welcome_message(
+                    user_id,
+                    short_term_channel_id=self.short_term_channel_id,
+                    swing_channel_id=self.swing_channel_id,
+                    leaps_channel_id=self.leaps_channel_id,
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False,
+                    roles=False,
+                    users=True,
+                    replied_user=False,
+                ),
+            )
+        except discord.HTTPException as exc:
+            logger.warning(
+                "event=member_lounge_welcome_failed user_id=%s error_type=%s",
+                user_id,
+                type(exc).__name__,
+            )
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Membership Role Sync",
+                error_type="MEMBER_WELCOME_FAILED",
+                affected=f"Discord User {user_id}",
+                detail=type(exc).__name__,
+            )
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
@@ -260,6 +310,8 @@ class ManagerControlCog(commands.Cog):
             has_role=after_has,
             actor_user_id=self.owner_user_id or self.bot.user.id,
         )
+        if after_has:
+            await self._send_member_lounge_welcome(after.id)
 
     async def _ensure_panels(self) -> None:
         mentor_embed = discord.Embed(

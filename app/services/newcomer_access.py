@@ -24,18 +24,18 @@ from app.domain.enums import AccessApplicationStatus, EntitlementType
 from app.services.membership_access import MembershipAcknowledgementService
 
 DISCOVERY_SOURCES = {
-    "FRIEND_REFERRAL": "Friend / Referral",
-    "X_SOCIAL_MEDIA": "X / Social Media",
+    "FRIEND_REFERRAL": "朋友推荐",
+    "X_SOCIAL_MEDIA": "X / 社交媒体",
     "DISCORD": "Discord",
-    "ONLINE_COMMUNITY": "Online Community",
-    "OTHER": "Other",
+    "ONLINE_COMMUNITY": "网络社区",
+    "OTHER": "其他",
 }
 INTERESTS = {"SHORT_TERM", "SWING", "LEAPS", "MARKET_ANALYSIS"}
 INTEREST_LABELS = {
-    "SHORT_TERM": "Short-Term",
-    "SWING": "Swing",
-    "LEAPS": "LEAPS",
-    "MARKET_ANALYSIS": "Market Analysis",
+    "SHORT_TERM": "短线",
+    "SWING": "波段",
+    "LEAPS": "长期",
+    "MARKET_ANALYSIS": "市场分析",
 }
 
 
@@ -64,6 +64,8 @@ class ApplicationSnapshot:
     review_note: str | None
     review_channel_id: int | None
     review_message_id: int | None
+    lobby_welcome_message_id: int | None
+    member_lounge_welcome_message_id: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -413,6 +415,61 @@ class NewcomerAccessService:
             ).all()
             return tuple(self._application_snapshot(row) for row in rows)
 
+    async def approved_applications_pending_welcome(
+        self, guild_id: int
+    ) -> tuple[ApplicationSnapshot, ...]:
+        async with self.database.session() as session:
+            rows = (
+                await session.scalars(
+                    select(AccessApplication)
+                    .where(
+                        AccessApplication.guild_id == guild_id,
+                        AccessApplication.status
+                        == AccessApplicationStatus.APPROVED.value,
+                        (
+                            AccessApplication.lobby_welcome_message_id.is_(None)
+                            | AccessApplication.member_lounge_welcome_message_id.is_(None)
+                        ),
+                    )
+                    .order_by(AccessApplication.reviewed_at)
+                )
+            ).all()
+            return tuple(self._application_snapshot(row) for row in rows)
+
+    async def attach_approval_welcome_message(
+        self,
+        application_id: uuid.UUID,
+        *,
+        destination: str,
+        message_id: int,
+        actor_user_id: int,
+    ) -> bool:
+        field_by_destination = {
+            "LOBBY": "lobby_welcome_message_id",
+            "MEMBER_LOUNGE": "member_lounge_welcome_message_id",
+        }
+        field = field_by_destination.get(destination.strip().upper())
+        if field is None:
+            raise NewcomerAccessError("WELCOME_DESTINATION_INVALID")
+        async with self.database.session() as session:
+            row = await session.get(AccessApplication, application_id, with_for_update=True)
+            if row is None:
+                raise NewcomerAccessError("APPLICATION_NOT_FOUND")
+            if getattr(row, field) is not None:
+                return False
+            setattr(row, field, message_id)
+            self._audit(
+                session,
+                guild_id=row.guild_id,
+                actor_user_id=actor_user_id,
+                action="NEW_MEMBER_WELCOME_SENT",
+                entity_type="access_application",
+                entity_id=str(row.id),
+                after={"destination": destination.strip().upper(), "message_id": message_id},
+            )
+            await session.commit()
+            return True
+
     async def previous_application_status(
         self,
         guild_id: int,
@@ -691,6 +748,8 @@ class NewcomerAccessService:
             row.review_note,
             row.review_channel_id,
             row.review_message_id,
+            row.lobby_welcome_message_id,
+            row.member_lounge_welcome_message_id,
         )
 
     @staticmethod
@@ -766,12 +825,12 @@ class NewcomerRiskScanner:
         if age < timedelta(days=7):
             expected["VERY_NEW_ACCOUNT"] = (
                 "HIGH",
-                f"Discord account created {max(age.days, 0)} day(s) ago.",
+                f"Discord 账户创建于 {max(age.days, 0)} 天前。",
             )
         elif age < timedelta(days=30):
             expected["NEW_ACCOUNT"] = (
                 "MEDIUM",
-                f"Discord account created {max(age.days, 0)} day(s) ago.",
+                f"Discord 账户创建于 {max(age.days, 0)} 天前。",
             )
         async with self.database.session() as session:
             application_rows = (
@@ -804,24 +863,24 @@ class NewcomerRiskScanner:
                 )
             )
             if AccessApplicationStatus.REJECTED.value in statuses:
-                expected["PREVIOUS_REJECTION"] = ("MEDIUM", "Previous application rejected.")
+                expected["PREVIOUS_REJECTION"] = ("MEDIUM", "该用户曾有加入申请被拒绝。")
             if AccessApplicationStatus.FLAGGED.value in statuses or previously_flagged:
-                expected["PREVIOUS_FLAG"] = ("MEDIUM", "Application was previously flagged.")
+                expected["PREVIOUS_FLAG"] = ("MEDIUM", "该用户曾有加入申请被标记。")
             if trial_id is not None:
                 expected["TRIAL_ALREADY_USED"] = (
                     "LOW",
-                    "Permanent Free Trial history exists; no second Trial is allowed.",
+                    "已有永久免费体验记录，不能再次领取。",
                 )
             if profile is not None and profile.join_count > 1 and profile.approved_at is None:
                 expected["REJOIN_WITHOUT_APPROVAL"] = (
                     "LOW",
-                    f"User joined AXIS {profile.join_count} times without approval.",
+                    f"该用户未获批准，已加入 AXIS {profile.join_count} 次。",
                 )
             matched = self.protected_identity_match(username, display_name)
             if matched is not None:
                 expected["POSSIBLE_IMPERSONATION"] = (
                     "HIGH",
-                    f"Name is similar to protected identity: {matched}",
+                    f"用户名或显示名称与受保护身份相似：{matched}",
                 )
 
             current = {

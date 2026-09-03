@@ -18,40 +18,54 @@ def welcome_embed(
     free_trial_enabled: bool = True,
 ) -> discord.Embed:
     del guild_id, channel_ids
-    trial_copy = (
-        "New members must complete a short access application before entering AXIS.\n\n"
-        "Once approved, you will automatically receive:\n\n"
-        f"**{free_trial_trading_days} U.S. TRADING DAYS OF FULL MEMBER ACCESS**\n\n"
-        "No credit card required.\nNo automatic renewal."
+    approval_copy = (
+        f"自动获得 **{free_trial_trading_days} 个美国股票市场交易日**的完整会员权限。\n\n"
+        "无需信用卡，不会自动续费。"
         if free_trial_enabled
-        else "New member applications are temporarily unavailable."
+        else "新会员申请目前暂时关闭。"
     )
 
     embed = discord.Embed(
-        title="WELCOME TO AXIS",
-        description=f"**Signals without the noise.**\n\n{trial_copy}",
+        title="👋 欢迎来到 AXIS",
+        description=(
+            "**这里只是 AXIS 欢迎界面**\n\n"
+            "看到这个页面并不代表你已经加入 AXIS。\n\n"
+            "**如需加入，请点击下方绿色「申请加入 AXIS」按钮并提交申请。**"
+        ),
         color=AXIS_GREEN,
     )
     embed.add_field(
-        name="MEMBER ACCESS INCLUDES",
-        value=("⚡ Short-Term\n〽️ Swing\n♾️ LEAPS\n🛋️ Member Lounge"),
-        inline=False,
-    )
-    embed.add_field(
-        name="RISK NOTICE",
+        name="🚪 如何加入",
         value=(
-            "AXIS provides market analysis, research, and educational content only.\n\n"
-            "Nothing provided by AXIS constitutes investment or financial advice.\n\n"
-            "Trading involves risk.\n\n"
-            "**MY RISK IS NOT YOUR RISK.**"
+            "1. 点击下方「申请加入 AXIS」按钮。\n"
+            "2. 填写简短的加入申请。\n"
+            "3. 提交后等待管理员审核。"
         ),
         inline=False,
     )
     embed.add_field(
-        name="SAFETY NOTICE",
+        name="🎁 审核通过后",
+        value=approval_copy,
+        inline=False,
+    )
+    embed.add_field(
+        name="会员权限",
+        value="⚡ 短线\n〽️ 波段\n♾️ 长期\n🛋️ 会员交流区",
+        inline=False,
+    )
+    embed.add_field(
+        name="风险提示",
         value=(
-            "AXIS staff will never DM you first asking for private payment, passwords, "
-            "brokerage credentials, crypto transfers, or remote access."
+            "AXIS 仅提供市场研究与教育内容，不构成投资、财务或交易建议。\n"
+            "交易存在风险，请独立判断并自行承担风险。"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="安全提示",
+        value=(
+            "AXIS 工作人员绝不会主动私信索取私人付款、密码、券商账户信息、"
+            "加密货币转账或远程访问权限。"
         ),
         inline=False,
     )

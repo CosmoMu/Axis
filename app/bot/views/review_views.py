@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import discord
 
-from app.bot.cards import build_active_orders_embed
+from app.bot.cards import build_active_orders_embed, build_swing_active_embed
 from app.bot.ephemeral import (
     SUCCESS_DELETE_AFTER,
     send_temporary_ephemeral,
@@ -509,9 +509,7 @@ class ContractEditModal(discord.ui.Modal):
                 values=_edit_values(
                     self.draft,
                     ticker=(
-                        value.upper()
-                        if (value := _optional_text(self.ticker.value))
-                        else None
+                        value.upper() if (value := _optional_text(self.ticker.value)) else None
                     ),
                     expiry=_optional_date(self.expiry.value),
                     strike=_optional_decimal(self.strike.value),
@@ -893,7 +891,7 @@ class SwingEditMenuView(discord.ui.View):
 class ShortTermEditModal(discord.ui.Modal):
     def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
         super().__init__(
-            title=f"Edit Short-Term · {draft.draft_code}"[:45],
+            title=f"Edit {draft.selected_category or 'Short-Term'} · {draft.draft_code}"[:45],
             timeout=300,
             custom_id=f"axis:review:short-edit:{draft.id.hex}:v{draft.version}",
         )
@@ -936,7 +934,7 @@ class ShortTermEditModal(discord.ui.Modal):
             if strike is None or entry is None:
                 raise ReviewValidationError("SHORT_TERM_FIELDS_REQUIRED")
             values = ShortTermDraftEdit(
-                selected_category="SHORT_TERM",
+                selected_category=self.draft.selected_category or "SHORT_TERM",
                 ticker=self.ticker.value.strip().upper(),
                 expiry_input=self.expiry.value.strip() or None,
                 strike=strike,
@@ -954,7 +952,52 @@ class ShortTermEditModal(discord.ui.Modal):
             await self.controller.refresh(updated)
             await send_temporary_ephemeral(
                 interaction,
-                "Short-Term 草稿已更新。",
+                "追踪订单草稿已更新。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class SwingCloseEditModal(discord.ui.Modal):
+    def __init__(self, controller: CardReviewCog, draft: ReviewDraft) -> None:
+        super().__init__(title=f"Edit Swing Close · {draft.draft_code}"[:45], timeout=300)
+        self.controller = controller
+        self.draft = draft
+        self.reference_price = discord.ui.TextInput(
+            label="Close Reference Price · Optional",
+            default=_decimal_display(draft.action_price),
+            required=False,
+            max_length=24,
+        )
+        self.add_item(self.reference_price)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        try:
+            values = _edit_values(
+                self.draft,
+                intent="UPDATE_TRADE",
+                action="CLOSE",
+                action_stage=None,
+                selected_category="SWING",
+                action_price=_optional_decimal(self.reference_price.value),
+                position_delta_eighths=None,
+                position_after_eighths=0,
+            )
+            await interaction.response.defer(ephemeral=True)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                values=values,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                "Swing 平仓参考价格已更新。",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
@@ -1197,11 +1240,21 @@ class ReviewDraftView(discord.ui.View):
         self.draft = draft
         self.preview_card = preview_card
         self.add_item(CategorySelect(controller, draft))
-        short_term = (draft.selected_category or draft.category_suggestion) == "SHORT_TERM"
-        if short_term:
-            self.add_item(ExpirySelect(controller, draft))
+        category = draft.selected_category or draft.category_suggestion
+        simple = category == "SHORT_TERM" or draft.swing_mode == "SIMPLE_TRACKED_SWING"
+        if simple:
+            close = draft.swing_mode == "SIMPLE_TRACKED_SWING" and draft.action == "CLOSE"
+            if close:
+                self.add_item(
+                    ReviewChoiceSelect(controller, draft, kind="trade", choices=trade_choices)
+                )
+            elif category == "SHORT_TERM":
+                self.add_item(ExpirySelect(controller, draft))
+            elif draft.expiry_candidates:
+                self.add_item(ExpirySelect(controller, draft, allow_shortcuts=False))
+            button_row = 3 if close else 2
             buttons = (
-                ("EDIT", discord.ButtonStyle.primary, "edit", 2, self.edit),
+                ("EDIT", discord.ButtonStyle.primary, "edit", button_row, self.edit),
                 (
                     f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
                     (
@@ -1210,11 +1263,11 @@ class ReviewDraftView(discord.ui.View):
                         else discord.ButtonStyle.secondary
                     ),
                     "lotto",
-                    2,
+                    button_row,
                     self.toggle_lotto,
                 ),
-                ("PUBLISH", discord.ButtonStyle.success, "approve", 2, self.approve),
-                ("DELETE", discord.ButtonStyle.danger, "delete", 2, self.delete),
+                ("PUBLISH", discord.ButtonStyle.success, "approve", button_row, self.approve),
+                ("DELETE", discord.ButtonStyle.danger, "delete", button_row, self.delete),
             )
             for label, style, action, row, callback in buttons:
                 button = discord.ui.Button(
@@ -1252,11 +1305,7 @@ class ReviewDraftView(discord.ui.View):
             ("确认发布", discord.ButtonStyle.success, "approve", 4, self.approve),
             (
                 f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
-                (
-                    discord.ButtonStyle.success
-                    if draft.is_lotto
-                    else discord.ButtonStyle.secondary
-                ),
+                (discord.ButtonStyle.success if draft.is_lotto else discord.ButtonStyle.secondary),
                 "lotto",
                 4,
                 self.toggle_lotto,
@@ -1277,7 +1326,11 @@ class ReviewDraftView(discord.ui.View):
         return await self.controller.authorize(interaction)
 
     async def edit(self, interaction: discord.Interaction) -> None:
-        if (self.draft.selected_category or self.draft.category_suggestion) == "SHORT_TERM":
+        if self.draft.swing_mode == "SIMPLE_TRACKED_SWING" and self.draft.action == "CLOSE":
+            await interaction.response.send_modal(SwingCloseEditModal(self.controller, self.draft))
+        elif (self.draft.selected_category or self.draft.category_suggestion) == "SHORT_TERM" or (
+            self.draft.swing_mode == "SIMPLE_TRACKED_SWING"
+        ):
             await interaction.response.send_modal(ShortTermEditModal(self.controller, self.draft))
         else:
             missing = missing_field_labels(publication_missing_fields(self.draft))
@@ -1419,7 +1472,63 @@ class ActiveOrdersView(discord.ui.View):
         orders = await self.controller.publication_service.current_orders(
             self.controller.guild_id, self.category
         )
+        if self.category == TradeCategory.SWING.value:
+            await self.controller.swing_tracking_service.refresh_active_prices(
+                self.controller.guild_id
+            )
+            tracked = await self.controller.swing_tracking_service.active_positions(
+                self.controller.guild_id
+            )
+            tracked_page = tracked[:10]
+            embeds = [build_swing_active_embed(tracked_page)]
+            if orders:
+                legacy = build_active_orders_embed(self.category, orders)
+                legacy.title = "当前 Legacy Swing 订单"
+                embeds.append(legacy)
+            page_view = SwingActivePaginationView(tracked) if len(tracked) > 10 else None
+            await interaction.response.send_message(embeds=embeds, view=page_view, ephemeral=True)
+            return
         await interaction.response.send_message(
             embed=build_active_orders_embed(self.category, orders),
             ephemeral=True,
+        )
+
+
+class SwingActivePaginationView(discord.ui.View):
+    def __init__(self, trades: tuple, *, page: int = 0) -> None:
+        super().__init__(timeout=300)
+        self.trades = trades
+        self.page = page
+        self.pages = max(1, (len(trades) + 9) // 10)
+        previous = discord.ui.Button(
+            label="上一页",
+            style=discord.ButtonStyle.secondary,
+            disabled=page <= 0,
+        )
+        following = discord.ui.Button(
+            label="下一页",
+            style=discord.ButtonStyle.secondary,
+            disabled=page >= self.pages - 1,
+        )
+        previous.callback = self.previous
+        following.callback = self.following
+        self.add_item(previous)
+        self.add_item(following)
+
+    def embed(self) -> discord.Embed:
+        start = self.page * 10
+        embed = build_swing_active_embed(self.trades[start : start + 10])
+        embed.set_footer(text=f"AXIS · Page {self.page + 1}/{self.pages}")
+        return embed
+
+    async def previous(self, interaction: discord.Interaction) -> None:
+        self.page = max(0, self.page - 1)
+        await interaction.response.edit_message(
+            embed=self.embed(), view=SwingActivePaginationView(self.trades, page=self.page)
+        )
+
+    async def following(self, interaction: discord.Interaction) -> None:
+        self.page = min(self.pages - 1, self.page + 1)
+        await interaction.response.edit_message(
+            embed=self.embed(), view=SwingActivePaginationView(self.trades, page=self.page)
         )

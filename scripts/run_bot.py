@@ -68,6 +68,7 @@ from app.services.option_contracts import OptionContractResolver  # noqa: E402
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
+from app.services.swing_tracking import SwingTrackingService  # noqa: E402
 from app.services.system_alerts import SystemAlertService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
 from app.services.trading_calendar import TradingCalendarService  # noqa: E402
@@ -232,6 +233,12 @@ async def run() -> None:
             massive_provider if settings.short_term_tracking_enabled else None,
             historical_policies=historical_short_term_policies,
         )
+        swing_tracking_service = SwingTrackingService(
+            database,
+            short_term_policy,
+            massive_provider if settings.short_term_tracking_enabled else None,
+            historical_policies=historical_short_term_policies,
+        )
         swing_leaps_trade_plan_service = (
             SwingLeapsTradePlanService(
                 MoomooDailyBarProvider(settings.moomoo_host, settings.moomoo_port)
@@ -319,6 +326,7 @@ async def run() -> None:
             card_review_service=CardReviewService(database, contract_resolver),
             trade_publication_service=TradePublicationService(database, contract_resolver),
             short_term_tracking_service=short_term_tracking_service,
+            swing_tracking_service=swing_tracking_service,
             mentor_service=MentorManagementService(database),
             membership_service=membership_service,
             membership_access_service=access_service,
