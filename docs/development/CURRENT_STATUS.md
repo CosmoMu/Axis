@@ -87,9 +87,11 @@ hardcode；每笔订单冻结 policy version 与 price source。支持跨日 Hig
 Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
 Manager 可在 `signal-input` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
-追踪。报价失败不阻止已审核 Close；Close Reference 仅作内部参考，公开 Close 与 Results 使用从
-Entry 到 Close/Expiry 的 lifetime verified highest return。Active Simple Swing 不进入 Results，
-终止当日才进入 Swing candidate；最终仍与 Short-Term / LEAPS 合并为一条 AXIS DAILY RESULTS。
+追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
+return 与明确标注的平仓收益，Results 仍只使用从 Entry 到 Close/Expiry 的 lifetime verified
+highest return。Active View 只显示成本、最高 TP、当前价格/收益和必要 stale 状态。Active Simple
+Swing 不进入 Results，终止当日才进入 Swing candidate；最终仍与 Short-Term / LEAPS 合并为一条
+AXIS DAILY RESULTS。
 
 Migration: `20260903_0029` 新增 `tracking_mode` 与独立 Swing tracking/event/snapshot 表。迁移前
 五笔 Swing（其中四笔 Active）全部回填为 `LEGACY_SWING`，继续旧 Mentor / Position / event / UI

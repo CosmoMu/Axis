@@ -85,9 +85,10 @@ stored as `close_reference_price`; without one, AXIS uses the latest valid track
 available. A quote failure must not block a Manager-approved safe stop. The close reference is not
 the official performance result.
 
-After close, High Watermark is frozen. Public CLOSE and Daily Results use the verified lifetime
-highest return from entry through the close boundary. Close Reference Price/Return remain internal
-review and audit data and are not shown on the member-facing CLOSE card.
+After close, High Watermark is frozen. The public CLOSE card shows one compact result line in this
+order: entry cost, verified lifetime highest return, then close-reference return clearly labelled
+`平仓`. It does not expose the lifetime-high price or close-reference price. Daily Results continue
+to use only the verified lifetime highest return from entry through the close boundary.
 
 ## Public tracking events
 
@@ -106,8 +107,7 @@ renderers. For each active Simple Swing it shows:
 - SW ID and contract;
 - entry cost;
 - highest fixed TP reached;
-- lifetime highest price and return;
-- latest current price, return, and timestamp;
+- latest current price and return;
 - stale/unavailable state when a fresh quote cannot be obtained.
 
 Opening the view performs a best-effort forced refresh. Failure falls back to the last valid quote

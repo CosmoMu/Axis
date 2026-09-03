@@ -730,6 +730,7 @@ class TradePublicationService:
                 return_pct=reference_return,
                 highest_price=tracking.highest_price,
                 highest_return_pct=tracking.highest_return_pct,
+                entry_price=tracking.entry_price,
                 is_lotto=trade.is_lotto,
             )
         return PublicTradeCard(

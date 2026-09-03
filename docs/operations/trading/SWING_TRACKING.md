@@ -33,8 +33,9 @@ Simple Swing intentionally does not run Short-Term momentum or protection rules.
 ## Inspect active Swing
 
 The supported member/Manager view is the persistent `查看当前持仓订单` button under a Swing card.
-It performs a best-effort quote refresh and shows SW ID, contract, entry cost, highest TP, High,
-Current, return, quote time, and any stale marker. The view paginates when required.
+It performs a best-effort quote refresh and shows SW ID, contract, entry cost, highest TP, current
+price/return, and any stale marker. Lifetime High and quote time remain internal. The view paginates
+when required.
 
 For read-only database diagnosis:
 
@@ -80,9 +81,10 @@ Reference. Publish writes the CLOSE event/publication and then stops the tracker
 cannot be fetched, the Manager-approved close still succeeds using the optional reference or last
 valid price as context.
 
-`close_reference_price` and `close_reference_return_pct` are internal review/audit fields only and
-are not shown on the member-facing CLOSE card. Public CLOSE and Daily Result use the frozen
-lifetime High.
+The member-facing CLOSE card displays `entry cost → lifetime High return → close-reference return`.
+The reference return is labelled `平仓`; the close-reference price and lifetime-high price remain
+internal review/audit data. Daily Results still use the frozen lifetime High, never the close
+reference.
 
 ## Active View quote fallback
 

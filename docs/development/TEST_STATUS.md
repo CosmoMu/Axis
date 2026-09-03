@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 282 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 283 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -98,9 +98,9 @@ Simple Tracked Swing:
   Momentum；policy version、TP event、High/Low Watermark 和跨日状态幂等。
 - `close SW-XXXX`、完整合约与 optional `@price` parser；零/多匹配阻塞和 Dropdown 路径。
 - Entry publication → tracker → verified high → Manager Close → tracker stop → lifetime-high final
-  result 的端到端集成；Close Reference 不替代最高收益。
-- Active View、forced refresh fallback、daily snapshot、expiry、restart reconciliation 和 Legacy
-  Swing isolation。
+  result 的端到端集成；Close 卡区分 lifetime High 与平仓收益，Results 不被 Close Reference 替代。
+- Active View 精简字段、forced refresh fallback、daily snapshot、expiry、restart reconciliation 和
+  Legacy Swing isolation。
 
 Daily Results Review:
 
@@ -282,4 +282,4 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 282 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 283 项测试结果。

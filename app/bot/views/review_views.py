@@ -1480,11 +1480,17 @@ class ActiveOrdersView(discord.ui.View):
                 self.controller.guild_id
             )
             tracked_page = tracked[:10]
-            embeds = [build_swing_active_embed(tracked_page)]
+            embeds = []
+            if tracked_page:
+                embeds.append(build_swing_active_embed(tracked_page))
             if orders:
                 legacy = build_active_orders_embed(self.category, orders)
-                legacy.title = "当前 Legacy Swing 订单"
+                legacy.title = (
+                    "当前 Legacy Swing 订单" if tracked_page else "当前 Swing 订单"
+                )
                 embeds.append(legacy)
+            if not embeds:
+                embeds.append(build_swing_active_embed(()))
             page_view = SwingActivePaginationView(tracked) if len(tracked) > 10 else None
             await interaction.response.send_message(embeds=embeds, view=page_view, ephemeral=True)
             return

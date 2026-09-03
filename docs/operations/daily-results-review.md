@@ -36,7 +36,7 @@ RESULTS_TIMEZONE=America/New_York
 Short-Term 始终使用完整追踪周期内的 `highest_price` 相对 `entry_price` 重新计算公开收益，
 不使用当前价、停止价或单日快照；跨日只在该最高收益创出已发布 Results 以来的新高时再次显示，
 并按订单号数字升序。Simple Swing 使用从 Entry 到 Close/Expiry 的冻结 lifetime verified High；
-Close Reference 只供内部审计。Legacy Swing / LEAPS 显示原有 TP / SL event 与最高收益。Public
+Close Reference 不参与 Daily Results（仅在 CLOSE 卡标注平仓收益）。Legacy Swing / LEAPS 显示原有 TP / SL event 与最高收益。Public
 Card 不显示 totals、win rate、average return 或 closed count；
 Short-Term Results 对 `is_lotto=true` 的订单在合约后显示 `(LOTTO)`。
 

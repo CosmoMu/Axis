@@ -111,6 +111,7 @@ class SwingTrackingCard:
     return_pct: Decimal
     highest_price: Decimal | None = None
     highest_return_pct: Decimal | None = None
+    entry_price: Decimal | None = None
     is_lotto: bool = False
 
 

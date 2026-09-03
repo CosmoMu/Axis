@@ -376,13 +376,12 @@ def build_swing_tracking_embed(
     )
     if card.card_type == "CLOSE":
         embed.add_field(
-            name="追踪期间最高价格",
-            value=_money(card.highest_price),
-            inline=False,
-        )
-        embed.add_field(
-            name="追踪期间最高收益",
-            value=_percent(card.highest_return_pct),
+            name="平仓结果",
+            value=(
+                f"{_money(card.entry_price)} → "
+                f"最高 {_percent(card.highest_return_pct)} → "
+                f"平仓 {_percent(card.return_pct)}"
+            ),
             inline=False,
         )
     else:
@@ -394,9 +393,9 @@ def build_swing_tracking_embed(
 
 
 def build_swing_active_embed(trades: tuple[SwingActivePosition, ...]) -> discord.Embed:
-    embed = discord.Embed(title="当前波段订单", color=ACCENT_GREEN)
+    embed = discord.Embed(title="当前 Swing 订单", color=ACCENT_GREEN)
     if not trades:
-        embed.description = "当前没有进行中的 Simple Tracked Swing。"
+        embed.description = "当前没有进行中的 Swing 订单。"
         return _public(embed)
     for trade in trades:
         side = "C" if trade.option_side == "CALL" else "P"
@@ -412,13 +411,6 @@ def build_swing_active_embed(trades: tuple[SwingActivePosition, ...]) -> discord
         )
         if trade.stale:
             current += " · STALE"
-        updated = (
-            trade.last_quote_at.astimezone(ZoneInfo("America/New_York")).strftime(
-                "%m/%d · %H:%M ET"
-            )
-            if trade.last_quote_at is not None
-            else "暂无有效报价"
-        )
         highest_tp = (
             f"{trade.highest_tp_level} · +{trade.highest_tp_return_pct}%"
             if trade.highest_tp_level and trade.highest_tp_return_pct is not None
@@ -429,9 +421,7 @@ def build_swing_active_embed(trades: tuple[SwingActivePosition, ...]) -> discord
             value=(
                 f"{contract}\n成本 {_money(trade.entry_price)}"
                 f"\n最高 TP {highest_tp}"
-                f"\n最高 {_money(trade.highest_price)} · {_percent(trade.highest_return_pct)}"
                 f"\n当前 {current}"
-                f"\n更新 {updated}"
             ),
             inline=False,
         )

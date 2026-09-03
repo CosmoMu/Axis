@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app.bot.cards import build_swing_tracking_embed
+from app.bot.cards import build_swing_active_embed, build_swing_tracking_embed
 from app.db.base import Base
 from app.db.models import (
     GuildConfig,
@@ -20,7 +20,11 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, SourceStatus
-from app.domain.public_cards import SwingTrackedEntryCard, SwingTrackingCard
+from app.domain.public_cards import (
+    SwingActivePosition,
+    SwingTrackedEntryCard,
+    SwingTrackingCard,
+)
 from app.integrations.massive_market_data import MarketPrice
 from app.services.option_contracts import parse_swing_close
 from app.services.short_term_policy import ShortTermTrackingPolicy
@@ -86,6 +90,41 @@ def test_manual_swing_close_parser_supports_public_id_and_contract() -> None:
     assert by_contract.strike == Decimal("400")
     assert by_contract.option_side == "CALL"
     assert by_contract.reference_price is None
+
+
+def test_swing_active_view_uses_compact_member_format() -> None:
+    embed = build_swing_active_embed(
+        (
+            SwingActivePosition(
+                public_trade_id="SW-TEST1",
+                ticker="TSLA",
+                expiry=date(2026, 10, 16),
+                strike=Decimal("400"),
+                option_side="CALL",
+                entry_price=Decimal("3.25"),
+                highest_tp_level="TP5",
+                highest_tp_return_pct=100,
+                highest_price=Decimal("6.89"),
+                highest_return_pct=Decimal("112"),
+                current_price=Decimal("5.20"),
+                current_return_pct=Decimal("60"),
+                last_quote_at=datetime(2026, 9, 3, 23, 13, tzinfo=UTC),
+                stale=False,
+            ),
+        )
+    )
+    payload = embed.to_dict()
+    assert payload["title"] == "当前 Swing 订单"
+    assert payload["fields"][0]["name"] == "SW-TEST1"
+    assert payload["fields"][0]["value"] == (
+        "TSLA 10/16 400C\n"
+        "成本 $3.25\n"
+        "最高 TP TP5 · +100%\n"
+        "当前 $5.2 · +60.00%"
+    )
+    rendered = str(payload)
+    assert "+112.00%" not in rendered
+    assert "09/03" not in rendered
 
 
 @pytest.mark.asyncio
@@ -268,6 +307,7 @@ async def test_simple_swing_entry_and_reviewed_close_publication_lifecycle() -> 
                 intent="UPDATE_TRADE",
                 action="CLOSE",
                 action_stage="NONE",
+                action_price=Decimal("3.00"),
                 category_suggestion="SWING",
                 selected_category="SWING",
                 ticker="TSLA",
@@ -292,10 +332,11 @@ async def test_simple_swing_entry_and_reviewed_close_publication_lifecycle() -> 
         close_claim = await publications.claim(close.id)
         assert isinstance(close_claim.card, SwingTrackingCard)
         assert close_claim.card.highest_return_pct == Decimal("100.0000")
-        public_close = str(build_swing_tracking_embed(close_claim.card).to_dict())
-        assert "平仓参考" not in public_close
-        assert "+50" not in public_close
-        assert "+100.00%" in public_close
+        close_embed = build_swing_tracking_embed(close_claim.card).to_dict()
+        assert close_embed["fields"][0]["name"] == "平仓结果"
+        assert close_embed["fields"][0]["value"] == (
+            "$2 → 最高 +100.00% → 平仓 +50.00%"
+        )
         assert close_claim.claim_token is not None
         await publications.finalize(
             close_claim.publication_id,

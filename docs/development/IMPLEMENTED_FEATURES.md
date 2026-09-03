@@ -89,9 +89,11 @@ LIVE_MODE_CHECKLIST.md 为准。
   timestamp、error state、TP history 和每日 snapshot。
 - `close SW-XXXX [@price]` 或 `close TICKER MM/DD STRIKEC/P [@price]` 进入同一 Signal Review；
   零匹配阻止、多匹配下拉选择，Manager 发布后才停止追踪。
-- 当前报价失败不阻止 Close；可选输入价/最新有效价只保存为 Close Reference。公开 Close 与
-  Results 始终使用追踪窗口内 lifetime verified highest return，并在终止时冻结。
-- Active View 显示成本、最高 TP、High、Current、timestamp 与 stale fallback，并支持分页。
+- 当前报价失败不阻止 Close；公开 Close 以 `成本 → lifetime High 收益 → 平仓收益` 显示，
+  close-reference price 与 lifetime-high price 不公开。Results 仍只使用追踪窗口内 lifetime
+  verified highest return，并在终止时冻结。
+- Active View 显示成本、最高 TP、Current price/return 与 stale fallback；不显示 lifetime High 或
+  quote timestamp，并支持分页。
 - EOD 只发布 Active Swing Summary，不关闭订单；Active Simple Swing 不进 Results。Close/Expiry
   当日进入独立 Swing review candidate，最终仍合并为单条 AXIS DAILY RESULTS。
 - 重启时幂等补注册、恢复 Active tracking、修复 Trade 已关闭但 tracker 尚未结束的窗口。
