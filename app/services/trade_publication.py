@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -658,12 +658,20 @@ class TradePublicationService:
     @staticmethod
     async def _next_public_ref(session: AsyncSession, config: GuildConfig) -> str:
         await session.refresh(config, with_for_update=True)
-        count = await session.scalar(
-            select(func.count())
-            .select_from(TradePublication)
-            .where(TradePublication.guild_id == config.guild_id)
-        )
-        return f"P-{int(count or 0) + 1:04d}"
+        references = (
+            await session.scalars(
+                select(TradePublication.public_ref).where(
+                    TradePublication.guild_id == config.guild_id,
+                    TradePublication.public_ref.is_not(None),
+                )
+            )
+        ).all()
+        numbers = []
+        for reference in references:
+            match = re.fullmatch(r"P-(\d{4,6})", reference or "")
+            if match is not None:
+                numbers.append(int(match.group(1)))
+        return f"P-{max(numbers, default=0) + 1:04d}"
 
     @staticmethod
     def _channel_id(config: GuildConfig, category: str) -> int:

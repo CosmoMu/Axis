@@ -206,6 +206,41 @@ async def test_publication_is_idempotent_and_active_view_is_public_only() -> Non
 
 
 @pytest.mark.asyncio
+async def test_public_reference_uses_maximum_when_history_has_gaps() -> None:
+    database, _ = await publication_database()
+    service = TradePublicationService(database)
+    try:
+        async with database.session() as session:
+            session.add_all(
+                [
+                    TradePublication(
+                        guild_id=GUILD_ID,
+                        message_type="SIGNAL_CARD",
+                        channel_id=102,
+                        message_id=message_id,
+                        public_ref=public_ref,
+                        status=PublicationStatus.PUBLISHED.value,
+                        attempt_count=1,
+                        published_at=datetime.now(UTC),
+                    )
+                    for message_id, public_ref in (
+                        (601, "P-0001"),
+                        (602, "P-0002"),
+                        (604, "P-0004"),
+                    )
+                ]
+            )
+            await session.commit()
+
+        async with database.session() as session:
+            config = await session.get(GuildConfig, GUILD_ID)
+            assert config is not None
+            assert await service._next_public_ref(session, config) == "P-0005"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_publish_gate_requires_persisted_contract_validation() -> None:
     database, draft = await publication_database()
     service = TradePublicationService(
