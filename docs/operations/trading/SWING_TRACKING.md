@@ -35,7 +35,8 @@ Simple Swing intentionally does not run Short-Term momentum or protection rules.
 The supported member/Manager view is the persistent `查看当前持仓订单` button under a Swing card.
 It performs a best-effort quote refresh and shows SW ID, contract, entry cost, highest TP, current
 price/return, and any stale marker. Lifetime High and quote time remain internal. The view paginates
-when required.
+when required. Simple and Legacy Swing 都不显示 Position / 当前仓位；Legacy 仅保留最近一次公开
+Action 与最近持仓成本。
 
 For read-only database diagnosis:
 

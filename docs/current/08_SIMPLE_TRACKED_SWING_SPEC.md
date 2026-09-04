@@ -110,6 +110,9 @@ renderers. For each active Simple Swing it shows:
 - latest current price and return;
 - stale/unavailable state when a fresh quote cannot be obtained.
 
+Neither Simple nor Legacy Swing Active View exposes position sizing or `当前持仓` text. Legacy
+Swing keeps its latest public action and most recent cost, but its position value remains internal.
+
 Opening the view performs a best-effort forced refresh. Failure falls back to the last valid quote
 with a stale marker. Results paginate rather than silently truncating active orders.
 

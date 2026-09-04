@@ -56,7 +56,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Public DTO 白名单，不显示 Mentor、来源、Market、Bid、Ask 或 Parser 信息。
 - Entry / Add / Update / TP / SL / Runner / Close。
 - SWING / LEAPS 使用固定 persistent「查看当前持仓订单」按钮和 category-scoped ephemeral
-  Active View，并显示最近持仓成本；Short-Term 不提供按钮或 Active View。
+  Active View，并显示最近持仓成本；SWING 不显示仓位，LEAPS 保留仓位；Short-Term 不提供按钮
+  或 Active View。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
 ## Legacy Swing / LEAPS Entry Plan Visual

@@ -99,8 +99,8 @@ Simple Tracked Swing:
 - `close SW-XXXX`、完整合约与 optional `@price` parser；零/多匹配阻塞和 Dropdown 路径。
 - Entry publication → tracker → verified high → Manager Close → tracker stop → lifetime-high final
   result 的端到端集成；Close 卡区分 lifetime High 与平仓收益，Results 不被 Close Reference 替代。
-- Active View 精简字段、forced refresh fallback、daily snapshot、expiry、restart reconciliation 和
-  Legacy Swing isolation。
+- Active View 精简字段且 Swing 不暴露仓位、forced refresh fallback、daily snapshot、expiry、
+  restart reconciliation 和 Legacy Swing isolation。
 
 Daily Results Review:
 

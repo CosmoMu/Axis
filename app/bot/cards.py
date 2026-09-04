@@ -584,7 +584,7 @@ def _build_swing_leaps_entry_embed(
 
 def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) -> discord.Embed:
     title = {
-        "SWING": "当前波段订单",
+        "SWING": "当前 Swing 订单",
         "LEAPS": "当前长期订单",
     }.get(category, "当前订单")
     embed = discord.Embed(title=title, color=ACCENT_GREEN)
@@ -597,12 +597,15 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
         lotto = " (LOTTO)" if trade.is_lotto else ""
         contract = f"{trade.ticker} {expiry} {_number(trade.strike)}{side}{lotto}"
         label = ACTION_LABELS.get(trade.last_public_action, trade.last_public_action)
+        if category == "SWING":
+            value = f"{contract}\n{label}"
+        else:
+            value = f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}"
+        if trade.avg_cost is not None:
+            value += f"\n最近持仓成本 {_money(trade.avg_cost)}"
         embed.add_field(
             name=trade.public_trade_id,
-            value=(
-                f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}"
-                + (f"\n最近持仓成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
-            ),
+            value=value,
             inline=False,
         )
     return _public(embed)

@@ -400,20 +400,24 @@ Swing / LEAPS Signal Card 下方有 persistent button：
 - Public Trade ID
 - Contract
 - 最近一次 Public Action
-- 当前持仓
+- 最近持仓成本
+
+Swing 不显示持仓或仓位文字。LEAPS 保留当前仓位显示。
 
 不允许进一步展开。
 
 ```text
-当前波段订单
+当前 Swing 订单
 
 SW-0027
 TSLA 09/16 400C
-止盈一 · 当前持仓 1/4 仓位
+止盈一
+最近持仓成本 $3.25
 
 SW-0031
 NVDA 09/18 210C
-入场 · 当前持仓 1/8 仓位
+入场
+最近持仓成本 $2.115
 ```
 
 关闭 / 清仓 / Cancel 的交易不出现。
@@ -937,4 +941,5 @@ Analysis、Results 或 Active Order 数据。
 - Signal Review 直接展示完整会员卡和预测图；Manager 可编辑正股点位与公开逻辑，并用
   「重新生成图片」按修改后的内容刷新图表。
 - 「查看当前持仓订单」对 SWING / LEAPS 显示最近持仓成本；无显式均价时使用已发布入场成本。
+  SWING 不再显示当前仓位；LEAPS 保留仓位展示。
 - ADD / TP / RUNNER / CLOSE 的同风格视觉统一属于后续阶段，本轮不改变其交易逻辑。
