@@ -465,15 +465,57 @@ class DailyResultsReviewService:
 
     async def pending_review_ids(self, guild_id: int) -> tuple[uuid.UUID, ...]:
         async with self.database.session() as session:
-            rows = await session.scalars(
-                select(DailyResultsReview.id)
-                .where(
-                    DailyResultsReview.guild_id == guild_id,
-                    DailyResultsReview.status.in_(("DRAFT", "REVIEWED")),
+            rows = list(
+                await session.scalars(
+                    select(DailyResultsReview)
+                    .where(
+                        DailyResultsReview.guild_id == guild_id,
+                        DailyResultsReview.status.in_(("DRAFT", "REVIEWED", "CORRECTED")),
+                    )
+                    .order_by(DailyResultsReview.trading_date)
                 )
-                .order_by(DailyResultsReview.trading_date)
             )
-            return tuple(rows)
+            return tuple(
+                review.id
+                for review in rows
+                if review.status in {"DRAFT", "REVIEWED"}
+                or (
+                    review.status == "CORRECTED"
+                    and review.final_snapshot is None
+                    and review.discord_public_message_id is not None
+                )
+            )
+
+    async def reopen_review(self, review_id: uuid.UUID, *, actor_user_id: int) -> None:
+        """Reopen an already published result without scheduling an automatic republish."""
+
+        async with self.database.session() as session:
+            review = await session.scalar(
+                select(DailyResultsReview)
+                .where(DailyResultsReview.id == review_id)
+                .with_for_update()
+            )
+            if review is None:
+                raise ResultsReviewError("REVIEW_NOT_FOUND")
+            if review.discord_public_message_id is None:
+                raise ResultsReviewError("RESULTS_NOT_PUBLISHED")
+            if review.final_snapshot is None and review.status == "CORRECTED":
+                return
+            before_status = review.status
+            review.final_snapshot = None
+            # CORRECTED is deliberately outside due_review_ids, so the public card remains
+            # unchanged until a manager explicitly presses PUBLISH NOW.
+            review.status = "CORRECTED"
+            await self._refresh_draft_snapshot(session, review)
+            self._audit(
+                session,
+                review,
+                actor_user_id=actor_user_id,
+                action_type="DAILY_RESULTS_REOPENED",
+                before={"status": before_status, "final_snapshot_locked": True},
+                after={"status": review.status, "final_snapshot_locked": False},
+            )
+            await session.commit()
 
     async def latest_review_id(self, guild_id: int) -> uuid.UUID | None:
         async with self.database.session() as session:
@@ -539,7 +581,7 @@ class DailyResultsReviewService:
             item.excluded_by = None if included else actor_user_id
             item.excluded_at = None if included else utc_now()
             item.exclusion_reason = None if included else reason
-            review.status = "REVIEWED"
+            review.status = self._editable_status(review)
             await self._refresh_draft_snapshot(session, review)
             self._audit(
                 session,
@@ -575,7 +617,7 @@ class DailyResultsReviewService:
             self._assert_editable(review)
             before = item.display_text_override
             item.display_text_override = display_text.strip()[:1000] if display_text else None
-            review.status = "REVIEWED"
+            review.status = self._editable_status(review)
             await self._refresh_draft_snapshot(session, review)
             self._audit(
                 session,
@@ -612,7 +654,7 @@ class DailyResultsReviewService:
                 "section_order": list(parsed_order),
                 "footer": footer.strip()[:1000] if footer else None,
             }
-            review.status = "REVIEWED"
+            review.status = self._editable_status(review)
             await self._refresh_draft_snapshot(session, review)
             self._audit(
                 session,
@@ -654,8 +696,11 @@ class DailyResultsReviewService:
             item.correction_reason = reason.strip()[:1000]
             item.corrected_by = actor_user_id
             item.corrected_at = utc_now()
-            published_correction = review.status in {"PUBLISHED", "CORRECTED"}
-            review.status = "CORRECTED" if published_correction else "REVIEWED"
+            published_correction = (
+                review.discord_public_message_id is not None
+                and review.final_snapshot is not None
+            )
+            review.status = self._editable_status(review)
             await self._refresh_draft_snapshot(session, review)
             self._audit(
                 session,
@@ -693,6 +738,27 @@ class DailyResultsReviewService:
             if config is None or config.results_channel_id is None:
                 raise ResultsReviewError("RESULTS_CHANNEL_NOT_CONFIGURED")
             if review.discord_public_message_id is not None:
+                if review.final_snapshot is None:
+                    items = list(
+                        await session.scalars(
+                            select(DailyResultsItem)
+                            .where(DailyResultsItem.review_id == review.id)
+                            .order_by(DailyResultsItem.display_order, DailyResultsItem.id)
+                        )
+                    )
+                    review.final_snapshot = self._snapshot(review, items, public=True)
+                    review.status = "CORRECTED"
+                    self._audit(
+                        session,
+                        review,
+                        actor_user_id=actor_user_id,
+                        action_type="DAILY_RESULTS_REPUBLISHED",
+                        after={
+                            "public_ref": self.public_ref(review.trading_date),
+                            "discord_public_message_id": review.discord_public_message_id,
+                        },
+                    )
+                    await session.commit()
                 return ResultsPublishClaim(
                     review_id=review.id,
                     channel_id=config.results_channel_id,
@@ -793,8 +859,12 @@ class DailyResultsReviewService:
     def _assert_editable(review: DailyResultsReview | None) -> None:
         if review is None:
             raise ResultsReviewError("REVIEW_NOT_FOUND")
-        if review.final_snapshot is not None or review.status in {"PUBLISHED", "CORRECTED"}:
+        if review.final_snapshot is not None:
             raise ResultsReviewError("REVIEW_LOCKED")
+
+    @staticmethod
+    def _editable_status(review: DailyResultsReview) -> str:
+        return "CORRECTED" if review.discord_public_message_id is not None else "REVIEWED"
 
     async def _refresh_draft_snapshot(self, session, review: DailyResultsReview) -> None:
         items = list(

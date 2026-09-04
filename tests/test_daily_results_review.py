@@ -606,6 +606,56 @@ async def test_publish_now_is_idempotent_and_final_snapshot_is_immutable() -> No
         await database.dispose()
 
 
+@pytest.mark.asyncio
+async def test_published_review_can_be_reopened_and_republished_in_place() -> None:
+    database = await review_database()
+    service = DailyResultsReviewService(database)
+    try:
+        review = await service.prepare_review(GUILD_ID, TRADING_DATE)
+        await service.claim_publish(review.id, actor_user_id=99, scheduled=False)
+        await service.finalize_publish(review.id, message_id=500, actor_user_id=99)
+
+        await service.reopen_review(review.id, actor_user_id=99)
+        reopened = await service.get_review(review.id)
+        assert reopened.locked is False
+        assert reopened.status == "CORRECTED"
+        assert review.id in await service.pending_review_ids(GUILD_ID)
+        assert review.id not in await service.due_review_ids(
+            GUILD_ID,
+            datetime(2030, 1, 1, tzinfo=UTC),
+        )
+
+        target = reopened.items[0]
+        await service.set_included(
+            target.id,
+            included=False,
+            actor_user_id=99,
+            reason="OTHER",
+        )
+        edited = await service.get_review(review.id)
+        assert edited.locked is False
+        assert edited.status == "CORRECTED"
+
+        claim = await service.claim_publish(
+            review.id,
+            actor_user_id=99,
+            scheduled=False,
+        )
+        assert claim.should_publish is False
+        assert claim.message_id == 500
+        assert target.public_trade_id not in str(claim.snapshot)
+        republished = await service.get_review(review.id)
+        assert republished.locked is True
+        assert republished.status == "CORRECTED"
+        assert review.id not in await service.pending_review_ids(GUILD_ID)
+        async with database.session() as session:
+            actions = set(await session.scalars(select(AuditLog.action_type)))
+            assert "DAILY_RESULTS_REOPENED" in actions
+            assert "DAILY_RESULTS_REPUBLISHED" in actions
+    finally:
+        await database.dispose()
+
+
 def test_early_close_uses_real_close_but_public_publish_stays_1615_et() -> None:
     service = DailyResultsReviewService(
         Database("sqlite+aiosqlite:///:memory:"),

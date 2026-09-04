@@ -309,7 +309,7 @@ class DailyResultsReviewCog(commands.Cog):
             )
             await self.refresh_review(review_id)
             review = await self.service.get_review(review_id)
-            if review.public_message_id is not None:
+            if review.public_message_id is not None and review.locked:
                 await self.refresh_public(review_id)
             await interaction.followup.send(
                 "Result Correction 已保存并写入 Audit。",
@@ -342,6 +342,9 @@ class DailyResultsReviewCog(commands.Cog):
             scheduled=scheduled,
         )
         if not claim.should_publish:
+            if claim.message_id is not None:
+                await self.refresh_public(review_id)
+                await self.refresh_review(review_id)
             return
         channel = self.bot.get_channel(claim.channel_id)
         if channel is None:
