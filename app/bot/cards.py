@@ -600,8 +600,22 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
         if category == "SWING":
             value = f"{contract}\n{label}"
         else:
-            value = f"{contract}\n{label} · 当前持仓 {_position(trade.position_eighths)}"
-        if trade.avg_cost is not None:
+            current = (
+                f"{_money(trade.current_price)} · {_percent(trade.current_return_pct)}"
+                if trade.current_price is not None
+                else "行情暂不可用"
+            )
+            if trade.stale:
+                current += " · STALE"
+            highest_tp = trade.highest_tp_level or "—"
+            if trade.highest_tp_level and trade.highest_tp_return_pct is not None:
+                highest_tp += f" · {_percent(trade.highest_tp_return_pct)}"
+            value = (
+                f"{contract}\n成本 {_money(trade.avg_cost)}"
+                f"\n最高 TP {highest_tp}"
+                f"\n当前 {current}"
+            )
+        if category == "SWING" and trade.avg_cost is not None:
             value += f"\n最近持仓成本 {_money(trade.avg_cost)}"
         embed.add_field(
             name=trade.public_trade_id,

@@ -53,6 +53,12 @@ class ActivePublicTrade:
     position_eighths: int
     avg_cost: Decimal | None
     is_lotto: bool = False
+    highest_tp_level: str | None = None
+    highest_tp_return_pct: Decimal | None = None
+    current_price: Decimal | None = None
+    current_return_pct: Decimal | None = None
+    quote_time: datetime | None = None
+    stale: bool = False
 
 
 @dataclass(frozen=True, slots=True)

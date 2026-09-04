@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     AuditLog,
     GuildConfig,
+    MarketQuoteSnapshot,
     SwingTracking,
     Trade,
     TradeDraft,
@@ -36,6 +37,12 @@ from app.domain.public_cards import (
     ShortTermEntryCard,
     SwingTrackedEntryCard,
     SwingTrackingCard,
+)
+from app.integrations.massive_market_data import (
+    MarketDataProvider,
+    MarketDataProviderError,
+    MarketPriceRequest,
+    massive_option_ticker,
 )
 from app.services.card_review import _plan_decimal, _public_thesis
 from app.services.option_contracts import ContractValidationStatus, OptionContractResolver
@@ -119,9 +126,11 @@ class TradePublicationService:
         self,
         database: Database,
         contract_resolver: OptionContractResolver | None = None,
+        market_data_provider: MarketDataProvider | None = None,
     ) -> None:
         self.database = database
         self.contract_resolver = contract_resolver
+        self.market_data_provider = market_data_provider
 
     async def next_publishable(self, guild_id: int) -> uuid.UUID | None:
         cutoff = utc_now() - RETRY_AFTER
@@ -469,6 +478,7 @@ class TradePublicationService:
                 )
             ).all()
             output = []
+            market_requests: list[MarketPriceRequest] = []
             for trade in trades:
                 latest_cost = await session.scalar(
                     select(TradeEvent.avg_cost_after)
@@ -483,6 +493,49 @@ class TradePublicationService:
                     entry_cost = (trade.entry_low + trade.entry_high) / 2
                 else:
                     entry_cost = trade.entry_low or trade.entry_high
+                cost = trade.avg_cost or latest_cost or entry_cost
+                tp_events = list(
+                    await session.scalars(
+                        select(TradeEvent)
+                        .where(
+                            TradeEvent.trade_id == trade.id,
+                            TradeEvent.action.in_((TradeAction.TP1.value, TradeAction.TP2.value)),
+                        )
+                        .order_by(TradeEvent.created_at, TradeEvent.id)
+                    )
+                )
+                highest_tp = max(
+                    tp_events,
+                    key=lambda event: (
+                        {TradeAction.TP1.value: 1, TradeAction.TP2.value: 2}[event.action],
+                        event.created_at,
+                    ),
+                    default=None,
+                )
+                highest_tp_return = highest_tp.pnl_pct if highest_tp is not None else None
+                if (
+                    highest_tp_return is None
+                    and highest_tp is not None
+                    and highest_tp.price is not None
+                    and cost is not None
+                    and cost > 0
+                ):
+                    highest_tp_return = ((highest_tp.price - cost) / cost) * Decimal("100")
+                latest_quote = await session.scalar(
+                    select(MarketQuoteSnapshot)
+                    .where(MarketQuoteSnapshot.trade_id == trade.id)
+                    .order_by(
+                        MarketQuoteSnapshot.quote_time.desc(),
+                        MarketQuoteSnapshot.id.desc(),
+                    )
+                    .limit(1)
+                )
+                current_price = latest_quote.last_price if latest_quote is not None else None
+                current_return = (
+                    ((current_price - cost) / cost) * Decimal("100")
+                    if current_price is not None and cost is not None and cost > 0
+                    else None
+                )
                 output.append(
                     ActivePublicTrade(
                         public_trade_id=trade.public_trade_id,
@@ -492,10 +545,59 @@ class TradePublicationService:
                         option_side=trade.option_side,
                         last_public_action=trade.last_public_action or TradeAction.ENTRY.value,
                         position_eighths=trade.position_eighths,
-                        avg_cost=trade.avg_cost or latest_cost or entry_cost,
+                        avg_cost=cost,
                         is_lotto=trade.is_lotto,
+                        highest_tp_level=highest_tp.action if highest_tp is not None else None,
+                        highest_tp_return_pct=highest_tp_return,
+                        current_price=current_price,
+                        current_return_pct=current_return,
+                        quote_time=latest_quote.quote_time if latest_quote is not None else None,
+                        stale=latest_quote is not None,
                     )
                 )
+                if category == TradeCategory.LEAPS.value:
+                    try:
+                        option_ticker = trade.option_contract_code or massive_option_ticker(
+                            trade.ticker,
+                            trade.expiry,
+                            trade.strike,
+                            trade.option_side,
+                        )
+                    except MarketDataProviderError:
+                        continue
+                    market_requests.append(
+                        MarketPriceRequest(
+                            key=trade.public_trade_id,
+                            underlying=trade.ticker,
+                            option_ticker=option_ticker,
+                        )
+                    )
+        if (
+            category == TradeCategory.LEAPS.value
+            and self.market_data_provider is not None
+            and market_requests
+        ):
+            try:
+                prices = await self.market_data_provider.fetch_prices(market_requests)
+            except MarketDataProviderError:
+                prices = ()
+            prices_by_id = {price.key: price for price in prices}
+            output = [
+                replace(
+                    trade,
+                    current_price=price.price,
+                    current_return_pct=(
+                        ((price.price - trade.avg_cost) / trade.avg_cost) * Decimal("100")
+                        if trade.avg_cost is not None and trade.avg_cost > 0
+                        else None
+                    ),
+                    quote_time=price.source_timestamp,
+                    stale=False,
+                )
+                if (price := prices_by_id.get(trade.public_trade_id)) is not None
+                else trade
+                for trade in output
+            ]
         return output
 
     async def legacy_short_term_components(self, guild_id: int) -> list[LegacyComponentTarget]:

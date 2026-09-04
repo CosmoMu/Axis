@@ -1539,11 +1539,17 @@ class ActiveOrdersView(discord.ui.View):
                 sorted((*tracked, *legacy), key=lambda item: item.public_trade_id)
             )
             page_view = SwingActivePaginationView(combined) if len(combined) > 10 else None
-            await interaction.response.send_message(
-                embed=build_swing_active_embed(combined[:10]),
-                view=page_view,
-                ephemeral=True,
-            )
+            if page_view is None:
+                await interaction.response.send_message(
+                    embed=build_swing_active_embed(combined[:10]),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    embed=build_swing_active_embed(combined[:10]),
+                    view=page_view,
+                    ephemeral=True,
+                )
             return
         orders = await self.controller.publication_service.current_orders(
             self.controller.guild_id, self.category

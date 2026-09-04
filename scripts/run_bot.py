@@ -349,7 +349,11 @@ async def run() -> None:
             signal_input_service=SignalInputService(database, attachment_store),
             draft_generation_service=draft_generation_service,
             card_review_service=CardReviewService(database, contract_resolver),
-            trade_publication_service=TradePublicationService(database, contract_resolver),
+            trade_publication_service=TradePublicationService(
+                database,
+                contract_resolver,
+                market_data_provider=massive_provider,
+            ),
             short_term_tracking_service=short_term_tracking_service,
             swing_tracking_service=swing_tracking_service,
             mentor_service=MentorManagementService(database),

@@ -28,6 +28,7 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import DraftStatus, PublicationStatus, SourceStatus, TradeState
+from app.integrations.massive_market_data import MarketPrice
 from app.services.option_contracts import OptionContractResolver
 from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.short_term_tracking import MarketTrackingService
@@ -42,6 +43,26 @@ GUILD_ID = 1543309921066684567
 class EmptyContractCatalog:
     async def list_option_contracts(self, **_: object) -> tuple[object, ...]:
         return ()
+
+
+class CurrentPriceProvider:
+    last_failures = ()
+
+    async def fetch_prices(self, requests):
+        now = datetime.now(UTC)
+        prices = {"LP-0001": Decimal("3"), "LP-0002": Decimal("5")}
+        return tuple(
+            MarketPrice(
+                key=request.key,
+                option_ticker=request.option_ticker,
+                price=prices[request.key],
+                price_source="BID",
+                source_timestamp=now,
+                received_at=now,
+                market_status="open",
+            )
+            for request in requests
+        )
 
 
 async def publication_database() -> tuple[Database, TradeDraft]:
@@ -236,6 +257,75 @@ async def test_public_reference_uses_maximum_when_history_has_gaps() -> None:
             config = await session.get(GuildConfig, GUILD_ID)
             assert config is not None
             assert await service._next_public_ref(session, config) == "P-0005"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_leaps_active_view_uses_manual_tp_events_and_current_quotes() -> None:
+    database, _ = await publication_database()
+    service = TradePublicationService(
+        database,
+        market_data_provider=CurrentPriceProvider(),
+    )
+    try:
+        now = datetime.now(UTC)
+        async with database.session() as session:
+            trades = [
+                Trade(
+                    guild_id=GUILD_ID,
+                    public_trade_id=public_id,
+                    category="LEAPS",
+                    ticker=ticker,
+                    expiry=date(2027, 3, 19),
+                    strike=strike,
+                    option_side="CALL",
+                    option_contract_code=option_ticker,
+                    state=TradeState.ACTIVE.value,
+                    last_public_action=last_action,
+                    position_eighths=position,
+                    max_position_eighths=4,
+                    avg_cost=Decimal("2"),
+                    opened_at=now,
+                )
+                for public_id, ticker, strike, option_ticker, last_action, position in (
+                    ("LP-0001", "INTC", Decimal("100"), "O:INTC270319C00100000", "TP1", 2),
+                    ("LP-0002", "AAPL", Decimal("300"), "O:AAPL270319C00300000", "ENTRY", 4),
+                )
+            ]
+            session.add_all(trades)
+            await session.flush()
+            session.add(
+                TradeEvent(
+                    trade_id=trades[0].id,
+                    action="TP1",
+                    action_stage="NONE",
+                    price=Decimal("2.4"),
+                    position_delta_eighths=-2,
+                    position_after_eighths=2,
+                    avg_cost_after=Decimal("2"),
+                    approved_by=301,
+                )
+            )
+            await session.commit()
+
+        active = await service.current_orders(GUILD_ID, "LEAPS")
+        assert len(active) == 2
+        assert active[0].highest_tp_level == "TP1"
+        assert active[0].highest_tp_return_pct == Decimal("20.0")
+        assert active[0].current_price == Decimal("3")
+        assert active[0].current_return_pct == Decimal("50.0")
+        assert active[0].stale is False
+        assert active[1].highest_tp_level is None
+        assert active[1].current_return_pct == Decimal("150.0")
+
+        active_text = str(build_active_orders_embed("LEAPS", active).to_dict())
+        assert "最高 TP TP1 · +20.00%" in active_text
+        assert "最高 TP —" in active_text
+        assert "当前 $3 · +50.00%" in active_text
+        assert "当前 $5 · +150.00%" in active_text
+        assert "当前持仓" not in active_text
+        assert "最近持仓成本" not in active_text
     finally:
         await database.dispose()
 
