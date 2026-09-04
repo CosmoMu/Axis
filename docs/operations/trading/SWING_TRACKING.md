@@ -34,9 +34,9 @@ Simple Swing intentionally does not run Short-Term momentum or protection rules.
 
 The supported member/Manager view is the persistent `查看当前持仓订单` button under a Swing card.
 It performs a best-effort quote refresh and shows SW ID, contract, entry cost, highest TP, current
-price/return, and any stale marker. Lifetime High and quote time remain internal. The view paginates
-when required. Simple and Legacy Swing 都不显示 Position / 当前仓位；Legacy 仅保留最近一次公开
-Action 与最近持仓成本。
+price/return, and any stale marker. Lifetime High and quote time remain internal. Simple and Legacy
+Swing are merged into one card, sorted by SW ID, and use the same fields and pagination. The member
+view does not show Position / 当前仓位 or a Legacy label.
 
 For read-only database diagnosis:
 
@@ -89,9 +89,10 @@ reference.
 
 ## Active View quote fallback
 
-The button first attempts a forced provider refresh. If the provider returns no eligible quote,
-the response uses the last valid tracked value and labels it stale/unavailable. It must not invent
-a price, downgrade the High Watermark, or block access to the remainder of the active list.
+The button first attempts a forced provider refresh for Simple and Legacy orders. If the provider
+returns no eligible quote, the response uses the last valid tracked/snapshot value and labels it
+stale/unavailable. It must not invent a price, downgrade the High Watermark, or block access to the
+remainder of the active list. Legacy quote reads do not create a `swing_tracking` row.
 
 ## EOD Swing Summary
 
@@ -132,9 +133,9 @@ Expiry is independent of Short-Term lifecycle code despite the shared milestone 
 ## Legacy Swing
 
 Migration `20260903_0029` marked every pre-existing Swing `LEGACY_SWING`; four were Active at
-migration. Legacy orders retain Mentor, Position, ADD/TP/SL/Runner/Close, chart, Active View, and
-summary behavior until closed. Never relabel them as Simple and never create a `swing_tracking` row
-for them.
+migration. Legacy orders retain Mentor, Position, ADD/TP/SL/Runner/Close, chart, and summary
+behavior until closed. Their member Active View is presentation-only unified with Simple Swing;
+never relabel them as Simple and never create a `swing_tracking` row for them.
 
 ## Bad quote correction
 

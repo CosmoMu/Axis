@@ -1525,9 +1525,6 @@ class ActiveOrdersView(discord.ui.View):
     async def show_orders(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize_member(interaction):
             return
-        orders = await self.controller.publication_service.current_orders(
-            self.controller.guild_id, self.category
-        )
         if self.category == TradeCategory.SWING.value:
             await self.controller.swing_tracking_service.refresh_active_prices(
                 self.controller.guild_id
@@ -1535,21 +1532,22 @@ class ActiveOrdersView(discord.ui.View):
             tracked = await self.controller.swing_tracking_service.active_positions(
                 self.controller.guild_id
             )
-            tracked_page = tracked[:10]
-            embeds = []
-            if tracked_page:
-                embeds.append(build_swing_active_embed(tracked_page))
-            if orders:
-                legacy = build_active_orders_embed(self.category, orders)
-                legacy.title = (
-                    "当前 Legacy Swing 订单" if tracked_page else "当前 Swing 订单"
-                )
-                embeds.append(legacy)
-            if not embeds:
-                embeds.append(build_swing_active_embed(()))
-            page_view = SwingActivePaginationView(tracked) if len(tracked) > 10 else None
-            await interaction.response.send_message(embeds=embeds, view=page_view, ephemeral=True)
+            legacy = await self.controller.swing_tracking_service.active_legacy_positions(
+                self.controller.guild_id
+            )
+            combined = tuple(
+                sorted((*tracked, *legacy), key=lambda item: item.public_trade_id)
+            )
+            page_view = SwingActivePaginationView(combined) if len(combined) > 10 else None
+            await interaction.response.send_message(
+                embed=build_swing_active_embed(combined[:10]),
+                view=page_view,
+                ephemeral=True,
+            )
             return
+        orders = await self.controller.publication_service.current_orders(
+            self.controller.guild_id, self.category
+        )
         await interaction.response.send_message(
             embed=build_active_orders_embed(self.category, orders),
             ephemeral=True,

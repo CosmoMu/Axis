@@ -126,13 +126,14 @@ Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、resta
 Manager 可在 `signal-input` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
 追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
 return 与明确标注的平仓收益，Results 仍只使用从 Entry 到 Close/Expiry 的 lifetime verified
-highest return。Active View 只显示成本、最高 TP、当前价格/收益和必要 stale 状态。Active Simple
-Swing 不进入 Results，终止当日才进入 Swing candidate；最终仍与 Short-Term / LEAPS 合并为一条
-AXIS DAILY RESULTS。
+highest return。Active View 把 Simple 与 Legacy Swing 合并在同一张「当前 Swing 订单」卡，统一
+显示成本、最高 TP、当前价格/收益和必要 stale 状态，不再使用 Legacy 独立标题或旧格式。Active
+Simple Swing 不进入 Results，终止当日才进入 Swing candidate；最终仍与 Short-Term / LEAPS
+合并为一条 AXIS DAILY RESULTS。
 
 Migration: `20260903_0029` 新增 `tracking_mode` 与独立 Swing tracking/event/snapshot 表。迁移前
-五笔 Swing（其中四笔 Active）全部回填为 `LEGACY_SWING`，继续旧 Mentor / Position / event / UI
-流程直至关闭；无删除、无重编号、无历史重写。
+五笔 Swing（其中四笔 Active）全部回填为 `LEGACY_SWING`，继续旧 Mentor / Position / event
+流程直至关闭；会员 Active View 与 Simple Swing 使用统一展示；无删除、无重编号、无历史重写。
 
 Remaining: 完成真实 Discord Desktop / Mobile Entry、真实 Massive quote/TP、Close matching、
 EOD、Results 与重启 E2E。
@@ -147,7 +148,8 @@ Production status: schema 与 Bot runtime 已部署，重启后 Database / Disco
 ## Legacy Swing — COMPATIBILITY MODE / LIVE
 
 Implemented: 所有迁移前 Swing 由持久化 `LEGACY_SWING` 明确识别，并保留原 Mentor、Position、
-ADD、TP、SL、Runner、Close、结构图、Active View 和 Daily Summary。新订单不会进入该模式。
+ADD、TP、SL、Runner、Close、结构图和 Daily Summary；Active View 则与 Simple Swing 合并为同一
+卡片、同一字段格式。新订单不会进入该模式。
 
 Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭。
 

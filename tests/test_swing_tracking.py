@@ -29,6 +29,7 @@ from app.integrations.massive_market_data import MarketPrice
 from app.services.option_contracts import parse_swing_close
 from app.services.short_term_policy import ShortTermTrackingPolicy
 from app.services.swing_tracking import (
+    LEGACY_SWING,
     SIMPLE_TRACKED_SWING,
     SwingTrackingError,
     SwingTrackingService,
@@ -37,6 +38,23 @@ from app.services.trade_publication import TradePublicationService
 
 GUILD_ID = 1543309921066684567
 POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "short_term_tracking.yaml"
+
+
+class CurrentPriceProvider:
+    async def fetch_prices(self, requests):
+        now = datetime.now(UTC)
+        return tuple(
+            MarketPrice(
+                key=request.key,
+                option_ticker=request.option_ticker,
+                price=Decimal("1.50"),
+                price_source="MID",
+                source_timestamp=now,
+                received_at=now,
+                market_status="open",
+            )
+            for request in requests
+        )
 
 
 async def swing_database(*, mode: str = SIMPLE_TRACKED_SWING) -> tuple[Database, Trade]:
@@ -125,6 +143,39 @@ def test_swing_active_view_uses_compact_member_format() -> None:
     rendered = str(payload)
     assert "+112.00%" not in rendered
     assert "09/03" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_legacy_swing_uses_the_same_active_card_shape() -> None:
+    database, trade = await swing_database(mode=LEGACY_SWING)
+    async with database.session() as session:
+        current = await session.get(Trade, trade.id)
+        assert current is not None
+        current.position_eighths = 1
+        current.max_position_eighths = 1
+        current.avg_cost = Decimal("1.25")
+        await session.commit()
+    service = SwingTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        CurrentPriceProvider(),  # type: ignore[arg-type]
+    )
+    try:
+        active = await service.active_legacy_positions(GUILD_ID)
+        assert len(active) == 1
+        assert active[0].public_trade_id == "SW-0001"
+        assert active[0].entry_price == Decimal("1.25")
+        assert active[0].current_price == Decimal("1.50")
+        assert active[0].current_return_pct == Decimal("20.0000")
+        payload = build_swing_active_embed(active).to_dict()
+        assert payload["title"] == "当前 Swing 订单"
+        assert payload["fields"][0]["value"].endswith(
+            "成本 $1.25\n最高 TP —\n当前 $1.5 · +20.00%"
+        )
+        assert "Legacy" not in str(payload)
+        assert "最近持仓成本" not in str(payload)
+    finally:
+        await database.dispose()
 
 
 @pytest.mark.asyncio

@@ -77,8 +77,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Public DTO 白名单，不显示 Mentor、来源、Market、Bid、Ask 或 Parser 信息。
 - Entry / Add / Update / TP / SL / Runner / Close。
 - SWING / LEAPS 使用固定 persistent「查看当前持仓订单」按钮和 category-scoped ephemeral
-  Active View，并显示最近持仓成本；SWING 不显示仓位，LEAPS 保留仓位；Short-Term 不提供按钮
-  或 Active View。
+  Active View；Swing 将 Simple / Legacy 合并在同一张卡并统一显示成本、最高 TP、当前价格与收益，
+  不显示仓位；LEAPS 保留仓位与最近持仓成本；Short-Term 不提供按钮或 Active View。
 - 发布后保留最终 Review 状态；交互产生的 ephemeral 回执不作为待清理频道消息。
 
 ## Legacy Swing / LEAPS Entry Plan Visual
@@ -114,12 +114,14 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 当前报价失败不阻止 Close；公开 Close 以 `成本 → lifetime High 收益 → 平仓收益` 显示，
   close-reference price 与 lifetime-high price 不公开。Results 仍只使用追踪窗口内 lifetime
   verified highest return，并在终止时冻结。
-- Active View 显示成本、最高 TP、Current price/return 与 stale fallback；不显示 lifetime High 或
-  quote timestamp，并支持分页。
+- Active View 将 Simple 与 Legacy Swing 按 SW 编号合并，统一显示成本、最高 TP、Current
+  price/return 与 stale fallback；不显示 lifetime High、quote timestamp、仓位或 Legacy 标签，并
+  支持统一分页。
 - EOD 只发布 Active Swing Summary，不关闭订单；Active Simple Swing 不进 Results。Close/Expiry
   当日进入独立 Swing review candidate，最终仍合并为单条 AXIS DAILY RESULTS。
 - 重启时幂等补注册、恢复 Active tracking、修复 Trade 已关闭但 tracker 尚未结束的窗口。
-- Legacy Swing 保留原 Mentor / Position / Event / UI，四笔迁移时 Active 订单不被新 tracker 接管。
+- Legacy Swing 保留原 Mentor / Position / Event 业务逻辑，四笔迁移时 Active 订单不被新 tracker
+  接管；只有会员 Active View 改用与 Simple Swing 相同的统一展示。
 
 ## Short-Term Automated Tracking
 

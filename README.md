@@ -16,7 +16,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Production Stabilization: PARTIAL
 - Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 289 passed；focused Personal Execution tests PASS
+- Latest automated regression: 290 passed；focused Personal Execution tests PASS
 
 ## 文档入口
 

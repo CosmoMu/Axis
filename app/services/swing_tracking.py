@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import (
     GuildConfig,
+    MarketQuoteSnapshot,
     SwingDailySnapshot,
     SwingTracking,
     SwingTrackingEvent,
@@ -420,6 +421,148 @@ class SwingTrackingService:
             )
             for tracking, trade in rows
         )
+
+    async def active_legacy_positions(
+        self, guild_id: int
+    ) -> tuple[SwingActivePosition, ...]:
+        """Render legacy Swing alongside tracked Swing without enrolling it in V2 tracking."""
+
+        async with self.database.session() as session:
+            trades = list(
+                await session.scalars(
+                    select(Trade)
+                    .where(
+                        Trade.guild_id == guild_id,
+                        Trade.category == "SWING",
+                        Trade.tracking_mode == LEGACY_SWING,
+                        Trade.state.in_(("ACTIVE", "RUNNER")),
+                        Trade.position_eighths > 0,
+                    )
+                    .order_by(Trade.public_trade_id)
+                )
+            )
+            events_by_trade: dict[uuid.UUID, list[TradeEvent]] = {}
+            snapshots: dict[uuid.UUID, MarketQuoteSnapshot] = {}
+            for trade in trades:
+                events_by_trade[trade.id] = list(
+                    await session.scalars(
+                        select(TradeEvent)
+                        .where(TradeEvent.trade_id == trade.id)
+                        .order_by(TradeEvent.created_at, TradeEvent.id)
+                    )
+                )
+                snapshot = await session.scalar(
+                    select(MarketQuoteSnapshot)
+                    .where(MarketQuoteSnapshot.trade_id == trade.id)
+                    .order_by(
+                        MarketQuoteSnapshot.session_date.desc(),
+                        MarketQuoteSnapshot.quote_time.desc(),
+                    )
+                    .limit(1)
+                )
+                if snapshot is not None:
+                    snapshots[trade.id] = snapshot
+
+        requests = tuple(
+            MarketPriceRequest(
+                str(trade.id),
+                trade.ticker,
+                trade.option_contract_code
+                or massive_option_ticker(
+                    trade.ticker,
+                    trade.expiry,
+                    trade.strike,
+                    trade.option_side,
+                ),
+            )
+            for trade in trades
+        )
+        fresh_prices: dict[uuid.UUID, MarketPrice] = {}
+        if self.provider is not None and requests:
+            try:
+                fresh_prices = {
+                    uuid.UUID(price.key): price
+                    for price in await self.provider.fetch_prices(requests)
+                }
+            except (MarketDataProviderError, ValueError):
+                logger.warning("event=legacy_swing_active_quote_unavailable")
+
+        now = datetime.now(UTC)
+        output: list[SwingActivePosition] = []
+        for trade in trades:
+            events = events_by_trade[trade.id]
+            latest_cost = next(
+                (
+                    event.avg_cost_after
+                    for event in reversed(events)
+                    if event.avg_cost_after is not None
+                ),
+                None,
+            )
+            midpoint = (
+                (trade.entry_low + trade.entry_high) / 2
+                if trade.entry_low is not None and trade.entry_high is not None
+                else trade.entry_low or trade.entry_high
+            )
+            entry_price = trade.avg_cost or latest_cost or midpoint
+            if entry_price is None or entry_price <= 0:
+                continue
+
+            tp_events = [
+                event
+                for event in events
+                if event.action in {"TP1", "TP2"} and event.pnl_pct is not None
+            ]
+            highest_tp = max(tp_events, key=lambda item: item.pnl_pct or Decimal("0"), default=None)
+            current_price = None
+            last_quote_at = None
+            stale = True
+            fresh = fresh_prices.get(trade.id)
+            if fresh is not None:
+                current_price = fresh.price
+                last_quote_at = fresh.source_timestamp
+                stale = (
+                    now - _aware(fresh.source_timestamp)
+                ).total_seconds() > self.policy.max_quote_age_seconds
+            elif trade.id in snapshots:
+                snapshot = snapshots[trade.id]
+                current_price = snapshot.last_price
+                last_quote_at = snapshot.quote_time
+
+            current_return = (
+                self.policy.return_pct(entry_price, current_price)
+                if current_price is not None
+                else None
+            )
+            observed_prices = [entry_price]
+            observed_returns = [Decimal("0")]
+            if current_price is not None and current_return is not None:
+                observed_prices.append(current_price)
+                observed_returns.append(current_return)
+            observed_prices.extend(event.price for event in events if event.price is not None)
+            observed_returns.extend(event.pnl_pct for event in events if event.pnl_pct is not None)
+            output.append(
+                SwingActivePosition(
+                    public_trade_id=trade.public_trade_id,
+                    ticker=trade.ticker,
+                    expiry=trade.expiry,
+                    strike=trade.strike,
+                    option_side=trade.option_side,
+                    entry_price=entry_price,
+                    highest_tp_level=highest_tp.action if highest_tp is not None else None,
+                    highest_tp_return_pct=(
+                        int(highest_tp.pnl_pct) if highest_tp is not None else None
+                    ),
+                    highest_price=max(observed_prices),
+                    highest_return_pct=max(observed_returns),
+                    current_price=current_price,
+                    current_return_pct=current_return,
+                    last_quote_at=last_quote_at,
+                    stale=stale,
+                    is_lotto=trade.is_lotto,
+                )
+            )
+        return tuple(output)
 
     async def next_public_event(self, guild_id: int) -> SwingEventClaim | None:
         async with self.database.session() as session:
