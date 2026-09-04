@@ -648,10 +648,19 @@ async def test_published_review_can_be_reopened_and_republished_in_place() -> No
         assert republished.locked is True
         assert republished.status == "CORRECTED"
         assert review.id not in await service.pending_review_ids(GUILD_ID)
+        await service.replace_public_message(
+            review.id,
+            message_id=600,
+            actor_user_id=99,
+        )
+        repaired = await service.get_review(review.id)
+        assert repaired.public_message_id == 600
+        assert repaired.status == "CORRECTED"
         async with database.session() as session:
             actions = set(await session.scalars(select(AuditLog.action_type)))
             assert "DAILY_RESULTS_REOPENED" in actions
             assert "DAILY_RESULTS_REPUBLISHED" in actions
+            assert "DAILY_RESULTS_PUBLIC_MESSAGE_RECREATED" in actions
     finally:
         await database.dispose()
 

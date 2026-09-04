@@ -12,7 +12,11 @@ from discord.ext import commands, tasks
 from app.bot.cards import build_daily_results_snapshot_embed
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.views.results_review_views import EditCardModal, ResultsReviewView, TradeSelectView
-from app.services.daily_results_review import DailyResultsReviewService, ResultsReviewError
+from app.services.daily_results_review import (
+    DailyResultsReviewService,
+    ResultsPublishClaim,
+    ResultsReviewError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +347,13 @@ class DailyResultsReviewCog(commands.Cog):
         )
         if not claim.should_publish:
             if claim.message_id is not None:
-                await self.refresh_public(review_id)
+                try:
+                    await self.refresh_public(review_id)
+                except discord.NotFound:
+                    await self._recreate_public_message(
+                        claim,
+                        actor_user_id=actor_user_id,
+                    )
                 await self.refresh_review(review_id)
             return
         channel = self.bot.get_channel(claim.channel_id)
@@ -361,12 +371,46 @@ class DailyResultsReviewCog(commands.Cog):
                 embed=build_daily_results_snapshot_embed(claim.snapshot, review=False),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+        else:
+            await message.edit(
+                embed=build_daily_results_snapshot_embed(claim.snapshot, review=False)
+            )
         await self.service.finalize_publish(
             review_id,
             message_id=message.id,
             actor_user_id=actor_user_id,
         )
         await self.refresh_review(review_id)
+
+    async def _recreate_public_message(
+        self,
+        claim: ResultsPublishClaim,
+        *,
+        actor_user_id: int,
+    ) -> None:
+        channel = self.bot.get_channel(claim.channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(claim.channel_id)
+        marker = f"AXIS · {claim.public_ref}"
+        message = None
+        async for candidate in channel.history(limit=100):
+            if candidate.content == marker:
+                message = candidate
+                break
+        embed = build_daily_results_snapshot_embed(claim.snapshot, review=False)
+        if message is None:
+            message = await channel.send(
+                content=marker,
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        else:
+            await message.edit(embed=embed)
+        await self.service.replace_public_message(
+            claim.review_id,
+            message_id=message.id,
+            actor_user_id=actor_user_id,
+        )
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
         if isinstance(exc, ResultsReviewError):

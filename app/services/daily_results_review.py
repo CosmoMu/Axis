@@ -826,6 +826,39 @@ class DailyResultsReviewService:
             )
             await session.commit()
 
+    async def replace_public_message(
+        self,
+        review_id: uuid.UUID,
+        *,
+        message_id: int,
+        actor_user_id: int,
+    ) -> None:
+        """Repair a published review whose recorded Discord message no longer exists."""
+
+        async with self.database.session() as session:
+            review = await session.scalar(
+                select(DailyResultsReview)
+                .where(DailyResultsReview.id == review_id)
+                .with_for_update()
+            )
+            if review is None:
+                raise ResultsReviewError("REVIEW_NOT_FOUND")
+            if review.final_snapshot is None:
+                raise ResultsReviewError("RESULTS_NOT_FINALIZED")
+            previous_message_id = review.discord_public_message_id
+            review.discord_public_message_id = message_id
+            review.published_at = utc_now()
+            review.status = "CORRECTED" if previous_message_id is not None else "PUBLISHED"
+            self._audit(
+                session,
+                review,
+                actor_user_id=actor_user_id,
+                action_type="DAILY_RESULTS_PUBLIC_MESSAGE_RECREATED",
+                before={"discord_public_message_id": previous_message_id},
+                after={"discord_public_message_id": message_id},
+            )
+            await session.commit()
+
     async def current_public_snapshot(self, review_id: uuid.UUID) -> dict[str, object]:
         async with self.database.session() as session:
             review = await session.get(DailyResultsReview, review_id)
