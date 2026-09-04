@@ -28,6 +28,7 @@ from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
 from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
+from app.integrations.moomoo_personal_execution import MoomooPersonalBroker  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
     load_analysis_prompt,
@@ -65,6 +66,7 @@ from app.services.newcomer_access import (  # noqa: E402
 )
 from app.services.official_results import OfficialResultsService  # noqa: E402
 from app.services.option_contracts import OptionContractResolver  # noqa: E402
+from app.services.personal_execution import PersonalExecutionService  # noqa: E402
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
@@ -77,6 +79,7 @@ from app.services.trading_calendar import TradingCalendarService  # noqa: E402
 async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_lab_disabled()
+    settings.assert_personal_execution_safety()
     level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
@@ -318,6 +321,28 @@ async def run() -> None:
             additional_forbidden_terms=settings.public_identity_forbidden_terms,
         )
         configure_public_identity(public_identity)
+        personal_execution_service = None
+        if settings.personal_execution_enabled:
+            if settings.discord_owner_user_id is None:
+                raise ConfigurationError("Personal execution requires DISCORD_OWNER_USER_ID.")
+            personal_execution_service = PersonalExecutionService(
+                database,
+                MoomooPersonalBroker(
+                    host=settings.moomoo_host,
+                    port=settings.moomoo_port,
+                    environment=settings.personal_broker_environment,
+                    execution_mode=settings.personal_execution_mode,
+                    account_id=settings.personal_moomoo_account_id,
+                    security_firm=settings.personal_moomoo_security_firm,
+                    live_write_validated=settings.personal_dry_run_validated,
+                ),
+                guild_id=settings.discord_guild_id,
+                owner_user_id=settings.discord_owner_user_id,
+                execution_mode=settings.personal_execution_mode,
+                broker_environment=settings.personal_broker_environment,
+                policy=settings.personal_policy,
+                production_start_date=settings.production_data_start_date,
+            )
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -343,6 +368,7 @@ async def run() -> None:
             daily_summary_service=daily_summary_service,
             daily_results_review_service=daily_results_review_service,
             swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
+            personal_execution_service=personal_execution_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

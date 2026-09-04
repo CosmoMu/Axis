@@ -38,7 +38,7 @@ def empty_guild() -> GuildState:
 def test_blueprint_has_exact_mvp_shape() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
 
-    assert blueprint.version == 3
+    assert blueprint.version == 4
     assert blueprint.server_name == "AXIS"
     assert [role.name for role in blueprint.roles] == [
         "AXIS BOT",
@@ -74,12 +74,13 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🤫・在这交流",
         "🚨・system-alerts",
         "🧪・card-testing",
+        "💹・moomoo-trading",
         "🟢・lab-signals",
         "🧬・mentor-status",
         "🗂️・lab-history",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 23
+    assert blueprint.channel_count == 24
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
     assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
     assert blueprint.categories[0].channels[0].key == "welcome"
@@ -92,7 +93,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 3
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 23
+    assert sum(action.resource_type == "channel" for action in creates) == 24
     assert not plan.blockers
 
 

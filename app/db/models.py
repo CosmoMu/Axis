@@ -108,6 +108,7 @@ class GuildConfig(TimestampMixin, Base):
     card_testing_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     results_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     join_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    moomoo_trading_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -117,6 +118,7 @@ class GuildConfig(TimestampMixin, Base):
     member_wins_guide_message_id: Mapped[int | None] = mapped_column(BigInteger)
     short_term_notice_message_id: Mapped[int | None] = mapped_column(BigInteger)
     newcomer_status_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    moomoo_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     newcomer_gate_activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -1663,3 +1665,323 @@ class ScheduledJob(UuidPrimaryKeyMixin, TimestampMixin, Base):
     locked_by: Mapped[str | None] = mapped_column(String(100))
     last_error: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class PersonalExecutionSetting(TimestampMixin, Base):
+    __tablename__ = "personal_execution_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "execution_mode IN ('DRY_RUN','LIVE')", name="personal_execution_mode"
+        ),
+        CheckConstraint(
+            "broker_environment IN ('SIMULATE','REAL')",
+            name="personal_broker_environment",
+        ),
+        CheckConstraint(
+            "follow_scope IN ('OWNER_ONLY','ALL_ELIGIBLE_SIGNALS')",
+            name="personal_follow_scope",
+        ),
+        CheckConstraint("entry_max_chase_pct >= 0", name="personal_entry_chase_nonnegative"),
+        CheckConstraint(
+            "position_equity_pct > 0 AND position_equity_pct <= 1",
+            name="personal_equity_pct",
+        ),
+        CheckConstraint(
+            "position_budget_min > 0 AND position_budget_max >= position_budget_min",
+            name="personal_budget_range",
+        ),
+        CheckConstraint(
+            "trailing_stop_pct > 0 AND trailing_stop_pct < 1",
+            name="personal_trailing_pct",
+        ),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), primary_key=True
+    )
+    account_ref: Mapped[str | None] = mapped_column(String(32))
+    execution_mode: Mapped[str] = mapped_column(String(16), default="DRY_RUN", nullable=False)
+    broker_environment: Mapped[str] = mapped_column(
+        String(16), default="SIMULATE", nullable=False
+    )
+    auto_follow_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    follow_scope: Mapped[str] = mapped_column(String(32), default="OWNER_ONLY", nullable=False)
+    manual_position_sync_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    auto_risk_management_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    pause_new_entries: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    pause_auto_management: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    entry_max_chase_pct: Mapped[Decimal] = mapped_column(
+        Numeric(8, 4), default=Decimal("0.05"), nullable=False
+    )
+    position_equity_pct: Mapped[Decimal] = mapped_column(
+        Numeric(8, 4), default=Decimal("0.10"), nullable=False
+    )
+    position_budget_min: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("200"), nullable=False
+    )
+    position_budget_max: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal("500"), nullable=False
+    )
+    trailing_stop_pct: Mapped[Decimal] = mapped_column(
+        Numeric(8, 4), default=Decimal("0.30"), nullable=False
+    )
+    max_quote_age_seconds: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    max_bid_ask_spread_pct: Mapped[Decimal] = mapped_column(
+        Numeric(8, 4), default=Decimal("0.20"), nullable=False
+    )
+    minimum_option_volume: Mapped[int | None] = mapped_column(Integer)
+    minimum_open_interest: Mapped[int | None] = mapped_column(Integer)
+    liquidity_guard_mode: Mapped[str] = mapped_column(String(16), default="BLOCK", nullable=False)
+    short_term_entry_ttl_minutes: Mapped[int] = mapped_column(
+        Integer, default=5, nullable=False
+    )
+    swing_entry_ttl_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    market_open_guard_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    market_open_guard_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_by: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class PersonalPosition(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "personal_positions"
+    __table_args__ = (
+        CheckConstraint(
+            "source IN ('AXIS_AUTO','MANUAL_MOOMOO','AXIS_AUTO_MANUAL_ADD')",
+            name="personal_position_source",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING_ENTRY','PARTIALLY_FILLED','ACTIVE',"
+            "'BREAKEVEN_PROTECTED','TRAILING','RUNNER','PAUSED','CLOSED',"
+            "'CLOSED_MANUAL','ENTRY_EXPIRED','CANCELLED_ENTRY','BROKER_REJECTED','SYNC_ERROR')",
+            name="personal_position_status",
+        ),
+        CheckConstraint(
+            "risk_stage IN ('INITIAL','BREAKEVEN','TRAILING','RUNNER','PAUSED')",
+            name="personal_risk_stage",
+        ),
+        CheckConstraint("quantity >= 0", name="personal_position_quantity"),
+        CheckConstraint("original_managed_quantity >= 0", name="personal_original_quantity"),
+        CheckConstraint("risk_epoch_number >= 1", name="personal_risk_epoch_positive"),
+        Index("ix_personal_positions_active", "guild_id", "account_ref", "status"),
+        Index("ix_personal_positions_contract", "guild_id", "account_ref", "contract_key"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    contract_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    broker_contract_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(16), nullable=False)
+    expiry: Mapped[date] = mapped_column(Date, nullable=False)
+    strike: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    option_side: Mapped[str] = mapped_column(String(8), nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    linked_trade_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("trades.id", ondelete="SET NULL"), index=True
+    )
+    linked_publication_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("trade_publications.id", ondelete="SET NULL"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    original_managed_quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    average_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    total_cost_basis: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    current_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    current_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    lifetime_high_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    risk_high_watermark: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    risk_stage: Mapped[str] = mapped_column(String(16), default="INITIAL", nullable=False)
+    protection_reference: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    risk_epoch_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    tp50_executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tp100_executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    opening_guard_last_active: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    last_quote_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_broker_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    opened_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class PersonalPositionRiskEpoch(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "personal_position_risk_epochs"
+    __table_args__ = (
+        UniqueConstraint("personal_position_id", "epoch_number", name="personal_risk_epoch"),
+        CheckConstraint("epoch_number >= 1", name="personal_epoch_number_positive"),
+    )
+
+    personal_position_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("personal_positions.id", ondelete="CASCADE"), index=True
+    )
+    epoch_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    starting_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    average_cost: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    risk_high_watermark: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    risk_stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    protection_reference: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PersonalOrder(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "personal_orders"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="personal_order_idempotency"),
+        UniqueConstraint("account_ref", "broker_order_id", name="personal_broker_order"),
+        CheckConstraint(
+            "purpose IN ('ENTRY','TP50','TP100','STOP_EXIT','TRAILING_EXIT','SWING_CLOSE_EXIT')",
+            name="personal_order_purpose",
+        ),
+        CheckConstraint("side IN ('BUY','SELL')", name="personal_order_side"),
+        CheckConstraint("order_type = 'LIMIT'", name="personal_order_limit_only"),
+        CheckConstraint(
+            "status IN ('DRY_RUN_VALIDATED','PENDING','SUBMITTED','PARTIALLY_FILLED','FILLED',"
+            "'CANCELLED','REJECTED','EXPIRED','FAILED')",
+            name="personal_order_status",
+        ),
+        CheckConstraint("quantity > 0", name="personal_order_quantity"),
+        CheckConstraint("filled_quantity >= 0", name="personal_filled_quantity"),
+        Index("ix_personal_orders_active", "guild_id", "status", "expires_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    personal_position_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("personal_positions.id", ondelete="SET NULL"), index=True
+    )
+    linked_trade_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("trades.id", ondelete="SET NULL"), index=True
+    )
+    linked_publication_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("trade_publications.id", ondelete="SET NULL"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    contract_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    broker_contract_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    order_type: Mapped[str] = mapped_column(String(16), default="LIMIT", nullable=False)
+    execution_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    broker_environment: Mapped[str] = mapped_column(String(16), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    broker_order_id: Mapped[str | None] = mapped_column(String(128))
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    limit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    filled_quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    average_fill_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    terminal_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_broker_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(100))
+    axis_owned: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class PersonalFill(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "personal_fills"
+    __table_args__ = (
+        UniqueConstraint("account_ref", "broker_fill_id", name="personal_broker_fill"),
+        CheckConstraint("side IN ('BUY','SELL')", name="personal_fill_side"),
+        CheckConstraint("quantity > 0", name="personal_fill_quantity"),
+        Index("ix_personal_fills_guild_executed", "guild_id", "executed_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    personal_position_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("personal_positions.id", ondelete="SET NULL"), index=True
+    )
+    personal_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("personal_orders.id", ondelete="SET NULL"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    broker_fill_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    contract_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    fill_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    cash_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    realized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    realized_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    remaining_quantity: Mapped[int | None] = mapped_column(Integer)
+    account_equity: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    execution_source: Mapped[str] = mapped_column(String(32), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class PersonalExecutionEvent(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "personal_execution_events"
+    __table_args__ = (
+        UniqueConstraint("event_key", name="personal_execution_event_key"),
+        Index("ix_personal_events_notify", "guild_id", "notified_at", "created_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    personal_position_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("personal_positions.id", ondelete="SET NULL"), index=True
+    )
+    personal_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("personal_orders.id", ondelete="SET NULL"), index=True
+    )
+    event_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PersonalAccountSnapshot(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "personal_account_snapshots"
+    __table_args__ = (Index("ix_personal_account_snapshot_time", "guild_id", "captured_at"),)
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    account_equity: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    available_buying_power: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    cash: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PersonalDailySummary(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "personal_daily_summaries"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "session_date", name="personal_daily_summary_session"),
+        CheckConstraint(
+            "status IN ('PENDING','PUBLISHED','FAILED')", name="personal_daily_summary_status"
+        ),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)
+    discord_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )

@@ -1,6 +1,6 @@
 # AXIS Implemented Features
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-04
 
 本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
 LIVE_MODE_CHECKLIST.md 为准。
@@ -12,19 +12,40 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 保存 Snowflake ID 后优先按 ID 复用；只对 AXIS-owned 资源执行受控更新。
 - Persistent View、Review Card 和 Manager 控制面板重启恢复。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
+- Owner-only `💹・moomoo-trading`、持久 control card 与明确 persona permission isolation。
+
+## Owner-only Personal Moomoo Execution
+
+- 独立 `FEATURE_PERSONAL_EXECUTION_ENABLED`；不解除 Model A/B / LAB deferred gate。
+- DRY_RUN / LIVE 与 SIMULATE / REAL 双层模式；LIVE 还需要 auto-trading、已验收标志、明确账户和
+  security firm，任一缺失都拒绝启动。
+- Moomoo adapter 只用正确 app-aligned account/position fields；账户 ID one-way mask；从不调用
+  `unlock_trade`。
+- 只跟随 production Short-Term / Swing approved Entry；Owner scope 同时校验 source submitter 和
+  publisher；Review 提供 Owner-only AUTO / FOLLOW / SKIP override。
+- Public Signal 与个人 execution failure isolation；LIVE broker ACK 在 Discord member card 之前，
+  rejected personal order 不影响公共发布。
+- Equity/buying-power budget、max-chase、fresh quote、spread、optional volume/OI、LIMIT-only、TTL、
+  duplicate contract 和 broker-source-of-truth safeguards。
+- Manual option sync、add risk epoch、partial/full close、AXIS-owned order/fill mapping、restart
+  idempotency；不导入普通股票持仓。
+- Initial / Breakeven / Trailing / Runner risk stages、TP50/TP100 allocation、opening guard、Swing
+  linked close、kill switches、private events、daily summary 和 System Alert recovery。
+- DRY_RUN 全决策路径写审计 decision，但不会创建 broker order、fill 或 fake position。
 - GENERAL Guide 依据数据库 Message ID 幂等同步。
 - Manager-only `📋・results-review`、每日 Review View 与公开 Results 幂等恢复。
 - macOS LaunchAgent、Dockerfile 与 Compose 基础部署。
 
 ## Database
 
-- Alembic revisions 0001–0029；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+- Alembic revisions 0001–0030；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
   0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
   Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称，
   0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间；
   0026 增加永久 Approval、Application、Newcomer risk、Role sync 与 Trial 审批溯源；0027–0028
   增加当前支付/迎新状态；0029 增加 Swing tracking mode 及独立 tracking/event/snapshot 表，并将
-  既有 Swing 安全回填为 `LEGACY_SWING`。
+  既有 Swing 安全回填为 `LEGACY_SWING`；0030 增加 Owner-only personal execution settings、
+  broker positions / risk epochs、orders、fills、events、account snapshots 与 daily summaries。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -291,4 +312,5 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - 所有 Public DTO 使用白名单。
 - Stripe 外部配置不完整时，Live activation 保持阻止。
 - FEATURE_LAB_ENABLED=false、FEATURE_MODEL_AB_ENABLED=false。
-- 不实现自动下单，不读取 Moomoo 账户、持仓或订单。
+- 不为会员实现自动下单，也不连接任何会员券商账户。Owner-only Moomoo layer 只在独立安全门内
+  读取 Owner 账户/持仓/订单；当前 DRY_RUN 且所有 broker writes 禁用。

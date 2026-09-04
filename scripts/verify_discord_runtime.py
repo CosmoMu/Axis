@@ -115,6 +115,7 @@ async def verify() -> list[str]:
         results_review = channel("results_review")
         join_review = channel("join_review")
         mentor_control = channel("mentor_control")
+        moomoo_trading = channel("moomoo_trading")
 
         newcomer_allowed = {"welcome", "official_results", "member_wins"}
         for key, channel_id in channel_ids.items():
@@ -207,6 +208,7 @@ async def verify() -> list[str]:
         for key, owner_only in (
             ("system_alerts", system_alerts),
             ("card_testing", card_testing),
+            ("moomoo_trading", moomoo_trading),
         ):
             manager_permissions = owner_only.permissions_for(manager)
             _check(not manager_permissions.view_channel, f"manager_{key}_view", failures)

@@ -90,7 +90,8 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
   `.env` 同步到文档或 Git。
 - `FEATURE_LAB_ENABLED=false`
 - `FEATURE_MODEL_AB_ENABLED=false`
-- `FEATURE_MOOMOO_ENABLED=false`：本轮按最新范围关闭；不启动 Moomoo Model Scanning。
+- `FEATURE_MOOMOO_ENABLED=false`：旧 Moomoo 行情健康开关；不启动 Model Scanning。
+- `FEATURE_PERSONAL_EXECUTION_ENABLED=false`：Owner-only Personal Execution 总开关，模板默认关。
 - `FEATURE_DAILY_SUMMARY_ENABLED=true`：启用收盘总结与 Daily Results；Swing / LEAPS Active
   Summary 使用 Massive 当日正式期权收盘价，Short-Term 使用独立 Tracking 数据。
 - `FEATURE_SHORT_TERM_TRACKING_ENABLED=false`：安全默认。只有 Massive Secret 配置完成后
@@ -107,12 +108,26 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
 仓库。旧 `FEATURE_COSMOS_STOCK_ANALYST_ENABLED` 仅保留一版配置兼容，新环境不得继续使用。
 
-## Moomoo Analysis Read-only Market Data
+## Moomoo Market Data and Owner-only Personal Execution
 
 - `MOOMOO_OPEND_HOST=127.0.0.1`
 - `MOOMOO_OPEND_PORT=11111`
-以上配置不包含 Moomoo 账户 Secret。OpenD 必须保持行情登录；Stock Analyst 只读日 K，
-AXIS 不调用账户、持仓、订单、交易解锁或下单接口。
+Stock Analyst 仍只读日 K。Owner-only Personal Execution 额外使用：
+
+- `PERSONAL_EXECUTION_MODE=DRY_RUN|LIVE`
+- `PERSONAL_BROKER_ENV=SIMULATE|REAL`
+- `PERSONAL_AUTO_TRADING_ENABLED=false`
+- `PERSONAL_DRY_RUN_VALIDATED=false`
+- `MOOMOO_ACC_ID` / `MOOMOO_SECURITY_FIRM`（Secret Store only）
+- `PERSONAL_RECONCILE_SECONDS=15`
+- `PERSONAL_POSITION_EQUITY_PCT=0.10`、预算 `$200–$500`
+- `PERSONAL_ENTRY_MAX_CHASE_PCT=0.05`
+- quote age / spread / optional volume / OI guards
+- Short-Term 5 分钟、Swing 30 分钟 entry TTL
+- 30% trailing 与 09:30–09:35 ET opening guard
+
+DRY_RUN 执行完整决策但不写券商、不伪造 fill。LIVE 必须通过独立安全门。AXIS 永不自动调用
+`unlock_trade`，且只允许 Owner 的明确账户；会员账户始终不在范围内。
 
 ## Short-Term / Massive Market Data
 

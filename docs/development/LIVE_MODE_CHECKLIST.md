@@ -1,10 +1,25 @@
 # AXIS Live Mode Checklist
 
-**Current decision:** STRIPE LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
+**Current decision:** PERSONAL MOOMOO LIVE BLOCKED / STRIPE LIVE ENABLED
 
 Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PASS / 0 blockers 且
 `PAYMENTS_ENABLED=true`；第一笔真实付款和完整 lifecycle 尚未验收。Short-Term Automated Tracking
 也尚未完成真实 E2E。任何单项启用都不代表整套系统已经 Production-complete。
+
+## Owner-only Personal Moomoo Execution
+
+- [x] 独立 feature/mode/environment/write/accepted gates；默认 DRY_RUN 且 write disabled。
+- [x] Owner-only channel、persistent control、persona permissions 和 public-signal failure isolation。
+- [x] Budget/chase/liquidity/TTL/duplicate/LIMIT-only/order ownership/idempotency guards。
+- [x] Reconciliation、manual option sync、risk epoch、TP/trailing/opening guard 和 private audit schema。
+- [x] Automated/synthetic DRY_RUN 证明 place/cancel 未调用且没有 fake fill/position。
+- [ ] OpenD 已启动并登录，`127.0.0.1:11111` read-only verifier PASS。
+- [ ] 唯一 target US securities account 与 security firm 已由 Owner 明确选择并保存在 Secret Store。
+- [ ] SIMULATE Entry/Fill/TTL/TP/trailing/manual add/close/restart E2E 完成。
+- [ ] Discord Desktop/Mobile control、AUTO/FOLLOW/SKIP 与 kill switches 已验收。
+- [ ] Backup/restore 与 broker failure/recovery rehearsal 完成。
+- [ ] Owner 在收到完整 blocker report 后单独批准 LIVE；当前未批准。
+- [x] AXIS 不调用或生成 `unlock_trade`；LIVE 解锁只能在 OpenD GUI 手动完成。
 
 ## Newcomer Approval / Security Gate
 
@@ -27,10 +42,11 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [ ] ST_TRACKING_V4 TP1–TP41 真实触发且每一级只发一次；频道中没有 Runner。
 - [ ] 在途 ST_TRACKING_V2 / V3 与新 ST_TRACKING_V4 订单均按各自冻结策略运行。
 - [ ] Fast Momentum Reversal 真实路径已验证。
-- [ ] Tracking Protection（初始 -50%；+10% / +20% 后保本；+50% 起回到前一级 TP）与
-  Tracking Stop 真实路径已验证。
+- [x] Short-Term 为 Expiry-only Tracking；没有 SL、保本、trailing protection 或价格触发的
+  Tracking Stop。
 - [ ] Overnight 规则与下一交易日恢复已验证。
-- [ ] Discord Entry / TP / 停止追踪与数据库状态一致，Short-Term 无 Active Button。
+- [ ] Discord Entry / TP / 到期后台停止与数据库状态一致，Short-Term 无 Active Button，且到期
+  不向 Short-Term 频道发卡。
 - [ ] Short-Term 不发 Daily Summary；官方 Results 同时包含今日停止与仍在追踪的 Short-Term，
   且公开行显示 ST 订单号、Ticker、到期日、合约代码和收益率；Swing / LEAPS Summary 与官方
   Results 已验证。
@@ -123,7 +139,7 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [x] Secret 仅从 .env 或部署 Secret Store 读取。
 - [x] FEATURE_LAB_ENABLED=false。
 - [x] FEATURE_MODEL_AB_ENABLED=false。
-- [x] 不读取 Moomoo 账户、持仓或订单，不执行自动交易。
+- [x] Owner-only Moomoo layer 与会员完全隔离；当前 LIVE broker writes 禁用。
 - [ ] 发布前再次运行 tracked-files Secret scan 并记录 PASS。
 
 Do not start AXIS LAB as part of this checklist.

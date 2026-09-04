@@ -3,12 +3,18 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
+from app.domain.personal_execution import (
+    PersonalBrokerEnvironment,
+    PersonalExecutionMode,
+    PersonalExecutionPolicy,
+)
 from app.integrations.stripe_config import (
     StripeConfig,
     StripeEnvironmentConfig,
@@ -79,6 +85,39 @@ def _parse_nonnegative_int(name: str, default: int) -> int:
     if value < 0:
         raise ConfigurationError(f"{name} 不能小于 0。")
     return value
+
+
+def _parse_optional_nonnegative_int(name: str) -> int | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} 必须是非负整数。") from exc
+    if value < 0:
+        raise ConfigurationError(f"{name} 不能小于 0。")
+    return value
+
+
+def _parse_decimal(name: str, default: str) -> Decimal:
+    raw = os.getenv(name, default).strip()
+    try:
+        value = Decimal(raw)
+    except (InvalidOperation, ValueError) as exc:
+        raise ConfigurationError(f"{name} 必须是数字。") from exc
+    if not value.is_finite():
+        raise ConfigurationError(f"{name} 必须是有限数字。")
+    return value
+
+
+def _parse_choice(name: str, default: str, enum_type: type) -> object:
+    raw = os.getenv(name, default).strip().upper()
+    try:
+        return enum_type(raw)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in enum_type)
+        raise ConfigurationError(f"{name} 必须是：{allowed}。") from exc
 
 
 def _parse_time_hhmm(name: str, default: str) -> str:
@@ -214,6 +253,15 @@ class Settings:
     stripe_live_webhook_relay_url: str | None = None
     stripe_live_webhook_relay_secret: str = ""
     stripe_live_webhook_relay_poll_seconds: int = 5
+    personal_execution_enabled: bool = False
+    personal_execution_mode: PersonalExecutionMode = PersonalExecutionMode.DRY_RUN
+    personal_broker_environment: PersonalBrokerEnvironment = PersonalBrokerEnvironment.SIMULATE
+    personal_auto_trading_enabled: bool = False
+    personal_dry_run_validated: bool = False
+    personal_moomoo_account_id: str | None = None
+    personal_moomoo_security_firm: str | None = None
+    personal_reconcile_seconds: int = 15
+    personal_policy: PersonalExecutionPolicy = PersonalExecutionPolicy()
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -424,6 +472,59 @@ class Settings:
             stripe_live_webhook_relay_poll_seconds=_parse_positive_int(
                 "STRIPE_LIVE_WEBHOOK_RELAY_POLL_SECONDS", 5
             ),
+            personal_execution_enabled=_parse_bool(
+                "FEATURE_PERSONAL_EXECUTION_ENABLED", False
+            ),
+            personal_execution_mode=_parse_choice(
+                "PERSONAL_EXECUTION_MODE",
+                PersonalExecutionMode.DRY_RUN.value,
+                PersonalExecutionMode,
+            ),
+            personal_broker_environment=_parse_choice(
+                "PERSONAL_BROKER_ENV",
+                PersonalBrokerEnvironment.SIMULATE.value,
+                PersonalBrokerEnvironment,
+            ),
+            personal_auto_trading_enabled=_parse_bool(
+                "PERSONAL_AUTO_TRADING_ENABLED", False
+            ),
+            personal_dry_run_validated=_parse_bool("PERSONAL_DRY_RUN_VALIDATED", False),
+            personal_moomoo_account_id=(os.getenv("MOOMOO_ACC_ID", "").strip() or None),
+            personal_moomoo_security_firm=(
+                os.getenv("MOOMOO_SECURITY_FIRM", "").strip().upper() or None
+            ),
+            personal_reconcile_seconds=_parse_positive_int("PERSONAL_RECONCILE_SECONDS", 15),
+            personal_policy=PersonalExecutionPolicy(
+                position_equity_pct=_parse_decimal("PERSONAL_POSITION_EQUITY_PCT", "0.10"),
+                position_budget_min=_parse_decimal("PERSONAL_POSITION_BUDGET_MIN", "200"),
+                position_budget_max=_parse_decimal("PERSONAL_POSITION_BUDGET_MAX", "500"),
+                entry_max_chase_pct=_parse_decimal("PERSONAL_ENTRY_MAX_CHASE_PCT", "0.05"),
+                max_quote_age_seconds=_parse_positive_int(
+                    "PERSONAL_MAX_QUOTE_AGE_SECONDS", 15
+                ),
+                max_bid_ask_spread_pct=_parse_decimal(
+                    "PERSONAL_MAX_BID_ASK_SPREAD_PCT", "0.20"
+                ),
+                minimum_option_volume=_parse_optional_nonnegative_int(
+                    "PERSONAL_MIN_OPTION_VOLUME"
+                ),
+                minimum_open_interest=_parse_optional_nonnegative_int(
+                    "PERSONAL_MIN_OPEN_INTEREST"
+                ),
+                short_term_entry_ttl_minutes=_parse_positive_int(
+                    "PERSONAL_SHORT_TERM_ENTRY_TTL_MINUTES", 5
+                ),
+                swing_entry_ttl_minutes=_parse_positive_int(
+                    "PERSONAL_SWING_ENTRY_TTL_MINUTES", 30
+                ),
+                trailing_stop_pct=_parse_decimal("PERSONAL_TRAILING_STOP_PCT", "0.30"),
+                market_open_guard_enabled=_parse_bool(
+                    "PERSONAL_MARKET_OPEN_GUARD_ENABLED", True
+                ),
+                market_open_guard_minutes=_parse_positive_int(
+                    "PERSONAL_MARKET_OPEN_GUARD_MINUTES", 5
+                ),
+            ),
         )
 
     def require_token(self) -> str:
@@ -462,10 +563,36 @@ class Settings:
             )
 
     def assert_lab_disabled(self) -> None:
-        if self.lab_enabled or self.model_ab_enabled or self.moomoo_enabled:
+        if self.lab_enabled or self.model_ab_enabled:
             raise ConfigurationError(
-                "当前规格禁止启动 AXIS LAB / Model A-B / Moomoo；请将三个开关保持 false。"
+                "当前规格仍禁止启动 AXIS LAB / Model A-B；请将两个开关保持 false。"
             )
+
+    def assert_personal_execution_safety(self) -> None:
+        policy = self.personal_policy
+        if not Decimal("0") < policy.position_equity_pct <= Decimal("1"):
+            raise ConfigurationError("PERSONAL_POSITION_EQUITY_PCT 必须在 0 和 1 之间。")
+        if (
+            policy.position_budget_min <= 0
+            or policy.position_budget_max < policy.position_budget_min
+        ):
+            raise ConfigurationError("Personal execution budget 上下限无效。")
+        if not Decimal("0") < policy.trailing_stop_pct < Decimal("1"):
+            raise ConfigurationError("PERSONAL_TRAILING_STOP_PCT 必须在 0 和 1 之间。")
+        if not self.personal_execution_enabled:
+            return
+        if self.discord_owner_user_id is None:
+            raise ConfigurationError("启用个人执行层必须配置 DISCORD_OWNER_USER_ID。")
+        if self.personal_execution_mode is PersonalExecutionMode.DRY_RUN:
+            return
+        if not self.personal_auto_trading_enabled:
+            raise ConfigurationError("LIVE 被阻止：PERSONAL_AUTO_TRADING_ENABLED 仍为 false。")
+        if not self.personal_dry_run_validated:
+            raise ConfigurationError("LIVE 被阻止：DRY_RUN 尚未标记验收通过。")
+        if self.personal_broker_environment is not PersonalBrokerEnvironment.REAL:
+            raise ConfigurationError("LIVE 被阻止：PERSONAL_BROKER_ENV 不是 REAL。")
+        if not self.personal_moomoo_account_id or not self.personal_moomoo_security_firm:
+            raise ConfigurationError("LIVE 被阻止：未锁定 Moomoo account / security firm。")
 
     def stripe_config(self) -> StripeConfig:
         def environment(mode: StripeMode) -> StripeEnvironmentConfig:

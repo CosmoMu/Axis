@@ -59,6 +59,14 @@ EXPECTED_TABLES = {
     "short_term_daily_snapshots",
     "audit_logs",
     "scheduled_jobs",
+    "personal_execution_settings",
+    "personal_positions",
+    "personal_position_risk_epochs",
+    "personal_orders",
+    "personal_fills",
+    "personal_execution_events",
+    "personal_account_snapshots",
+    "personal_daily_summaries",
 }
 
 
@@ -102,6 +110,8 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "newcomer_role_id",
         "newcomer_status_message_id",
         "newcomer_gate_activated_at",
+        "moomoo_trading_channel_id",
+        "moomoo_panel_message_id",
     } <= set(Base.metadata.tables["guild_config"].columns.keys())
     memberships = Base.metadata.tables["memberships"]
     assert {

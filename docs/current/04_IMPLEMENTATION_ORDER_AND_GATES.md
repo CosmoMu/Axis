@@ -13,6 +13,10 @@ engine. Short-Term/Massive and Newcomer still require their recorded live E2E. S
 with zero readiness blockers, while its first real payment lifecycle remains pending Owner acceptance.
 AXIS LAB remains deferred and is not part of Stage 5.
 
+Owner-only Personal Moomoo Execution 以 `09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md` 为最新覆盖：
+它复用 Stage 2 publication 和 Stage 5 operations，但必须先通过 DRY_RUN / SIMULATE E2E；不得因为
+代码完成而启用 LIVE broker writes。
+
 ## 0. 先读文档
 
 按顺序：

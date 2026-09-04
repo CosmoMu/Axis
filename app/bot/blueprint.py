@@ -330,7 +330,10 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
             "read_message_history": can_view,
         }
         attach_key = f"{subject}_attach"
-        values["attach_files"] = channel.permissions.get(attach_key, subject == "bot" and can_send)
+        if attach_key in channel.permissions:
+            values["attach_files"] = channel.permissions[attach_key]
+        elif subject == "bot" or not can_send:
+            values["attach_files"] = subject == "bot" and can_send
         interact_key = f"{subject}_interact"
         if interact_key in channel.permissions:
             values["use_application_commands"] = channel.permissions[interact_key]
@@ -903,8 +906,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 23:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 23 个。")
+    if blueprint.channel_count != 24:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 24 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

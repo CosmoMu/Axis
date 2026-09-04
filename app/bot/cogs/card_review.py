@@ -30,6 +30,7 @@ from app.domain.public_cards import (
     SwingTrackedEntryCard,
     SwingTrackingCard,
 )
+from app.integrations.moomoo_personal_execution import PersonalBrokerError
 from app.market_intelligence.trade_plan import (
     SwingLeapsTradePlanService,
     TradePlanArtifact,
@@ -44,6 +45,7 @@ from app.services.card_review import (
     missing_field_labels,
     public_preview_payload,
 )
+from app.services.personal_execution import PersonalExecutionError, PersonalExecutionService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.swing_tracking import SIMPLE_TRACKED_SWING, SwingTrackingService
 from app.services.trade_publication import (
@@ -83,6 +85,7 @@ class CardReviewCog(commands.Cog):
         tracking_service: MarketTrackingService,
         swing_tracking_service: SwingTrackingService,
         trade_plan_service: SwingLeapsTradePlanService | None,
+        personal_execution_service: PersonalExecutionService | None,
         guild_id: int,
         channel_id: int,
         manager_role_id: int,
@@ -95,6 +98,7 @@ class CardReviewCog(commands.Cog):
         self.tracking_service = tracking_service
         self.swing_tracking_service = swing_tracking_service
         self.trade_plan_service = trade_plan_service
+        self.personal_execution_service = personal_execution_service
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.manager_role_id = manager_role_id
@@ -436,6 +440,49 @@ class CardReviewCog(commands.Cog):
             return await self.service.get(draft.id)
         if claim.card is None or claim.claim_token is None:
             return await self.service.get(draft.id)
+
+        personal_execution_service = getattr(self, "personal_execution_service", None)
+        if personal_execution_service is not None:
+            try:
+                await personal_execution_service.prepare_publication(
+                    claim.publication_id,
+                    published_entry=getattr(claim.card, "entry_price", None),
+                    actor_user_id=actor_user_id or draft.reviewed_by,
+                    force_follow=draft.personal_follow_override,
+                )
+            except (PersonalExecutionError, PersonalBrokerError) as exc:
+                logger.warning("event=personal_execution_publication_failed code=%s", exc.code)
+                alerts = self.bot.get_cog("SystemAlertsCog")
+                if alerts is not None:
+                    await alerts.report_failure(
+                        severity="ERROR",
+                        service="Moomoo Personal Execution",
+                        error_type="PERSONAL_EXECUTION_PUBLICATION_FAILED",
+                        affected="Owner-only personal execution; public signal continues",
+                        detail=exc.code,
+                    )
+            except Exception as exc:
+                logger.exception(
+                    "event=personal_execution_publication_failed error_type=%s",
+                    type(exc).__name__,
+                )
+                alerts = self.bot.get_cog("SystemAlertsCog")
+                if alerts is not None:
+                    await alerts.report_failure(
+                        severity="ERROR",
+                        service="Moomoo Personal Execution",
+                        error_type="PERSONAL_EXECUTION_PUBLICATION_FAILED",
+                        affected="Owner-only personal execution; public signal continues",
+                        detail=type(exc).__name__,
+                    )
+            else:
+                alerts = self.bot.get_cog("SystemAlertsCog")
+                if alerts is not None:
+                    await alerts.report_recovery(
+                        service="Moomoo Personal Execution",
+                        error_type="PERSONAL_EXECUTION_PUBLICATION_FAILED",
+                        affected="Owner-only personal execution; public signal continues",
+                    )
 
         channel = self.bot.get_channel(claim.channel_id)
         if channel is None:

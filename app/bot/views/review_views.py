@@ -1278,6 +1278,8 @@ class ReviewDraftView(discord.ui.View):
                 )
                 button.callback = callback
                 self.add_item(button)
+            if getattr(controller, "personal_execution_service", None) is not None:
+                self._add_personal_follow_button(button_row)
             return
         self.add_item(ReviewChoiceSelect(controller, draft, kind="mentor", choices=mentor_choices))
         if draft.expiry is None and draft.expiry_candidates:
@@ -1321,6 +1323,34 @@ class ReviewDraftView(discord.ui.View):
             )
             button.callback = callback
             self.add_item(button)
+        if (
+            category == TradeCategory.SWING.value
+            and getattr(controller, "personal_execution_service", None) is not None
+        ):
+            self._add_personal_follow_button(4)
+
+    def _add_personal_follow_button(self, row: int) -> None:
+        state = {
+            None: "AUTO",
+            True: "FOLLOW",
+            False: "SKIP",
+        }[self.draft.personal_follow_override]
+        button = discord.ui.Button(
+            label=f"PERSONAL · {state}",
+            style=(
+                discord.ButtonStyle.success
+                if self.draft.personal_follow_override is True
+                else discord.ButtonStyle.danger
+                if self.draft.personal_follow_override is False
+                else discord.ButtonStyle.secondary
+            ),
+            row=row,
+            custom_id=(
+                f"axis:review:personal-follow:{self.draft.id.hex}:v{self.draft.version}"
+            ),
+        )
+        button.callback = self.cycle_personal_follow
+        self.add_item(button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return await self.controller.authorize(interaction)
@@ -1372,6 +1402,32 @@ class ReviewDraftView(discord.ui.View):
             await send_temporary_ephemeral(
                 interaction,
                 f"LOTTO 已设为 {'YES' if updated.is_lotto else 'NO'}。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+    async def cycle_personal_follow(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.controller.owner_user_id:
+            await interaction.response.send_message("Owner only.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.cycle_personal_follow_override(
+                self.draft.id,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            state = {
+                None: "AUTO",
+                True: "FOLLOW",
+                False: "SKIP",
+            }[updated.personal_follow_override]
+            await send_temporary_ephemeral(
+                interaction,
+                f"Personal execution override: {state}.",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:

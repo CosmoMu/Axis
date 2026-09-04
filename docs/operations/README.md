@@ -24,6 +24,8 @@
 
 - `trading/SWING_TRACKING.md` — Simple Tracked Swing Entry、共享固定 TP、High Watermark、Close、
   Active View、EOD、Results、Expiry、restart recovery 与 Legacy compatibility。
+- `trading/MOOMOO_PERSONAL_EXECUTION.md` — Owner-only Moomoo DRY_RUN、OpenD 对账、风险控制、
+  LIVE gate、kill switch 与事故处理。
 
 Secret、完整 Stripe payload、客户付款信息、Discord 用户 ID 与数据库连接信息不得写进文档、
 命令输出、日志或 Git。

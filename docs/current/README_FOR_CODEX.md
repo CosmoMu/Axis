@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的十份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的十一份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -27,7 +27,9 @@
    permanent Approval、automatic 3 U.S. Trading Day Trial 与 Day Pass 交易日边界。
 9. 08_SIMPLE_TRACKED_SWING_SPEC.md — Swing V2、Legacy compatibility、固定 TP 追踪、手动关闭、
    Active View、EOD 与 Results 的最终规则。
-10. README_FOR_CODEX.md — 本入口和文档使用规则。
+10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
+    Gate、对账、风险和控制面板的最新规则。
+11. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -58,6 +60,8 @@
   部署；四笔既有 Active Swing 已安全标记为 `LEGACY_SWING` 并继续旧流程。新 Simple Swing 的
   真实 Discord / Massive 端到端验收仍待完成。
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
+- Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
+  只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
 事实，但不得取代本目录的产品规格。
@@ -77,11 +81,13 @@
 
 - Model A / Model B 正式训练
 - AXIS LAB Generate / Shadow / Champion / Challenger
-- 会员自动交易或任何自动下单
-- Moomoo 账户、持仓、订单和交易接口
+- 会员自动交易或任何会员券商连接
+- 除 `09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md` 明确授权的 Owner-only layer 外的 Moomoo
+  自动下单、模型扫描或账户能力
 - 未经新规格确认的频道或产品架构扩张
 
 AXIS LAB 频道可以保留，FEATURE_LAB_ENABLED 与 FEATURE_MODEL_AB_ENABLED 必须保持 false。
+`💹・moomoo-trading` 是这条 Deferred 边界中的明确 Owner-only 例外，不代表启动 Model A/B。
 只有 Owner 明确说 START AXIS LAB 后，才允许重新评估该模块。
 
 ## LLM 与数据出口

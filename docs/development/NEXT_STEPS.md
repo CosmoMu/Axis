@@ -1,6 +1,6 @@
 # AXIS Next Steps
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-04
 
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
@@ -13,6 +13,24 @@ Signal System。当前不新增功能；只执行下面固定 Priority 的真实
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・card-testing`。
+
+## Priority 0 — Owner Personal Moomoo Execution DRY_RUN E2E
+
+Work:
+
+- 启动并登录本机 OpenD，明确选择唯一 US securities account 和 security firm；先运行只读 verifier。
+- 在 SIMULATE 完成 Owner-authored Short-Term / Swing Entry、broker ACK/fill reconciliation、TTL、
+  duplicate/chase/liquidity blocks、manual add/partial/full close 与 linked Swing Close。
+- 验证 +30 breakeven、+50 TP/trailing、runner、09:30–09:35 opening guard、restart idempotency、
+  System Alert recovery、private daily summary 和 Desktop/Mobile control UX。
+- 记录 blocker 清单。只有全部解除并由 Owner 单独决定后，才允许设置 DRY_RUN accepted gate；本轮
+  不切 LIVE。
+
+Exit criteria:
+
+- verifier 对 account / positions / orders / fills 为 PASS，且输出只包含 masked account reference。
+- DRY_RUN 没有任何 broker write 或 fake fill；SIMULATE lifecycle 与数据库/Discord 审计一致。
+- kill switches、public-signal independence 与 member-account isolation 有实际证据。
 
 ## Priority 0A — Simple Tracked Swing Live E2E
 

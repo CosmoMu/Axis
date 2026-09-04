@@ -16,6 +16,7 @@ from app.bot.cogs.general_control import GeneralControlCog
 from app.bot.cogs.manager_control import ManagerControlCog
 from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
+from app.bot.cogs.personal_execution import PersonalExecutionCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
 from app.bot.cogs.swing_tracking import SwingTrackingCog
@@ -40,6 +41,7 @@ from app.services.membership_stripe import MembershipStripeService
 from app.services.mentor_management import MentorManagementService
 from app.services.newcomer_access import NewcomerAccessService, NewcomerRiskScanner
 from app.services.official_results import OfficialResultsService
+from app.services.personal_execution import PersonalExecutionService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.signal_input import SignalInputService
 from app.services.swing_tracking import SwingTrackingService
@@ -84,6 +86,7 @@ class AxisBot(commands.Bot):
         daily_summary_service: DailySummaryService | None,
         daily_results_review_service: DailyResultsReviewService | None,
         swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
+        personal_execution_service: PersonalExecutionService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -115,6 +118,7 @@ class AxisBot(commands.Bot):
             tracking_service=short_term_tracking_service,
             swing_tracking_service=swing_tracking_service,
             trade_plan_service=swing_leaps_trade_plan_service,
+            personal_execution_service=personal_execution_service,
             guild_id=settings.discord_guild_id,
             channel_id=_required_snowflake(channels, "card_review"),
             manager_role_id=_required_snowflake(roles, "manager"),
@@ -270,6 +274,19 @@ class AxisBot(commands.Bot):
             guild_id=settings.discord_guild_id,
             poll_seconds=swing_tracking_service.policy.poll_seconds,
         )
+        self._personal_execution_cog = (
+            PersonalExecutionCog(
+                self,
+                service=personal_execution_service,
+                guild_id=settings.discord_guild_id,
+                channel_id=_required_snowflake(channels, "moomoo_trading"),
+                owner_user_id=settings.discord_owner_user_id,
+                reconcile_seconds=settings.personal_reconcile_seconds,
+            )
+            if personal_execution_service is not None
+            and settings.discord_owner_user_id is not None
+            else None
+        )
         self._guild_command_target = discord.Object(id=settings.discord_guild_id)
         self._guild_commands_synced = False
 
@@ -280,6 +297,8 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._card_review_cog)
         await self.add_cog(self._short_term_tracking_cog)
         await self.add_cog(self._swing_tracking_cog)
+        if self._personal_execution_cog is not None:
+            await self.add_cog(self._personal_execution_cog)
         await self.add_cog(self._manager_control_cog)
         await self.add_cog(self._system_alerts_cog)
         await self.add_cog(self._newcomer_access_cog)

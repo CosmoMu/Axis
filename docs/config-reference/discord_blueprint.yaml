@@ -1,4 +1,4 @@
-version: 3
+version: 4
 # AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
 brand:
   server_name: "AXIS"
@@ -281,6 +281,24 @@ categories:
     default_visibility: deferred
     feature_flag: FEATURE_LAB_ENABLED
     channels:
+      - key: moomoo_trading
+        name: "💹・moomoo-trading"
+        type: text
+        topic: "AXIS Owner-only personal Moomoo execution control, reconciliation, and audit."
+        everyone_view: false
+        everyone_send: false
+        member_view: false
+        member_send: false
+        manager_view: false
+        manager_send: false
+        newcomer_view: false
+        newcomer_send: false
+        owner_view: true
+        owner_send: true
+        owner_attach: true
+        owner_interact: true
+        owner_manage_messages: true
+        bot_send: true
       - key: lab_signals
         name: "🟢・lab-signals"
         type: text
@@ -307,6 +325,8 @@ categories:
         bot_send: true
 
 persistent_panels:
+  - key: moomoo_trading_panel
+    channel_key: moomoo_trading
   - key: mentor_control_panel
     channel_key: mentor_control
   - key: member_control_panel

@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-04
 
-**Current stage:** Simple Tracked Swing rollout / Production stabilization
+**Current stage:** Owner Personal Moomoo Execution DRY_RUN validation / Production stabilization
 
-**Database revision:** 20260903_0029
+**Database revision:** 20260903_0030
 
 **AXIS LAB:** DEFERRED
 
@@ -37,6 +37,43 @@ Results 与 Legacy isolation 验收，再完成 Newcomer 和 Short-Term / Massiv
 从 Discord 完成第一笔真实付款并验收 webhook → Entitlement → Member Role，再继续 renewal、
 failure、payment-method update、cancel 与重复/乱序事件。AXIS LAB 继续 Deferred，Signal /
 Analysis / Tracking 业务逻辑保持冻结。
+
+Owner-only Personal Moomoo Execution 已吸收最终规格并复用现有 publication / Trade / Discord /
+database / system-alert architecture。代码、forward-only migration、Owner-only channel/control card、
+配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
+真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
+
+## Owner-only Personal Moomoo Execution — CODE COMPLETE / DRY_RUN E2E BLOCKED
+
+Implemented:
+
+- `💹・moomoo-trading` Owner + Bot only；Manager、Member、Newcomer 与 `@everyone` 显式不可见。
+- 复用 TradeDraft / TradePublication / Trade；在 member card 发送前执行个人 entry 决策，LIVE 时要求
+  broker ACK 优先，但个人执行失败不阻止公共信号。
+- Owner-only source + publisher eligibility、production boundary、Short-Term / Swing ENTRY、Swing Close、
+  AUTO / FOLLOW / SKIP per-signal override、duplicate-contract block 与完整 idempotency。
+- Equity 10% 且 clamp `$200–$500`、buying-power cap、1.05 max chase、LIMIT-only、quote age / spread /
+  optional volume / OI、Short-Term 5m 与 Swing 30m TTL。
+- Broker source of truth；orders / fills / positions / account snapshots 对账；manual option import、manual
+  add / partial / full close、risk epoch 与 lifetime high；非期权持仓安全忽略。
+- `<+30% => -30%`、`+30% => breakeven`、`>=+50% => 30% high-watermark trailing`；多合约
+  TP50 / TP100 / runner allocation；trailing priority；09:30–09:35 ET 禁止自动退出和 risk-high 更新。
+- 持久 control card、kill switches、positions / orders / history、事件通知、System Alert + Recovery 与
+  私人 Daily Summary。
+- migration `20260903_0030`；所有 broker/account 标识只保存 one-way masked reference。
+- `DRY_RUN` 不调用 place/cancel，不生成 production fill 或虚假 broker position；AXIS 不调用
+  `unlock_trade`。
+
+Remaining / blockers:
+
+- 本机 `127.0.0.1:11111` 尚无 OpenD 监听，因此账户、持仓、订单、成交的真实只读验证未完成。
+- Owner 仍需启动并登录 OpenD，明确选择唯一 US securities account / security firm，完成
+  SIMULATE Entry → Fill → TP / trailing → manual add/close → restart 与 Discord Desktop/Mobile 验收。
+- DRY_RUN 验收前 `PERSONAL_DRY_RUN_VALIDATED`、LIVE mode、REAL broker environment 和 broker write
+  toggle 必须保持关闭。LIVE 切换需要单独 Owner 决策。
+
+Production status: **LIVE broker writes DISABLED.** 当前代码和迁移可部署，但 feature 默认关闭；
+OpenD 外部 E2E 完成前不得标记 LIVE READY。
 
 ## Soft Open Boundary — COMPLETE
 

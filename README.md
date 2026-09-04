@@ -14,8 +14,9 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Legacy Swing: COMPATIBILITY MODE / 4 ACTIVE AT MIGRATION
 - Stripe Payment: LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
 - Production Stabilization: PARTIAL
-- AXIS LAB: DEFERRED
-- Latest automated regression: 283 passed、0 failed、0 skipped；Ruff / compileall PASS
+- Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
+- AXIS LAB Model A/B: DEFERRED
+- Latest automated regression: 289 passed；focused Personal Execution tests PASS
 
 ## 文档入口
 
@@ -27,6 +28,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - 下一步：docs/development/NEXT_STEPS.md
 - Soft Open Day 1 验证：docs/development/SOFT_OPEN_DAY1_VALIDATION.md
 - Live 上线清单：docs/development/LIVE_MODE_CHECKLIST.md
+- Owner Moomoo 运维：docs/operations/trading/MOOMOO_PERSONAL_EXECUTION.md
 - Stripe Payment 运维：docs/operations/payments/README.md
 - Soft Open Reset 审计：docs/development/SOFT_OPEN_RESET_2026-08-30.md
 - 运维手册：docs/operations/

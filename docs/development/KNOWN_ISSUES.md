@@ -1,8 +1,22 @@
 # AXIS Known Issues
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-04
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
+
+## P0 — Owner Personal Moomoo Execution 外部 DRY_RUN E2E 被 OpenD 阻塞
+
+代码、migration、Discord Owner-only control、synthetic DRY_RUN 与 fail-closed LIVE gate 已完成。
+本机 OpenD app 已安装，但 `127.0.0.1:11111` 当前没有监听，因此尚不能读取并核对目标 account、
+positions、orders、fills 或执行 SIMULATE lifecycle。必须由 Owner 启动/登录 OpenD 并明确选择
+security firm 和唯一 US securities account；不能猜测账户。
+
+在 read-only + SIMULATE E2E、restart、Discord UX 和 kill-switch rehearsal 完成前：
+
+- LIVE broker writes 保持禁用。
+- `PERSONAL_DRY_RUN_VALIDATED=false`。
+- 不调用/自动化 `unlock_trade`。
+- 不把 DRY_RUN decision 视为真实 fill 或真实 performance。
 
 ## P0 — Newcomer Gate 真实用户生命周期 E2E 待验收
 
@@ -101,5 +115,6 @@ Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warni
 
 - AXIS LAB、Model A / B、Generate / Shadow / Champion / Challenger。
 - GEX Discord 频道、自动发布和交易接口。
-- Moomoo 账户、持仓、订单、交易和任何自动下单。
+- 除已授权但仍处于 DRY_RUN gate 的 Owner-only Personal Moomoo Execution 外，任何会员交易、模型
+  扫描或其他自动下单。
 - 图片生成模型；当前 Prediction Chart 使用确定性 renderer。

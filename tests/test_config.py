@@ -136,11 +136,10 @@ def test_new_member_trial_uses_trading_day_configuration_only(
     assert configured.new_member_free_trial_dm_enabled is False
 
 
-def test_lab_gate_requires_all_deferred_features_off() -> None:
+def test_lab_gate_requires_model_features_off_but_allows_moomoo_health() -> None:
     configured = settings(apply_changes=False, dry_run=True)
     configured.assert_lab_disabled()
-    with pytest.raises(ConfigurationError, match="AXIS LAB"):
-        replace(configured, moomoo_enabled=True).assert_lab_disabled()
+    replace(configured, moomoo_enabled=True).assert_lab_disabled()
     with pytest.raises(ConfigurationError, match="AXIS LAB"):
         replace(configured, lab_enabled=True).assert_lab_disabled()
 

@@ -25,8 +25,9 @@ FEATURE_LAB_ENABLED=false
 FEATURE_MODEL_AB_ENABLED=false
 ```
 
-本轮部署还必须保持 `FEATURE_MOOMOO_ENABLED=false`。旧 Core 每日总结实现保留但不启动；
-这不改变本文的 Deferred 状态，也不授权任何扫描、账户读取或交易能力。
+`09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md` 现已授权一个严格隔离的 Owner-only Personal
+Execution 例外。它不授权 Model A/B、模型扫描或会员账户连接，也不改变本文其余 Deferred 状态。
+`FEATURE_LAB_ENABLED=false` 与 `FEATURE_MODEL_AB_ENABLED=false` 必须继续保持。
 
 ---
 

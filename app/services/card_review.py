@@ -150,6 +150,7 @@ class ReviewDraft:
     public_thesis: str | None
     is_lotto: bool
     swing_mode: str | None = None
+    personal_follow_override: bool | None = None
 
 
 ACTIVE_REVIEW_STATUSES = {
@@ -731,6 +732,38 @@ class CardReviewService:
                 actor_user_id,
                 interaction_id,
                 "TRADE_DRAFT_LOTTO_TOGGLED",
+                before,
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def cycle_personal_follow_override(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await self._locked_draft(session, draft_id, expected_version)
+            before = _audit_payload(draft)
+            payload = dict(draft.parse_payload)
+            current = payload.get("_personal_follow_override")
+            if current is None:
+                payload["_personal_follow_override"] = True
+            elif current is True:
+                payload["_personal_follow_override"] = False
+            else:
+                payload.pop("_personal_follow_override", None)
+            draft.parse_payload = payload
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session,
+                draft,
+                actor_user_id,
+                interaction_id,
+                "PERSONAL_FOLLOW_OVERRIDE_CHANGED",
                 before,
             )
             await session.commit()
@@ -1600,6 +1633,11 @@ class CardReviewService:
             swing_mode=(
                 str(draft.parse_payload.get("_swing_mode"))
                 if draft.parse_payload.get("_swing_mode")
+                else None
+            ),
+            personal_follow_override=(
+                draft.parse_payload.get("_personal_follow_override")
+                if isinstance(draft.parse_payload.get("_personal_follow_override"), bool)
                 else None
             ),
         )
