@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 
@@ -48,6 +49,8 @@ class MoneyFlowProxy:
     score: float
     label: str
     signed_volume_ratio: float
+    accumulation_distribution_slope: float
+    on_balance_volume_slope: float
     close_location_20: float
     note: str
 
@@ -56,6 +59,7 @@ class MoneyFlowProxy:
 class StockScenario:
     scenario_id: str
     label_zh: str
+    direction: str | None
     model_weight_percent: float
     trigger_zh: str
     targets: tuple[float, ...]
@@ -71,6 +75,7 @@ class StockAnalysis:
     history_sessions: int
     history_mode: str
     current_price: float
+    direction: str
     trend_score: float
     trend_label: str
     indicator_scores: tuple[tuple[str, float], ...]
@@ -82,8 +87,11 @@ class StockAnalysis:
     value_area_high: float
     money_flow: MoneyFlowProxy
     sector_etf: str
+    sector_name_zh: str
     sector_strength_score: float | None
     sector_rotation_phase: str | None
+    sector_leader_ticker: str | None
+    sector_leader_basis_zh: str
     scenarios: tuple[StockScenario, ...]
     unavailable_data: tuple[str, ...]
     methodology_note: str
@@ -111,3 +119,10 @@ class StockMarketBundle:
     sector_etf: str
     sector_bars: tuple[DailyBar, ...] | None
     benchmark_bars: tuple[DailyBar, ...] | None
+    peer_bars: Mapping[str, tuple[DailyBar, ...]] | None = None
+    sector_candidate_bars: Mapping[str, tuple[DailyBar, ...]] | None = None
+    provider: str = "unknown"
+    fetched_at: datetime = datetime.min.replace(tzinfo=UTC)
+    source_timestamp: datetime = datetime.min.replace(tzinfo=UTC)
+    market_status: str = "unknown"
+    unavailable_data: tuple[str, ...] = ()

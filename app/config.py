@@ -196,6 +196,10 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    stock_analyst_enabled: bool = False
+    stock_analyst_mode: str = "TEST"
+    stock_analyst_policy_path: Path = Path("config/stock_analyst.yaml")
+    stock_analyst_policy_version: str | None = None
     gex_explorer_enabled: bool = False
     gex_explorer_mode: str = "TEST"
     gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
@@ -287,6 +291,7 @@ class Settings:
             "SHORT_TERM_TRACKING_CONFIG", "config/short_term_tracking.yaml"
         )
         gex_policy_value = os.getenv("GEX_EXPLORER_POLICY", "config/gex_explorer.yaml")
+        stock_analyst_policy_value = os.getenv("STOCK_ANALYST_POLICY", "config/stock_analyst.yaml")
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
         default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
@@ -309,6 +314,12 @@ class Settings:
                 "FEATURE_AXIS_STOCK_ANALYST_ENABLED",
                 "FEATURE_COSMOS_STOCK_ANALYST_ENABLED",
                 False,
+            ),
+            stock_analyst_enabled=_parse_bool("STOCK_ANALYST_ENABLED", False),
+            stock_analyst_mode=(os.getenv("STOCK_ANALYST_MODE", "TEST").strip().upper() or "TEST"),
+            stock_analyst_policy_path=(root / stock_analyst_policy_value).resolve(),
+            stock_analyst_policy_version=(
+                os.getenv("STOCK_ANALYST_POLICY_VERSION", "").strip() or None
             ),
             moomoo_host=os.getenv("MOOMOO_OPEND_HOST", "127.0.0.1").strip() or "127.0.0.1",
             moomoo_port=_parse_positive_int("MOOMOO_OPEND_PORT", 11111),
@@ -341,9 +352,7 @@ class Settings:
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
             gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
-            gex_explorer_mode=(
-                os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"
-            ),
+            gex_explorer_mode=(os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"),
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
             production_data_start_date=_parse_date("PRODUCTION_DATA_START_DATE", "2026-08-31"),
             production_data_start_timezone=_parse_timezone(
@@ -481,9 +490,7 @@ class Settings:
             stripe_live_webhook_relay_poll_seconds=_parse_positive_int(
                 "STRIPE_LIVE_WEBHOOK_RELAY_POLL_SECONDS", 5
             ),
-            personal_execution_enabled=_parse_bool(
-                "FEATURE_PERSONAL_EXECUTION_ENABLED", False
-            ),
+            personal_execution_enabled=_parse_bool("FEATURE_PERSONAL_EXECUTION_ENABLED", False),
             personal_execution_mode=_parse_choice(
                 "PERSONAL_EXECUTION_MODE",
                 PersonalExecutionMode.DRY_RUN.value,
@@ -494,9 +501,7 @@ class Settings:
                 PersonalBrokerEnvironment.SIMULATE.value,
                 PersonalBrokerEnvironment,
             ),
-            personal_auto_trading_enabled=_parse_bool(
-                "PERSONAL_AUTO_TRADING_ENABLED", False
-            ),
+            personal_auto_trading_enabled=_parse_bool("PERSONAL_AUTO_TRADING_ENABLED", False),
             personal_dry_run_validated=_parse_bool("PERSONAL_DRY_RUN_VALIDATED", False),
             personal_moomoo_account_id=(os.getenv("MOOMOO_ACC_ID", "").strip() or None),
             personal_moomoo_security_firm=(
@@ -508,28 +513,16 @@ class Settings:
                 position_budget_min=_parse_decimal("PERSONAL_POSITION_BUDGET_MIN", "200"),
                 position_budget_max=_parse_decimal("PERSONAL_POSITION_BUDGET_MAX", "500"),
                 entry_max_chase_pct=_parse_decimal("PERSONAL_ENTRY_MAX_CHASE_PCT", "0.05"),
-                max_quote_age_seconds=_parse_positive_int(
-                    "PERSONAL_MAX_QUOTE_AGE_SECONDS", 15
-                ),
-                max_bid_ask_spread_pct=_parse_decimal(
-                    "PERSONAL_MAX_BID_ASK_SPREAD_PCT", "0.20"
-                ),
-                minimum_option_volume=_parse_optional_nonnegative_int(
-                    "PERSONAL_MIN_OPTION_VOLUME"
-                ),
-                minimum_open_interest=_parse_optional_nonnegative_int(
-                    "PERSONAL_MIN_OPEN_INTEREST"
-                ),
+                max_quote_age_seconds=_parse_positive_int("PERSONAL_MAX_QUOTE_AGE_SECONDS", 15),
+                max_bid_ask_spread_pct=_parse_decimal("PERSONAL_MAX_BID_ASK_SPREAD_PCT", "0.20"),
+                minimum_option_volume=_parse_optional_nonnegative_int("PERSONAL_MIN_OPTION_VOLUME"),
+                minimum_open_interest=_parse_optional_nonnegative_int("PERSONAL_MIN_OPEN_INTEREST"),
                 short_term_entry_ttl_minutes=_parse_positive_int(
                     "PERSONAL_SHORT_TERM_ENTRY_TTL_MINUTES", 5
                 ),
-                swing_entry_ttl_minutes=_parse_positive_int(
-                    "PERSONAL_SWING_ENTRY_TTL_MINUTES", 30
-                ),
+                swing_entry_ttl_minutes=_parse_positive_int("PERSONAL_SWING_ENTRY_TTL_MINUTES", 30),
                 trailing_stop_pct=_parse_decimal("PERSONAL_TRAILING_STOP_PCT", "0.30"),
-                market_open_guard_enabled=_parse_bool(
-                    "PERSONAL_MARKET_OPEN_GUARD_ENABLED", True
-                ),
+                market_open_guard_enabled=_parse_bool("PERSONAL_MARKET_OPEN_GUARD_ENABLED", True),
                 market_open_guard_minutes=_parse_positive_int(
                     "PERSONAL_MARKET_OPEN_GUARD_MINUTES", 5
                 ),
@@ -579,9 +572,7 @@ class Settings:
 
     def assert_gex_safety(self) -> None:
         if self.gex_explorer_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
-            raise ConfigurationError(
-                "GEX_EXPLORER_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。"
-            )
+            raise ConfigurationError("GEX_EXPLORER_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
         if self.gex_explorer_enabled:
             if self.gex_explorer_mode == "OFF":
                 raise ConfigurationError("启用 GEX Explorer 时 mode 不能为 OFF。")
@@ -591,6 +582,22 @@ class Settings:
                 raise ConfigurationError("启用 GEX Explorer 必须配置 MASSIVE_API_KEY。")
             if not self.gex_explorer_policy_path.is_file():
                 raise ConfigurationError("GEX_EXPLORER_POLICY 文件不存在。")
+
+    def assert_stock_analyst_safety(self) -> None:
+        if self.stock_analyst_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
+            raise ConfigurationError("STOCK_ANALYST_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
+        if not self.stock_analyst_enabled:
+            return
+        if self.stock_analyst_mode != "TEST":
+            raise ConfigurationError(
+                "Stock Analyst Phase 1 只允许 TEST；Member Lounge 尚未获得 Owner 上线批准。"
+            )
+        if self.discord_owner_user_id is None:
+            raise ConfigurationError("启用 Stock Analyst 必须配置 DISCORD_OWNER_USER_ID。")
+        if not self.massive_api_key:
+            raise ConfigurationError("启用 Stock Analyst 必须配置 MASSIVE_API_KEY。")
+        if not self.stock_analyst_policy_path.is_file():
+            raise ConfigurationError("STOCK_ANALYST_POLICY 文件不存在。")
 
     def assert_personal_execution_safety(self) -> None:
         policy = self.personal_policy

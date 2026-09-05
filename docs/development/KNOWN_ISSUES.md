@@ -4,6 +4,18 @@
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
+## P0 — Stock Analyst 仅完成 Phase 1 Test Gate
+
+Cosmos v0.1 parity、Massive 8-ticker read-only、card/chart、cache/single-flight/limits、权限与自动化
+均已通过；Guild `/stock` 注册和真实 SPY 图也已验证，但该功能明确保持 `TEST ONLY`。尚未获得
+Member Lounge 发布批准，也尚未积累真实会员并发/运营证据。当前启动门会拒绝
+`STOCK_ANALYST_MODE=MEMBER_LOUNGE`；不得绕过。
+
+Cosmos v0.1 只使用 Daily timeframe，且不计算 RVOL、Bollinger、VWAP 或真实逐笔机构资金流。
+AXIS 没有伪造这些组件：RVOL 保持 unavailable，Volume 明确标为 20 日 OHLCV pressure proxy，
+POC/VA 是 Daily OHLCV high-low 分箱代理。闭市验收已完成；交易时段 live/stale UX 仍待后续
+受控验证。Phase 1 没有 LLM rewrite，因此 `STOCK_ANALYST_LLM_FAILURE` 只是保留错误类型。
+
 ## P0 — GEX Explorer SPX Provider entitlement 不足
 
 V7 Massive option-chain aggregation、card、heatmap、cache、single-flight、limits、audit 与 alerts

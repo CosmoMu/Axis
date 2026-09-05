@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 314 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 324 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -53,6 +53,14 @@
   GEX robust heatmap 与缺失 `—`；Moomoo shadow 78/78 overlap，未选择正式输出。
 - GEX V7 Discord Live smoke: PASS — 新 runtime 已安装并运行；HOOD 真实 Massive → shared
   classifier → 1800×1600 PNG → `🧪・card-testing` 消息 `1545703467908206655` 成功。
+- AXIS Stock Analyst Phase 1: TEST GATE PASS — Cosmos v0.1 parity、Massive 8-ticker read-only、
+  deterministic card/chart、permission、cache/single-flight/rate-limit、stale/closed label 与
+  no-side-effect boundary 均通过；保持 Owner + `🧪・card-testing` TEST ONLY。
+- Stock Analyst real Massive closed-market verification: PASS — SPY、QQQ、NVDA、TSLA、AAPL、
+  META、PLTR、AMD 各 380 Daily sessions；冷请求约 290–920ms，SPY cache hit 约 4ms。
+- Stock Analyst Discord runtime / chart: PASS — Bot running，Guild `/stock` command verified；
+  真实 SPY 1900×1160 Daily PNG 已视觉复核；不存在的 Massive symbol 正确返回
+  `AXIS_STOCK_SYMBOL_NOT_FOUND`，未暴露 traceback。
 - AXIS website GEX V7: build PASS、4/4 tests、ESLint 0 errors / 1 existing `<img>` warning；
   Sites Secret Store 已确认存在 `MASSIVE_API_KEY`，精确构建已保存为 Site Version 6；本轮未
   在缺少单独发布指令时替换现有公开 deployment。
@@ -63,6 +71,7 @@
 - .venv/bin/python -m compileall -q app scripts
 - .venv/bin/pytest -q
 - .venv/bin/python scripts/verify_gex_explorer.py
+- .venv/bin/python scripts/verify_stock_analyst.py
 - .venv/bin/python scripts/verify_database.py
 - .venv/bin/python scripts/verify_analysis_fusion.py
 - .venv/bin/python scripts/verify_discord_runtime.py

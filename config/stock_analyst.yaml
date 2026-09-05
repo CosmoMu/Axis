@@ -1,0 +1,29 @@
+version: COSMOS_STOCK_ANALYST_V0_1
+
+market_data:
+  provider: massive
+  daily_lookback_calendar_days: 550
+  minimum_daily_sessions: 120
+  maximum_data_age_seconds: 900
+  timeout_seconds: 15
+  provider_concurrency: 4
+
+analysis:
+  timeframe: 1D
+  chart_sessions: 82
+  volume_profile_sessions: 80
+  volume_profile_bins: 24
+  value_area_fraction: 0.70
+  money_flow_sessions: 20
+  hlx_fast_period: 25
+  hlx_slow_period: 90
+  zczl_periods: [3, 6, 13]
+  macd_periods: [12, 26, 9]
+  rsi_period: 14
+  structure_windows: [20, 50, 60]
+
+runtime:
+  cache_seconds: 60
+  user_cooldown_seconds: 5
+  guild_fresh_requests_per_minute: 20
+  maximum_latency_seconds: 20

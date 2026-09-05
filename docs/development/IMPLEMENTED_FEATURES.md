@@ -285,6 +285,26 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Analysis 不调用 GEX；独立 GEX V7 连接 Member Lounge 按需查询与 Owner card-testing 维护入口，
   不连接任何交易接口。
 
+## AXIS Stock Analyst — Phase 1 Test Only
+
+- Owner-only `/stock ticker:TICKER`，只允许 `🧪・card-testing`；Manager、Member、Newcomer、
+  `@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
+- 从 Cosmos Market Stock Analyst v0.1 移植同一确定性策略并复用 Analysis Fusion 的共享
+  `AxisStockAnalystService`，避免两套分析逻辑产生冲突。
+- Massive adjusted Daily OHLCV、latest/current price、market/source timestamp 和 freshness；550
+  calendar-day lookback、最少 120 sessions，SPX 绝不映射 SPY。
+- HLX 25/90、confirmed ZCZL 3/6/13、MACD 12/26/9、RSI14、20/50/60 日结构、20 日
+  OHLCV flow proxy、80 日 24-bin POC / 70% VA、ATR-based confluence clustering、0–100 bias
+  与三情景/权重/trigger/target/invalidation。
+- 同一个 strict structured result 驱动移动端卡片和 1900×1160 确定性真实日 K 图；没有未来假
+  K 线，也不调用图片生成或 LLM。
+- 60 秒 version/provider/timeframe-aware cache、single-flight、5 秒 per-user cooldown、20 fresh
+  request/min guild limit、stale/closed label、审计和去重 System Alert/Recovery。
+- 严格只读：不创建/修改 Signal、Trade、Result、Mentor、public Analysis、Tracking、Membership，
+  不触发 Moomoo 或任何 broker execution。
+- Feature flags：`STOCK_ANALYST_ENABLED=true`、`STOCK_ANALYST_MODE=TEST`；启动配置硬门禁止
+  Phase 1 切换到 Member Lounge。
+
 ## Prediction Chart
 
 - Pilot-style 确定性日 K + 单一路径 renderer：使用 Stock Analyst 取得的真实 Daily OHLC、

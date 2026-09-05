@@ -48,6 +48,7 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
 from app.integrations.stripe_gateway import StripeSdkGateway  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.market_intelligence.stock_analyst.market_data import (  # noqa: E402
+    MassiveDailyBarProvider,
     MoomooDailyBarProvider,
 )
 from app.market_intelligence.trade_plan import SwingLeapsTradePlanService  # noqa: E402
@@ -76,6 +77,10 @@ from app.services.personal_execution import PersonalExecutionService  # noqa: E4
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
+from app.services.stock_analyst import (  # noqa: E402
+    StockAnalystPolicy,
+    StockAnalystQueryService,
+)
 from app.services.swing_tracking import SwingTrackingService  # noqa: E402
 from app.services.system_alerts import SystemAlertService  # noqa: E402
 from app.services.trade_publication import TradePublicationService  # noqa: E402
@@ -86,6 +91,7 @@ async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_lab_disabled()
     settings.assert_gex_safety()
+    settings.assert_stock_analyst_safety()
     settings.assert_personal_execution_safety()
     level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -98,12 +104,15 @@ async def run() -> None:
     logging.getLogger(__name__).info(
         (
             "event=bot_start guild_id=%s analysis_enabled=%s "
-            "moomoo_enabled=%s daily_summary_enabled=%s"
+            "moomoo_enabled=%s daily_summary_enabled=%s "
+            "stock_analyst_enabled=%s stock_analyst_mode=%s"
         ),
         settings.discord_guild_id,
         settings.analysis_enabled,
         settings.moomoo_enabled,
         settings.daily_summary_enabled,
+        settings.stock_analyst_enabled,
+        settings.stock_analyst_mode,
     )
     token = settings.require_token()
     database = Database(settings.require_database_url())
@@ -160,6 +169,25 @@ async def run() -> None:
                     port=settings.moomoo_port,
                     interval_minutes=gex_policy.intraday_interval_minutes,
                 ),
+            )
+        stock_analyst_service = None
+        if settings.stock_analyst_enabled:
+            stock_analyst_policy = StockAnalystPolicy.load(
+                settings.stock_analyst_policy_path,
+                version_override=settings.stock_analyst_policy_version,
+            )
+            stock_analyst_service = StockAnalystQueryService(
+                database,
+                AxisStockAnalystService(
+                    provider=MassiveDailyBarProvider(
+                        api_key=settings.massive_api_key,
+                        base_url=settings.massive_base_url,
+                        timeout_seconds=stock_analyst_policy.timeout_seconds,
+                        lookback_days=stock_analyst_policy.daily_lookback_calendar_days,
+                        concurrency=stock_analyst_policy.provider_concurrency,
+                    )
+                ),
+                stock_analyst_policy,
             )
         contract_resolver = (
             OptionContractResolver(massive_provider) if massive_provider is not None else None
@@ -403,6 +431,7 @@ async def run() -> None:
             swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
             personal_execution_service=personal_execution_service,
             gex_explorer_service=gex_explorer_service,
+            stock_analyst_service=stock_analyst_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

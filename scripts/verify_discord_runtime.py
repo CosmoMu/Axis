@@ -427,6 +427,8 @@ async def verify() -> list[str]:
             expected_commands = set(TEST_COMMANDS)
             if settings.gex_explorer_enabled:
                 expected_commands.add("gex")
+            if settings.stock_analyst_enabled:
+                expected_commands.add("stock")
             _check(command_names >= expected_commands, "owner_test_commands_missing", failures)
             _check(
                 command_names.isdisjoint(REMOVED_COMMANDS),

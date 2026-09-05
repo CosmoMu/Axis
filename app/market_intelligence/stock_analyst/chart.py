@@ -5,7 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 from typing import Any
 
-from app.market_intelligence.stock_analyst.indicators import ema_series
+from app.market_intelligence.stock_analyst.indicators import confirmed_pivot_levels, ema_series
 from app.market_intelligence.stock_analyst.models import DailyBar, StockAnalysis
 
 
@@ -106,9 +106,10 @@ def render_stock_analysis_chart(
         from PIL import Image, ImageDraw
     except ImportError as exc:
         raise RuntimeError("Pillow is required for AXIS Stock Analyst rendering") from exc
-    bars = tuple(sorted(daily_bars, key=lambda item: item.timestamp))[-82:]
-    if len(bars) < 50:
-        raise ValueError("AXIS Stock Analyst chart requires at least 50 daily bars")
+    history = tuple(sorted(daily_bars, key=lambda item: item.timestamp))
+    bars = history[-82:]
+    if len(history) < 100:
+        raise ValueError("AXIS Stock Analyst chart requires at least 100 daily bars")
     width, height = 1900, 1160
     image = Image.new("RGB", (width, height), "#05090D")
     draw = ImageDraw.Draw(image)
@@ -118,7 +119,12 @@ def render_stock_analysis_chart(
         draw.line((x_pos, 0, x_pos, height), fill="#081117", width=1)
     for y_pos in range(0, height, 100):
         draw.line((0, y_pos, width, y_pos), fill="#081117", width=1)
-    draw.text((50, 32), f"{analysis.ticker} · AXIS STOCK ANALYST", font=_font(42, True), fill=white)
+    draw.text(
+        (50, 32),
+        f"{analysis.ticker} · AXIS STOCK ANALYST · TEST",
+        font=_font(42, True),
+        fill=white,
+    )
     trend = (
         "BULLISH"
         if analysis.trend_score >= 60
@@ -142,11 +148,7 @@ def render_stock_analysis_chart(
     )
     draw.text(
         (1845, 84),
-        (
-            f"LIMITED HISTORY · {analysis.history_sessions} SESSIONS"
-            if analysis.history_mode == "LIMITED"
-            else "VOLUME PROFILE / FLOW = OHLCV PROXY"
-        ),
+        (f"{analysis.history_sessions} DAILY SESSIONS · VOLUME PROFILE / FLOW = OHLCV PROXY"),
         font=_font(18, True),
         fill=gold,
         anchor="ra",
@@ -160,6 +162,15 @@ def render_stock_analysis_chart(
     values = [bar.low for bar in bars] + [bar.high for bar in bars]
     values.extend(level.price for level in analysis.support_levels)
     values.extend(level.price for level in analysis.resistance_levels)
+    primary = max(
+        analysis.scenarios,
+        key=lambda item: item.model_weight_percent,
+        default=None,
+    )
+    if primary is not None:
+        values.extend(primary.targets)
+        if primary.invalidation is not None:
+            values.append(primary.invalidation)
     if projection is not None:
         values.extend(projection[0])
     floor, ceiling = min(values), max(values)
@@ -192,23 +203,41 @@ def render_stock_analysis_chart(
         draw.rectangle(
             (x_pos - candle_width / 2, upper, x_pos + candle_width / 2, lower), fill=color
         )
-    closes = tuple(bar.close for bar in bars)
-    for period, color in ((20, cyan), (50, gold)):
-        series = ema_series(closes, period)
+    for values, period, color in (
+        (tuple(bar.high for bar in history), 25, cyan),
+        (tuple(bar.low for bar in history), 25, cyan),
+        (tuple(bar.high for bar in history), 90, gold),
+        (tuple(bar.low for bar in history), 90, gold),
+    ):
+        series = ema_series(values, period)[-len(bars) :]
         points = [
-            (chart_left + step * (index + period - 0.5), y(value))
+            (chart_left + step * (index + 0.5), y(value))
             for index, value in enumerate(series)
+            if floor <= value <= ceiling
         ]
         if len(points) >= 2:
             draw.line(points, fill=color, width=3, joint="curve")
-    for level, label, color in (
+    level_specs = (
         *((item.price, "SUPPORT", green) for item in analysis.support_levels[:3]),
         *((item.price, "RESISTANCE", red) for item in analysis.resistance_levels[:3]),
-    ):
+        (analysis.point_of_control, "POC", gold),
+        (analysis.value_area_high, "VAH", "#A7B3AF"),
+        (analysis.value_area_low, "VAL", "#A7B3AF"),
+    )
+    previous_label_y = chart_top - 22
+    for level, label, color in sorted(level_specs, key=lambda item: item[0], reverse=True):
         y_pos = y(level)
         draw.line((chart_left, y_pos, chart_right, y_pos), fill=color, width=2)
+        label_y = max(y_pos - 13, previous_label_y + 22)
+        previous_label_y = label_y
+        if abs(label_y - (y_pos - 13)) > 2:
+            draw.line(
+                (chart_right - 20, y_pos, chart_right - 8, label_y + 8),
+                fill=color,
+                width=1,
+            )
         draw.text(
-            (chart_right - 4, y_pos - 13),
+            (chart_right - 4, label_y),
             f"{label} {level:,.2f}",
             font=_font(12, True),
             fill=color,
@@ -249,13 +278,27 @@ def render_stock_analysis_chart(
                     fill=white,
                     anchor="mb" if index % 2 else "mt",
                 )
-        draw.text((projection_left, chart_top + 14), title, font=_font(15, True), fill=white)
+        draw.text((projection_left, chart_top + 48), title, font=_font(14, True), fill=white)
         draw.text(
-            (projection_left, chart_top + 39),
+            (projection_left, chart_top + 72),
             "INPUT ROUTE" if projection_points else "AXIS DAILY STRUCTURE",
             font=_font(13, True),
             fill=muted,
         )
+    for period, pivot_color in ((3, "#3EA9FF"), (6, "#B478FF"), (13, "#FF75B5")):
+        pivot = confirmed_pivot_levels(history, period)
+        for price, suffix in ((pivot.support, "S"), (pivot.resistance, "R")):
+            if price is None or not floor <= price <= ceiling:
+                continue
+            y_pos = y(price)
+            draw.line((chart_left, y_pos, history_right, y_pos), fill=pivot_color, width=1)
+            draw.text(
+                (history_right - 4, y_pos - 9),
+                f"ZCZL{period}-{suffix}",
+                font=_font(11, True),
+                fill=pivot_color,
+                anchor="ra",
+            )
     draw.line(
         (profile_left - 28, chart_top, profile_left - 28, chart_bottom), fill="#31423C", width=2
     )
@@ -281,9 +324,8 @@ def render_stock_analysis_chart(
     draw.text(
         (50, 1114),
         (
-            "EMA20 · EMA50 · LIMITED HISTORY · LOWER CONVICTION · WEIGHT IS NOT PROBABILITY"
-            if analysis.history_mode == "LIMITED"
-            else "EMA20 · EMA50 · CONFIRMED PIVOTS · AXIS SCENARIO WEIGHT IS NOT PROBABILITY"
+            "HLX 25/90 · CONFIRMED ZCZL 3/6/13 · POC/VA = OHLCV PROXY · "
+            "SCENARIO WEIGHT IS NOT PROBABILITY"
         ),
         font=_font(15, True),
         fill=muted,

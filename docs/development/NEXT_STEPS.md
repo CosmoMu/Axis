@@ -1,6 +1,6 @@
 # AXIS Next Steps
 
-**Updated:** 2026-09-04
+**Updated:** 2026-09-05
 
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
@@ -13,6 +13,16 @@ Signal System。当前不新增功能；只执行下面固定 Priority 的真实
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・card-testing`。
+
+## Current Gate — Stock Analyst Phase 1
+
+- 保持 `STOCK_ANALYST_MODE=TEST`，只允许 Owner 在 `🧪・card-testing` 运行 `/stock`。
+- 用真实 Discord Desktop / Mobile 对 SPY、QQQ、NVDA、TSLA、AAPL、META、PLTR、AMD 做最终
+  图卡可读性抽检，并在开盘时验证 live/stale 标记。
+- 当前 Test Gate PASS 后立即停止；没有新的明确 Owner 指令，不切换 Member Lounge、不增加普通
+  文本触发、不自动扫描、不生成 Signal，也不连接 Moomoo。
+- 如进入 Phase 2，必须单独设计/批准 Member role、exact channel、限流容量、运营 runbook 与
+  rollback；不得仅改变 `.env` 绕过现有启动门。
 
 ## Current Gate — GEX Explorer Member Lounge Launch
 

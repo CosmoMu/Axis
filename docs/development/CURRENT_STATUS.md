@@ -2,7 +2,7 @@
 
 **Updated:** 2026-09-05
 
-**Current stage:** GEX Explorer MEMBER LOUNGE CODE COMPLETE / LAUNCH APPROVAL PENDING
+**Current stage:** Stock Analyst Phase 1 TEST ONLY / TEST GATE PASS
 
 **Database revision:** 20260904_0031
 
@@ -49,6 +49,46 @@ K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底�
 Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
 Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道、缓存与限流已覆盖
 `gex SPY`；当前 runtime 仍为 TEST，等待精确批准短语后部署。
+
+AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
+analysis engine。Phase 1 只开放 Owner 在 `🧪・card-testing` 使用 `/stock ticker:TICKER`；Manager、
+Member、Newcomer、`@everyone` 与其他频道均 fail-closed。Massive 为正式只读数据源，卡片与真实
+OHLCV 图共用同一个结构化结果；无 LLM、无 Moomoo、无 Signal/Trade/Result/Membership 副作用。
+Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权限、图卡一致与回归已通过。
+当前明确为 **TEST ONLY**，不得自动进入 Member Lounge。
+
+## AXIS Stock Analyst — PHASE 1 TEST ONLY / TEST GATE PASS
+
+Implemented:
+
+- `/stock ticker:TICKER`；支持大小写和 `$` 前缀，仅 Owner + exact Guild +
+  `🧪・card-testing`，没有普通消息触发器。
+- Cosmos Stock Analyst v0.1 原始策略：Daily OHLCV、HLX 25/90、confirmed ZCZL 3/6/13、
+  MACD 12/26/9、RSI14、20/50/60 日结构、20 日 OHLCV flow proxy、80 日/24-bin/70%
+  POC/Value Area、原始 level clustering、bias 与三情景权重。
+- Analysis Fusion 与 `/stock` 共用 `AxisStockAnalystService`；卡片和 1900×1160 确定性图共用
+  一个 `StockAnalysis`，真实 82 根日 K，不生成未来 K 线。
+- Massive current/latest、market/source timestamp、adjusted Daily OHLCV 与 freshness；SPX 原生
+  处理且不映射 SPY。开盘 stale 与收盘后 latest-available 标签分开。
+- 60 秒 cache、同 key single-flight、5 秒 user cooldown、20 fresh requests/minute guild limit、
+  策略/Provider/timeframe-aware key、Audit 与 deduplicated System Alert/Recovery。
+- Phase 1 不调用 LLM，也不写入 Signal、Trade、Result、Mentor、public Analysis、Tracking、
+  Membership 或 Moomoo/broker。
+
+Live read-only evidence:
+
+- SPY、QQQ、NVDA、TSLA、AAPL、META、PLTR、AMD 各取得 380 根 Massive Daily sessions；
+  OHLCV、price、levels、POC/VA、bias、scenario、PNG 与 provider timestamp 均生成成功。
+- 冷请求约 290–920ms；SPY cache hit 约 4ms。测试发生于闭市状态，卡片按 latest-available
+  标记，不冒充实时数据。
+- Cosmos deterministic parity 对 NVDA / TSLA / SPY fixtures 的 trend、support/resistance、
+  POC/VA、indicators、bias、triggers、targets、invalidation 与 scenarios 精确一致。
+- AXIS BOT TEST runtime 已部署并处于 running；Discord runtime verifier PASS，Guild command
+  列表已确认包含 `/stock`。真实 SPY 1900×1160 PNG 已视觉复核，symbol、Daily K、比例、结构位与
+  同源预测路径可读；不存在的 Massive symbol 已确认归类为 `AXIS_STOCK_SYMBOL_NOT_FOUND`。
+
+Production status: **STOCK ANALYST = TEST ONLY.** Phase 1 Test Gate 已通过；Member Lounge、普通
+文字触发、自动扫描、自动信号与 broker execution 均未启用，等待 Owner 后续明确指令。
 
 ## GEX Explorer — MEMBER LOUNGE CODE COMPLETE / LAUNCH PENDING
 

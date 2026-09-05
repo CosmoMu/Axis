@@ -93,23 +93,17 @@ def test_axis_stock_analyst_builds_structure_levels_scenarios_and_unified_png() 
     assert len(rendered) > 20_000
 
 
-def test_axis_stock_analyst_supports_new_listing_with_reduced_conviction() -> None:
+def test_axis_stock_analyst_rejects_history_shorter_than_cosmos_minimum() -> None:
     history = bars()[-54:]
 
-    analysis = analyze_stock(
-        "SPCX",
-        history,
-        sector_etf="SPY",
-        sector_bars=bars(drift=0.0012),
-        benchmark_bars=bars(drift=0.0007),
-    )
-    rendered = render_stock_analysis_chart(analysis, history)
-
-    assert analysis.history_sessions == 54
-    assert analysis.history_mode == "LIMITED"
-    assert "limited_history_under_120_sessions" in analysis.unavailable_data
-    assert abs(analysis.trend_score - 50) <= 32.5
-    assert rendered.startswith(b"\x89PNG\r\n\x1a\n")
+    with pytest.raises(ValueError, match="at least 100 daily bars"):
+        analyze_stock(
+            "SPCX",
+            history,
+            sector_etf="SPY",
+            sector_bars=bars(drift=0.0012),
+            benchmark_bars=bars(drift=0.0007),
+        )
 
 
 def test_analysis_viewpoint_is_normalized_to_neutral_axis_voice() -> None:

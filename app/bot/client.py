@@ -20,6 +20,7 @@ from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.personal_execution import PersonalExecutionCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
+from app.bot.cogs.stock_analyst import StockAnalystCog
 from app.bot.cogs.swing_tracking import SwingTrackingCog
 from app.bot.cogs.system_alerts import SystemAlertsCog
 from app.bot.intents import axis_intents
@@ -46,6 +47,7 @@ from app.services.official_results import OfficialResultsService
 from app.services.personal_execution import PersonalExecutionService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.signal_input import SignalInputService
+from app.services.stock_analyst import StockAnalystQueryService
 from app.services.swing_tracking import SwingTrackingService
 from app.services.system_alerts import SystemAlertService
 from app.services.trade_publication import TradePublicationService
@@ -90,6 +92,7 @@ class AxisBot(commands.Bot):
         swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
         personal_execution_service: PersonalExecutionService | None,
         gex_explorer_service: GexExplorerService | None,
+        stock_analyst_service: StockAnalystQueryService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -239,8 +242,19 @@ class AxisBot(commands.Bot):
                 manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.gex_explorer_mode,
             )
-            if gex_explorer_service is not None
-            and settings.discord_owner_user_id is not None
+            if gex_explorer_service is not None and settings.discord_owner_user_id is not None
+            else None
+        )
+        self._stock_analyst_cog = (
+            StockAnalystCog(
+                self,
+                service=stock_analyst_service,
+                guild_id=settings.discord_guild_id,
+                owner_user_id=settings.discord_owner_user_id,
+                card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                mode=settings.stock_analyst_mode,
+            )
+            if stock_analyst_service is not None and settings.discord_owner_user_id is not None
             else None
         )
         self._analysis_cog = (
@@ -302,8 +316,7 @@ class AxisBot(commands.Bot):
                 owner_user_id=settings.discord_owner_user_id,
                 reconcile_seconds=settings.personal_reconcile_seconds,
             )
-            if personal_execution_service is not None
-            and settings.discord_owner_user_id is not None
+            if personal_execution_service is not None and settings.discord_owner_user_id is not None
             else None
         )
         self._guild_command_target = discord.Object(id=settings.discord_guild_id)
@@ -326,6 +339,8 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._card_testing_cog)
         if self._gex_explorer_cog is not None:
             await self.add_cog(self._gex_explorer_cog)
+        if self._stock_analyst_cog is not None:
+            await self.add_cog(self._stock_analyst_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:

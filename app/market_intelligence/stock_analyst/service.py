@@ -13,7 +13,9 @@ from app.market_intelligence.stock_analyst.engine import analyze_stock
 from app.market_intelligence.stock_analyst.market_data import (
     MoomooDailyBarProvider,
     StockMarketDataError,
+    StockMarketDataProvider,
 )
+from app.market_intelligence.stock_analyst.models import DailyBar, StockAnalysis
 
 AXIS_STOCK_ANALYST = "AXIS Stock Analyst"
 
@@ -26,11 +28,17 @@ class AxisStockAnalystError(RuntimeError):
 class AxisStockAnalystResult:
     context: dict[str, Any]
     chart_png: bytes | None
+    analysis: StockAnalysis | None = None
+    daily_bars: tuple[DailyBar, ...] = ()
 
 
 class AxisStockAnalystService:
     def __init__(
-        self, *, host: str, port: int, provider: MoomooDailyBarProvider | None = None
+        self,
+        *,
+        host: str = "127.0.0.1",
+        port: int = 11111,
+        provider: StockMarketDataProvider | None = None,
     ) -> None:
         self.provider = provider or MoomooDailyBarProvider(host, port)
 
@@ -43,6 +51,9 @@ class AxisStockAnalystService:
     ) -> AxisStockAnalystResult:
         try:
             bundle = await self.provider.fetch(symbol)
+        except StockMarketDataError as exc:
+            raise AxisStockAnalystError(exc.code) from exc
+        try:
             analysis = await asyncio.to_thread(
                 analyze_stock,
                 bundle.ticker,
@@ -50,7 +61,12 @@ class AxisStockAnalystService:
                 sector_etf=bundle.sector_etf,
                 sector_bars=bundle.sector_bars,
                 benchmark_bars=bundle.benchmark_bars,
+                peer_bars=bundle.peer_bars,
+                sector_candidate_bars=bundle.sector_candidate_bars,
             )
+        except (TypeError, ValueError) as exc:
+            raise AxisStockAnalystError("STOCK_ANALYST_CALCULATION_FAILURE") from exc
+        try:
             chart = (
                 await asyncio.to_thread(
                     render_stock_analysis_chart,
@@ -61,22 +77,30 @@ class AxisStockAnalystService:
                 if include_chart
                 else None
             )
-            context = analysis.to_context()
-            context["daily_bars"] = [
-                {
-                    "timestamp": bar.timestamp.isoformat(),
-                    "open": bar.open,
-                    "high": bar.high,
-                    "low": bar.low,
-                    "close": bar.close,
-                    "volume": bar.volume,
-                }
-                for bar in tuple(sorted(bundle.bars, key=lambda item: item.timestamp))[-82:]
-            ]
-            return AxisStockAnalystResult(context, chart)
-        except (StockMarketDataError, ValueError, OSError, RuntimeError) as exc:
-            code = exc.code if isinstance(exc, StockMarketDataError) else type(exc).__name__
-            raise AxisStockAnalystError(code) from exc
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise AxisStockAnalystError("STOCK_ANALYST_RENDER_FAILURE") from exc
+        context = analysis.to_context()
+        context.update(
+            {
+                "provider": bundle.provider,
+                "market_timestamp": bundle.source_timestamp.isoformat(),
+                "fetched_at": bundle.fetched_at.isoformat(),
+                "market_status": bundle.market_status,
+                "provider_unavailable_data": list(bundle.unavailable_data),
+            }
+        )
+        context["daily_bars"] = [
+            {
+                "timestamp": bar.timestamp.isoformat(),
+                "open": bar.open,
+                "high": bar.high,
+                "low": bar.low,
+                "close": bar.close,
+                "volume": bar.volume,
+            }
+            for bar in tuple(sorted(bundle.bars, key=lambda item: item.timestamp))[-82:]
+        ]
+        return AxisStockAnalystResult(context, chart, analysis, bundle.bars)
 
 
 def input_projection_points(

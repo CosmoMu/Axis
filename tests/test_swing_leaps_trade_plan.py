@@ -27,7 +27,7 @@ from app.services.trade_publication import PublicationClaim, PublicationResult
 def _bars() -> tuple[DailyBar, ...]:
     start = datetime(2026, 5, 1, 16, tzinfo=UTC)
     output = []
-    for index in range(90):
+    for index in range(140):
         close = 96 + index * 0.17 + math.sin(index / 4) * 1.6
         open_price = close - math.sin(index / 3) * 0.5
         output.append(
