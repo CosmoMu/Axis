@@ -99,6 +99,7 @@ class GexSnapshot:
     skipped_contracts: int
     data_warnings: tuple[str, ...]
     dealer_sign_assumption: str
+    exposure_basis: str = "open_interest"
     minor_resistance: float | None = None
     minor_support: float | None = None
     positive_gex: float = 0.0

@@ -15,6 +15,7 @@ ET = ZoneInfo("America/New_York")
 class HeatmapPolicy(Protocol):
     heatmap_expiration_columns: int
     heatmap_strike_rows: int
+    intraday_interval_minutes: int
 
 
 def _font(size: int, *, bold: bool = False):
@@ -137,7 +138,7 @@ def render_gex_heatmap(
 
     bars = tuple(sorted(intraday_bars, key=lambda item: item.timestamp_et))
     if not bars:
-        raise ValueError("GEX intraday renderer requires real 1-minute bars")
+        raise ValueError("GEX intraday renderer requires real market bars")
 
     # Discord scales the whole attachment to the available message width. A 16:10
     # composite keeps the intraday panel tall enough for candle bodies and levels,
@@ -166,7 +167,7 @@ def render_gex_heatmap(
     draw.text((margin, 34), f"AXIS GEX · {snapshot.ticker}", fill=white, font=_font(38, bold=True))
     draw.text(
         (margin, 87),
-        "真实 1 分钟 K 线 · 支撑压力 · 波动加速区 · GEX 热力图",
+        (f"真实 {policy.intraday_interval_minutes} 分钟 K 线 · 成交量 GEX · 支撑压力 · 波动加速区"),
         fill=secondary,
         font=_font(20, bold=True),
     )
@@ -199,7 +200,12 @@ def render_gex_heatmap(
         outline="#21302B",
         width=2,
     )
-    draw.text((plot_left, 158), "1 分钟 K 线", fill=secondary, font=_font(17, bold=True))
+    draw.text(
+        (plot_left, 158),
+        f"{policy.intraday_interval_minutes} 分钟 K 线",
+        fill=secondary,
+        font=_font(17, bold=True),
+    )
     draw.text(
         (plot_right, 158),
         f"{bars[0].timestamp_et:%H:%M}–{bars[-1].timestamp_et:%H:%M} ET · {len(bars)} 根",
@@ -213,7 +219,7 @@ def render_gex_heatmap(
     candle_span = max(candle_ceiling - candle_floor, snapshot.spot * 0.002)
     # The candle scale is the primary view. Only genuinely nearby GEX structure may
     # expand it. Distant structure is retained as full-width, explicitly off-scale
-    # rails below; it must never flatten the real one-minute candle range.
+    # rails below; it must never flatten the real intraday candle range.
     visible_distance = max(candle_span * 1.5, snapshot.spot * 0.0025)
     all_structural_levels = tuple(
         value
@@ -322,7 +328,7 @@ def render_gex_heatmap(
         top_y, bottom_y = sorted((price_y(upper), price_y(lower)))
         draw.rectangle(
             (plot_left, top_y, plot_right, bottom_y),
-            fill=(89, 42, 132, 72),
+            fill=(89, 42, 132, 38),
         )
         _dashed_horizontal(
             draw,
@@ -482,7 +488,10 @@ def render_gex_heatmap(
 
     heatmap_left = right_panel_left + 18
     heatmap_right = width - margin - 18
-    draw.text((heatmap_left, 158), "GEX 热力图", fill=secondary, font=_font(17, bold=True))
+    heatmap_title = (
+        "成交量 GEX 热力图" if snapshot.exposure_basis == "volume" else "持仓量 GEX 热力图"
+    )
+    draw.text((heatmap_left, 158), heatmap_title, fill=secondary, font=_font(17, bold=True))
     expirations = snapshot.expirations[: policy.heatmap_expiration_columns]
     strikes = _selected_strikes(snapshot, policy.heatmap_strike_rows)
     table_top = 220
@@ -599,13 +608,13 @@ def render_gex_heatmap(
     )
     draw.text(
         (margin, 1030),
-        "大级别取最强 GEX 墙，小级别取现价附近有效次级结构；所有点位均由期权表面确定。",
+        "按当日期权成交量加权 Gamma；大级别取最强墙，小级别取现价附近有效次级结构。",
         fill=secondary,
         font=_font(16, bold=True),
     )
     draw.text(
         (width - margin, 1081),
-        "教育与市场结构研究用途，不构成投资建议",
+        "成交量不代表主动买卖方向 · 教育与市场结构研究用途，不构成投资建议",
         fill=muted,
         font=_font(15, bold=True),
         anchor="ra",

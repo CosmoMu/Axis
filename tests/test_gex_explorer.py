@@ -24,7 +24,11 @@ from app.integrations.gex_intraday_data import (
 )
 from app.integrations.gex_market_data import GexProviderResult
 from app.integrations.massive_market_data import MarketDataProviderError
-from app.market_intelligence.gex_explorer.engine import classify_gamma_regime
+from app.market_intelligence.gex_explorer.engine import (
+    build_gex_snapshot,
+    calculate_gamma_exposure,
+    classify_gamma_regime,
+)
 from app.market_intelligence.gex_explorer.heatmap import _level_label
 from app.market_intelligence.gex_explorer.models import (
     GexIntradayBar,
@@ -78,6 +82,7 @@ class FakeGexProvider:
                         OptionSide.CALL,
                         100 + int(strike),
                         gamma=0.02,
+                        volume=100 + int(strike),
                     )
                 )
                 contracts.append(
@@ -88,6 +93,7 @@ class FakeGexProvider:
                         OptionSide.PUT,
                         80 + int(110 - strike),
                         gamma=0.018,
+                        volume=80 + int(110 - strike),
                     )
                 )
         return GexProviderResult(
@@ -219,6 +225,40 @@ def test_massive_intraday_normalizes_only_regular_session_minutes() -> None:
     assert bars[0].volume == 1200
 
 
+def test_volume_weighted_gex_uses_actual_option_volume_instead_of_oi() -> None:
+    now = datetime(2026, 9, 4, 12, 0, tzinfo=ET)
+    expiration = date(2026, 9, 11)
+    contracts = (
+        GexOptionContract("C100", expiration, 100, OptionSide.CALL, 1_000, 0.02, volume=10),
+        GexOptionContract("C105", expiration, 105, OptionSide.CALL, 10, 0.02, volume=1_000),
+        GexOptionContract("P95", expiration, 95, OptionSide.PUT, 10, 0.02, volume=1_000),
+        GexOptionContract("P90", expiration, 90, OptionSide.PUT, 1_000, 0.02, volume=10),
+    )
+
+    oi_points, *_ = calculate_gamma_exposure(contracts, 97, now)
+    volume_points, *_ = calculate_gamma_exposure(contracts, 97, now, exposure_basis="volume")
+    oi_map = {point.strike: point for point in oi_points}
+    volume_map = {point.strike: point for point in volume_points}
+    assert oi_map[100].call_gex > oi_map[105].call_gex
+    assert volume_map[105].call_gex > volume_map[100].call_gex
+
+    snapshot = build_gex_snapshot(
+        "TEST",
+        97,
+        contracts,
+        now,
+        exposure_basis="volume",
+    )
+    assert snapshot.exposure_basis == "volume"
+    assert snapshot.call_wall == 105
+    assert snapshot.put_wall == 95
+    assert "成交量 GEX" in snapshot.gamma_method
+
+    no_volume = tuple(replace(contract, volume=None) for contract in contracts)
+    with pytest.raises(ValueError, match="option chain did not contain usable"):
+        build_gex_snapshot("TEST", 97, no_volume, now, exposure_basis="volume")
+
+
 def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
     allowed = dict(
         guild_id=GUILD_ID,
@@ -298,7 +338,9 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert "0 Gamma · Gamma 分界" in zero_label
         assert first.used_expirations == 10
         assert first.intraday_provider == "fake-minute"
-        assert first.intraday_bar_count == 120
+        assert first.intraday_bar_count == 78
+        assert first.intraday_interval_minutes == 5
+        assert first.snapshot.exposure_basis == "volume"
         assert first.snapshot.near_term_expiration is not None
         assert first.snapshot.call_wall == 110
         assert first.snapshot.minor_resistance == 105
@@ -349,7 +391,7 @@ async def test_moomoo_shadow_compares_in_background_without_selecting_output() -
         assert result.intraday_provider == "massive"
         assert candidate.calls == 1
         assert comparison.candidate_provider == "moomoo"
-        assert comparison.overlapping_bar_count == 120
+        assert comparison.overlapping_bar_count == 78
         assert comparison.close_relative_difference_pct == 0
     finally:
         await db.dispose()

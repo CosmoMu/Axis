@@ -152,11 +152,13 @@ async def run() -> None:
                 MassiveGexIntradayProvider(
                     api_key=settings.massive_api_key,
                     base_url=settings.massive_base_url,
+                    interval_minutes=gex_policy.intraday_interval_minutes,
                 ),
                 gex_policy,
                 shadow_intraday_provider=MoomooGexIntradayProvider(
                     host=settings.moomoo_host,
                     port=settings.moomoo_port,
+                    interval_minutes=gex_policy.intraday_interval_minutes,
                 ),
             )
         contract_resolver = (

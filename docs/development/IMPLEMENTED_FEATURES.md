@@ -18,14 +18,14 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 - `/gex ticker:TICKER` Slash Command；不会监听普通 Ticker 消息。
 - Owner-only + `🧪・card-testing`；wrong-channel 与 unauthorized 请求使用 ephemeral feedback。
-- Massive GEX option-surface / spot / 1 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
+- Massive GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
   Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
-- Moomoo OpenD 1 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
+- Moomoo OpenD 5 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
   和 source timestamp，永不选择或阻止 Massive 正式输出。
-- Dollar GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
+- 当日期权成交量 GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
   Zero Gamma、GEX-based major Walls、现价附近 deterministic minor pressure/support、Clusters、
   Bias 与 deterministic triggers。
-- 1800x1125 中文复合图：左侧真实 1 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
+- 1800x1125 中文复合图：左侧真实 5 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
   波动加速区；右侧加宽的 strike x expiration GEX 热力图。K 线采用 candle-first 自适应
   纵轴；远端压力/支撑/Gamma 分界以横贯绘图区的图外结构轨显示，远端负 GEX 加速区
   以紫色全宽图外带显示实际点位或范围，既不压缩真实蜡烛波幅，也不会丢失结构。

@@ -66,12 +66,14 @@ class GexPolicy:
     risk_free_rate: float
     dividend_yield: float
     regime_thresholds: tuple[float, float, float, float]
+    exposure_basis: str
     zone_relative_threshold: float
     minor_level_relative_threshold: float
     heatmap_expiration_columns: int
     heatmap_strike_rows: int
     intraday_bar_count: int
     intraday_minimum_bars: int
+    intraday_interval_minutes: int
 
     @classmethod
     def load(cls, path: Path) -> GexPolicy:
@@ -111,12 +113,14 @@ class GexPolicy:
                 float(regimes["negative"]),
                 float(regimes["strong_negative"]),
             ),
+            exposure_basis=str(payload["exposure_basis"]).strip().lower(),
             zone_relative_threshold=float(payload["zone_relative_threshold"]),
             minor_level_relative_threshold=float(payload["minor_level_relative_threshold"]),
             heatmap_expiration_columns=int(heatmap["expiration_columns"]),
             heatmap_strike_rows=int(heatmap["strike_rows"]),
             intraday_bar_count=int(intraday["bar_count"]),
             intraday_minimum_bars=int(intraday["minimum_bars"]),
+            intraday_interval_minutes=int(intraday["interval_minutes"]),
         )
         policy.validate()
         return policy
@@ -153,6 +157,8 @@ class GexPolicy:
         )
         if not strong_positive > positive_threshold > negative_threshold > strong_negative:
             raise GexExplorerError("GEX_POLICY_INVALID")
+        if self.exposure_basis not in {"open_interest", "volume"}:
+            raise GexExplorerError("GEX_POLICY_INVALID")
         if (
             not 0 < self.strike_range_pct < 1
             or not 0 < self.zone_relative_threshold <= 1
@@ -160,6 +166,8 @@ class GexPolicy:
         ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         if self.intraday_minimum_bars > self.intraday_bar_count or self.intraday_bar_count > 1000:
+            raise GexExplorerError("GEX_POLICY_INVALID")
+        if self.intraday_interval_minutes not in {1, 5}:
             raise GexExplorerError("GEX_POLICY_INVALID")
 
 
@@ -182,6 +190,7 @@ class GexQueryResult:
     intraday_source_timestamp: datetime
     intraday_session_date: date
     intraday_bar_count: int
+    intraday_interval_minutes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,9 +386,12 @@ class GexExplorerService:
                 regime_thresholds=self.policy.regime_thresholds,
                 zone_relative_threshold=self.policy.zone_relative_threshold,
                 minor_level_relative_threshold=self.policy.minor_level_relative_threshold,
+                exposure_basis=self.policy.exposure_basis,
             )
         except (TypeError, ValueError) as exc:
             raise GexExplorerError("GEX_DATA_QUALITY_FAILED") from exc
+        if len(snapshot.expirations) < self.policy.minimum_valid_expirations:
+            raise GexExplorerError("GEX_EXPIRY_COVERAGE_INSUFFICIENT")
         warnings = list(snapshot.data_warnings)
         if len(provider_result.used_expirations) < self.policy.expiration_count:
             warnings.append(
@@ -411,7 +423,7 @@ class GexExplorerService:
             cache_hit=False,
             latency_ms=max(0, int((time.monotonic() - started) * 1000)),
             candidate_expirations=len(provider_result.candidate_expirations),
-            used_expirations=len(provider_result.used_expirations),
+            used_expirations=len(snapshot.expirations),
             failed_expirations=tuple(
                 (expiration.isoformat(), code)
                 for expiration, code in provider_result.failed_expirations
@@ -420,6 +432,7 @@ class GexExplorerService:
             intraday_source_timestamp=intraday_result.source_timestamp,
             intraday_session_date=intraday_result.session_date,
             intraday_bar_count=len(intraday_result.bars),
+            intraday_interval_minutes=self.policy.intraday_interval_minutes,
         )
         self._schedule_intraday_shadow(ticker, intraday_result)
         return result

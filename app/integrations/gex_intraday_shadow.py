@@ -1,4 +1,4 @@
-"""Read-only Massive/Moomoo one-minute comparison for the GEX black box."""
+"""Read-only Massive/Moomoo intraday-candle comparison for the GEX black box."""
 
 from __future__ import annotations
 

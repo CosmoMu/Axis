@@ -46,7 +46,7 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     embed.add_field(name="Gamma 状态", value=snapshot.gamma_regime, inline=True)
     embed.add_field(name="结构倾向", value=snapshot.current_bias, inline=True)
     embed.add_field(
-        name="整体 GEX 结构",
+        name="成交量 GEX 结构" if snapshot.exposure_basis == "volume" else "持仓量 GEX 结构",
         value=(
             f"净 GEX {_gex(snapshot.net_gex)}\n"
             f"正 GEX {_gex(snapshot.positive_gex)}\n"
@@ -122,9 +122,12 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         name="数据与覆盖",
         value=(
             f"GEX 数据源 {result.provider.title()} · {source_time}\n"
-            f"1 分钟 K 线 {result.intraday_provider.title()} · {intraday_time} · "
+            f"{result.intraday_interval_minutes} 分钟 K 线 "
+            f"{result.intraday_provider.title()} · {intraday_time} · "
             f"{result.intraday_bar_count} 根\n"
             f"有效到期日 {result.used_expirations}/10 · 候选 {result.candidate_expirations}\n"
+            f"有效成交合约 {snapshot.included_contracts} · "
+            f"无成交或缺 Gamma {snapshot.skipped_contracts}\n"
             f"缓存 {'命中' if result.cache_hit else '未命中'} · 策略 {result.policy_version} · "
             f"{result.latency_ms} 毫秒"
         ),
@@ -134,7 +137,7 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     embed.set_footer(
         text=(
             "AXIS GEX · 测试模式 · 教育与结构研究用途，不构成投资建议 · "
-            "正负 Gamma 符号为持仓结构估算，并非真实做市商持仓"
+            "按当日期权成交量加权；不代表主动买卖方向或真实做市商持仓"
         )
     )
     return embed

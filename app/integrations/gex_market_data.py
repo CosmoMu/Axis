@@ -345,7 +345,8 @@ class MassiveGexMarketDataProvider:
             strike = float(details["strike_price"])
             side = OptionSide(str(details["contract_type"]).upper())
             item_expiry = date.fromisoformat(str(details.get("expiration_date") or expiration))
-            open_interest = int(payload["open_interest"])
+            open_interest_value = payload.get("open_interest")
+            open_interest = int(open_interest_value) if open_interest_value is not None else None
             gamma_value = greeks.get("gamma") if isinstance(greeks, dict) else None
             gamma = float(gamma_value) if gamma_value is not None else None
             iv_value = payload.get("implied_volatility")
@@ -354,7 +355,13 @@ class MassiveGexMarketDataProvider:
             volume = int(volume_value) if volume_value is not None else None
         except (KeyError, TypeError, ValueError):
             return None
-        if not symbol or strike <= 0 or item_expiry != expiration or open_interest < 0:
+        if (
+            not symbol
+            or strike <= 0
+            or item_expiry != expiration
+            or (open_interest is not None and open_interest < 0)
+            or (volume is not None and volume < 0)
+        ):
             return None
         timestamp = cls._timestamp_from(payload)
         return (

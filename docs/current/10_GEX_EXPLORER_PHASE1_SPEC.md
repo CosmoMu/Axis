@@ -1,6 +1,6 @@
 # AXIS GEX Explorer — Phase 1 Specification
 
-**Version:** GEX V3 Massive Primary / Moomoo Shadow / 2026-09-05
+**Version:** GEX V5 Volume Flow / 5-Minute / Massive Primary / Moomoo Shadow / 2026-09-05
 
 **Status:** TEST ONLY
 
@@ -25,12 +25,12 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 - Normalize case and an optional leading `$`; `SPXW` normalizes to `SPX` for a GEX request.
 - SPX must use the provider's SPX index/options symbols and must never fall back to SPY.
 - Massive is the only production-selected GEX data source. The existing Massive credential and
-  AXIS provider boundaries supply spot, the option surface, and genuine 1-minute underlying
+  AXIS provider boundaries supply spot, the option surface, and genuine 5-minute underlying
   candles. Secrets remain in `.env`.
-- The left chart uses Massive aggregate 1-minute bars from the latest U.S. regular session and
+- The left chart uses Massive aggregate 5-minute bars from the latest U.S. regular session and
   never constructs or interpolates synthetic candles. Massive option-surface or minute-bar failure
   is fail-closed.
-- Moomoo OpenD runs only as a background shadow candidate for 1-minute-bar comparison. Shadow data
+- Moomoo OpenD runs only as a background shadow candidate for 5-minute-bar comparison. Shadow data
   must never select, replace, alter, delay, or block the Massive production result. Moomoo failure
   is recorded internally and does not fail the Discord card.
 - Select the latest 10 valid option expirations from a larger candidate set. Skip empty,
@@ -42,19 +42,22 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 
 ## Deterministic structure
 
-- Dollar GEX per 1% underlying move is `gamma × open interest × 100 × spot² × 0.01`.
+- Volume GEX per 1% underlying move is `gamma × current-day option volume × 100 × spot² × 0.01`.
+- Massive `day.volume` is aggregated real option trading volume, but it does not identify buyer- or
+  seller-initiated flow. The signed Call-positive / Put-negative result is therefore a structural
+  estimate, not order-flow direction or observed dealer inventory.
 - Sign convention is estimated dealer Call positive / Put negative. This is an explicit modeling
   assumption, not observed dealer positioning.
-- Missing vendor Gamma may use Black-Scholes Gamma only when provider IV is present. Missing OI or
-  both Gamma and IV is skipped, never silently filled with zero.
+- Missing vendor Gamma may use Black-Scholes Gamma only when provider IV is present. Missing or zero
+  current-day option volume, or both missing Gamma and IV, is skipped and never replaced with OI.
 - Aggregate and Near-Term surfaces calculate Net/Positive/Negative GEX, five-level Gamma Regime,
   Zero Gamma, GEX-based Call Wall / major resistance, Put Wall / major support, nearby meaningful
   minor resistance/support, deterministic positive/negative clusters, structural bias, and
   bullish/bearish trigger/target levels.
 - All levels must come from the normalized option surface. An LLM must never invent GEX levels.
 - The response is one Chinese AXIS Discord card plus one deterministic 1800x1125 composite image:
-  the left side is the real 1-minute K-line with current price and structural overlays; the right
-  side is a strike-by-expiration GEX heatmap.
+  the left side is the real 5-minute K-line with current price and structural overlays; the right
+  side is a strike-by-expiration volume-GEX heatmap.
 - The composite uses a 16:10-style layout. The intraday plot is approximately 1.44:1 instead of a
   stretched wide panel, and the heatmap receives wider expiration cells. The price axis is
   candle-first and may expand only for nearby GEX structure. Distant Call Wall, Put Wall, or Zero

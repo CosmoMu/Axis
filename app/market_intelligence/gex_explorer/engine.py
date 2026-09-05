@@ -173,16 +173,20 @@ def calculate_gamma_exposure(
     *,
     risk_free_rate: float = 0.0425,
     dividend_yield: float = 0.012,
+    exposure_basis: str = "open_interest",
 ) -> tuple[tuple[GexByStrike, ...], int, int, str]:
-    """Return signed dollar GEX per 1% move; missing Gamma/OI is never imputed."""
+    """Return signed dollar GEX per 1% move using OI or actual daily option volume."""
 
     if spot <= 0 or now_et.tzinfo is None:
         raise ValueError("spot must be positive and now_et timezone-aware")
+    if exposure_basis not in {"open_interest", "volume"}:
+        raise ValueError("exposure_basis must be open_interest or volume")
     calls: defaultdict[float, float] = defaultdict(float)
     puts: defaultdict[float, float] = defaultdict(float)
     included = skipped = vendor = calculated = 0
     for contract in contracts:
-        if contract.open_interest is None or contract.open_interest <= 0:
+        weight = contract.open_interest if exposure_basis == "open_interest" else contract.volume
+        if weight is None or weight <= 0:
             skipped += 1
             continue
         gamma = contract.gamma
@@ -202,7 +206,7 @@ def calculate_gamma_exposure(
         if gamma is None or gamma <= 0:
             skipped += 1
             continue
-        exposure = gamma * contract.open_interest * CONTRACT_MULTIPLIER * spot**2 * 0.01
+        exposure = gamma * weight * CONTRACT_MULTIPLIER * spot**2 * 0.01
         if contract.side is OptionSide.CALL:
             calls[contract.strike] += exposure
         else:
@@ -301,7 +305,11 @@ def build_gex_snapshot(
     regime_thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
     zone_relative_threshold: float = 0.35,
     minor_level_relative_threshold: float = 0.15,
+    exposure_basis: str = "open_interest",
 ) -> GexSnapshot:
+    if exposure_basis not in {"open_interest", "volume"}:
+        raise ValueError("exposure_basis must be open_interest or volume")
+    basis_label = "成交量 GEX" if exposure_basis == "volume" else "持仓量 GEX"
     grouped: defaultdict[object, list[GexOptionContract]] = defaultdict(list)
     for contract in contracts:
         grouped[contract.expiration].append(contract)
@@ -315,10 +323,12 @@ def build_gex_snapshot(
             now_et,
             risk_free_rate=risk_free_rate,
             dividend_yield=dividend_yield,
+            exposure_basis=exposure_basis,
         )
         methods.add(method)
         if not included:
-            warnings.append(f"{expiration:%m/%d} 缺少可用 Gamma/OI")
+            weight_label = "成交量" if exposure_basis == "volume" else "OI"
+            warnings.append(f"{expiration:%m/%d} 缺少可用 Gamma/{weight_label}")
             continue
         expirations.append(_expiration(expiration, points, included))
     if not expirations:
@@ -329,6 +339,7 @@ def build_gex_snapshot(
         now_et,
         risk_free_rate=risk_free_rate,
         dividend_yield=dividend_yield,
+        exposure_basis=exposure_basis,
     )
     methods.add(method)
     net = sum(point.net_gex for point in points)
@@ -396,7 +407,7 @@ def build_gex_snapshot(
         relative_threshold=zone_relative_threshold,
     )
     analysis = (
-        f"当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
+        f"{basis_label} 当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
         f"0 Gamma / Gamma 分界 {_fmt(zero)}；Call Wall / 大压力 {_fmt(call_wall)}；"
         f"小压力 {_fmt(minor_resistance)}；Put Wall / 大支撑 {_fmt(put_wall)}；"
         f"小支撑 {_fmt(minor_support)}。",
@@ -419,11 +430,12 @@ def build_gex_snapshot(
         bullish_trigger=bullish_trigger,
         bearish_trigger=bearish_trigger,
         analysis_zh=analysis,
-        gamma_method=" | ".join(sorted(methods)),
+        gamma_method=f"{basis_label} | {' | '.join(sorted(methods))}",
         included_contracts=included,
         skipped_contracts=skipped,
         data_warnings=tuple(warnings),
         dealer_sign_assumption=DEALER_SIGN_ASSUMPTION,
+        exposure_basis=exposure_basis,
         minor_resistance=minor_resistance,
         minor_support=minor_support,
         positive_gex=positive_gex,

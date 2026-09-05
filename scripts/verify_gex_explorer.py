@@ -49,11 +49,13 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
     intraday_provider = MassiveGexIntradayProvider(
         api_key=settings.massive_api_key,
         base_url=settings.massive_base_url,
+        interval_minutes=policy.intraday_interval_minutes,
     )
     shadow_box = GexIntradayShadowBox(
         MoomooGexIntradayProvider(
             host=settings.moomoo_host,
             port=settings.moomoo_port,
+            interval_minutes=policy.intraday_interval_minutes,
         )
     )
     failures = 0
@@ -80,6 +82,7 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 regime_thresholds=policy.regime_thresholds,
                 zone_relative_threshold=policy.zone_relative_threshold,
                 minor_level_relative_threshold=policy.minor_level_relative_threshold,
+                exposure_basis=policy.exposure_basis,
             )
             heatmap = render_gex_heatmap(snapshot, intraday.bars, policy)
             if output_dir is not None:
@@ -95,7 +98,7 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 key=lambda point: point.put_gex,
             ).strike
             checks = {
-                "ten_expirations": len(raw.used_expirations) == policy.expiration_count,
+                "ten_expirations": len(snapshot.expirations) == policy.expiration_count,
                 "net_reconciles": abs(by_strike_net - snapshot.net_gex) < 0.01,
                 "call_wall_reconciles": wall_check == snapshot.call_wall,
                 "put_wall_reconciles": put_check == snapshot.put_wall,
@@ -120,8 +123,10 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                         "used_expirations": len(raw.used_expirations),
                         "failed_expirations": len(raw.failed_expirations),
                         "contracts": len(raw.contracts),
+                        "exposure_basis": snapshot.exposure_basis,
                         "market_status": raw.market_status,
                         "minute_provider": intraday.provider,
+                        "minute_interval": policy.intraday_interval_minutes,
                         "minute_bars": len(intraday.bars),
                         "minute_source_timestamp": intraday.source_timestamp.isoformat(),
                         "moomoo_shadow": {

@@ -44,9 +44,9 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
 GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface / spot /
-1 分钟 K 线正式 provider、Moomoo OpenD 后台影子比较、AuditLog、System Alerts 和 Owner-only
+5 分钟 K 线正式 provider、Moomoo OpenD 后台影子比较、AuditLog、System Alerts 和 Owner-only
 card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、五级 Gamma Regime、
-Gamma 分界、大/小压力、大/小支撑、负 GEX 加速区、真实 1 分钟 K 线和中文复合
+Gamma 分界、大/小压力、大/小支撑、负 GEX 加速区、真实 5 分钟 K 线和成交量 GEX 中文复合
 热力图已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
 
 ## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
@@ -55,13 +55,14 @@ Implemented:
 
 - Slash command only；普通 Ticker 消息不触发。输入兼容大小写与 `$` 前缀。
 - Owner + `🧪・card-testing` 双重 runtime gate；Manager、Member、Newcomer 和 `@everyone` 不可用。
-- Massive 只读期权表面、现价和真实 1 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
+- Massive 只读期权表面、现价和真实 5 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
   即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
   和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
-- Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall 大级别、现价附近
-  有效次级小压力/小支撑、positive/negative zone、deterministic bias / triggers；无 LLM 点位。
-- 确定性 1800x1125 中文复合图：16:10 风格布局，左侧真实 1 分钟 K 线绘图区约 1.44:1，
+- 当日 Option Volume 加权的 Net / Positive / Negative GEX、五级 Regime、Zero Gamma、
+  Call/Put Wall 大级别、现价附近有效次级小压力/小支撑、positive/negative zone、
+  deterministic bias / triggers；无成交不以 OI 填补，无 LLM 点位。
+- 确定性 1800x1125 中文复合图：16:10 风格布局，左侧真实 5 分钟 K 线绘图区约 1.44:1，
   右侧 strike x expiration GEX 热力图加宽；纵轴优先保持蜡烛可读，远端压力/支撑/Gamma
   分界使用横贯绘图区的图外结构轨保留，远端负 GEX 加速区使用紫色全宽图外带保留
   实际点位或范围；不再强行压扁 K 线，也不会因超出聚焦纵轴而丢失结构。
@@ -85,6 +86,9 @@ Live evidence:
   expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
 - AVGO 四层级别真实 Massive 验收 PASS：大压力 360、小压力 365、大支撑 350、
   小支撑 355、0 Gamma 290；四层点位均进入 K 线覆盖和热力图标记。
+- AVGO V5 成交量 GEX / 5 分钟真实验收 PASS：78 根 Massive 5 分钟 K 线、10 个有效
+  expiry、654 张期权合约；大压力 360、小压力 357.5、大支撑 355、小支撑 352.5、
+  0 Gamma 359.79。Moomoo shadow 78/78 timestamps overlap，不参与正式输出。
 - Invalid ticker PASS。
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。

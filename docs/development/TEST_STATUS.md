@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 309 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 310 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -27,8 +27,8 @@
 - Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
-- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、Massive GEX / spot /
-  真实 1 分钟 K 线正式数据、Moomoo 后台 shadow、中文双面板图、cache/single-flight/limits/audit
+- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、Massive 成交量 GEX / spot /
+  真实 5 分钟 K 线正式数据、Moomoo 后台 shadow、中文双面板图、cache/single-flight/limits/audit
   均通过；
   Member Lounge 未上线。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
@@ -41,6 +41,9 @@
   difference `0.0545%`、timestamp difference `0s`；Call Wall / Put Wall / 0 Gamma 全部显示。
 - GEX V4 tiered levels: PASS — AVGO Massive 实际表面计算出大压力 360、小压力 365、
   大支撑 350、小支撑 355、0 Gamma 290；图表、Discord 卡片和热力图标记使用同一套点位。
+- GEX V5 volume-flow / 5-minute: PASS — AVGO Massive 78 根 5 分钟 K 线、10 valid expirations、
+  654 contracts；成交量 GEX 得出大压力 360、小压力 357.5、大支撑 355、小支撑 352.5、
+  0 Gamma 359.79；Moomoo shadow 78/78 overlap，正式输出仍只选 Massive。
 
 ## Commands executed
 
@@ -175,10 +178,11 @@ GEX Explorer Phase 1:
 - `/gex` 唯一入口、Ticker normalization、SPX 独立映射与 plain-ticker no-trigger。
 - Owner/card-testing authorization、wrong-channel / Manager / Member / Newcomer denial。
 - 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
-- Gamma/IV fallback、Net/Positive/Negative GEX、五级 Regime、Zero Gamma、GEX Walls、Clusters、
+- Option Volume/Gamma、IV fallback、Net/Positive/Negative GEX、五级 Regime、Zero Gamma、
+  GEX Walls、Clusters、
   deterministic Bias/Triggers 与 no-LLM level boundary。
 - Deterministic 1800x1125 Chinese composite chart；candle-first adaptive axis；full-width off-scale
-  pressure/support/Gamma rails；real 1-minute K-line；full-width purple negative-GEX acceleration
+  pressure/support/Gamma rails；real 5-minute K-line；full-width purple negative-GEX acceleration
   bands with actual levels；
   strike x expiration heatmap。
 - Massive GEX or Massive minute failure is fail-closed；Moomoo shadow failure is non-blocking；
@@ -325,7 +329,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 309 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 310 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 

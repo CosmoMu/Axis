@@ -41,7 +41,7 @@ class GexIntradayDataProvider(Protocol):
 
 
 class MassiveGexIntradayProvider:
-    """Latest regular-session 1-minute candles from the Massive aggregate API."""
+    """Latest regular-session candles from the Massive aggregate API."""
 
     name = "massive"
     _INDEX_TICKERS = {
@@ -57,6 +57,7 @@ class MassiveGexIntradayProvider:
         base_url: str = "https://api.massive.com",
         timeout_seconds: int = 15,
         lookback_calendar_days: int = 10,
+        interval_minutes: int = 1,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         if not api_key:
@@ -65,6 +66,9 @@ class MassiveGexIntradayProvider:
         self.base_url = base_url.rstrip("/")
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         self.lookback_calendar_days = max(3, lookback_calendar_days)
+        if interval_minutes not in {1, 5}:
+            raise GexIntradayDataError("GEX_INTRADAY_POLICY_INVALID")
+        self.interval_minutes = interval_minutes
         self.session = session
 
     async def fetch(self, ticker: str, *, bar_count: int) -> GexIntradayResult:
@@ -78,7 +82,7 @@ class MassiveGexIntradayProvider:
         start = today - timedelta(days=self.lookback_calendar_days)
         encoded = quote(massive_symbol, safe="")
         url = (
-            f"{self.base_url}/v2/aggs/ticker/{encoded}/range/1/minute/"
+            f"{self.base_url}/v2/aggs/ticker/{encoded}/range/{self.interval_minutes}/minute/"
             f"{start.isoformat()}/{today.isoformat()}"
         )
         own_session = self.session is None
@@ -157,7 +161,7 @@ class MassiveGexIntradayProvider:
 
 
 class MoomooGexIntradayProvider:
-    """Latest regular-session 1-minute candles through the local OpenD connection."""
+    """Latest regular-session candles through the local OpenD connection."""
 
     name = "moomoo"
     _INDEX_CODES = {
@@ -166,9 +170,12 @@ class MoomooGexIntradayProvider:
         "DJI": "US..DJI",
     }
 
-    def __init__(self, *, host: str, port: int) -> None:
+    def __init__(self, *, host: str, port: int, interval_minutes: int = 1) -> None:
+        if interval_minutes not in {1, 5}:
+            raise GexIntradayDataError("GEX_INTRADAY_POLICY_INVALID")
         self.host = host
         self.port = port
+        self.interval_minutes = interval_minutes
 
     async def fetch(self, ticker: str, *, bar_count: int) -> GexIntradayResult:
         if bar_count <= 0 or bar_count > 1000:
@@ -189,13 +196,15 @@ class MoomooGexIntradayProvider:
         context = None
         try:
             context = OpenQuoteContext(host=self.host, port=self.port)
-            ret, message = context.subscribe([code], [SubType.K_1M])
+            subtype = SubType.K_5M if self.interval_minutes == 5 else SubType.K_1M
+            kl_type = KLType.K_5M if self.interval_minutes == 5 else KLType.K_1M
+            ret, message = context.subscribe([code], [subtype])
             if ret != RET_OK:
                 raise GexIntradayDataError("GEX_INTRADAY_SUBSCRIPTION_FAILED")
             ret, frame = context.get_cur_kline(
                 code,
                 1000,
-                KLType.K_1M,
+                kl_type,
                 AuType.QFQ,
             )
             if ret != RET_OK or not hasattr(frame, "iterrows"):

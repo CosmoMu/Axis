@@ -5,7 +5,7 @@
 ## How `/gex` works
 
 The Owner runs `/gex ticker:NVDA`. AXIS normalizes the symbol, acknowledges the interaction, checks
-cache and limits, loads the Massive option surface and Massive 1-minute candles, evaluates the
+cache and limits, loads the Massive option surface and Massive 5-minute candles, evaluates the
 deterministic GEX engine, renders one desktop-first composite chart, and edits the interaction with
 one Chinese card plus one PNG. A separate Moomoo shadow comparison runs in the background and never
 selects or blocks production output. A plain `NVDA` message does nothing.
@@ -29,7 +29,7 @@ docs are changed from TEST to LIVE.
 Phase 1 uses the existing `MASSIVE_API_KEY` and `MASSIVE_BASE_URL` through
 `MassiveGexMarketDataProvider` and `MassiveGexIntradayProvider`. The first adapter fetches
 underlying/index spot, candidate expirations, and exact-expiry option snapshots. The second fetches
-Massive one-minute aggregate bars, keeps only the latest U.S. regular session, de-duplicates
+Massive five-minute aggregate bars, keeps only the latest U.S. regular session, de-duplicates
 timestamps, and returns up to the configured bar count. If either Massive boundary cannot provide
 real data, `/gex` stops with a stable error; it never draws fake candles. SPX is never mapped to SPY.
 
@@ -43,11 +43,14 @@ Massive result.
 
 Dollar GEX per 1% underlying move:
 
-`Gamma × Open Interest × 100 contract multiplier × Spot² × 0.01`
+`Gamma × current-day option volume × 100 contract multiplier × Spot² × 0.01`
 
 Call GEX is positive and Put GEX is negative under the documented dealer-sign estimate. The card
 states that this is an assumption rather than observed dealer inventory. Vendor Gamma is preferred;
-Black-Scholes Gamma may be derived from vendor IV. Missing OI/Gamma/IV is skipped.
+Black-Scholes Gamma may be derived from vendor IV. Missing/zero current-day option volume or
+missing Gamma/IV is skipped; Open Interest is not used as a fallback. Massive `day.volume` is
+actual aggregate option trading volume, but it has no aggressor-side classification. The output is
+therefore volume-weighted structure, not buyer/seller flow or observed dealer inventory.
 
 ## Expiry Selection and Near-Term Logic
 
@@ -80,7 +83,7 @@ no LLM participates.
 ## Heatmap
 
 The Pillow renderer produces a deterministic 1800x1125 black AXIS image. The left panel uses a
-candle-first adaptive axis for real 1-minute candles, current price, nearby upper resistance /
+candle-first adaptive axis for real 5-minute candles, current price, nearby upper resistance /
 lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration zones. Distant
 pressure, support, and Gamma boundaries use full-width top/bottom off-scale rails with actual
 prices instead of flattening candle bodies. Distant negative-GEX zones use full-width purple
@@ -105,8 +108,9 @@ Values are maintained in `config/gex_explorer.yaml`, not scattered through handl
 
 ## Data freshness and market close
 
-The card shows Massive GEX time and Massive 1-minute K-line time, coverage, cache status, and policy
-version. Moomoo shadow details remain internal. Data older than the configured threshold is marked
+The card shows Massive GEX time, Massive 5-minute K-line time, valid volume-weighted contract
+coverage, cache status, and policy version. Moomoo shadow details remain internal. Data older than
+the configured threshold is marked
 in Chinese as stale. A closed-market result is labeled in Chinese and described as the latest
 available snapshot; it is never called live.
 
