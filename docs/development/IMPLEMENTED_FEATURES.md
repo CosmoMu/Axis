@@ -271,10 +271,11 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 ## Prediction Chart
 
-- 确定性单一路径 renderer。
+- 确定性日 K + 单一路径 renderer：左侧使用 Stock Analyst 取得的真实 Daily OHLC，右侧单独
+  展示预测走势，并在整张图上画出支撑、压力、突破、目标和失效位水平线。
 - 输入图片仅作内部证据；明确点位与方向由 AXIS renderer 重新绘制，原图不进入 Review 或
   会员频道；缺失时只使用融合层可追溯点位。
-- 不生成未来 K 线，不使用图片生成模型。
+- 不生成未来 K 线，不使用图片生成模型；真实日 K 不足时不合成蜡烛，文字归档继续可用。
 - Source 图片不转发到 Review 或会员频道。
 - renderer 失败不阻塞文字 Analysis 归档，支持独立重试。
 - `analysis_drafts.chart_source` 可完整保存 AXIS renderer provenance，不再被旧 16 字符列宽截断。

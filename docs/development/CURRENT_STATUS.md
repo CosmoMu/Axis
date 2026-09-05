@@ -412,8 +412,9 @@ Mentor input 做真实质量复核。
 
 ## Prediction Chart — PARTIAL
 
-Implemented: 确定性 renderer、单一路径、无未来 K 线；输入图片仅作内部证据，Review / Public
-只展示 AXIS 根据输入点位与方向重绘的图；失败不阻塞文字归档。
+Implemented: 确定性 renderer、真实日 K 历史底图、右侧单一预测路径、关键点位水平线、无未来
+假 K 线；输入图片仅作内部证据，Review / Public 只展示 AXIS 根据输入点位与方向重绘的图；
+真实 OHLC 缺失时拒绝合成蜡烛，图片失败不阻塞文字归档。
 
 Remaining: 真实 Mentor 输入和移动端 Discord 的视觉验收；当前策略不新增 AI 生图。
 

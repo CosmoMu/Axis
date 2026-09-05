@@ -252,6 +252,25 @@ def analysis_service(
 
 
 def axis_stock_context() -> dict[str, object]:
+    daily_bars = []
+    timestamp = datetime(2026, 5, 1, 20, tzinfo=UTC)
+    price = 162.0
+    while len(daily_bars) < 72:
+        if timestamp.weekday() < 5:
+            opening = price * 0.998
+            close = price * 1.0014
+            daily_bars.append(
+                {
+                    "timestamp": timestamp.isoformat(),
+                    "open": opening,
+                    "high": max(opening, close) * 1.006,
+                    "low": min(opening, close) * 0.994,
+                    "close": close,
+                    "volume": 2_000_000,
+                }
+            )
+            price = close
+        timestamp += timedelta(days=1)
     return {
         "ticker": "NVDA",
         "as_of": "2026-08-28",
@@ -266,6 +285,7 @@ def axis_stock_context() -> dict[str, object]:
         "point_of_control": 170.25,
         "value_area_low": 165.0,
         "value_area_high": 181.0,
+        "daily_bars": daily_bars,
         "support_levels": [{"price": 174.25}],
         "resistance_levels": [{"price": 182.5}],
         "scenarios": [
@@ -1226,7 +1246,9 @@ async def test_chart_failure_does_not_block_archive_and_can_retry(
         ]
     )
 
-    def fail_render(_: dict[str, object]) -> bytes:
+    def fail_render(
+        _: dict[str, object], daily_bars: object | None = None
+    ) -> bytes:
         raise PredictionChartError("TEST_RENDER_FAILURE")
 
     monkeypatch.setattr(pipeline_module, "render_prediction_chart", fail_render)
@@ -1275,7 +1297,7 @@ def test_public_analysis_is_neutral_and_image_independent() -> None:
         assert forbidden not in public_text
 
 
-def test_prediction_chart_is_deterministic_structural_png() -> None:
+def test_prediction_chart_is_deterministic_daily_k_structural_png() -> None:
     payload = {
         "symbols": ["NVDA"],
         "top_scenario": {
@@ -1289,10 +1311,25 @@ def test_prediction_chart_is_deterministic_structural_png() -> None:
             {"type": "TARGET", "price": 190, "label": "目标", "sequence": 2},
         ],
     }
-    first = render_prediction_chart(payload)
-    second = render_prediction_chart(payload)
+    daily_bars = axis_stock_context()["daily_bars"]
+    first = render_prediction_chart(payload, daily_bars)  # type: ignore[arg-type]
+    second = render_prediction_chart(payload, daily_bars)  # type: ignore[arg-type]
     assert first == second
     assert first.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(first) > 20_000
+
+
+def test_prediction_chart_refuses_to_fabricate_daily_candles() -> None:
+    payload = {
+        "symbols": ["NVDA"],
+        "top_scenario": {"direction_clear": True},
+        "prediction_path": [
+            {"type": "CURRENT", "price": 178, "label": "当前"},
+            {"type": "TARGET", "price": 190, "label": "目标"},
+        ],
+    }
+    with pytest.raises(PredictionChartError, match="DAILY_K_BARS_REQUIRED"):
+        render_prediction_chart(payload)
 
 
 @pytest.mark.parametrize("analysis_type", ["MARKET", "TICKER", "SECTOR", "MACRO"])

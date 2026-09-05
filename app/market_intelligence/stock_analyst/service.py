@@ -61,7 +61,19 @@ class AxisStockAnalystService:
                 if include_chart
                 else None
             )
-            return AxisStockAnalystResult(analysis.to_context(), chart)
+            context = analysis.to_context()
+            context["daily_bars"] = [
+                {
+                    "timestamp": bar.timestamp.isoformat(),
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
+                }
+                for bar in tuple(sorted(bundle.bars, key=lambda item: item.timestamp))[-82:]
+            ]
+            return AxisStockAnalystResult(context, chart)
         except (StockMarketDataError, ValueError, OSError, RuntimeError) as exc:
             code = exc.code if isinstance(exc, StockMarketDataError) else type(exc).__name__
             raise AxisStockAnalystError(code) from exc

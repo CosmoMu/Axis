@@ -25,15 +25,18 @@ analysis-input
 发生 `.webp` 文件名与 PNG MIME 不一致时，以真实图片签名归一化，非真实图片仍拒绝。
 
 Ticker Analysis 只在恰好识别出一个 symbol 时调用 AXIS Stock Analyst。引擎通过本机
-Moomoo OpenD 读取日 K，不 import 或启动 Cosmos。Mentor 明确表达的观点、点位、目标、失效和
+Moomoo OpenD 读取日 K，不 import 或启动 Cosmos。Prediction Chart 左侧使用真实 Daily OHLC
+蜡烛，右侧只画结构预测路径，关键点位以水平线标注；不得生成未来假 K 线或在取数失败时合成
+蜡烛。Mentor 明确表达的观点、点位、目标、失效和
 指标是 Source of Truth；AXIS 只补同角色缺失的结构、资金流代理、板块相对强度、指标和情景。
 Stock Analyst 不可用时保留 Mentor View 并加入安全
 warning，只使用 LLM 对原始 input 的忠实整理，不让整条 Analysis 失败。
 
 Source 原图只作为 LLM 解析证据，公开文字不得依赖“图中/箭头/颜色”等引用。后台保留 2–3
 个模型情景，公开只使用 Top Scenario；Top weight 小于 50%，或 Top1 与 Top2 差小于 10%，
-不显示强方向路径。通过门槛后，确定性 PIL renderer 使用与卡片相同的 `prediction_path`
-生成单一结构路径 PNG，不画未来 K 线。Renderer 失败不阻止文字归档，可在 Review 重试。
+不显示强方向路径。通过门槛后，确定性 PIL renderer 使用与卡片相同的 `prediction_path`，在
+真实日 K 底图右侧生成单一结构路径并标出关键水平线，不画未来假 K 线。Renderer 失败不阻止
+文字归档，可在 Review 重试。
 
 归档同时保存 Raw Source、Normalized Mentor View、Stock Analyst Snapshot、Final Fused
 Analysis 与 Public Card Snapshot。点位、指标分别标记 `MENTOR_INPUT` / `STOCK_ANALYST`；

@@ -209,6 +209,35 @@ class AnalysisPipelineService:
         self.validator = Draft202012Validator(schema)
         self.stock_analyst = stock_analyst
 
+    async def _chart_market_context(
+        self,
+        payload: dict[str, Any],
+        existing: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return real daily OHLC context, refreshing legacy drafts that predate K-line charts."""
+
+        context = dict(existing or {})
+        bars = context.get("daily_bars")
+        if isinstance(bars, list) and len(bars) >= 30:
+            return context
+        symbols = payload.get("symbols")
+        if (
+            self.stock_analyst is None
+            or payload.get("analysis_type") != AnalysisType.TICKER.value
+            or not isinstance(symbols, list)
+            or len(symbols) != 1
+            or not isinstance(symbols[0], str)
+        ):
+            return context
+        try:
+            result = await self.stock_analyst.query(
+                symbols[0],
+                include_chart=False,
+            )
+        except AxisStockAnalystError:
+            return context
+        return dict(result.context)
+
     async def process_next(self) -> AnalysisGenerationResult | None:
         async with self.database.session() as session:
             source_id = await session.scalar(
@@ -446,17 +475,34 @@ class AnalysisPipelineService:
         interaction_id: int,
     ) -> AnalysisDraftSnapshot:
         self._validate_archive(payload)
-        chart_png = None
-        chart_error = None
         chart_payload = _axis_chart_payload(payload)
+        market_context: dict[str, Any] = {}
         if chart_payload is not None:
-            try:
-                chart_png = render_prediction_chart(chart_payload)
-            except (PredictionChartError, OSError, RuntimeError) as exc:
-                chart_error = (str(exc) or type(exc).__name__)[:64]
+            async with self.database.session() as session:
+                current = await session.get(AnalysisDraft, draft_id)
+                if current is None:
+                    raise AnalysisValidationError("ANALYSIS_DRAFT_NOT_FOUND")
+                market_context = dict(current.market_context_json or {})
+            market_context = await self._chart_market_context(payload, market_context)
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
+            chart_png = None
+            chart_error = None
+            if chart_payload is not None:
+                try:
+                    chart_png = render_prediction_chart(
+                        {
+                            **chart_payload,
+                            "market_as_of": market_context.get("data_timestamp")
+                            or chart_payload.get("market_as_of"),
+                        },
+                        market_context.get("daily_bars"),
+                    )
+                except (PredictionChartError, OSError, RuntimeError) as exc:
+                    chart_error = (str(exc) or type(exc).__name__)[:64]
             draft.normalized_json = payload
+            if market_context:
+                draft.market_context_json = market_context
             draft.conflicts_json = list(payload.get("conflicts", []))
             draft.missing_fields = list(payload.get("missing_fields", []))
             draft.warnings = list(payload.get("warnings", []))
@@ -948,7 +994,14 @@ class AnalysisPipelineService:
         chart_payload = _axis_chart_payload(enriched)
         if chart_payload is not None:
             try:
-                generated_chart_png = render_prediction_chart(chart_payload)
+                generated_chart_png = render_prediction_chart(
+                    {
+                        **chart_payload,
+                        "market_as_of": context.get("data_timestamp")
+                        or chart_payload.get("market_as_of"),
+                    },
+                    context.get("daily_bars"),
+                )
                 chart_source = "AXIS_STOCK_ANALYST"
             except (PredictionChartError, OSError, RuntimeError) as exc:
                 chart_render_error = str(exc)[:64] or type(exc).__name__
@@ -990,14 +1043,23 @@ class AnalysisPipelineService:
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
             payload = dict(draft.normalized_json)
+            market_context = dict(draft.market_context_json or {})
             guild_id = draft.guild_id
             revision = draft.revision
             version = draft.version
         chart_payload = _axis_chart_payload(payload)
         if chart_payload is None:
             raise AnalysisValidationError("ANALYSIS_CHART_PATH_REQUIRED")
+        market_context = await self._chart_market_context(payload, market_context)
         try:
-            png = render_prediction_chart(chart_payload)
+            png = render_prediction_chart(
+                {
+                    **chart_payload,
+                    "market_as_of": market_context.get("data_timestamp")
+                    or chart_payload.get("market_as_of"),
+                },
+                market_context.get("daily_bars"),
+            )
         except (PredictionChartError, OSError, RuntimeError) as exc:
             async with self.database.session() as session:
                 draft = await self._locked_editable(session, draft_id)
@@ -1016,6 +1078,8 @@ class AnalysisPipelineService:
             draft.chart_checksum_sha256 = stored.checksum_sha256
             draft.chart_content_type = stored.content_type
             draft.chart_render_error = None
+            if market_context:
+                draft.market_context_json = market_context
             draft.version += 1
             await session.commit()
             return await self._snapshot(session, draft)

@@ -881,6 +881,9 @@ Top Scenario
 
 AXIS Black Background
 
+Historical Daily Candles
+使用 Stock Analyst 取得的真实日 K OHLC；日 K 占左侧历史区
+
 Current Price
 White
 
@@ -895,6 +898,9 @@ Muted Gray
 
 Minimal Text
 
+预测路径必须从最后一根真实日 K 右侧开始；关键支撑、压力、突破、目标和失效位使用水平线
+贯穿图表，并标注价格。历史区与预测区必须有明显分隔。
+
 
 ==================================================
 27. 不画未来假 K 线
@@ -902,7 +908,7 @@ Minimal Text
 
 Prediction Chart：
 
-不是未来 Candlestick Forecast。
+左侧是截至 `market_as_of` 的真实日 K，右侧是结构预测区；不是未来 Candlestick Forecast。
 
 
 不要生成：
@@ -914,7 +920,7 @@ Prediction Chart：
 AI 预测具体每根 K 线
 
 
-只画：
+未来区域只画：
 
 STRUCTURAL PATH
 
@@ -924,6 +930,9 @@ STRUCTURAL PATH
 当前点
 → 关键结构点
 → 目标
+
+真实日 K 取数失败时不生成图片，不得用合成 OHLC 或假蜡烛补齐；文字 Analysis 仍可继续审核和
+归档。
 
 
 ==================================================

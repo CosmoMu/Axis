@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 303 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 304 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -14,6 +14,8 @@
 - Database verifier: PASS
 - Discord runtime verifier: PASS
 - Analysis Fusion verifier: PASS
+- Analysis 日 K Prediction Chart：PASS — 真实 Daily OHLC、关键位水平线、单一预测路径、
+  缺失 OHLC 时拒绝合成蜡烛
 - Stripe Test setup verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe Test external E2E verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe dual-environment / kill switch / livemode / pricing / reconciliation regression: PASS
@@ -306,7 +308,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 303 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 304 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 
