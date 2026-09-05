@@ -71,6 +71,10 @@
   普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。Owner 已于
   2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・card-testing`
   使用 `/gex`。正式数据来自 Massive；Moomoo 只做后台比较。
+- AXIS Stock Analyst 已在 Member Lounge 正式上线。Member / Manager / Owner 仅可在
+  `🛋️・member-lounge` 使用 `/stock ticker:SPY`；Owner 保留 card-testing 维护入口。普通会员
+  每人 30 秒、同 ticker 全频道 60 秒冷却，Manager / Owner 无这两项冷却。功能使用 Massive
+  Daily OHLCV，严格只读，不触发 Signal、Trade、Membership 或 broker execution。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
 事实，但不得取代本目录的产品规格。
@@ -85,7 +89,7 @@
 - Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控
-- GEX Explorer V7 Member Lounge 只读查询与 Owner card-testing 维护入口
+- GEX Explorer V7 与 Stock Analyst Member Lounge 只读查询、Owner card-testing 维护入口
 
 当前明确不做：
 

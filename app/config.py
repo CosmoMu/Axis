@@ -588,10 +588,8 @@ class Settings:
             raise ConfigurationError("STOCK_ANALYST_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
         if not self.stock_analyst_enabled:
             return
-        if self.stock_analyst_mode != "TEST":
-            raise ConfigurationError(
-                "Stock Analyst Phase 1 只允许 TEST；Member Lounge 尚未获得 Owner 上线批准。"
-            )
+        if self.stock_analyst_mode == "OFF":
+            raise ConfigurationError("启用 Stock Analyst 时 mode 不能为 OFF。")
         if self.discord_owner_user_id is None:
             raise ConfigurationError("启用 Stock Analyst 必须配置 DISCORD_OWNER_USER_ID。")
         if not self.massive_api_key:

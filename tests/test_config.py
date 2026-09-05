@@ -106,6 +106,21 @@ def test_gex_mode_accepts_member_lounge_and_rejects_missing_owner() -> None:
         ).assert_gex_safety()
 
 
+def test_stock_analyst_mode_accepts_member_lounge_and_rejects_missing_owner() -> None:
+    base = settings(apply_changes=False, dry_run=True)
+    replace(base, stock_analyst_mode="OFF").assert_stock_analyst_safety()
+    replace(base, stock_analyst_mode="MEMBER_LOUNGE").assert_stock_analyst_safety()
+    with pytest.raises(ConfigurationError, match="仅允许"):
+        replace(base, stock_analyst_mode="PUBLIC").assert_stock_analyst_safety()
+    with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
+        replace(
+            base,
+            stock_analyst_enabled=True,
+            stock_analyst_mode="MEMBER_LOUNGE",
+            massive_api_key="placeholder",
+        ).assert_stock_analyst_safety()
+
+
 def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
     monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "25:00")

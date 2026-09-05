@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 327 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 332 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -54,12 +54,14 @@
   GEX robust heatmap 与缺失 `—`；Moomoo shadow 78/78 overlap，未选择正式输出。
 - GEX V7 Discord Live smoke: PASS — 新 runtime 已安装并运行；HOOD 真实 Massive → shared
   classifier → 1800×1600 PNG → `🧪・card-testing` 消息 `1545703467908206655` 成功。
-- AXIS Stock Analyst Phase 1: TEST GATE PASS — Cosmos v0.1 parity、Massive 8-ticker read-only、
-  deterministic card/chart、permission、cache/single-flight/rate-limit、stale/closed label 与
-  no-side-effect boundary 均通过；保持 Owner + `🧪・card-testing` TEST ONLY。
+- AXIS Stock Analyst Member Lounge: LIVE / AUTOMATED + RUNTIME PASS — Cosmos v0.1 parity、
+  Massive 8-ticker read-only、deterministic card/chart、Member/Manager/Owner permissions、30 秒
+  user cooldown、60 秒 ticker cooldown、Manager/Owner bypass、cache/single-flight/provider limit、
+  stale/closed label 与 no-side-effect boundary 均通过。
 - Stock Analyst real Massive closed-market verification: PASS — SPY、QQQ、NVDA、TSLA、AAPL、
   META、PLTR、AMD 各 380 Daily sessions；冷请求约 290–920ms，SPY cache hit 约 4ms。
-- Stock Analyst Discord runtime / chart: PASS — Bot running，Guild `/stock` command verified；
+- Stock Analyst Discord runtime / chart: PASS — Bot running，Guild `/stock` command verified，
+  runtime 为 `MEMBER_LOUNGE`；
   真实 SPY 1900×1160 Daily PNG 已视觉复核；不存在的 Massive symbol 正确返回
   `AXIS_STOCK_SYMBOL_NOT_FOUND`，未暴露 traceback。
 - AXIS website GEX V7: build PASS、4/4 tests、ESLint 0 errors / 1 existing `<img>` warning；
@@ -259,6 +261,7 @@ Feature flags:
 - FEATURE_PERSONAL_EXECUTION_ENABLED=false
 - RESULTS_REVIEW_ENABLED=true
 - GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=MEMBER_LOUNGE（Owner approved and deployed 2026-09-05）
+- STOCK_ANALYST_ENABLED=true / STOCK_ANALYST_MODE=MEMBER_LOUNGE（Owner directed and deployed 2026-09-05）
 
 Discord:
 
@@ -274,7 +277,9 @@ Discord:
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, newcomer, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=14（包含 `/gex` 与 `/stock`）；GEX smoke card 已在 card-testing 发送成功。
+- non-admin visible AXIS commands=`/gex`, `/stock`；其余 12 个 `test-*` commands 保持
+  Administrator default permission + Owner runtime gate。GEX 与 Stock smoke card 均已在
+  card-testing 发送成功。
 
 Analysis Fusion:
 

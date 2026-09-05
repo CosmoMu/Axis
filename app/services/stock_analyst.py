@@ -51,6 +51,7 @@ class StockAnalystPolicy:
     chart_sessions: int
     cache_seconds: int
     user_cooldown_seconds: int
+    ticker_cooldown_seconds: int
     guild_fresh_requests_per_minute: int
     maximum_latency_seconds: int
 
@@ -78,6 +79,7 @@ class StockAnalystPolicy:
                 chart_sessions=int(analysis["chart_sessions"]),
                 cache_seconds=int(runtime["cache_seconds"]),
                 user_cooldown_seconds=int(runtime["user_cooldown_seconds"]),
+                ticker_cooldown_seconds=int(runtime["ticker_cooldown_seconds"]),
                 guild_fresh_requests_per_minute=int(runtime["guild_fresh_requests_per_minute"]),
                 maximum_latency_seconds=int(runtime["maximum_latency_seconds"]),
             )
@@ -96,6 +98,7 @@ class StockAnalystPolicy:
             self.chart_sessions,
             self.cache_seconds,
             self.user_cooldown_seconds,
+            self.ticker_cooldown_seconds,
             self.guild_fresh_requests_per_minute,
             self.maximum_latency_seconds,
         )
@@ -151,6 +154,7 @@ class StockAnalystQueryService:
         self._cache: dict[tuple[str, str, str, str], _CacheEntry] = {}
         self._inflight: dict[tuple[str, str, str, str], asyncio.Task[StockAnalystQueryResult]] = {}
         self._last_user_request: dict[tuple[int, int], float] = {}
+        self._last_ticker_request: dict[tuple[int, str], float] = {}
         self._guild_fresh_requests: defaultdict[int, deque[float]] = defaultdict(deque)
         self._lock = asyncio.Lock()
 
@@ -162,6 +166,7 @@ class StockAnalystQueryService:
         ticker: str,
         interaction_id: int | None = None,
         enforce_rate_limits: bool = True,
+        bypass_cooldowns: bool = False,
     ) -> StockAnalystQueryResult:
         symbol = normalize_stock_ticker(ticker)
         started_at = datetime.now(UTC)
@@ -181,7 +186,7 @@ class StockAnalystQueryService:
         cached_result: StockAnalystQueryResult | None = None
         now = time.monotonic()
         async with self._lock:
-            if enforce_rate_limits:
+            if enforce_rate_limits and not bypass_cooldowns:
                 user_key = (guild_id, actor_user_id)
                 previous = self._last_user_request.get(user_key)
                 if previous is not None and now - previous < self.policy.user_cooldown_seconds:
@@ -189,7 +194,23 @@ class StockAnalystQueryService:
                         guild_id, actor_user_id, symbol, interaction_id, started_at, "USER_COOLDOWN"
                     )
                     raise StockAnalystError("STOCK_ANALYST_USER_COOLDOWN")
+                ticker_key = (guild_id, symbol)
+                previous_ticker = self._last_ticker_request.get(ticker_key)
+                if (
+                    previous_ticker is not None
+                    and now - previous_ticker < self.policy.ticker_cooldown_seconds
+                ):
+                    await self._audit_rate_limit(
+                        guild_id,
+                        actor_user_id,
+                        symbol,
+                        interaction_id,
+                        started_at,
+                        "TICKER_COOLDOWN",
+                    )
+                    raise StockAnalystError("STOCK_ANALYST_TICKER_COOLDOWN")
                 self._last_user_request[user_key] = now
+                self._last_ticker_request[ticker_key] = now
             cached = self._cache.get(key)
             if cached is not None and now - cached.created_monotonic <= self.policy.cache_seconds:
                 completed = datetime.now(UTC)

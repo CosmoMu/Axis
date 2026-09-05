@@ -104,8 +104,11 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 - `FEATURE_SHORT_TERM_TRACKING_ENABLED=false`：安全默认。只有 Massive Secret 配置完成后
   才启用实时 Short-Term 轮询；Review、发布与 Tracking 注册本身仍可工作。
 - `FEATURE_AXIS_STOCK_ANALYST_ENABLED=false`：新环境安全默认；启用后单 ticker Analysis
-  会调用 AXIS 自有 Stock Analyst，通过本机 Moomoo OpenD 读取日 K 并生成文字结构观察。
-  当前不会生成或发布 Analysis 图片；未来 Massive API 接入另行启用。
+  会调用 AXIS 自有 Stock Analyst，通过 Massive 读取 Daily OHLCV 并生成文字结构与确定性图片；
+  Moomoo 不参与 Stock Analyst 正式输出。
+- `STOCK_ANALYST_MODE=TEST`：新环境安全默认，仅允许 Owner 在 card-testing 维护验证。生产
+  Secret 已在 Owner 于 2026-09-05 明确要求上线后设置为 `MEMBER_LOUNGE`；Member / Manager /
+  Owner 仅可在 member-lounge 使用 `/stock`。
 
 ## AXIS Market Intelligence
 
@@ -115,6 +118,8 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
   Strike × Expiration Ladder 与 shared intraday classifier，严格 read-only，不连接交易接口。
 - Member Lounge GEX 冷却：普通会员每人 30 秒，同一标准化 ticker 全频道 60 秒；Manager / Owner
   免除这两项冷却，8 fresh requests/minute Guild provider guard 仍保留。
+- Member Lounge Stock Analyst 冷却：普通会员每人 30 秒，同一标准化 ticker 全频道 60 秒；
+  Manager / Owner 免除这两项冷却，20 fresh requests/minute Guild provider guard 仍保留。
 
 两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
 仓库。旧 `FEATURE_COSMOS_STOCK_ANALYST_ENABLED` 仅保留一版配置兼容，新环境不得继续使用。

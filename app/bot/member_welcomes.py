@@ -19,6 +19,6 @@ def member_lounge_welcome_message(
         f"⚡ Short-Term · <#{short_term_channel_id}>\n"
         f"〽️ Swing · <#{swing_channel_id}>\n"
         f"♾️ LEAPS · <#{leaps_channel_id}>\n\n"
-        "🧭 GEX Explorer · 在本频道使用 `/gex ticker:SPY`，"
-        "查看当日 Gamma 支撑、压力与加速区。"
+        "🧭 GEX Explorer · 使用 `/gex ticker:SPY` 查看当日 Gamma 支撑、压力与加速区。\n"
+        "📈 Stock Analyst · 使用 `/stock ticker:SPY` 查看日 K 结构、关键点位与情景分析。"
     )

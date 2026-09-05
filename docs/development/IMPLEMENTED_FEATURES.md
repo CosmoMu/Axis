@@ -286,10 +286,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Analysis 不调用 GEX；独立 GEX V7 连接 Member Lounge 按需查询与 Owner card-testing 维护入口，
   不连接任何交易接口。
 
-## AXIS Stock Analyst — Phase 1 Test Only
+## AXIS Stock Analyst — Member Lounge Live
 
-- Owner-only `/stock ticker:TICKER`，只允许 `🧪・card-testing`；Manager、Member、Newcomer、
-  `@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
+- Member / Manager / Owner 可在 `🛋️・member-lounge` 使用 `/stock ticker:TICKER`；Owner 保留
+  `🧪・card-testing` 维护入口。Newcomer、`@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
 - 从 Cosmos Market Stock Analyst v0.1 移植同一确定性策略并复用 Analysis Fusion 的共享
   `AxisStockAnalystService`，避免两套分析逻辑产生冲突。
 - Massive adjusted Daily OHLCV、latest/current price、market/source timestamp 和 freshness；550
@@ -299,12 +299,13 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   与三情景/权重/trigger/target/invalidation。
 - 同一个 strict structured result 驱动移动端卡片和 1900×1160 确定性真实日 K 图；没有未来假
   K 线，也不调用图片生成或 LLM。
-- 60 秒 version/provider/timeframe-aware cache、single-flight、5 秒 per-user cooldown、20 fresh
-  request/min guild limit、stale/closed label、审计和去重 System Alert/Recovery。
+- 60 秒 version/provider/timeframe-aware cache、single-flight、普通会员 30 秒 per-user cooldown、
+  同 ticker 全频道 60 秒 cooldown、Manager / Owner bypass、20 fresh request/min guild provider
+  limit、stale/closed label、审计和去重 System Alert/Recovery。
 - 严格只读：不创建/修改 Signal、Trade、Result、Mentor、public Analysis、Tracking、Membership，
   不触发 Moomoo 或任何 broker execution。
-- Feature flags：`STOCK_ANALYST_ENABLED=true`、`STOCK_ANALYST_MODE=TEST`；启动配置硬门禁止
-  Phase 1 切换到 Member Lounge。
+- Feature flags：`STOCK_ANALYST_ENABLED=true`、`STOCK_ANALYST_MODE=MEMBER_LOUNGE`；独立 kill
+  switch 与 `TEST` 回退模式保留。
 
 ## Prediction Chart
 

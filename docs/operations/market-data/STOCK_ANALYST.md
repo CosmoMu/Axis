@@ -1,10 +1,10 @@
 # AXIS Stock Analyst Operations
 
-**Phase:** `PHASE 1 — TEST ONLY`
+**Phase:** `MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING`
 
 **Command:** `/stock ticker:TICKER`
 
-**Access:** Owner only, in `🧪・card-testing` only
+**Access:** Member / Manager / Owner in `🛋️・member-lounge`; Owner maintenance in `🧪・card-testing`
 
 **Strategy version:** `COSMOS_STOCK_ANALYST_V0_1`
 
@@ -14,10 +14,9 @@
 normalizes the symbol, loads market data, runs deterministic analysis once, and renders a card and
 PNG from the same structured result. A plain ticker message never triggers it.
 
-Phase 1 is fail-closed. Manager, Member, Newcomer and `@everyone` are blocked; the Owner is blocked
-outside `🧪・card-testing`. `MEMBER_LOUNGE` is reserved as a possible future mode but the current
-configuration validator refuses to start Stock Analyst in that mode. Do not remove this gate without
-new, explicit Owner approval.
+The Member Lounge path is fail-closed. It requires the exact configured Guild, exact
+`🛋️・member-lounge` channel, and Member / Manager / Owner access. Newcomer and `@everyone` are
+blocked. Owner retains the card-testing maintenance path; all other channels are rejected.
 
 The command never creates or changes Signal, Trade, Result, Mentor, public Analysis, Tracking,
 Membership or broker state. It never invokes Moomoo or the Owner Personal Execution Layer.
@@ -127,7 +126,7 @@ future space. It never fabricates future candles and does not use image generati
 
 ## LLM boundary
 
-Phase 1 makes no LLM call. All numbers and wording selection are deterministic. If a later release
+The current version makes no LLM call. All numbers and wording selection are deterministic. If a later release
 adds an LLM rewrite, it must use the existing workload router, receive only the structured result,
 and may not change or invent price, indicators, levels, triggers, targets, invalidation or weights.
 
@@ -136,7 +135,9 @@ and may not change or invent price, indicators, levels, triggers, targets, inval
 - Cache: 60 seconds.
 - Key: ticker + strategy version + provider + timeframe/config signature.
 - Single-flight: concurrent misses for the same key await one provider/calculation/render task.
-- Per-user cooldown: 5 seconds.
+- Ordinary-member per-user cooldown: 30 seconds.
+- Same normalized ticker cooldown across the Guild: 60 seconds.
+- Manager and Owner bypass both cooldowns; provider protection still applies.
 - Per-guild fresh requests: 20 per rolling minute.
 - Excessive-latency warning threshold: 20 seconds.
 
@@ -173,16 +174,15 @@ agreement.
 
 ## Enable, disable and rollback
 
-Phase 1 requires:
+Member Lounge production requires:
 
 ```text
 STOCK_ANALYST_ENABLED=true
-STOCK_ANALYST_MODE=TEST
+STOCK_ANALYST_MODE=MEMBER_LOUNGE
 STOCK_ANALYST_POLICY=config/stock_analyst.yaml
 STOCK_ANALYST_POLICY_VERSION=COSMOS_STOCK_ANALYST_V0_1
 ```
 
-To disable, set `STOCK_ANALYST_ENABLED=false` and restart AXIS BOT. This removes the command on the
-next Guild command sync and deletes no data. Code rollback is the normal Git/runtime deployment
-procedure; because the feature has no new database schema and no business writes, no data rollback
-is required.
+To disable, set `STOCK_ANALYST_ENABLED=false` and restart AXIS BOT. To retain Owner-only maintenance
+without Member Lounge access, set `STOCK_ANALYST_MODE=TEST` and restart. Neither rollback deletes
+data. Because the feature has no business writes, no data rollback is required.

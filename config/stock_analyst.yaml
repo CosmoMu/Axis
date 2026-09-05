@@ -24,6 +24,7 @@ analysis:
 
 runtime:
   cache_seconds: 60
-  user_cooldown_seconds: 5
+  user_cooldown_seconds: 30
+  ticker_cooldown_seconds: 60
   guild_fresh_requests_per_minute: 20
   maximum_latency_seconds: 20

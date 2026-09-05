@@ -35,7 +35,7 @@ Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path �
   强度和 Scenario，当前只在单 Ticker Analysis 中补 Mentor 缺失字段。
 - `AXIS GEX Explorer` 不属于 Analysis Fusion；其 Member Lounge 查询入口、Owner card-testing
   维护入口、Provider、缓存、热力图和安全门以 `10_GEX_EXPLORER_PHASE1_SPEC.md` 为准。
-- Stock Analyst 当前行情适配器只读本机 Moomoo OpenD；失败时保留 LLM 对输入的忠实整理。
+- Stock Analyst 当前行情适配器只读 Massive Daily OHLCV；失败时保留 LLM 对输入的忠实整理。
 - 输入图片只作为内部证据与点位/方向提取来源，绝不直接转发到 Review 或会员频道。若输入
   含明确预测路径，AXIS 使用其中可追溯的点位与方向确定性重绘；否则预测图来自 Final Fused
   `prediction_path`。两者均不使用生成图片模型、不画未来 K 线；失败不阻止文字归档。

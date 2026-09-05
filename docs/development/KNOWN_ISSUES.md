@@ -4,12 +4,12 @@
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
-## P0 — Stock Analyst 仅完成 Phase 1 Test Gate
+## P0 — Stock Analyst Member Lounge 交易时段与移动端证据待积累
 
 Cosmos v0.1 parity、Massive 8-ticker read-only、card/chart、cache/single-flight/limits、权限与自动化
-均已通过；Guild `/stock` 注册和真实 SPY 图也已验证，但该功能明确保持 `TEST ONLY`。尚未获得
-Member Lounge 发布批准，也尚未积累真实会员并发/运营证据。当前启动门会拒绝
-`STOCK_ANALYST_MODE=MEMBER_LOUNGE`；不得绕过。
+均已通过；Guild `/stock`、真实 SPY 图、Member/Manager/Owner lounge gate、30/60 秒 cooldown、
+Manager/Owner bypass 与 command visibility verifier 均已验证。Owner 已于 2026-09-05 要求上线，
+runtime 当前为 `MEMBER_LOUNGE`。尚未积累真实会员并发、交易时段 freshness 与移动端运营证据。
 
 Cosmos v0.1 只使用 Daily timeframe，且不计算 RVOL、Bollinger、VWAP 或真实逐笔机构资金流。
 AXIS 没有伪造这些组件：RVOL 保持 unavailable，Volume 明确标为 20 日 OHLCV pressure proxy，

@@ -2,7 +2,7 @@
 
 **Updated:** 2026-09-05
 
-**Current stage:** Stock Analyst Phase 1 TEST ONLY / TEST GATE PASS
+**Current stage:** GEX + Stock Analyst MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
 **Database revision:** 20260904_0031
 
@@ -51,18 +51,18 @@ Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道
 `gex SPY`；当前 runtime 为 `MEMBER_LOUNGE`，进入真实会员请求与移动端体验监测阶段。
 
 AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
-analysis engine。Phase 1 只开放 Owner 在 `🧪・card-testing` 使用 `/stock ticker:TICKER`；Manager、
-Member、Newcomer、`@everyone` 与其他频道均 fail-closed。Massive 为正式只读数据源，卡片与真实
+analysis engine，并已在 `🛋️・member-lounge` 上线 `/stock ticker:TICKER`。Member、Manager、
+Owner 可使用；Newcomer、`@everyone` 与其他频道均 fail-closed。Massive 为正式只读数据源，卡片与真实
 OHLCV 图共用同一个结构化结果；无 LLM、无 Moomoo、无 Signal/Trade/Result/Membership 副作用。
 Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权限、图卡一致与回归已通过。
-当前明确为 **TEST ONLY**，不得自动进入 Member Lounge。
+普通会员每人 30 秒、同一 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。
 
-## AXIS Stock Analyst — PHASE 1 TEST ONLY / TEST GATE PASS
+## AXIS Stock Analyst — MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
 Implemented:
 
-- `/stock ticker:TICKER`；支持大小写和 `$` 前缀，仅 Owner + exact Guild +
-  `🧪・card-testing`，没有普通消息触发器。
+- `/stock ticker:TICKER`；支持大小写和 `$` 前缀，Member / Manager / Owner + exact Guild +
+  `🛋️・member-lounge`；Owner 保留 `🧪・card-testing` 维护入口，没有普通消息触发器。
 - Cosmos Stock Analyst v0.1 原始策略：Daily OHLCV、HLX 25/90、confirmed ZCZL 3/6/13、
   MACD 12/26/9、RSI14、20/50/60 日结构、20 日 OHLCV flow proxy、80 日/24-bin/70%
   POC/Value Area、原始 level clustering、bias 与三情景权重。
@@ -70,7 +70,8 @@ Implemented:
   一个 `StockAnalysis`，真实 82 根日 K，不生成未来 K 线。
 - Massive current/latest、market/source timestamp、adjusted Daily OHLCV 与 freshness；SPX 原生
   处理且不映射 SPY。开盘 stale 与收盘后 latest-available 标签分开。
-- 60 秒 cache、同 key single-flight、5 秒 user cooldown、20 fresh requests/minute guild limit、
+- 60 秒 cache、同 key single-flight、普通会员 30 秒 user cooldown、同 ticker 60 秒 Guild cooldown、
+  Manager / Owner cooldown bypass、20 fresh requests/minute guild provider limit、
   策略/Provider/timeframe-aware key、Audit 与 deduplicated System Alert/Recovery。
 - Phase 1 不调用 LLM，也不写入 Signal、Trade、Result、Mentor、public Analysis、Tracking、
   Membership 或 Moomoo/broker。
@@ -83,12 +84,17 @@ Live read-only evidence:
   标记，不冒充实时数据。
 - Cosmos deterministic parity 对 NVDA / TSLA / SPY fixtures 的 trend、support/resistance、
   POC/VA、indicators、bias、triggers、targets、invalidation 与 scenarios 精确一致。
-- AXIS BOT TEST runtime 已部署并处于 running；Discord runtime verifier PASS，Guild command
+- AXIS BOT runtime 已部署并处于 running；Discord runtime verifier PASS，Guild command
   列表已确认包含 `/stock`。真实 SPY 1900×1160 PNG 已视觉复核，symbol、Daily K、比例、结构位与
   同源预测路径可读；不存在的 Massive symbol 已确认归类为 `AXIS_STOCK_SYMBOL_NOT_FOUND`。
 
-Production status: **STOCK ANALYST = TEST ONLY.** Phase 1 Test Gate 已通过；Member Lounge、普通
-文字触发、自动扫描、自动信号与 broker execution 均未启用，等待 Owner 后续明确指令。
+Production status: **STOCK ANALYST = MEMBER LOUNGE LIVE.** 当前只开放按需 `/stock`；普通文字
+触发、自动扫描、自动信号与 broker execution 均未启用。普通非管理员可见的 AXIS Slash Commands
+严格为 `/gex` 与 `/stock`；Owner-only `test-*` 命令继续由 Discord 默认权限及 runtime 双重保护。
+
+Member Lounge launch evidence (2026-09-05): deployed runtime reports
+`STOCK_ANALYST_ENABLED=true / STOCK_ANALYST_MODE=MEMBER_LOUNGE`；30/60 秒 policy 已加载；
+AXIS BOT running；Discord runtime and command-visibility verifier PASS。
 
 ## GEX Explorer — MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 

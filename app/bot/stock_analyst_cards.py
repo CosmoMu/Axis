@@ -39,7 +39,11 @@ def _indicator_line(name: str, score: float) -> str:
     return f"{name}  {score:.1f} · {meaning}"
 
 
-def build_stock_analyst_embed(result: StockAnalystQueryResult) -> discord.Embed:
+def build_stock_analyst_embed(
+    result: StockAnalystQueryResult,
+    *,
+    mode: str = "TEST",
+) -> discord.Embed:
     analysis = result.analysis
     color = (
         0x86F7A8
@@ -48,9 +52,14 @@ def build_stock_analyst_embed(result: StockAnalystQueryResult) -> discord.Embed:
         if analysis.trend_score <= 45
         else 0xD8C477
     )
+    live = mode == "MEMBER_LOUNGE"
     embed = discord.Embed(
-        title=f"AXIS STOCK ANALYST · TEST · {analysis.ticker}",
-        description="**仅限所有者 · 卡片测试频道**",
+        title=(
+            f"AXIS STOCK ANALYST · {analysis.ticker}"
+            if live
+            else f"AXIS STOCK ANALYST · TEST · {analysis.ticker}"
+        ),
+        description=("**会员专属研究工具**" if live else "**仅限所有者 · 卡片测试频道**"),
         color=color,
     )
     embed.add_field(name="价格", value=_money(analysis.current_price), inline=True)

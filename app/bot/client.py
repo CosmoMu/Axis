@@ -252,6 +252,9 @@ class AxisBot(commands.Bot):
                 guild_id=settings.discord_guild_id,
                 owner_user_id=settings.discord_owner_user_id,
                 card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                member_lounge_channel_id=_required_snowflake(channels, "member_chat"),
+                member_role_id=_required_snowflake(roles, "member"),
+                manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.stock_analyst_mode,
             )
             if stock_analyst_service is not None and settings.discord_owner_user_id is not None

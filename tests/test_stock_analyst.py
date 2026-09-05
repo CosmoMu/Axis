@@ -6,11 +6,16 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from app.bot.cogs.stock_analyst import stock_authorization_error
+from app.bot.cogs.stock_analyst import (
+    has_stock_cooldown_bypass,
+    has_stock_lounge_access,
+    stock_authorization_error,
+)
 from app.bot.stock_analyst_cards import build_stock_analyst_embed
 from app.market_intelligence.stock_analyst.engine import STRATEGY_VERSION, analyze_stock
 from app.market_intelligence.stock_analyst.market_data import (
@@ -135,10 +140,17 @@ def _policy() -> StockAnalystPolicy:
         timeframe="1D",
         chart_sessions=82,
         cache_seconds=60,
-        user_cooldown_seconds=5,
+        user_cooldown_seconds=30,
+        ticker_cooldown_seconds=60,
         guild_fresh_requests_per_minute=20,
         maximum_latency_seconds=20,
     )
+
+
+def test_production_policy_uses_member_lounge_cooldowns() -> None:
+    policy = StockAnalystPolicy.load(Path("config/stock_analyst.yaml").resolve())
+    assert policy.user_cooldown_seconds == 30
+    assert policy.ticker_cooldown_seconds == 60
 
 
 @pytest.mark.parametrize(
@@ -169,7 +181,7 @@ def test_cosmos_v0_1_parity_fixture(
     assert sum(item.model_weight_percent for item in analysis.scenarios) == pytest.approx(100)
 
 
-def test_ticker_normalization_and_phase1_permissions() -> None:
+def test_ticker_normalization_and_member_lounge_permissions() -> None:
     assert normalize_stock_ticker("nvda") == "NVDA"
     assert normalize_stock_ticker("$spy") == "SPY"
     with pytest.raises(StockAnalystError):
@@ -178,11 +190,13 @@ def test_ticker_normalization_and_phase1_permissions() -> None:
         "expected_guild_id": 1,
         "owner_user_id": 2,
         "card_testing_channel_id": 3,
+        "member_lounge_channel_id": 4,
+        "has_lounge_access": False,
         "mode": "TEST",
     }
     assert stock_authorization_error(guild_id=1, channel_id=3, user_id=2, **base) is None
     assert (
-        stock_authorization_error(guild_id=1, channel_id=4, user_id=2, **base)
+        stock_authorization_error(guild_id=1, channel_id=5, user_id=2, **base)
         == "TEST_CHANNEL_REQUIRED"
     )
     for unauthorized_user in (4, 5, 6, 7):
@@ -195,6 +209,47 @@ def test_ticker_normalization_and_phase1_permissions() -> None:
             )
             == "PERMISSION_DENIED"
         )
+
+    lounge = base | {"mode": "MEMBER_LOUNGE", "has_lounge_access": True}
+    assert stock_authorization_error(guild_id=1, channel_id=4, user_id=10, **lounge) is None
+    assert stock_authorization_error(guild_id=1, channel_id=3, user_id=2, **lounge) is None
+    assert (
+        stock_authorization_error(guild_id=1, channel_id=5, user_id=10, **lounge)
+        == "MEMBER_LOUNGE_REQUIRED"
+    )
+    assert (
+        stock_authorization_error(
+            guild_id=1,
+            channel_id=4,
+            user_id=10,
+            **(lounge | {"has_lounge_access": False}),
+        )
+        == "PERMISSION_DENIED"
+    )
+
+
+def test_stock_lounge_roles_and_cooldown_bypass() -> None:
+    access = {
+        "guild_owner_id": 10,
+        "configured_owner_id": 11,
+        "member_role_id": 20,
+        "manager_role_id": 21,
+    }
+    assert has_stock_lounge_access(user_id=10, role_ids=(), **access)
+    assert has_stock_lounge_access(user_id=11, role_ids=(), **access)
+    assert has_stock_lounge_access(user_id=30, role_ids=(20,), **access)
+    assert has_stock_lounge_access(user_id=31, role_ids=(21,), **access)
+    assert not has_stock_lounge_access(user_id=32, role_ids=(22,), **access)
+
+    bypass = {
+        "guild_owner_id": 10,
+        "configured_owner_id": 11,
+        "manager_role_id": 21,
+    }
+    assert has_stock_cooldown_bypass(user_id=10, role_ids=(), **bypass)
+    assert has_stock_cooldown_bypass(user_id=11, role_ids=(), **bypass)
+    assert has_stock_cooldown_bypass(user_id=31, role_ids=(21,), **bypass)
+    assert not has_stock_cooldown_bypass(user_id=30, role_ids=(20,), **bypass)
 
 
 @pytest.mark.asyncio
@@ -267,6 +322,35 @@ async def test_guild_fresh_request_limit_is_independent_of_user_cooldown() -> No
 
 
 @pytest.mark.asyncio
+async def test_ticker_cooldown_blocks_other_members_for_one_minute() -> None:
+    service = StockAnalystQueryService(_Database(), _Analyst(), _policy())  # type: ignore[arg-type]
+    await service.query(guild_id=1, actor_user_id=2, ticker="SPY")
+    with pytest.raises(StockAnalystError, match="STOCK_ANALYST_TICKER_COOLDOWN"):
+        await service.query(guild_id=1, actor_user_id=3, ticker="$spy")
+
+
+@pytest.mark.asyncio
+async def test_manager_or_owner_bypasses_cooldowns_but_reuses_cache() -> None:
+    analyst = _Analyst()
+    service = StockAnalystQueryService(_Database(), analyst, _policy())  # type: ignore[arg-type]
+    first = await service.query(
+        guild_id=1,
+        actor_user_id=2,
+        ticker="QQQ",
+        bypass_cooldowns=True,
+    )
+    second = await service.query(
+        guild_id=1,
+        actor_user_id=2,
+        ticker="QQQ",
+        bypass_cooldowns=True,
+    )
+    assert first.cache_hit is False
+    assert second.cache_hit is True
+    assert analyst.calls == ["QQQ"]
+
+
+@pytest.mark.asyncio
 async def test_provider_failure_is_stable_and_audited_without_sensitive_detail() -> None:
     database = _Database()
     service = StockAnalystQueryService(database, _FailingAnalyst(), _policy())  # type: ignore[arg-type]
@@ -315,3 +399,8 @@ async def test_card_uses_same_structured_levels_as_chart_result() -> None:
     )
     assert result.chart_png.startswith(b"\x89PNG")
     assert time.monotonic() > 0
+
+    live = str(build_stock_analyst_embed(result, mode="MEMBER_LOUNGE").to_dict())
+    assert "AXIS STOCK ANALYST · NVDA" in live
+    assert "AXIS STOCK ANALYST · TEST" not in live
+    assert "会员专属研究工具" in live

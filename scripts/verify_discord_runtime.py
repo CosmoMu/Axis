@@ -198,6 +198,16 @@ async def verify() -> list[str]:
         _check(member_wins.permissions_for(member).send_messages, "member_wins_send", failures)
         _check(member_wins.permissions_for(member).attach_files, "member_wins_attach", failures)
         _check(member_lounge.permissions_for(member).view_channel, "member_lounge_view", failures)
+        _check(
+            member_lounge.permissions_for(member).use_application_commands,
+            "member_lounge_member_interact",
+            failures,
+        )
+        _check(
+            member_lounge.permissions_for(manager).use_application_commands,
+            "member_lounge_manager_interact",
+            failures,
+        )
         _check(short_term.permissions_for(member).view_channel, "member_signal_view", failures)
         _check(not short_term.permissions_for(member).send_messages, "member_signal_send", failures)
         _check(
@@ -430,6 +440,31 @@ async def verify() -> list[str]:
             if settings.stock_analyst_enabled:
                 expected_commands.add("stock")
             _check(command_names >= expected_commands, "owner_test_commands_missing", failures)
+            unrestricted_commands = {
+                item["name"]
+                for item in commands
+                if item.get("default_member_permissions") in {None, ""}
+            }
+            expected_member_commands = set()
+            if settings.gex_explorer_enabled:
+                expected_member_commands.add("gex")
+            if settings.stock_analyst_enabled:
+                expected_member_commands.add("stock")
+            _check(
+                unrestricted_commands == expected_member_commands,
+                "non_owner_visible_commands_mismatch",
+                failures,
+            )
+            administrator_permission = str(discord.Permissions(administrator=True).value)
+            _check(
+                all(
+                    item.get("default_member_permissions") == administrator_permission
+                    for item in commands
+                    if item["name"] in TEST_COMMANDS
+                ),
+                "owner_test_command_defaults_mismatch",
+                failures,
+            )
             _check(
                 command_names.isdisjoint(REMOVED_COMMANDS),
                 "removed_short_term_commands_present",
@@ -456,7 +491,7 @@ def main() -> int:
     print("general_guides=idempotent")
     print("mentor_control=select,add")
     print("member_control=searchable_user_select")
-    print("owner_test_commands=verified")
+    print("command_visibility=members:gex,stock;owner:test-suite")
     return 0
 
 
