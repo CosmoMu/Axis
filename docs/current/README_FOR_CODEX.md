@@ -29,9 +29,9 @@
    Active View、EOD 与 Results 的最终规则。
 10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
     Gate、对账、风险和控制面板的最新规则。
-11. 10_GEX_EXPLORER_PHASE1_SPEC.md — `/gex` Owner-only card-testing、Massive 正式 option
-    surface / 现价 / 5 分钟 K 线、V7 shared intraday classifier、专业 Strike × Expiration
-    Ladder、Moomoo 后台影子比较、中文复合图及 Test Gate。
+11. 10_GEX_EXPLORER_PHASE1_SPEC.md — Member Lounge `gex TICKER`、Owner card-testing `/gex`、
+    Massive 正式 option surface / 现价 / 5 分钟 K 线、V7 shared intraday classifier、专业
+    Strike × Expiration Ladder、Moomoo 后台影子比较、中文复合图及安全门。
 12. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
@@ -66,10 +66,10 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer Phase 1 已实现为 Owner-only `/gex`，只允许在 `🧪・card-testing`。当前正式
-  数据全部来自 Massive；Moomoo 只在后台运行 5 分钟 K 线黑盒比较，不参与发布选择。
-  系统生成中文压力/支撑/加速区复合图。
-  状态仍为 TEST ONLY；未获准进入 Member Lounge。
+- GEX Explorer V7 的 Member Lounge 入口代码已完成。启用后 Member / Manager / Owner 可发送
+  严格格式 `gex SPY`（或使用 `/gex SPY`）生成中文盘中结构卡；其他普通消息不触发。当前 runtime
+  仍为 `TEST`，只有 Owner 可在 `🧪・card-testing` 使用 `/gex`；必须收到精确批准短语
+  `APPROVE GEX LOUNGE LAUNCH` 才可切换部署。正式数据来自 Massive；Moomoo 只做后台比较。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
 事实，但不得取代本目录的产品规格。
@@ -84,7 +84,7 @@
 - Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控
-- GEX Explorer Phase 1 Owner-only card-testing 验证
+- GEX Explorer V7 Owner-only card-testing 验证；Member Lounge 代码等待明确 launch gate
 
 当前明确不做：
 
@@ -94,7 +94,7 @@
 - 除 `09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md` 明确授权的 Owner-only layer 外的 Moomoo
   自动下单、模型扫描或账户能力
 - 未经新规格确认的频道或产品架构扩张
-- 未经 `APPROVE GEX LOUNGE LAUNCH` 的 GEX Member Lounge 开放
+- 未经 `APPROVE GEX LOUNGE LAUNCH` 的 GEX Member Lounge runtime 切换
 
 AXIS LAB 频道可以保留，FEATURE_LAB_ENABLED 与 FEATURE_MODEL_AB_ENABLED 必须保持 false。
 `💹・moomoo-trading` 是这条 Deferred 边界中的明确 Owner-only 例外，不代表启动 Model A/B。

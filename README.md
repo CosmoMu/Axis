@@ -15,9 +15,9 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Stripe Payment: LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
 - Production Stabilization: PARTIAL
 - Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
-- GEX Explorer: V7 PROFESSIONAL STRIKE × EXPIRATION LADDER / SHARED INTRADAY CLASSIFIER / TEST ONLY
+- GEX Explorer: V7 MEMBER LOUNGE CODE COMPLETE / LAUNCH APPROVAL PENDING
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 312 passed；Ruff / compileall / database / Discord runtime PASS
+- Latest automated regression: 314 passed；Ruff / compileall PASS
 
 ## 文档入口
 

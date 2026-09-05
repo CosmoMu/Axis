@@ -14,10 +14,12 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - Owner-only `💹・moomoo-trading`、持久 control card 与明确 persona permission isolation。
 
-## GEX Explorer — Phase 1 Test Only
+## GEX Explorer — Member Lounge Code Complete / Launch Pending
 
-- `/gex ticker:TICKER` Slash Command；不会监听普通 Ticker 消息。
-- Owner-only + `🧪・card-testing`；wrong-channel 与 unauthorized 请求使用 ephemeral feedback。
+- `🛋️・member-lounge` 严格文本触发 `gex TICKER`，同时支持 `/gex ticker:TICKER`；普通 Ticker
+  与其他聊天不触发。
+- Member / Manager / Owner + exact Guild / channel 双重 runtime gate；Owner 保留
+  `🧪・card-testing` Slash Command 维护入口。
 - Massive GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
   Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
 - Moomoo OpenD 5 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
@@ -35,9 +37,10 @@ LIVE_MODE_CHECKLIST.md 为准。
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。
 - Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。
-- 独立 `GEX_EXPLORER_ENABLED` / `GEX_EXPLORER_MODE=TEST` fail-closed gate。
+- 独立 `GEX_EXPLORER_ENABLED` kill switch；`TEST` 与获批 `MEMBER_LOUNGE` mode fail-closed gate。
 - 严格 read-only，不触发 Signal、Trade、Result、Analysis、Membership、Tracking 或 Moomoo。
-- Member Lounge mode 尚未实现/启用；等待 `APPROVE GEX LOUNGE LAUNCH`。
+- 15 秒 per-user cooldown、8 fresh requests/minute guild limit、60 秒 ticker cache 与 single-flight
+  已覆盖 Member Lounge 路径；production runtime 仍保持 TEST，等待精确 launch approval。
 
 ## Owner-only Personal Moomoo Execution
 
@@ -279,7 +282,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Key Level、Indicator、why-now 和 conflict provenance。
 - 2–3 个内部 Scenario；公开只显示通过 confidence / advantage gate 的 Top Scenario。
 - Stock Analyst provider injection、有限历史模式和安全 fallback。
-- Analysis 不调用 GEX；独立 GEX Phase 1 仅连接 Owner-only card-testing，不连接任何交易接口。
+- Analysis 不调用 GEX；独立 GEX V7 连接 Member Lounge 按需查询与 Owner card-testing 维护入口，
+  不连接任何交易接口。
 
 ## Prediction Chart
 

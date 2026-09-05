@@ -14,15 +14,15 @@ Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production 
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・card-testing`。
 
-## Current Gate — GEX Explorer Phase 1
+## Current Gate — GEX Explorer Member Lounge Launch
 
-- 当前保持 `GEX_EXPLORER_MODE=TEST`，只在 `🧪・card-testing` 由 Owner 验证真实卡片与移动端
-  heatmap。
-- 复核 SPY / QQQ / NVDA / TSLA / AAPL、缓存、冷却、限流、stale/closed label、失败/恢复卡片。
+- 当前保持 `GEX_EXPLORER_MODE=TEST`。Member Lounge 代码与自动化测试已完成；收到精确批准
+  `APPROVE GEX LOUNGE LAUNCH` 后才可部署为 `MEMBER_LOUNGE`。
+- 继续观察 SPY / QQQ / NVDA / TSLA / AAPL、缓存、冷却、限流、stale/closed label、失败/恢复卡片。
 - 当前 Massive entitlement 无法生成真实 SPX surface；不得映射 SPY，等待 Provider entitlement
   或原生 SPX data source。
-- Phase 1 report 后停止。只有 Owner 明确说 `APPROVE GEX LOUNGE LAUNCH` 才创建 Phase 2 工作；
-  在此之前 Member Lounge 状态必须保持 NOT LAUNCHED。
+- 记录真实会员请求的 latency、Massive entitlement 与移动端可读性；异常时使用独立 kill switch
+  回退为 TEST，不影响 Signal / Tracking / Membership。
 
 ## Priority 0 — Owner Personal Moomoo Execution DRY_RUN E2E
 

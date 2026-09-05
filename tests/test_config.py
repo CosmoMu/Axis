@@ -91,11 +91,12 @@ def test_llm_key_is_optional_at_startup_but_required_to_enable_parser() -> None:
     assert configured.require_openai_api_key() == "test-only-placeholder"
 
 
-def test_gex_phase_one_rejects_member_lounge_and_missing_owner() -> None:
+def test_gex_mode_accepts_member_lounge_and_rejects_missing_owner() -> None:
     base = settings(apply_changes=False, dry_run=True)
     replace(base, gex_explorer_mode="OFF").assert_gex_safety()
-    with pytest.raises(ConfigurationError, match="Phase 1"):
-        replace(base, gex_explorer_mode="MEMBER_LOUNGE").assert_gex_safety()
+    replace(base, gex_explorer_mode="MEMBER_LOUNGE").assert_gex_safety()
+    with pytest.raises(ConfigurationError, match="仅允许"):
+        replace(base, gex_explorer_mode="PUBLIC").assert_gex_safety()
     with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
         replace(
             base,

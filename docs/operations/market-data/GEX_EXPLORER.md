@@ -4,10 +4,13 @@
 
 ## Runtime flow
 
-`/gex ticker:HOOD` validates Owner + channel, normalizes the ticker, applies cache/rate limits,
+The implemented Member Lounge path accepts `gex HOOD` or `/gex ticker:HOOD`, validates Guild +
+channel + role, normalizes the ticker, applies cache/rate limits,
 loads Massive spot, selected option expirations, and the latest real five-minute U.S. session,
 runs the shared V7 classifier, renders one Chinese Discord card plus a 1800×1600 PNG, and records
-the existing GEX AuditLog events. A plain ticker message does not trigger the feature.
+the existing GEX AuditLog events. Only the strict `gex TICKER` message shape triggers; a plain
+ticker or normal lounge conversation does not. Current production remains TEST until the exact
+launch approval is received; Owner `/gex` remains available in card-testing.
 
 Moomoo OpenD compares five-minute bars in a background black box only. It never selects, replaces,
 delays, or blocks the Massive result. GEX remains read-only and does not connect to trade execution.
@@ -94,5 +97,5 @@ Gamma Flip, and non-fabrication of unavailable fields.
 ## Disable / rollback
 
 Set `GEX_EXPLORER_ENABLED=false` in the deployment Secret environment and restart the Bot. No data
-is deleted. Phase 1 deliberately rejects Member Lounge mode; do not change that gate without the
-Owner's separate explicit launch approval.
+is deleted. Owner-only validation uses `GEX_EXPLORER_MODE=TEST`; do not switch to `MEMBER_LOUNGE`
+without the exact approval `APPROVE GEX LOUNGE LAUNCH`.

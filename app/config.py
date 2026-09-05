@@ -578,13 +578,13 @@ class Settings:
             )
 
     def assert_gex_safety(self) -> None:
-        if self.gex_explorer_mode not in {"OFF", "TEST"}:
+        if self.gex_explorer_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
             raise ConfigurationError(
-                "Phase 1 仅允许 GEX_EXPLORER_MODE=TEST；Member Lounge 尚未获批。"
+                "GEX_EXPLORER_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。"
             )
         if self.gex_explorer_enabled:
-            if self.gex_explorer_mode != "TEST":
-                raise ConfigurationError("启用 Phase 1 GEX 时必须使用 TEST mode。")
+            if self.gex_explorer_mode == "OFF":
+                raise ConfigurationError("启用 GEX Explorer 时 mode 不能为 OFF。")
             if self.discord_owner_user_id is None:
                 raise ConfigurationError("启用 GEX Explorer 必须配置 DISCORD_OWNER_USER_ID。")
             if not self.massive_api_key:

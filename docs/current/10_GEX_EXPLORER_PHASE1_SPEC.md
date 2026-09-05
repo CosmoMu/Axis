@@ -1,8 +1,8 @@
 # AXIS GEX Explorer — Current Specification
 
-**Version:** GEX V7 Professional Ladder / Intraday Classification / 2026-09-05
+**Version:** GEX V7 Professional Ladder / Member Lounge Launch / 2026-09-05
 
-**Status:** CODE COMPLETE / OWNER-ONLY TEST MODE
+**Status:** MEMBER LOUNGE CODE COMPLETE / LAUNCH APPROVAL PENDING
 
 This is the current source of truth for AXIS GEX Explorer. It supersedes earlier V3–V6 display and
 classification rules without changing Signal, Analysis, Trade, Results, Membership, Short-Term,
@@ -10,9 +10,13 @@ Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 
 ## Access and safety boundary
 
-- `/gex ticker:TICKER` is Owner-only and `🧪・card-testing` only. Plain ticker messages do nothing.
-- `GEX_EXPLORER_ENABLED` is the kill switch; Phase 1 accepts only `GEX_EXPLORER_MODE=TEST`.
-- Member Lounge remains disabled until the Owner explicitly approves a separate launch gate.
+- Members use the exact text form `gex TICKER` in `🛋️・member-lounge`, for example `gex SPY`.
+  `/gex ticker:TICKER` is also accepted there. Other ordinary messages do nothing.
+- Access requires Member, Manager, Guild Owner, or configured AXIS Owner identity in the configured
+  Guild and exact Member Lounge channel. Channel permissions remain an additional isolation layer.
+- Owner may continue using `/gex` in `🧪・card-testing` for maintenance validation.
+- `GEX_EXPLORER_ENABLED` is the kill switch. `MEMBER_LOUNGE` is implemented, but production remains
+  in `TEST` until the Owner sends the exact launch approval `APPROVE GEX LOUNGE LAUNCH`.
 - GEX is strictly read-only. It never writes broker orders or mutates Signal, Trade, Result,
   Analysis, Mentor, Membership, tracking state, or production history.
 - GEX describes market structure. It must not output BUY CALL, BUY PUT, LONG, or SHORT.
@@ -88,8 +92,10 @@ Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   guild rate limit, minimum expiration coverage, freshness, and latency gates remain fail-closed.
 - Audit events remain GEX_REQUESTED, CACHE_HIT, CACHE_MISS, GENERATED, FAILED, and RATE_LIMITED.
   Operational failure and recovery use existing deduplicated System Alerts.
+- Member requests use the existing 15-second per-user cooldown, 8 fresh guild requests per minute,
+  60-second ticker cache, and single-flight generation. Cache hits still require authorization.
 - All displayed numbers must reconcile to real provider fields or deterministic calculations. No
   LLM or image model participates in GEX levels, chart data, or the ladder.
-- Test gate includes unit/regression, renderer dimension and missing-value checks, policy/config
-  validation, database/runtime verification, and live read-only Massive cross-checks. Member access
-  remains blocked after this gate until separately authorized.
+- Test gate includes parser/authorization/listener tests, unit/regression, renderer dimension and
+  missing-value checks, policy/config validation, database/runtime verification, and live read-only
+  Massive cross-checks. Member Lounge deployment remains blocked by the explicit launch gate.

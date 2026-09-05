@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 312 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 314 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -27,10 +27,9 @@
 - Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
-- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、Massive 成交量 GEX / spot /
-  真实 5 分钟 K 线正式数据、Moomoo 后台 shadow、中文双面板图、cache/single-flight/limits/audit
-  均通过；
-  Member Lounge 未上线。
+- GEX Explorer V7 Member Lounge: CODE / AUTOMATED TEST PASS — 严格 `gex TICKER` parser、
+  Member/Manager/Owner access、exact Guild/channel gate、真实回复 listener、Owner card-testing
+  维护入口、Massive 数据、Moomoo shadow、cache/single-flight/limits/audit 均通过。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
   `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
 - GEX V3 RDDT Massive-primary / Moomoo-shadow evidence: PASS — Massive 10 valid expirations /
@@ -186,10 +185,11 @@ Analysis:
   renderer failure isolation；使用已保存的 RDDT 82 根真实日 K 完成 1600×900 视觉复核。
 - Analysis 与独立 GEX surface 保持隔离。
 
-GEX Explorer Phase 1:
+GEX Explorer V7 Member Lounge:
 
-- `/gex` 唯一入口、Ticker normalization、SPX 独立映射与 plain-ticker no-trigger。
-- Owner/card-testing authorization、wrong-channel / Manager / Member / Newcomer denial。
+- `gex TICKER` 严格文本入口与 `/gex`、Ticker normalization、SPX 独立映射、普通聊天 no-trigger。
+- Member/Manager/Owner + member-lounge authorization、wrong-channel / Newcomer denial；Owner
+  card-testing 维护入口保留。
 - 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
 - Option Volume × Gamma、独立 OI × Gamma、IV fallback、Net GEX、五级 Regime、Gamma Flip、
   Gamma Node、single Magnet、shared major/minor support/resistance 与 acceleration classifier。
@@ -246,13 +246,13 @@ Feature flags:
 - FEATURE_MOOMOO_ENABLED=false
 - FEATURE_PERSONAL_EXECUTION_ENABLED=false
 - RESULTS_REVIEW_ENABLED=true
-- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST
+- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST（Member Lounge code complete / launch pending）
 
 Discord:
 
 - discord_runtime=PASS
-- 本轮 GEX Phase 1 没有创建或修改 Discord 资源；Bootstrap dry-run=REUSE 32 / UPDATE 0 /
-  CREATE 0 / BLOCK 0，服务器修改 0。
+- GEX Member Lounge launch 没有创建、删除、重命名或移动 Discord 资源；现有 member-lounge
+  权限继续由 Blueprint 与 runtime verifier 管理。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
 - Welcome 持久卡片为纯中文审批制文案并显示 3 个美国股票市场交易日完整会员体验、无需信用卡、
@@ -339,7 +339,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 312 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 314 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 

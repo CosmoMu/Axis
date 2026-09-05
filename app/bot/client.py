@@ -234,6 +234,9 @@ class AxisBot(commands.Bot):
                 guild_id=settings.discord_guild_id,
                 owner_user_id=settings.discord_owner_user_id,
                 card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                member_lounge_channel_id=_required_snowflake(channels, "member_chat"),
+                member_role_id=_required_snowflake(roles, "member"),
+                manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.gex_explorer_mode,
             )
             if gex_explorer_service is not None

@@ -1,8 +1,10 @@
-"""Owner-only Phase 1 slash-command surface for AXIS GEX Explorer."""
+"""Discord command surfaces for the read-only AXIS GEX Explorer."""
 
 from __future__ import annotations
 
 import logging
+import re
+from collections.abc import Iterable
 from contextlib import suppress
 from io import BytesIO
 
@@ -14,6 +16,11 @@ from app.bot.gex_cards import build_gex_embed
 from app.services.gex_explorer import GexExplorerError, GexExplorerService, normalize_gex_ticker
 
 logger = logging.getLogger(__name__)
+GEX_MESSAGE_PREFIX = re.compile(r"^\s*gex(?:\s|$|[:：])", re.IGNORECASE)
+GEX_MESSAGE_PATTERN = re.compile(
+    r"^\s*gex(?:\s+|\s*[:：]\s*)\$?([A-Z][A-Z0-9.\-]{0,9})\s*$",
+    re.IGNORECASE,
+)
 RECOVERABLE_GEX_ERRORS = (
     "GEX_COMMAND_FAILED",
     "GEX_PROVIDER_UNAVAILABLE",
@@ -32,6 +39,27 @@ RECOVERABLE_GEX_ERRORS = (
 )
 
 
+def parse_gex_message(content: str) -> str | None:
+    """Return a ticker only for the intentionally narrow `gex TICKER` syntax."""
+    match = GEX_MESSAGE_PATTERN.fullmatch(content)
+    return match.group(1) if match is not None else None
+
+
+def has_gex_lounge_access(
+    *,
+    user_id: int,
+    role_ids: Iterable[int],
+    guild_owner_id: int,
+    configured_owner_id: int,
+    member_role_id: int,
+    manager_role_id: int,
+) -> bool:
+    if user_id in {guild_owner_id, configured_owner_id}:
+        return True
+    allowed_roles = {member_role_id, manager_role_id}
+    return any(role_id in allowed_roles for role_id in role_ids)
+
+
 def gex_authorization_error(
     *,
     guild_id: int | None,
@@ -40,15 +68,25 @@ def gex_authorization_error(
     expected_guild_id: int,
     owner_user_id: int,
     card_testing_channel_id: int,
+    member_lounge_channel_id: int,
+    has_lounge_access: bool,
     mode: str,
 ) -> str | None:
-    if guild_id != expected_guild_id or user_id != owner_user_id:
+    if guild_id != expected_guild_id:
         return "PERMISSION_DENIED"
-    if mode != "TEST":
+    if mode == "OFF":
         return "GEX_DISABLED"
-    if channel_id != card_testing_channel_id:
-        return "TEST_CHANNEL_REQUIRED"
-    return None
+    if mode == "TEST":
+        if user_id != owner_user_id:
+            return "PERMISSION_DENIED"
+        return None if channel_id == card_testing_channel_id else "TEST_CHANNEL_REQUIRED"
+    if mode == "MEMBER_LOUNGE":
+        if user_id == owner_user_id and channel_id == card_testing_channel_id:
+            return None
+        if channel_id != member_lounge_channel_id:
+            return "MEMBER_LOUNGE_REQUIRED"
+        return None if has_lounge_access else "PERMISSION_DENIED"
+    return "GEX_DISABLED"
 
 
 class GexExplorerCog(commands.Cog):
@@ -60,6 +98,9 @@ class GexExplorerCog(commands.Cog):
         guild_id: int,
         owner_user_id: int,
         card_testing_channel_id: int,
+        member_lounge_channel_id: int,
+        member_role_id: int,
+        manager_role_id: int,
         mode: str,
     ) -> None:
         self.bot = bot
@@ -67,12 +108,17 @@ class GexExplorerCog(commands.Cog):
         self.guild_id = guild_id
         self.owner_user_id = owner_user_id
         self.card_testing_channel_id = card_testing_channel_id
+        self.member_lounge_channel_id = member_lounge_channel_id
+        self.member_role_id = member_role_id
+        self.manager_role_id = manager_role_id
         self.mode = mode
 
-    @app_commands.command(name="gex", description="生成 AXIS GEX 盘中结构图（第一阶段测试）")
+    @app_commands.command(name="gex", description="生成 AXIS GEX 盘中结构图")
     @app_commands.describe(ticker="股票或指数代码，例如 NVDA、$SPY、SPX")
     @app_commands.guild_only()
     async def gex(self, interaction: discord.Interaction, ticker: str) -> None:
+        member = interaction.user if isinstance(interaction.user, discord.Member) else None
+        guild_owner_id = interaction.guild.owner_id if interaction.guild is not None else 0
         authorization = gex_authorization_error(
             guild_id=interaction.guild_id,
             channel_id=interaction.channel_id,
@@ -80,6 +126,18 @@ class GexExplorerCog(commands.Cog):
             expected_guild_id=self.guild_id,
             owner_user_id=self.owner_user_id,
             card_testing_channel_id=self.card_testing_channel_id,
+            member_lounge_channel_id=self.member_lounge_channel_id,
+            has_lounge_access=(
+                member is not None
+                and has_gex_lounge_access(
+                    user_id=member.id,
+                    role_ids=(role.id for role in member.roles),
+                    guild_owner_id=guild_owner_id,
+                    configured_owner_id=self.owner_user_id,
+                    member_role_id=self.member_role_id,
+                    manager_role_id=self.manager_role_id,
+                )
+            ),
             mode=self.mode,
         )
         if authorization == "PERMISSION_DENIED":
@@ -98,11 +156,17 @@ class GexExplorerCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        if authorization == "MEMBER_LOUNGE_REQUIRED":
+            await interaction.response.send_message(
+                "请在 🛋️・member-lounge 使用 `gex TICKER` 或 `/gex TICKER`。",
+                ephemeral=True,
+            )
+            return
         try:
             symbol = normalize_gex_ticker(ticker)
         except GexExplorerError:
             await interaction.response.send_message(
-                "未识别该 Ticker。请检查拼写，并使用例如 `/gex NVDA`。",
+                "未识别该 Ticker。请检查拼写，例如 `gex SPY`。",
                 ephemeral=True,
             )
             return
@@ -132,7 +196,79 @@ class GexExplorerCog(commands.Cog):
             logger.exception("event=gex_command_failed error_type=%s", type(exc).__name__)
             await self._handle_error(interaction, symbol, "GEX_COMMAND_FAILED")
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        if (
+            self.mode != "MEMBER_LOUNGE"
+            or message.author.bot
+            or message.guild is None
+            or message.guild.id != self.guild_id
+            or message.channel.id != self.member_lounge_channel_id
+        ):
+            return
+        if not GEX_MESSAGE_PREFIX.match(message.content):
+            return
+        if not isinstance(message.author, discord.Member) or not has_gex_lounge_access(
+            user_id=message.author.id,
+            role_ids=(role.id for role in message.author.roles),
+            guild_owner_id=message.guild.owner_id,
+            configured_owner_id=self.owner_user_id,
+            member_role_id=self.member_role_id,
+            manager_role_id=self.manager_role_id,
+        ):
+            await self._safe_message_reply(message, "当前没有使用 AXIS GEX Explorer 的权限。")
+            return
+        ticker = parse_gex_message(message.content)
+        if ticker is None:
+            await self._safe_message_reply(message, "格式：`gex SPY`（请替换为需要查询的代码）。")
+            return
+        try:
+            symbol = normalize_gex_ticker(ticker)
+        except GexExplorerError:
+            await self._safe_message_reply(message, "未识别该 Ticker。请检查拼写，例如 `gex SPY`。")
+            return
+
+        try:
+            async with message.channel.typing():
+                result = await self.service.query(
+                    guild_id=self.guild_id,
+                    actor_user_id=message.author.id,
+                    ticker=symbol,
+                    interaction_id=message.id,
+                )
+            filename = f"axis-gex-{result.snapshot.ticker.lower()}.png"
+            await message.reply(
+                embed=build_gex_embed(result),
+                file=discord.File(BytesIO(result.heatmap_png), filename=filename),
+                mention_author=False,
+            )
+            if result.latency_ms > self.service.policy.max_latency_seconds * 1000:
+                await self._report_failure("WARNING", "GEX_EXCESSIVE_LATENCY", symbol)
+            else:
+                await self._report_recovery("GEX_EXCESSIVE_LATENCY", symbol)
+            for error_type in RECOVERABLE_GEX_ERRORS:
+                await self._report_recovery(error_type, symbol)
+        except GexExplorerError as exc:
+            await self._handle_message_error(message, symbol, exc.code)
+        except Exception as exc:
+            logger.exception("event=gex_message_failed error_type=%s", type(exc).__name__)
+            await self._handle_message_error(message, symbol, "GEX_COMMAND_FAILED")
+
     async def _handle_error(self, interaction: discord.Interaction, ticker: str, code: str) -> None:
+        message = self._error_message(code)
+        with suppress(discord.HTTPException):
+            await interaction.delete_original_response()
+        await interaction.followup.send(message, ephemeral=True)
+        await self._report_error_if_needed(code, ticker)
+
+    async def _handle_message_error(
+        self, message: discord.Message, ticker: str, code: str
+    ) -> None:
+        await self._safe_message_reply(message, self._error_message(code))
+        await self._report_error_if_needed(code, ticker)
+
+    @staticmethod
+    def _error_message(code: str) -> str:
         messages = {
             "GEX_USER_COOLDOWN": "请求过快，请稍候再试。",
             "GEX_GUILD_RATE_LIMIT": "当前请求较多，请稍后重试。",
@@ -148,10 +284,9 @@ class GexExplorerCog(commands.Cog):
             "MASSIVE_RATE_LIMITED": "行情服务达到速率限制，请稍后重试。",
             "GEX_SPX_UNSUPPORTED": "当前 Massive 权限不支持 SPX GEX 数据，请勿用 SPY 替代。",
         }
-        message = messages.get(code, "GEX 数据或图片生成暂时失败，请稍后重试。")
-        with suppress(discord.HTTPException):
-            await interaction.delete_original_response()
-        await interaction.followup.send(message, ephemeral=True)
+        return messages.get(code, "GEX 数据或图片生成暂时失败，请稍后重试。")
+
+    async def _report_error_if_needed(self, code: str, ticker: str) -> None:
         severity = "WARNING" if code in {"GEX_USER_COOLDOWN", "GEX_GUILD_RATE_LIMIT"} else "ERROR"
         if code not in {
             "GEX_USER_COOLDOWN",
@@ -162,6 +297,11 @@ class GexExplorerCog(commands.Cog):
         }:
             await self._report_failure(severity, code, ticker)
 
+    @staticmethod
+    async def _safe_message_reply(message: discord.Message, content: str) -> None:
+        with suppress(discord.HTTPException):
+            await message.reply(content, mention_author=False)
+
     async def _report_failure(self, severity: str, error_type: str, ticker: str) -> None:
         alerts = self.bot.get_cog("SystemAlertsCog")
         if alerts is not None:
@@ -169,7 +309,7 @@ class GexExplorerCog(commands.Cog):
                 severity=severity,
                 service="AXIS GEX Explorer",
                 error_type=error_type,
-                affected=f"/gex {ticker} · card-testing",
+                affected=f"GEX {ticker} · {self.mode.lower().replace('_', '-')}",
                 detail=error_type,
             )
 
@@ -179,5 +319,5 @@ class GexExplorerCog(commands.Cog):
             await alerts.report_recovery(  # type: ignore[attr-defined]
                 service="AXIS GEX Explorer",
                 error_type=error_type,
-                affected=f"/gex {ticker} · card-testing",
+                affected=f"GEX {ticker} · {self.mode.lower().replace('_', '-')}",
             )

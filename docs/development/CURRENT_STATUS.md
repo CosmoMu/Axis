@@ -2,7 +2,7 @@
 
 **Updated:** 2026-09-05
 
-**Current stage:** GEX Explorer Phase 1 TEST ONLY / Production stabilization
+**Current stage:** GEX Explorer MEMBER LOUNGE CODE COMPLETE / LAUNCH APPROVAL PENDING
 
 **Database revision:** 20260904_0031
 
@@ -43,18 +43,21 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
-GEX Explorer Phase 1 已升级为 V7 Professional Ladder。Massive option surface / spot / 真实 5 分钟
+GEX Explorer 已升级为 V7 Professional Ladder，Member Lounge 入口代码与测试已完成。Massive option surface / spot / 真实 5 分钟
 K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底部连续 Strike × Expiration Ladder
 共用一套可配置 Intraday Importance Score、Gamma Node、主要/次要支撑压力、单一 Gamma Magnet、
 Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
-Discord 使用 1800×1600 纵向移动端导出。当前严格 **TEST ONLY**，Member Lounge 未开放。
+Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道、缓存与限流已覆盖
+`gex SPY`；当前 runtime 仍为 TEST，等待精确批准短语后部署。
 
-## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
+## GEX Explorer — MEMBER LOUNGE CODE COMPLETE / LAUNCH PENDING
 
 Implemented:
 
-- Slash command only；普通 Ticker 消息不触发。输入兼容大小写与 `$` 前缀。
-- Owner + `🧪・card-testing` 双重 runtime gate；Manager、Member、Newcomer 和 `@everyone` 不可用。
+- Member Lounge 支持严格 `gex TICKER` 文本命令及 `/gex ticker:TICKER`；普通 Ticker 和其他聊天
+  不触发。输入兼容大小写与 `$` 前缀。
+- Member / Manager / Owner + exact Guild / `🛋️・member-lounge` runtime gate；Newcomer 与
+  `@everyone` 不可用。Owner 保留 `🧪・card-testing` Slash Command 维护入口。
 - Massive 只读期权表面、现价和真实 5 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
   即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
   和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
@@ -100,9 +103,9 @@ Live evidence:
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。
 
-Production status: **GEX Explorer = TEST ONLY.** 只有 Owner 可在 card-testing 使用。必须等待
-Owner 明确发送 `APPROVE GEX LOUNGE LAUNCH` 后，才能开始 Phase 2 权限、回归和上线；本阶段不得
-标记 Member Lounge Live。
+Production status: **GEX Explorer = TEST ONLY.** Member Lounge 代码已通过 15 秒 per-user cooldown、
+8 fresh requests/minute guild limit、60 秒 cache 和 single-flight 测试，但 deploy gate 要求 Owner
+明确发送 `APPROVE GEX LOUNGE LAUNCH`。在此之前线上 Bot 不切换 mode。
 
 Current V7 runtime evidence: AXIS BOT 已部署并处于 running；Discord runtime PASS；HOOD V7
 真实 Massive 测试卡已发送至 `🧪・card-testing`（Message `1545703467908206655`）。网站精确

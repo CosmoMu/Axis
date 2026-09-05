@@ -6,13 +6,21 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
+import discord
 import pytest
 from PIL import Image
 from sqlalchemy import func, select
 
-from app.bot.cogs.gex_explorer import gex_authorization_error
+from app.bot.cogs.gex_explorer import (
+    GexExplorerCog,
+    gex_authorization_error,
+    has_gex_lounge_access,
+    parse_gex_message,
+)
 from app.bot.gex_cards import build_gex_embed
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Trade
@@ -280,7 +288,30 @@ def test_gross_call_wall_inside_negative_net_zone_is_not_a_magnet() -> None:
     assert 100 not in (*snapshot.major_resistance, *snapshot.minor_resistance)
 
 
-def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
+def test_gex_message_parser_accepts_only_explicit_command_shape() -> None:
+    assert parse_gex_message("gex spy") == "spy"
+    assert parse_gex_message(" GEX $SPXW ") == "SPXW"
+    assert parse_gex_message("gex：NVDA") == "NVDA"
+    assert parse_gex_message("gex") is None
+    assert parse_gex_message("gex spy please") is None
+    assert parse_gex_message("what is gex spy") is None
+
+
+def test_gex_lounge_access_accepts_member_manager_and_owner() -> None:
+    kwargs = dict(
+        guild_owner_id=10,
+        configured_owner_id=11,
+        member_role_id=20,
+        manager_role_id=21,
+    )
+    assert has_gex_lounge_access(user_id=10, role_ids=(), **kwargs)
+    assert has_gex_lounge_access(user_id=11, role_ids=(), **kwargs)
+    assert has_gex_lounge_access(user_id=30, role_ids=(20,), **kwargs)
+    assert has_gex_lounge_access(user_id=31, role_ids=(21,), **kwargs)
+    assert not has_gex_lounge_access(user_id=32, role_ids=(22,), **kwargs)
+
+
+def test_gex_authorization_supports_test_and_member_lounge_modes() -> None:
     allowed = dict(
         guild_id=GUILD_ID,
         channel_id=CHANNEL_ID,
@@ -288,12 +319,95 @@ def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
         expected_guild_id=GUILD_ID,
         owner_user_id=OWNER_ID,
         card_testing_channel_id=CHANNEL_ID,
+        member_lounge_channel_id=333,
+        has_lounge_access=True,
         mode="TEST",
     )
     assert gex_authorization_error(**allowed) is None
     assert gex_authorization_error(**(allowed | {"user_id": 333})) == "PERMISSION_DENIED"
     assert gex_authorization_error(**(allowed | {"channel_id": 444})) == "TEST_CHANNEL_REQUIRED"
     assert gex_authorization_error(**(allowed | {"mode": "OFF"})) == "GEX_DISABLED"
+    lounge = allowed | {
+        "mode": "MEMBER_LOUNGE",
+        "channel_id": 333,
+        "user_id": 444,
+    }
+    assert gex_authorization_error(**lounge) is None
+    assert (
+        gex_authorization_error(**(lounge | {"has_lounge_access": False}))
+        == "PERMISSION_DENIED"
+    )
+    assert (
+        gex_authorization_error(**(lounge | {"channel_id": 555}))
+        == "MEMBER_LOUNGE_REQUIRED"
+    )
+    assert gex_authorization_error(**(lounge | {"guild_id": 999})) == "PERMISSION_DENIED"
+    assert (
+        gex_authorization_error(
+            **(
+                lounge
+                | {
+                    "channel_id": CHANNEL_ID,
+                    "user_id": OWNER_ID,
+                    "has_lounge_access": False,
+                }
+            )
+        )
+        is None
+    )
+
+
+class _TypingContext:
+    async def __aenter__(self) -> None:
+        return None
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_member_lounge_text_command_generates_reply() -> None:
+    db = await database()
+    service = GexExplorerService(
+        db,
+        FakeGexProvider(),  # type: ignore[arg-type]
+        FakeGexIntradayProvider(),
+        policy(),
+    )
+    bot = MagicMock()
+    bot.get_cog.return_value = None
+    cog = GexExplorerCog(
+        bot,
+        service=service,
+        guild_id=GUILD_ID,
+        owner_user_id=OWNER_ID,
+        card_testing_channel_id=CHANNEL_ID,
+        member_lounge_channel_id=333,
+        member_role_id=20,
+        manager_role_id=21,
+        mode="MEMBER_LOUNGE",
+    )
+    message = MagicMock(spec=discord.Message)
+    message.id = 987
+    message.content = "gex spy"
+    message.author = MagicMock(spec=discord.Member)
+    message.author.id = 444
+    message.author.bot = False
+    message.author.roles = [SimpleNamespace(id=20)]
+    message.guild = SimpleNamespace(id=GUILD_ID, owner_id=999)
+    message.channel = MagicMock()
+    message.channel.id = 333
+    message.channel.typing.return_value = _TypingContext()
+    message.reply = AsyncMock()
+    try:
+        await cog.on_message(message)
+        message.reply.assert_awaited_once()
+        kwargs = message.reply.await_args.kwargs
+        assert kwargs["mention_author"] is False
+        assert kwargs["embed"].title.startswith("AXIS GEX · SPY")
+        assert kwargs["file"].filename == "axis-gex-spy.png"
+    finally:
+        await db.dispose()
 
 
 @pytest.mark.asyncio
