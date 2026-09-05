@@ -497,6 +497,9 @@ async def test_source_projection_is_redrawn_for_review_and_publication(
         assert media is not None
         assert media.data.startswith(b"\x89PNG\r\n\x1a\n")
         assert media.data != source_png
+        first_retry = await service.retry_prediction_chart(draft.id)
+        second_retry = await service.retry_prediction_chart(draft.id)
+        assert second_retry.version == first_retry.version + 1
     finally:
         await database.dispose()
 

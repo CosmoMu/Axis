@@ -264,6 +264,7 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Source 图片不转发到 Review 或会员频道。
 - renderer 失败不阻塞文字 Analysis 归档，支持独立重试。
 - `analysis_drafts.chart_source` 可完整保存 AXIS renderer provenance，不再被旧 16 字符列宽截断。
+- 重绘文件键包含草稿版本；同一 Revision 可按最新内容安全重复生成，不覆盖历史图片。
 
 ## Daily Results Review
 

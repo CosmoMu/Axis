@@ -992,6 +992,7 @@ class AnalysisPipelineService:
             payload = dict(draft.normalized_json)
             guild_id = draft.guild_id
             revision = draft.revision
+            version = draft.version
         chart_payload = _axis_chart_payload(payload)
         if chart_payload is None:
             raise AnalysisValidationError("ANALYSIS_CHART_PATH_REQUIRED")
@@ -1005,7 +1006,7 @@ class AnalysisPipelineService:
             raise AnalysisValidationError("ANALYSIS_CHART_RENDER_FAILED") from exc
         stored = await self.attachment_store.write_generated_png(
             guild_id=guild_id,
-            artifact_id=uuid.uuid5(draft_id, f"chart-retry-{revision}"),
+            artifact_id=uuid.uuid5(draft_id, f"chart-retry-{revision}-v{version}"),
             data=png,
         )
         async with self.database.session() as session:
