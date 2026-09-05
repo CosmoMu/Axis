@@ -18,11 +18,16 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 - `/gex ticker:TICKER` Slash Command；不会监听普通 Ticker 消息。
 - Owner-only + `🧪・card-testing`；wrong-channel 与 unauthorized 请求使用 ephemeral feedback。
-- Massive GEX provider、10 个有效 expiration、0DTE / Near-Term、partial-expiry skip 和 minimum
-  coverage gate；SPX 独立映射且绝不使用 SPY 替代。
+- Massive GEX option-surface provider + Moomoo OpenD 1 分钟 K 线 provider；10 个有效
+  expiration、0DTE / Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射
+  且绝不使用 SPY 替代。
 - Dollar GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
   Zero Gamma、GEX-based Walls、Clusters、Bias 与 deterministic triggers。
-- AXIS mobile heatmap、market-closed/stale 标签、source/coverage/cache/policy metadata。
+- 1800x1040 中文复合图：左侧真实 1 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
+  波动加速区；右侧 strike x expiration GEX 热力图。
+- 中文 Discord 卡片、market-closed/stale 标签、Massive/Moomoo 双数据源时间和
+  source/coverage/cache/policy metadata。
+- Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。
 - Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。
 - 独立 `GEX_EXPLORER_ENABLED` / `GEX_EXPLORER_MODE=TEST` fail-closed gate。
 - 严格 read-only，不触发 Signal、Trade、Result、Analysis、Membership、Tracking 或 Moomoo。

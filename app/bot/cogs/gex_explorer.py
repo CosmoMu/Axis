@@ -23,6 +23,11 @@ RECOVERABLE_GEX_ERRORS = (
     "GEX_DATA_QUALITY_FAILED",
     "GEX_RENDER_FAILED",
     "GEX_EXPIRY_COVERAGE_INSUFFICIENT",
+    "GEX_INTRADAY_COVERAGE_INSUFFICIENT",
+    "GEX_INTRADAY_SUBSCRIPTION_FAILED",
+    "GEX_INTRADAY_UNAVAILABLE",
+    "GEX_INTRADAY_EMPTY",
+    "GEX_MOOMOO_SDK_UNAVAILABLE",
     "MASSIVE_AUTH_FAILED",
     "MASSIVE_RATE_LIMITED",
 )
@@ -65,7 +70,7 @@ class GexExplorerCog(commands.Cog):
         self.card_testing_channel_id = card_testing_channel_id
         self.mode = mode
 
-    @app_commands.command(name="gex", description="生成 AXIS GEX 结构卡片（Phase 1 Test）")
+    @app_commands.command(name="gex", description="生成 AXIS GEX 盘中结构图（第一阶段测试）")
     @app_commands.describe(ticker="股票或指数代码，例如 NVDA、$SPY、SPX")
     @app_commands.guild_only()
     async def gex(self, interaction: discord.Interaction, ticker: str) -> None:
@@ -90,7 +95,7 @@ class GexExplorerCog(commands.Cog):
             return
         if authorization == "TEST_CHANNEL_REQUIRED":
             await interaction.response.send_message(
-                "Test Mode：请只在 🧪・card-testing 使用 `/gex TICKER`。",
+                "测试模式：请只在 🧪・card-testing 使用 `/gex TICKER`。",
                 ephemeral=True,
             )
             return
@@ -138,6 +143,11 @@ class GexExplorerCog(commands.Cog):
             "GEX_NO_EXPIRATIONS": "该标的没有找到可用的近期到期日。",
             "GEX_OPTION_CHAIN_EMPTY": "期权链暂时没有返回可用数据。",
             "GEX_EXPIRY_COVERAGE_INSUFFICIENT": "有效到期日覆盖不足，已停止生成以避免误导。",
+            "GEX_INTRADAY_COVERAGE_INSUFFICIENT": "1 分钟 K 线数量不足，已停止生成。",
+            "GEX_INTRADAY_SUBSCRIPTION_FAILED": "Moomoo 1 分钟 K 线订阅暂时不可用。",
+            "GEX_INTRADAY_UNAVAILABLE": "Moomoo 1 分钟 K 线暂时不可用。",
+            "GEX_INTRADAY_EMPTY": "当前没有可用于绘图的 1 分钟 K 线。",
+            "GEX_MOOMOO_SDK_UNAVAILABLE": "Moomoo 行情组件暂时不可用。",
             "MASSIVE_AUTH_FAILED": "行情权限或凭据不可用，请管理员检查 Massive 配置。",
             "MASSIVE_RATE_LIMITED": "行情服务达到速率限制，请稍后重试。",
             "GEX_SPX_UNSUPPORTED": "当前 Massive 权限不支持 SPX GEX 数据，请勿用 SPY 替代。",

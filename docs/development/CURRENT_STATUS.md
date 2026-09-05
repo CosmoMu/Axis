@@ -43,10 +43,11 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
-GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive provider boundary、
-AuditLog、System Alerts 和 Owner-only card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、
-Near-Term、五级 Gamma Regime、Zero Gamma、GEX Walls/Clusters、deterministic triggers、缓存、
-single-flight、限流和移动端 heatmap 已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
+GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface
+provider、Moomoo OpenD 1 分钟 K 线 provider、AuditLog、System Alerts 和 Owner-only
+card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、五级 Gamma Regime、
+Gamma 分界、上方压力、下方支撑、负 GEX 加速区、真实 1 分钟 K 线和中文复合
+热力图已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
 
 ## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
 
@@ -54,11 +55,13 @@ Implemented:
 
 - Slash command only；普通 Ticker 消息不触发。输入兼容大小写与 `$` 前缀。
 - Owner + `🧪・card-testing` 双重 runtime gate；Manager、Member、Newcomer 和 `@everyone` 不可用。
-- 复用 Massive Key / base URL 与 AXIS Provider boundary；SPX 独立处理，绝不 fallback 到 SPY。
+- Massive 只读期权表面 + Moomoo OpenD 只读 1 分钟 K 线；两路数据分工明确，任一失败
+  即 fail-closed，不合成假 K 线。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
 - Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall、positive/negative zone、
   deterministic bias / triggers；无 LLM 点位。
-- 确定性 mobile heatmap、source timestamp、market-closed/stale、coverage/cache/policy 标签。
+- 确定性 1800x1040 中文复合图：左侧真实 1 分钟 K 线 + 压力/支撑/Gamma 分界/加速区，
+  右侧 strike x expiration GEX 热力图；卡片同步中文化。
 - ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
 - GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
   System Alert dedup / Recovery。
@@ -67,6 +70,8 @@ Implemented:
 
 Live evidence:
 
+- RDDT Massive + Moomoo 双源只读验收 PASS：240 根当日 1 分钟 K 线、10 个有效 expiry、
+  338 张期权合约，复合 PNG 生成成功。
 - Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效
   expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
 - Invalid ticker PASS。

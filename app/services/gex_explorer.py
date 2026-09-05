@@ -7,7 +7,7 @@ import re
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,7 @@ import yaml
 
 from app.db.models import AuditLog
 from app.db.session import Database
+from app.integrations.gex_intraday_data import GexIntradayDataProvider
 from app.integrations.gex_market_data import GexMarketDataProvider
 from app.market_intelligence.gex_explorer.engine import build_gex_snapshot
 from app.market_intelligence.gex_explorer.heatmap import render_gex_heatmap
@@ -59,6 +60,8 @@ class GexPolicy:
     zone_relative_threshold: float
     heatmap_expiration_columns: int
     heatmap_strike_rows: int
+    intraday_bar_count: int
+    intraday_minimum_bars: int
 
     @classmethod
     def load(cls, path: Path) -> GexPolicy:
@@ -67,7 +70,12 @@ class GexPolicy:
             raise GexExplorerError("GEX_POLICY_INVALID")
         regimes = payload.get("regime_thresholds")
         heatmap = payload.get("heatmap")
-        if not isinstance(regimes, dict) or not isinstance(heatmap, dict):
+        intraday = payload.get("intraday")
+        if (
+            not isinstance(regimes, dict)
+            or not isinstance(heatmap, dict)
+            or not isinstance(intraday, dict)
+        ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         policy = cls(
             version=str(payload["version"]),
@@ -96,6 +104,8 @@ class GexPolicy:
             zone_relative_threshold=float(payload["zone_relative_threshold"]),
             heatmap_expiration_columns=int(heatmap["expiration_columns"]),
             heatmap_strike_rows=int(heatmap["strike_rows"]),
+            intraday_bar_count=int(intraday["bar_count"]),
+            intraday_minimum_bars=int(intraday["minimum_bars"]),
         )
         policy.validate()
         return policy
@@ -118,6 +128,8 @@ class GexPolicy:
             self.provider_concurrency,
             self.heatmap_expiration_columns,
             self.heatmap_strike_rows,
+            self.intraday_bar_count,
+            self.intraday_minimum_bars,
         )
         if any(value <= 0 for value in positive):
             raise GexExplorerError("GEX_POLICY_INVALID")
@@ -133,6 +145,8 @@ class GexPolicy:
         if not strong_positive > positive_threshold > negative_threshold > strong_negative:
             raise GexExplorerError("GEX_POLICY_INVALID")
         if not 0 < self.strike_range_pct < 1 or not 0 < self.zone_relative_threshold <= 1:
+            raise GexExplorerError("GEX_POLICY_INVALID")
+        if self.intraday_minimum_bars > self.intraday_bar_count or self.intraday_bar_count > 1000:
             raise GexExplorerError("GEX_POLICY_INVALID")
 
 
@@ -151,6 +165,10 @@ class GexQueryResult:
     candidate_expirations: int
     used_expirations: int
     failed_expirations: tuple[tuple[str, str], ...]
+    intraday_provider: str
+    intraday_source_timestamp: datetime
+    intraday_session_date: date
+    intraday_bar_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,10 +182,12 @@ class GexExplorerService:
         self,
         database: Database,
         provider: GexMarketDataProvider,
+        intraday_provider: GexIntradayDataProvider,
         policy: GexPolicy,
     ) -> None:
         self.database = database
         self.provider = provider
+        self.intraday_provider = intraday_provider
         self.policy = policy
         self._cache: dict[tuple[str, str, str], _CacheEntry] = {}
         self._inflight: dict[tuple[str, str, str], asyncio.Task[GexQueryResult]] = {}
@@ -195,7 +215,11 @@ class GexExplorerService:
             interaction_id=interaction_id,
             requested_at=started_at,
         )
-        key = (symbol, self.policy.version, self.provider.name)
+        key = (
+            symbol,
+            self.policy.version,
+            f"{self.provider.name}+{self.intraday_provider.name}",
+        )
         task: asyncio.Task[GexQueryResult] | None = None
         leader = False
         now = time.monotonic()
@@ -308,9 +332,17 @@ class GexExplorerService:
 
     async def _generate(self, ticker: str) -> GexQueryResult:
         started = time.monotonic()
-        provider_result = await self.provider.fetch(ticker, self.policy)
+        provider_result, intraday_result = await asyncio.gather(
+            self.provider.fetch(ticker, self.policy),
+            self.intraday_provider.fetch(
+                ticker,
+                bar_count=self.policy.intraday_bar_count,
+            ),
+        )
         if len(provider_result.used_expirations) < self.policy.minimum_valid_expirations:
             raise GexExplorerError("GEX_EXPIRY_COVERAGE_INSUFFICIENT")
+        if len(intraday_result.bars) < self.policy.intraday_minimum_bars:
+            raise GexExplorerError("GEX_INTRADAY_COVERAGE_INSUFFICIENT")
         completed = datetime.now(UTC)
         try:
             snapshot = build_gex_snapshot(
@@ -333,12 +365,16 @@ class GexExplorerService:
             )
             snapshot = replace(snapshot, data_warnings=tuple(warnings))
         try:
-            heatmap = render_gex_heatmap(snapshot, self.policy)
+            heatmap = render_gex_heatmap(snapshot, intraday_result.bars, self.policy)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             raise GexExplorerError("GEX_RENDER_FAILED") from exc
-        age = max(
+        gex_age = max(
             0.0,
             (provider_result.fetched_at - provider_result.source_timestamp).total_seconds(),
+        )
+        intraday_age = max(
+            0.0,
+            (provider_result.fetched_at - intraday_result.source_timestamp).total_seconds(),
         )
         return GexQueryResult(
             snapshot=snapshot,
@@ -348,7 +384,7 @@ class GexExplorerService:
             source_timestamp=provider_result.source_timestamp,
             completed_at=completed,
             market_status=provider_result.market_status,
-            stale=age > self.policy.max_data_age_seconds,
+            stale=max(gex_age, intraday_age) > self.policy.max_data_age_seconds,
             cache_hit=False,
             latency_ms=max(0, int((time.monotonic() - started) * 1000)),
             candidate_expirations=len(provider_result.candidate_expirations),
@@ -357,6 +393,10 @@ class GexExplorerService:
                 (expiration.isoformat(), code)
                 for expiration, code in provider_result.failed_expirations
             ),
+            intraday_provider=intraday_result.provider,
+            intraday_source_timestamp=intraday_result.source_timestamp,
+            intraday_session_date=intraday_result.session_date,
+            intraday_bar_count=len(intraday_result.bars),
         )
 
     async def _audit_locked_rate_limit(

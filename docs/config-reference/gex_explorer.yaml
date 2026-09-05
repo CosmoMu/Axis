@@ -1,4 +1,4 @@
-version: gex-v1
+version: gex-v2
 expiration_count: 10
 expiration_candidates: 16
 expiration_horizon_days: 180
@@ -23,4 +23,7 @@ regime_thresholds:
 zone_relative_threshold: 0.35
 heatmap:
   expiration_columns: 5
-  strike_rows: 17
+  strike_rows: 19
+intraday:
+  bar_count: 240
+  minimum_bars: 1

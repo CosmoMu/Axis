@@ -25,6 +25,7 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
+from app.integrations.gex_intraday_data import MoomooGexIntradayProvider  # noqa: E402
 from app.integrations.gex_market_data import MassiveGexMarketDataProvider  # noqa: E402
 from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
@@ -144,6 +145,10 @@ async def run() -> None:
                     api_key=settings.massive_api_key,
                     base_url=settings.massive_base_url,
                     concurrency=gex_policy.provider_concurrency,
+                ),
+                MoomooGexIntradayProvider(
+                    host=settings.moomoo_host,
+                    port=settings.moomoo_port,
                 ),
                 gex_policy,
             )

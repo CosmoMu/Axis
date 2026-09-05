@@ -1,6 +1,6 @@
 # AXIS GEX Explorer — Phase 1 Specification
 
-**Version:** GEX V1 / 2026-09-04
+**Version:** GEX V2 / 2026-09-04
 
 **Status:** TEST ONLY
 
@@ -24,7 +24,13 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 
 - Normalize case and an optional leading `$`; `SPXW` normalizes to `SPX` for a GEX request.
 - SPX must use the provider's SPX index/options symbols and must never fall back to SPY.
-- Use the existing Massive credential and AXIS provider boundary. Secrets remain in `.env`.
+- GEX and option-surface inputs use the existing Massive credential and AXIS provider boundary.
+  Secrets remain in `.env`.
+- The left chart uses genuine 1-minute underlying candles from the local read-only Moomoo OpenD
+  connection. It uses the latest U.S. regular-session bars and never constructs or interpolates
+  synthetic candles.
+- Massive GEX failure and Moomoo 1-minute failure are both fail-closed. One source must never be
+  presented as if it supplied the other source's data.
 - Select the latest 10 valid option expirations from a larger candidate set. Skip empty,
   incomplete, or truncated expirations. Configured minimum coverage is fail-closed.
 - Near-Term means 0DTE when a valid same-day expiry exists; otherwise it means the nearest valid
@@ -43,7 +49,15 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   Zero Gamma, GEX-based Call Wall and Put Wall, deterministic positive/negative clusters,
   structural bias, and bullish/bearish trigger/target levels.
 - All levels must come from the normalized option surface. An LLM must never invent GEX levels.
-- The response is one AXIS Discord card plus one deterministic mobile-first heatmap.
+- The response is one Chinese AXIS Discord card plus one deterministic 1800x1040 composite image:
+  the left side is the real 1-minute K-line with current price and structural overlays; the right
+  side is a strike-by-expiration GEX heatmap.
+- The Call Wall is labeled as upper resistance, the Put Wall as lower support, and Zero Gamma as
+  the Gamma boundary. Negative-GEX clusters are rendered as volatility-acceleration zones.
+- Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.
+  AXIS, GEX, Gamma, ticker symbols, provider brands, and ET may remain as technical names.
+- All pressure, support, boundary, and acceleration levels come from the normalized option surface.
+  The renderer does not use an LLM or image-generation model.
 
 ## Reliability and safety
 
@@ -62,6 +76,7 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 ## Test Gate
 
 Phase 1 requires automated tests, Ruff, compileall, database/runtime/Discord verifiers, invalid and
-partial failure tests, cache/single-flight/rate-limit tests, closed-market labeling, and live
-Massive cross-checks for SPY, QQQ, NVDA, TSLA, AAPL, plus SPX only when the provider entitlement can
-produce a genuine SPX spot/options surface. Phase 1 ends after its report and remains TEST ONLY.
+partial failure tests, cache/single-flight/rate-limit tests, closed-market labeling, a fail-closed
+Moomoo minute-data test, PNG dimension validation, and live Massive + Moomoo cross-checks. SPX is
+included only when the provider entitlement can produce a genuine SPX spot/options surface. Phase 1
+ends after its report and remains TEST ONLY.

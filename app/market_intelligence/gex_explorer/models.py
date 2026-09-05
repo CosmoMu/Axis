@@ -13,6 +13,24 @@ class OptionSide(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class GexIntradayBar:
+    timestamp_et: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+    def __post_init__(self) -> None:
+        if self.timestamp_et.tzinfo is None:
+            raise ValueError("timestamp_et must be timezone-aware")
+        if min(self.open, self.high, self.low, self.close) <= 0:
+            raise ValueError("intraday prices must be positive")
+        if self.high < max(self.open, self.close) or self.low > min(self.open, self.close):
+            raise ValueError("intraday high/low must contain open and close")
+
+
+@dataclass(frozen=True, slots=True)
 class GexOptionContract:
     symbol: str
     expiration: date

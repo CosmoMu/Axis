@@ -5,9 +5,10 @@
 ## How `/gex` works
 
 The Owner runs `/gex ticker:NVDA`. AXIS normalizes the symbol, acknowledges the interaction, checks
-cache and limits, loads a Massive option surface through the provider boundary, evaluates the
-deterministic GEX engine, renders a mobile heatmap, and edits the interaction with one card plus one
-PNG. A plain `NVDA` message does nothing.
+cache and limits, loads a Massive option surface and genuine Moomoo 1-minute candles through two
+separate read-only provider boundaries, evaluates the deterministic GEX engine, renders one
+desktop-first composite chart, and edits the interaction with one Chinese card plus one PNG. A
+plain `NVDA` message does nothing.
 
 ## Who can use it
 
@@ -29,6 +30,12 @@ Phase 1 uses the existing `MASSIVE_API_KEY` and `MASSIVE_BASE_URL` through
 `MassiveGexMarketDataProvider`. The adapter fetches underlying/index spot, candidate expirations,
 and exact-expiry option snapshots; it normalizes only symbol, expiry, strike, Call/Put, OI, Gamma,
 IV, volume, and timestamps into the provider-independent engine. SPX is never mapped to SPY.
+
+The K-line panel uses `MoomooGexIntradayProvider` through local OpenD at the configured
+`MOOMOO_OPEND_HOST` / `MOOMOO_OPEND_PORT`. It requests subscribed `K_1M` bars, keeps only the latest
+U.S. regular session, de-duplicates timestamps, and returns up to the configured bar count. If
+OpenD, subscription rights, or real minute bars are unavailable, `/gex` stops with a stable error;
+it never draws fake candles.
 
 ## GEX Formula and Sign Convention
 
@@ -65,9 +72,11 @@ no LLM participates.
 
 ## Heatmap
 
-The Pillow renderer produces a deterministic black AXIS image optimized for mobile. It shows
-strike rows, up to five expiration columns, signed cell intensity, aggregate Positive/Negative GEX,
-and Spot/Zero/Call-Wall/Put-Wall markers. It does not use an image-generation model.
+The Pillow renderer produces a deterministic 1800x1040 black AXIS image. The left panel shows real
+1-minute candles, current price, nearby upper resistance / lower support / Gamma-boundary lines,
+and negative-GEX volatility-acceleration zones. The right panel shows strike rows, up to five
+expiration columns, signed cell intensity, aggregate GEX, and current / boundary / resistance /
+support markers. Visible explanatory text is Chinese. It does not use an image-generation model.
 
 ## Cache, single-flight, and rate limits
 
@@ -82,9 +91,10 @@ Values are maintained in `config/gex_explorer.yaml`, not scattered through handl
 
 ## Data freshness and market close
 
-The card shows provider source time, coverage, cache status, and policy version. Data older than the
-configured threshold is marked `STALE DATA`. A closed-market result is labeled `MARKET CLOSED` and
-described as the latest available snapshot; it is never called live.
+The card separately shows Massive GEX time and Moomoo 1-minute K-line time, coverage, cache status,
+and policy version. Data older than the configured threshold is marked in Chinese as stale. A
+closed-market result is labeled in Chinese and described as the latest available snapshot; it is
+never called live.
 
 ## Error handling and System Alerts
 
@@ -103,13 +113,15 @@ Run:
 .venv/bin/python -m compileall -q app scripts
 .venv/bin/pytest -q
 .venv/bin/python scripts/verify_gex_explorer.py
+.venv/bin/python scripts/verify_gex_explorer.py RDDT --skip-invalid --output-dir /tmp/gex-review
 .venv/bin/python scripts/verify_database.py
 .venv/bin/python scripts/verify_discord_runtime.py
 ```
 
 Also run the repository's Discord blueprint dry-run/permission verification. Review SPY, QQQ,
 NVDA, TSLA, AAPL, invalid-symbol, closed-market, partial-expiry, cache, single-flight, cooldown,
-global-limit, stale-data, renderer/provider failure, and SPX-entitlement evidence.
+global-limit, stale-data, renderer/provider failure, Moomoo minute-data failure, PNG dimensions,
+Chinese UI, and SPX-entitlement evidence.
 
 ## Disable and rollback
 

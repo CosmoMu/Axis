@@ -8,6 +8,7 @@ from app.market_intelligence.gex_explorer.engine import (
 from app.market_intelligence.gex_explorer.models import (
     GexByStrike,
     GexExpiration,
+    GexIntradayBar,
     GexOptionContract,
     GexSnapshot,
     GexTrigger,
@@ -19,6 +20,7 @@ __all__ = [
     "AXIS_GEX_EXPLORER",
     "GexByStrike",
     "GexExpiration",
+    "GexIntradayBar",
     "GexOptionContract",
     "GexSnapshot",
     "GexTrigger",

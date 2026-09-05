@@ -330,13 +330,13 @@ def build_gex_snapshot(
     bearish_trigger = bearish.level
     location = 0 if zero is None else 1 if spot > zero else -1
     if location > 0 and ratio <= regime_thresholds[2]:
-        bias = "BULLISH"
+        bias = "偏多"
     elif location < 0 and ratio <= regime_thresholds[2]:
-        bias = "BEARISH"
+        bias = "偏空"
     elif ratio >= regime_thresholds[1]:
-        bias = "NEUTRAL"
+        bias = "中性"
     else:
-        bias = "NEUTRAL → BULLISH" if location > 0 else "NEUTRAL → BEARISH"
+        bias = "中性偏多" if location > 0 else "中性偏空"
     positive_gex = sum(point.call_gex for point in points)
     negative_gex = sum(point.put_gex for point in points)
     near_term = expirations[0]
@@ -355,7 +355,7 @@ def build_gex_snapshot(
     )
     analysis = (
         f"当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
-        f"Zero Gamma {_fmt(zero)}；Call Wall {_fmt(call_wall)}；Put Wall {_fmt(put_wall)}。",
+        f"Gamma 分界 {_fmt(zero)}；上方压力 {_fmt(call_wall)}；下方支撑 {_fmt(put_wall)}。",
         f"结构倾向为“{bias}”。向上：{bullish.description}；向下：{bearish.description}。",
     )
     return GexSnapshot(
