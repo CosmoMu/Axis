@@ -82,7 +82,26 @@ def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
         return "上方压力", "#D8B85B"
     if snapshot.put_wall is not None and abs(level - snapshot.put_wall) < 1e-9:
         return "下方支撑", "#77A997"
-    return "Gamma 分界", "#9FA9A5"
+    return "Gamma 分界", "#9A6AF0"
+
+
+def _dashed_horizontal(
+    draw,
+    *,
+    left: float,
+    right: float,
+    y: float,
+    fill: str,
+    width: int = 2,
+    dash: int = 12,
+    gap: int = 8,
+) -> None:
+    """Draw a deterministic horizontal dash pattern with Pillow."""
+
+    x = left
+    while x < right:
+        draw.line((x, y, min(x + dash, right), y), fill=fill, width=width)
+        x += dash + gap
 
 
 def render_gex_heatmap(
@@ -171,8 +190,8 @@ def render_gex_heatmap(
     candle_ceiling = max(item.high for item in bars)
     candle_span = max(candle_ceiling - candle_floor, snapshot.spot * 0.002)
     # The candle scale is the primary view. Only genuinely nearby GEX structure may
-    # expand it; distant walls are retained as pinned off-chart labels below. The old
-    # four-percent floor could compress a normal intraday range into ~15% of the panel.
+    # expand it. Distant structure is retained as full-width, explicitly off-scale
+    # rails below; it must never flatten the real one-minute candle range.
     visible_distance = max(candle_span * 1.5, snapshot.spot * 0.0025)
     all_structural_levels = tuple(
         value
@@ -211,8 +230,62 @@ def render_gex_heatmap(
             anchor="ra",
         )
 
+    top_rail_count = 0
+    bottom_rail_count = 0
+
+    def next_rail_y(*, above: bool) -> float:
+        nonlocal top_rail_count, bottom_rail_count
+        if above:
+            result = plot_top + 25 + top_rail_count * 44
+            top_rail_count += 1
+            return result
+        result = plot_bottom - 25 - bottom_rail_count * 44
+        bottom_rail_count += 1
+        return result
+
     for zone in snapshot.negative_zones[:3]:
         if zone.upper < floor or zone.lower > ceiling:
+            above = zone.lower > ceiling
+            center_y = next_rail_y(above=above)
+            band_top = center_y - 12
+            band_bottom = center_y + 12
+            draw.rectangle(
+                (plot_left, band_top, plot_right, band_bottom),
+                fill=(89, 42, 132, 210),
+            )
+            _dashed_horizontal(
+                draw,
+                left=plot_left,
+                right=plot_right,
+                y=band_top,
+                fill="#B991FF",
+                width=2,
+                dash=4,
+                gap=7,
+            )
+            _dashed_horizontal(
+                draw,
+                left=plot_left,
+                right=plot_right,
+                y=band_bottom,
+                fill="#B991FF",
+                width=2,
+                dash=4,
+                gap=7,
+            )
+            zone_label = (
+                f"{zone.lower:g}"
+                if abs(zone.lower - zone.upper) < 1e-9
+                else f"{zone.lower:g}–{zone.upper:g}"
+            )
+            direction = "↑" if above else "↓"
+            draw.text(
+                (plot_left + 12, center_y),
+                f"{direction} 图外加速区 {zone_label}",
+                fill="#D0B9FF",
+                font=_font(14, bold=True),
+                anchor="lm",
+            )
             continue
         half_width = max((ceiling - floor) * 0.009, snapshot.spot * 0.0008)
         lower = max(zone.lower - half_width, floor)
@@ -220,7 +293,27 @@ def render_gex_heatmap(
         top_y, bottom_y = sorted((price_y(upper), price_y(lower)))
         draw.rectangle(
             (plot_left, top_y, plot_right, bottom_y),
-            fill=(168, 61, 73, 34),
+            fill=(89, 42, 132, 72),
+        )
+        _dashed_horizontal(
+            draw,
+            left=plot_left,
+            right=plot_right,
+            y=top_y,
+            fill="#B991FF",
+            width=2,
+            dash=4,
+            gap=7,
+        )
+        _dashed_horizontal(
+            draw,
+            left=plot_left,
+            right=plot_right,
+            y=bottom_y,
+            fill="#B991FF",
+            width=2,
+            dash=4,
+            gap=7,
         )
         zone_label = (
             f"{zone.lower:g}"
@@ -229,8 +322,8 @@ def render_gex_heatmap(
         )
         draw.text(
             (plot_left + 10, top_y + 7),
-            f"波动加速区 {zone_label}",
-            fill="#D98B91",
+            f"负 Gamma 加速区 {zone_label}",
+            fill="#D0B9FF",
             font=_font(14, bold=True),
         )
 
@@ -269,24 +362,28 @@ def render_gex_heatmap(
             anchor="rm",
         )
 
-    pinned_top = 0
-    pinned_bottom = 0
-    pinned_levels: list[float] = []
+    off_scale_levels: list[float] = []
     for level in all_structural_levels:
         if floor <= level <= ceiling or any(
-            abs(level - item) / level < 0.0005 for item in pinned_levels
+            abs(level - item) / level < 0.0005 for item in off_scale_levels
         ):
             continue
-        pinned_levels.append(level)
+        off_scale_levels.append(level)
         label, color = _level_label(snapshot, level)
         above = level > ceiling
-        if above:
-            label_y = plot_top + 20 + pinned_top * 39
-            pinned_top += 1
-        else:
-            label_y = plot_bottom - 20 - pinned_bottom * 39
-            pinned_bottom += 1
+        label_y = next_rail_y(above=above)
         direction = "↑" if above else "↓"
+        is_boundary = label == "Gamma 分界"
+        _dashed_horizontal(
+            draw,
+            left=plot_left,
+            right=plot_right,
+            y=label_y,
+            fill=color,
+            width=2,
+            dash=4 if is_boundary else 13,
+            gap=7 if is_boundary else 8,
+        )
         draw.rounded_rectangle(
             (plot_right - 236, label_y - 16, plot_right - 6, label_y + 16),
             radius=7,

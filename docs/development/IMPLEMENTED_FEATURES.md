@@ -25,7 +25,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   Zero Gamma、GEX-based Walls、Clusters、Bias 与 deterministic triggers。
 - 1800x1125 中文复合图：左侧真实 1 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
   波动加速区；右侧加宽的 strike x expiration GEX 热力图。K 线采用 candle-first 自适应
-  纵轴，远端 GEX 结构位固定显示为图外方向标签，不再压缩真实蜡烛波幅。
+  纵轴；远端压力/支撑/Gamma 分界以横贯绘图区的图外结构轨显示，远端负 GEX 加速区
+  以紫色全宽图外带显示实际点位或范围，既不压缩真实蜡烛波幅，也不会丢失结构。
 - 中文 Discord 卡片、market-closed/stale 标签、Massive/Moomoo 双数据源时间和
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。

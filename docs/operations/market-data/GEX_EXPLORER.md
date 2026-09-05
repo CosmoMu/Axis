@@ -75,7 +75,9 @@ no LLM participates.
 The Pillow renderer produces a deterministic 1800x1125 black AXIS image. The left panel uses a
 candle-first adaptive axis for real 1-minute candles, current price, nearby upper resistance /
 lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration zones. Distant
-structure is pinned at the top or bottom with its actual price instead of flattening candle bodies.
+pressure, support, and Gamma boundaries use full-width top/bottom off-scale rails with actual
+prices instead of flattening candle bodies. Distant negative-GEX zones use full-width purple
+off-scale bands with actual level ranges, so acceleration structure remains visible on the chart.
 The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
 aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
 Chinese. It does not use an image-generation model.

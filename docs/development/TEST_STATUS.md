@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 308 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 306 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -170,8 +170,9 @@ GEX Explorer Phase 1:
 - 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
 - Gamma/IV fallback、Net/Positive/Negative GEX、五级 Regime、Zero Gamma、GEX Walls、Clusters、
   deterministic Bias/Triggers 与 no-LLM level boundary。
-- Deterministic 1800x1125 Chinese composite chart；candle-first adaptive axis；pinned off-chart
-  pressure/support/Gamma labels；real 1-minute K-line；negative-GEX acceleration overlays；
+- Deterministic 1800x1125 Chinese composite chart；candle-first adaptive axis；full-width off-scale
+  pressure/support/Gamma rails；real 1-minute K-line；full-width purple negative-GEX acceleration
+  bands with actual levels；
   strike x expiration heatmap。
 - Massive or Moomoo failure is fail-closed；no synthetic candle fallback；PNG dimension and
   dual-provider metadata tests PASS。
@@ -317,7 +318,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 308 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 306 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 

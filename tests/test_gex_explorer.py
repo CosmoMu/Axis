@@ -233,6 +233,20 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.heatmap_png.startswith(b"\x89PNG")
         with Image.open(BytesIO(first.heatmap_png)) as image:
             assert image.size == (1800, 1125)
+            rgb = image.convert("RGB")
+            pressure_run = max(
+                sum(
+                    rgb.getpixel((x, y)) == (216, 184, 91)
+                    for x in range(76, 1113)
+                )
+                for y in range(190, 911)
+            )
+            acceleration_run = max(
+                sum(rgb.getpixel((x, y)) == (89, 42, 132) for x in range(76, 1113))
+                for y in range(190, 911)
+            )
+            assert pressure_run > 400
+            assert acceleration_run > 900
         assert first.used_expirations == 10
         assert first.intraday_provider == "fake-minute"
         assert first.intraday_bar_count == 120

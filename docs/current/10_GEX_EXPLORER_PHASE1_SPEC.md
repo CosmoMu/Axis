@@ -55,7 +55,10 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 - The composite uses a 16:10-style layout. The intraday plot is approximately 1.44:1 instead of a
   stretched wide panel, and the heatmap receives wider expiration cells. The price axis is
   candle-first and may expand only for nearby GEX structure. Distant Call Wall, Put Wall, or Zero
-  Gamma values remain visible as pinned Chinese off-chart labels and must not flatten the candles.
+  Gamma values remain visible as full-width Chinese off-scale rails and must not flatten the
+  candles. Distant negative-GEX clusters remain visible as full-width purple off-scale acceleration
+  bands with their actual level or range; they must never disappear merely because they are outside
+  the focused candle axis.
 - The Call Wall is labeled as upper resistance, the Put Wall as lower support, and Zero Gamma as
   the Gamma boundary. Negative-GEX clusters are rendered as volatility-acceleration zones.
 - Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.
