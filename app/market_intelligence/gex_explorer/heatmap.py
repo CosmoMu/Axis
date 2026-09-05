@@ -79,10 +79,10 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
 
 def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
     if snapshot.call_wall is not None and abs(level - snapshot.call_wall) < 1e-9:
-        return "上方压力", "#D8B85B"
+        return "Call Wall · 上方压力", "#D8B85B"
     if snapshot.put_wall is not None and abs(level - snapshot.put_wall) < 1e-9:
-        return "下方支撑", "#77A997"
-    return "Gamma 分界", "#9A6AF0"
+        return "Put Wall · 下方支撑", "#77A997"
+    return "0 Gamma · Gamma 分界", "#9A6AF0"
 
 
 def _dashed_horizontal(
@@ -346,7 +346,7 @@ def render_gex_heatmap(
         y = price_y(level)
         draw.line((plot_left, y, plot_right, y), fill=color, width=2)
         text = f"{label}  {level:,.2f}"
-        box_width = 178
+        box_width = 260
         draw.rounded_rectangle(
             (plot_right - box_width, y - 16, plot_right - 6, y + 16),
             radius=7,
@@ -373,7 +373,7 @@ def render_gex_heatmap(
         above = level > ceiling
         label_y = next_rail_y(above=above)
         direction = "↑" if above else "↓"
-        is_boundary = label == "Gamma 分界"
+        is_boundary = label.startswith("0 Gamma")
         _dashed_horizontal(
             draw,
             left=plot_left,
@@ -385,7 +385,7 @@ def render_gex_heatmap(
             gap=7 if is_boundary else 8,
         )
         draw.rounded_rectangle(
-            (plot_right - 236, label_y - 16, plot_right - 6, label_y + 16),
+            (plot_right - 326, label_y - 16, plot_right - 6, label_y + 16),
             radius=7,
             fill="#0A1411",
             outline=color,
@@ -393,7 +393,7 @@ def render_gex_heatmap(
         )
         draw.text(
             (plot_right - 14, label_y),
-            f"{direction} 图外{label}  {level:,.2f}",
+            f"{direction} 图外 · {label}  {level:,.2f}",
             fill=color,
             font=_font(14, bold=True),
             anchor="rm",
@@ -540,7 +540,7 @@ def render_gex_heatmap(
     legend_y = 944
     draw.text(
         (heatmap_left, legend_y),
-        "绿色：正 GEX   红色：负 GEX   现：现价   零：Gamma 分界   压：压力   撑：支撑",
+        "绿色：正 GEX   红色：负 GEX   现：现价   零：0 Gamma   压：Call Wall   撑：Put Wall",
         fill=muted,
         font=_font(11, bold=True),
     )

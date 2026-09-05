@@ -78,6 +78,8 @@ lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration z
 pressure, support, and Gamma boundaries use full-width top/bottom off-scale rails with actual
 prices instead of flattening candle bodies. Distant negative-GEX zones use full-width purple
 off-scale bands with actual level ranges, so acceleration structure remains visible on the chart.
+Nearby and off-scale labels both preserve the standard terms `Call Wall`, `Put Wall`, and
+`0 Gamma`, followed by the Chinese pressure / support / boundary explanation.
 The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
 aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
 Chinese. It does not use an image-generation model.

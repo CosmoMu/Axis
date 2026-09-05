@@ -27,6 +27,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   波动加速区；右侧加宽的 strike x expiration GEX 热力图。K 线采用 candle-first 自适应
   纵轴；远端压力/支撑/Gamma 分界以横贯绘图区的图外结构轨显示，远端负 GEX 加速区
   以紫色全宽图外带显示实际点位或范围，既不压缩真实蜡烛波幅，也不会丢失结构。
+- 图表与 Discord 卡片统一保留 `Call Wall · 上方压力`、`Put Wall · 下方支撑`、
+  `0 Gamma · Gamma 分界` 标准名称与中文解释。
 - 中文 Discord 卡片、market-closed/stale 标签、Massive/Moomoo 双数据源时间和
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。

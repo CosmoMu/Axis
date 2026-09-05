@@ -294,6 +294,10 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         assert "数据时间早于实时阈值" in status
         assert "部分到期日已跳过" in status
         assert all("Market" not in field.name for field in embed.fields)
+        key_levels = next(field.value for field in embed.fields if field.name == "关键位置")
+        assert "0 Gamma · Gamma 分界" in key_levels
+        assert "Call Wall · 上方压力" in key_levels
+        assert "Put Wall · 下方支撑" in key_levels
         assert "上方压力" in result.snapshot.analysis_zh[1]
     finally:
         await db.dispose()

@@ -64,6 +64,8 @@ Implemented:
   右侧 strike x expiration GEX 热力图加宽；纵轴优先保持蜡烛可读，远端压力/支撑/Gamma
   分界使用横贯绘图区的图外结构轨保留，远端负 GEX 加速区使用紫色全宽图外带保留
   实际点位或范围；不再强行压扁 K 线，也不会因超出聚焦纵轴而丢失结构。
+- 图表及 Discord 关键位置卡片明确显示 `Call Wall · 上方压力`、`Put Wall · 下方支撑`、
+  `0 Gamma · Gamma 分界`，附近点位与图外结构轨使用同一套命名。
 - ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
 - GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
   System Alert dedup / Recovery。

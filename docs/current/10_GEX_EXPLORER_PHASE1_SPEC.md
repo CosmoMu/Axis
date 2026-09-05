@@ -59,8 +59,9 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   candles. Distant negative-GEX clusters remain visible as full-width purple off-scale acceleration
   bands with their actual level or range; they must never disappear merely because they are outside
   the focused candle axis.
-- The Call Wall is labeled as upper resistance, the Put Wall as lower support, and Zero Gamma as
-  the Gamma boundary. Negative-GEX clusters are rendered as volatility-acceleration zones.
+- Every chart and Discord card keeps the standard market-structure names beside the Chinese
+  explanation: `Call Wall · 上方压力`, `Put Wall · 下方支撑`, and
+  `0 Gamma · Gamma 分界`. Negative-GEX clusters are rendered as volatility-acceleration zones.
 - Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.
   AXIS, GEX, Gamma, ticker symbols, provider brands, and ET may remain as technical names.
 - All pressure, support, boundary, and acceleration levels come from the normalized option surface.

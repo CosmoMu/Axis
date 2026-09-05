@@ -355,7 +355,8 @@ def build_gex_snapshot(
     )
     analysis = (
         f"当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
-        f"Gamma 分界 {_fmt(zero)}；上方压力 {_fmt(call_wall)}；下方支撑 {_fmt(put_wall)}。",
+        f"0 Gamma / Gamma 分界 {_fmt(zero)}；Call Wall / 上方压力 {_fmt(call_wall)}；"
+        f"Put Wall / 下方支撑 {_fmt(put_wall)}。",
         f"结构倾向为“{bias}”。向上：{bullish.description}；向下：{bearish.description}。",
     )
     return GexSnapshot(

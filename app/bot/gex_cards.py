@@ -57,9 +57,9 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     embed.add_field(
         name="关键位置",
         value=(
-            f"Gamma 分界 {_money(snapshot.zero_gamma)}\n"
-            f"上方压力 {_money(snapshot.call_wall)}\n"
-            f"下方支撑 {_money(snapshot.put_wall)}"
+            f"0 Gamma · Gamma 分界 {_money(snapshot.zero_gamma)}\n"
+            f"Call Wall · 上方压力 {_money(snapshot.call_wall)}\n"
+            f"Put Wall · 下方支撑 {_money(snapshot.put_wall)}"
         ),
         inline=True,
     )
