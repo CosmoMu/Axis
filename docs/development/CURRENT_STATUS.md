@@ -104,6 +104,10 @@ Production status: **GEX Explorer = TEST ONLY.** 只有 Owner 可在 card-testin
 Owner 明确发送 `APPROVE GEX LOUNGE LAUNCH` 后，才能开始 Phase 2 权限、回归和上线；本阶段不得
 标记 Member Lounge Live。
 
+Current V7 runtime evidence: AXIS BOT 已部署并处于 running；Discord runtime PASS；HOOD V7
+真实 Massive 测试卡已发送至 `🧪・card-testing`（Message `1545703467908206655`）。网站精确
+构建已保存为 Sites Version 6；现有公开网站尚未在本轮被替换，等待单独发布指令。
+
 ## Owner-only Personal Moomoo Execution — CODE COMPLETE / DRY_RUN E2E BLOCKED
 
 Implemented:

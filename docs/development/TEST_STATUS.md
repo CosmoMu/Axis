@@ -52,6 +52,11 @@
   主要/次要支撑压力、Flip、Gross Wall separation、真实 strike 和 Net reconciliation PASS。
   1800×1600 纵向 PNG 已视觉复核，显示连续 19 行 Strike、5 expiry、TOTAL、SPOT、正/负
   GEX robust heatmap 与缺失 `—`；Moomoo shadow 78/78 overlap，未选择正式输出。
+- GEX V7 Discord Live smoke: PASS — 新 runtime 已安装并运行；HOOD 真实 Massive → shared
+  classifier → 1800×1600 PNG → `🧪・card-testing` 消息 `1545703467908206655` 成功。
+- AXIS website GEX V7: build PASS、4/4 tests、ESLint 0 errors / 1 existing `<img>` warning；
+  Sites Secret Store 已确认存在 `MASSIVE_API_KEY`，精确构建已保存为 Site Version 6；本轮未
+  在缺少单独发布指令时替换现有公开 deployment。
 
 ## Commands executed
 
