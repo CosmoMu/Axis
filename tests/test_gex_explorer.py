@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from app.bot.cogs.gex_explorer import (
     GexExplorerCog,
     gex_authorization_error,
+    has_gex_cooldown_bypass,
     has_gex_lounge_access,
     parse_gex_message,
 )
@@ -333,14 +334,8 @@ def test_gex_authorization_supports_test_and_member_lounge_modes() -> None:
         "user_id": 444,
     }
     assert gex_authorization_error(**lounge) is None
-    assert (
-        gex_authorization_error(**(lounge | {"has_lounge_access": False}))
-        == "PERMISSION_DENIED"
-    )
-    assert (
-        gex_authorization_error(**(lounge | {"channel_id": 555}))
-        == "MEMBER_LOUNGE_REQUIRED"
-    )
+    assert gex_authorization_error(**(lounge | {"has_lounge_access": False})) == "PERMISSION_DENIED"
+    assert gex_authorization_error(**(lounge | {"channel_id": 555})) == "MEMBER_LOUNGE_REQUIRED"
     assert gex_authorization_error(**(lounge | {"guild_id": 999})) == "PERMISSION_DENIED"
     assert (
         gex_authorization_error(
@@ -642,6 +637,73 @@ async def test_user_cooldown_is_fail_closed_and_audited() -> None:
         assert "GEX_RATE_LIMITED" in actions
     finally:
         await db.dispose()
+
+
+@pytest.mark.asyncio
+async def test_ticker_cooldown_blocks_other_members_for_one_minute() -> None:
+    db = await database()
+    service = GexExplorerService(
+        db,
+        FakeGexProvider(),  # type: ignore[arg-type]
+        FakeGexIntradayProvider(),
+        replace(policy(), user_cooldown_seconds=30, ticker_cooldown_seconds=60),
+    )
+    try:
+        await service.query(guild_id=GUILD_ID, actor_user_id=201, ticker="SPY")
+        with pytest.raises(GexExplorerError, match="GEX_TICKER_COOLDOWN"):
+            await service.query(guild_id=GUILD_ID, actor_user_id=202, ticker="$spy")
+        async with db.session() as session:
+            rate_limit = await session.scalar(
+                select(AuditLog)
+                .where(AuditLog.action_type == "GEX_RATE_LIMITED")
+                .order_by(AuditLog.created_at.desc())
+            )
+        assert rate_limit is not None
+        assert rate_limit.after_json["error_type"] == "TICKER_COOLDOWN"
+    finally:
+        await db.dispose()
+
+
+@pytest.mark.asyncio
+async def test_manager_or_owner_bypass_cooldowns_but_reuse_cache() -> None:
+    db = await database()
+    provider = FakeGexProvider()
+    service = GexExplorerService(
+        db,
+        provider,  # type: ignore[arg-type]
+        FakeGexIntradayProvider(),
+        policy(),
+    )
+    try:
+        first = await service.query(
+            guild_id=GUILD_ID,
+            actor_user_id=OWNER_ID,
+            ticker="QQQ",
+            bypass_cooldowns=True,
+        )
+        second = await service.query(
+            guild_id=GUILD_ID,
+            actor_user_id=OWNER_ID,
+            ticker="QQQ",
+            bypass_cooldowns=True,
+        )
+        assert first.cache_hit is False
+        assert second.cache_hit is True
+        assert provider.calls == 1
+    finally:
+        await db.dispose()
+
+
+def test_only_manager_and_owner_identities_bypass_gex_cooldowns() -> None:
+    common = {
+        "guild_owner_id": 10,
+        "configured_owner_id": 11,
+        "manager_role_id": 20,
+    }
+    assert has_gex_cooldown_bypass(user_id=10, role_ids=(), **common)
+    assert has_gex_cooldown_bypass(user_id=11, role_ids=(), **common)
+    assert has_gex_cooldown_bypass(user_id=30, role_ids=(20,), **common)
+    assert not has_gex_cooldown_bypass(user_id=30, role_ids=(21,), **common)
 
 
 @pytest.mark.asyncio

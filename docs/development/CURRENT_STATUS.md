@@ -90,7 +90,7 @@ Live read-only evidence:
 Production status: **STOCK ANALYST = TEST ONLY.** Phase 1 Test Gate 已通过；Member Lounge、普通
 文字触发、自动扫描、自动信号与 broker execution 均未启用，等待 Owner 后续明确指令。
 
-## GEX Explorer — MEMBER LOUNGE CODE COMPLETE / LAUNCH PENDING
+## GEX Explorer — MEMBER LOUNGE UPDATE CODE COMPLETE / LAUNCH PENDING
 
 Implemented:
 
@@ -143,9 +143,10 @@ Live evidence:
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。
 
-Production status: **GEX Explorer = TEST ONLY.** Member Lounge 代码已通过 15 秒 per-user cooldown、
-8 fresh requests/minute guild limit、60 秒 cache 和 single-flight 测试，但 deploy gate 要求 Owner
-明确发送 `APPROVE GEX LOUNGE LAUNCH`。在此之前线上 Bot 不切换 mode。
+Production status: **GEX Explorer = TEST ONLY.** 新规则代码已通过：普通会员每人 30 秒、同一
+ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。8 fresh requests/minute guild
+provider 保护、60 秒 cache 与 single-flight 继续启用。Member Lounge deployment 仍等待 Owner
+明确发送 `APPROVE GEX LOUNGE LAUNCH`；Owner 可继续在 `🧪・card-testing` 维护验证。
 
 Current V7 runtime evidence: AXIS BOT 已部署并处于 running；Discord runtime PASS；HOOD V7
 真实 Massive 测试卡已发送至 `🧪・card-testing`（Message `1545703467908206655`）。网站精确

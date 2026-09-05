@@ -8,7 +8,8 @@ strike_range_pct: 0.20
 snapshot_page_limit: 250
 snapshot_max_pages: 8
 cache_seconds: 60
-user_cooldown_seconds: 15
+user_cooldown_seconds: 30
+ticker_cooldown_seconds: 60
 guild_fresh_requests_per_minute: 8
 max_data_age_seconds: 300
 max_latency_seconds: 18

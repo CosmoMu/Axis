@@ -197,6 +197,8 @@ def test_approval_welcomes_mention_the_member_in_both_destinations() -> None:
     assert "⚡ Short-Term · <#201>" in member_lounge
     assert "〽️ Swing · <#202>" in member_lounge
     assert "♾️ LEAPS · <#203>" in member_lounge
+    assert "`/gex ticker:SPY`" in member_lounge
+    assert "Gamma 支撑、压力与加速区" in member_lounge
 
 
 def test_card_testing_previews_are_pure_dtos() -> None:

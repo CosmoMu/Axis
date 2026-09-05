@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 324 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 327 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -207,6 +207,8 @@ GEX Explorer V7 Member Lounge:
 - Massive GEX or Massive minute failure is fail-closed；Moomoo shadow failure is non-blocking；
   no synthetic candle fallback；PNG dimension and shadow metadata tests PASS。
 - ticker+policy+provider cache、single-flight、user cooldown、guild limit 与全部 GEX Audit event。
+- 普通会员 30 秒 per-user cooldown、同 ticker 60 秒 Guild cooldown、Manager / Owner bypass；
+  cooldown 与 60 秒 data cache、8 fresh requests/minute provider guard 分层验证。
 - GEX 查询后 Trade count 保持 0 的 isolation test；不创建 Signal/Result/Analysis/Tracking/Moomoo。
 - 真实 cold request `1627ms`；同进程 cache hit `2ms`。
 
@@ -255,7 +257,7 @@ Feature flags:
 - FEATURE_MOOMOO_ENABLED=false
 - FEATURE_PERSONAL_EXECUTION_ENABLED=false
 - RESULTS_REVIEW_ENABLED=true
-- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST（Member Lounge code complete / launch pending）
+- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST（updated Member Lounge launch pending）
 
 Discord:
 
@@ -271,7 +273,7 @@ Discord:
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, newcomer, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=13（包含 `/gex`）；GEX smoke card 已在 card-testing 发送成功。
+- owner test commands=14（包含 `/gex` 与 `/stock`）；GEX smoke card 已在 card-testing 发送成功。
 
 Analysis Fusion:
 

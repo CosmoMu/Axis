@@ -38,6 +38,8 @@ membership state: approval is permanent; entitlements control current Member acc
 Lobby and Member Lounge welcome messages are tracked independently on the approved application.
 The Member Lounge welcome includes clickable Short-Term, Swing, and LEAPS channel mentions sourced
 from the registered Discord channel configuration; channel IDs are not hard-coded in the message.
+It also introduces `/gex ticker:SPY` as the read-only way to view current-day Gamma support,
+resistance and acceleration structure inside Member Lounge.
 The five-minute reconciliation loop retries a destination only while its message ID is absent and
 the user still has active Member access, so restart recovery does not duplicate completed welcomes.
 Bot-managed Approval Role changes are marked as expected before Discord mutation; they must never

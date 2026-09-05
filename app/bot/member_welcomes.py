@@ -18,5 +18,7 @@ def member_lounge_welcome_message(
         "**MEMBER CHANNELS · 会员频道**\n"
         f"⚡ Short-Term · <#{short_term_channel_id}>\n"
         f"〽️ Swing · <#{swing_channel_id}>\n"
-        f"♾️ LEAPS · <#{leaps_channel_id}>"
+        f"♾️ LEAPS · <#{leaps_channel_id}>\n\n"
+        "🧭 GEX Explorer · 在本频道使用 `/gex ticker:SPY`，"
+        "查看当日 Gamma 支撑、压力与加速区。"
     )

@@ -29,7 +29,7 @@
 
 ## Market data
 
-- `market-data/GEX_EXPLORER.md` — Owner-only `/gex` Test Mode、Massive option surface、V7 shared
+- `market-data/GEX_EXPLORER.md` — Member Lounge `/gex` code-ready、Owner card-testing maintenance、Massive option surface、V7 shared
   classifier、专业 Strike × Expiration Ladder、GEX 公式、
   expiry/near-term、walls/clusters/regime/triggers、heatmap、cache/limits、alerts 与 rollback。
 

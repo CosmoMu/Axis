@@ -20,7 +20,7 @@ POC/VA 是 Daily OHLCV high-low 分箱代理。闭市验收已完成；交易时
 
 V7 Massive option-chain aggregation、card、heatmap、cache、single-flight、limits、audit 与 alerts
 已实现；严格 `gex TICKER`、Member/Manager/Owner role gate 和 exact channel gate 已通过自动化。
-Member Lounge runtime 等待精确批准短语。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前
+Member Lounge 更新代码已完成，runtime 仍等待精确批准短语。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前
 Massive 账户对 SPX index snapshot 无 entitlement，option-chain seed 也无法提供可用 underlying
 spot，故返回 `GEX_SPX_UNSUPPORTED`。禁止用 SPY 替代 SPX。
 

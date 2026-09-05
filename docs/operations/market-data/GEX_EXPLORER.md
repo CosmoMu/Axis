@@ -12,6 +12,11 @@ the existing GEX AuditLog events. Only the strict `gex TICKER` message shape tri
 ticker or normal lounge conversation does not. Current production remains TEST until the exact
 launch approval is received; Owner `/gex` remains available in card-testing.
 
+The code-ready Member Lounge anti-spam rules are separate from provider protection: ordinary members may make one
+request every 30 seconds, and the same normalized ticker may be requested once per Guild every 60
+seconds. Manager and Owner identities bypass both cooldowns. The eight-fresh-requests-per-minute
+Guild provider limit, 60-second data cache, and single-flight generation still apply to everyone.
+
 Moomoo OpenD compares five-minute bars in a background black box only. It never selects, replaces,
 delays, or blocks the Massive result. GEX remains read-only and does not connect to trade execution.
 

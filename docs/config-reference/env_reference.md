@@ -112,6 +112,8 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 - `AXIS GEX Explorer`：V7 已接 Member Lounge `gex TICKER` 文本命令和 `/gex`；Massive 是
   GEX surface、现价与 5 分钟 K 线正式 provider，Moomoo 仅运行后台影子比较。使用专业
   Strike × Expiration Ladder 与 shared intraday classifier，严格 read-only，不连接交易接口。
+- Member Lounge GEX 冷却：普通会员每人 30 秒，同一标准化 ticker 全频道 60 秒；Manager / Owner
+  免除这两项冷却，8 fresh requests/minute Guild provider guard 仍保留。
 
 两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
 仓库。旧 `FEATURE_COSMOS_STOCK_ANALYST_ENABLED` 仅保留一版配置兼容，新环境不得继续使用。

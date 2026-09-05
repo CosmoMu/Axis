@@ -60,6 +60,18 @@ def has_gex_lounge_access(
     return any(role_id in allowed_roles for role_id in role_ids)
 
 
+def has_gex_cooldown_bypass(
+    *,
+    user_id: int,
+    role_ids: Iterable[int],
+    guild_owner_id: int,
+    configured_owner_id: int,
+    manager_role_id: int,
+) -> bool:
+    """Managers and both Owner identities bypass user/ticker cooldowns."""
+    return user_id in {guild_owner_id, configured_owner_id} or manager_role_id in set(role_ids)
+
+
 def gex_authorization_error(
     *,
     guild_id: int | None,
@@ -119,6 +131,7 @@ class GexExplorerCog(commands.Cog):
     async def gex(self, interaction: discord.Interaction, ticker: str) -> None:
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         guild_owner_id = interaction.guild.owner_id if interaction.guild is not None else 0
+        role_ids = tuple(role.id for role in member.roles) if member is not None else ()
         authorization = gex_authorization_error(
             guild_id=interaction.guild_id,
             channel_id=interaction.channel_id,
@@ -131,7 +144,7 @@ class GexExplorerCog(commands.Cog):
                 member is not None
                 and has_gex_lounge_access(
                     user_id=member.id,
-                    role_ids=(role.id for role in member.roles),
+                    role_ids=role_ids,
                     guild_owner_id=guild_owner_id,
                     configured_owner_id=self.owner_user_id,
                     member_role_id=self.member_role_id,
@@ -177,6 +190,13 @@ class GexExplorerCog(commands.Cog):
                 actor_user_id=interaction.user.id,
                 ticker=symbol,
                 interaction_id=interaction.id,
+                bypass_cooldowns=has_gex_cooldown_bypass(
+                    user_id=interaction.user.id,
+                    role_ids=role_ids,
+                    guild_owner_id=guild_owner_id,
+                    configured_owner_id=self.owner_user_id,
+                    manager_role_id=self.manager_role_id,
+                ),
             )
             filename = f"axis-gex-{result.snapshot.ticker.lower()}.png"
             await interaction.edit_original_response(
@@ -230,11 +250,19 @@ class GexExplorerCog(commands.Cog):
 
         try:
             async with message.channel.typing():
+                role_ids = tuple(role.id for role in message.author.roles)
                 result = await self.service.query(
                     guild_id=self.guild_id,
                     actor_user_id=message.author.id,
                     ticker=symbol,
                     interaction_id=message.id,
+                    bypass_cooldowns=has_gex_cooldown_bypass(
+                        user_id=message.author.id,
+                        role_ids=role_ids,
+                        guild_owner_id=message.guild.owner_id,
+                        configured_owner_id=self.owner_user_id,
+                        manager_role_id=self.manager_role_id,
+                    ),
                 )
             filename = f"axis-gex-{result.snapshot.ticker.lower()}.png"
             await message.reply(
@@ -261,16 +289,15 @@ class GexExplorerCog(commands.Cog):
         await interaction.followup.send(message, ephemeral=True)
         await self._report_error_if_needed(code, ticker)
 
-    async def _handle_message_error(
-        self, message: discord.Message, ticker: str, code: str
-    ) -> None:
+    async def _handle_message_error(self, message: discord.Message, ticker: str, code: str) -> None:
         await self._safe_message_reply(message, self._error_message(code))
         await self._report_error_if_needed(code, ticker)
 
     @staticmethod
     def _error_message(code: str) -> str:
         messages = {
-            "GEX_USER_COOLDOWN": "请求过快，请稍候再试。",
+            "GEX_USER_COOLDOWN": "每位会员每 30 秒可查询一次，请稍候再试。",
+            "GEX_TICKER_COOLDOWN": "该标的刚刚查询过；同一标的每 60 秒可更新一次。",
             "GEX_GUILD_RATE_LIMIT": "当前请求较多，请稍后重试。",
             "GEX_TICKER_NOT_FOUND": "未找到该 Ticker 或可用期权链，请检查后重试。",
             "GEX_NO_EXPIRATIONS": "该标的没有找到可用的近期到期日。",
@@ -287,9 +314,14 @@ class GexExplorerCog(commands.Cog):
         return messages.get(code, "GEX 数据或图片生成暂时失败，请稍后重试。")
 
     async def _report_error_if_needed(self, code: str, ticker: str) -> None:
-        severity = "WARNING" if code in {"GEX_USER_COOLDOWN", "GEX_GUILD_RATE_LIMIT"} else "ERROR"
+        severity = (
+            "WARNING"
+            if code in {"GEX_USER_COOLDOWN", "GEX_TICKER_COOLDOWN", "GEX_GUILD_RATE_LIMIT"}
+            else "ERROR"
+        )
         if code not in {
             "GEX_USER_COOLDOWN",
+            "GEX_TICKER_COOLDOWN",
             "GEX_GUILD_RATE_LIMIT",
             "GEX_TICKER_NOT_FOUND",
             "GEX_NO_EXPIRATIONS",

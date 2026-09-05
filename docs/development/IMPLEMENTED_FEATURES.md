@@ -14,7 +14,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - Owner-only `💹・moomoo-trading`、持久 control card 与明确 persona permission isolation。
 
-## GEX Explorer — Member Lounge Code Complete / Launch Pending
+## GEX Explorer — Member Lounge Update Code Complete / Launch Pending
 
 - `🛋️・member-lounge` 严格文本触发 `gex TICKER`，同时支持 `/gex ticker:TICKER`；普通 Ticker
   与其他聊天不触发。
@@ -39,8 +39,9 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。
 - 独立 `GEX_EXPLORER_ENABLED` kill switch；`TEST` 与获批 `MEMBER_LOUNGE` mode fail-closed gate。
 - 严格 read-only，不触发 Signal、Trade、Result、Analysis、Membership、Tracking 或 Moomoo。
-- 15 秒 per-user cooldown、8 fresh requests/minute guild limit、60 秒 ticker cache 与 single-flight
-  已覆盖 Member Lounge 路径；production runtime 仍保持 TEST，等待精确 launch approval。
+- 普通会员 30 秒 per-user cooldown、同一 ticker 全频道 60 秒 cooldown；Manager / Owner
+  免除这两项频道冷却。8 fresh requests/minute guild provider limit、60 秒 data cache 与
+  single-flight 继续保护 Massive；production runtime 仍为 `TEST`，等待精确 launch approval。
 
 ## Owner-only Personal Moomoo Execution
 

@@ -66,8 +66,9 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer V7 的 Member Lounge 入口代码已完成。启用后 Member / Manager / Owner 可发送
-  严格格式 `gex SPY`（或使用 `/gex SPY`）生成中文盘中结构卡；其他普通消息不触发。当前 runtime
+- GEX Explorer V7 的 Member Lounge 更新代码已完成。启用后 Member / Manager / Owner 可发送
+  严格格式 `gex SPY`（或使用 `/gex ticker:SPY`）生成中文盘中结构卡；其他普通消息不触发。
+  普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。当前 runtime
   仍为 `TEST`，只有 Owner 可在 `🧪・card-testing` 使用 `/gex`；必须收到精确批准短语
   `APPROVE GEX LOUNGE LAUNCH` 才可切换部署。正式数据来自 Massive；Moomoo 只做后台比较。
 
