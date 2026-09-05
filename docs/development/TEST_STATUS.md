@@ -33,7 +33,7 @@
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
   `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
 - GEX V2 RDDT dual-provider evidence: PASS — Massive 10 valid expirations / 338 option contracts；
-  Moomoo 240 genuine 1-minute RTH bars；1800x1040 PNG rendered and visually reviewed。
+  Moomoo 240 genuine 1-minute RTH bars；1800x1125 balanced PNG rendered and visually reviewed。
 
 ## Commands executed
 
@@ -170,8 +170,9 @@ GEX Explorer Phase 1:
 - 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
 - Gamma/IV fallback、Net/Positive/Negative GEX、五级 Regime、Zero Gamma、GEX Walls、Clusters、
   deterministic Bias/Triggers 与 no-LLM level boundary。
-- Deterministic 1800x1040 Chinese composite chart；real 1-minute K-line；pressure/support/Gamma
-  boundary/negative-GEX acceleration overlays；strike x expiration heatmap。
+- Deterministic 1800x1125 Chinese composite chart；candle-first adaptive axis；pinned off-chart
+  pressure/support/Gamma labels；real 1-minute K-line；negative-GEX acceleration overlays；
+  strike x expiration heatmap。
 - Massive or Moomoo failure is fail-closed；no synthetic candle fallback；PNG dimension and
   dual-provider metadata tests PASS。
 - ticker+policy+provider cache、single-flight、user cooldown、guild limit 与全部 GEX Audit event。

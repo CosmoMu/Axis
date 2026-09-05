@@ -98,7 +98,10 @@ def render_gex_heatmap(
     if not bars:
         raise ValueError("GEX intraday renderer requires real 1-minute bars")
 
-    width, height = 1800, 1040
+    # Discord scales the whole attachment to the available message width. A 16:10
+    # composite keeps the intraday panel tall enough for candle bodies and levels,
+    # while giving the expiration heatmap enough horizontal room for readable cells.
+    width, height = 1800, 1125
     image = Image.new("RGBA", (width, height), "#050807")
     draw = ImageDraw.Draw(image, "RGBA")
     white = "#F4F5F1"
@@ -110,14 +113,14 @@ def render_gex_heatmap(
     panel = "#08100E"
 
     margin = 48
-    left_panel_right = 1215
-    right_panel_left = 1235
+    left_panel_right = 1145
+    right_panel_left = 1165
     panel_top = 138
-    panel_bottom = 908
+    panel_bottom = 982
     plot_left = 76
-    plot_right = 1182
+    plot_right = 1112
     plot_top = 190
-    plot_bottom = 848
+    plot_bottom = 910
 
     draw.text((margin, 34), f"AXIS GEX · {snapshot.ticker}", fill=white, font=_font(38, bold=True))
     draw.text(
@@ -167,14 +170,19 @@ def render_gex_heatmap(
     candle_floor = min(item.low for item in bars)
     candle_ceiling = max(item.high for item in bars)
     candle_span = max(candle_ceiling - candle_floor, snapshot.spot * 0.002)
-    # Keep nearby GEX structure visible without allowing remote chain-tail strikes to
-    # flatten the intraday candles. Four percent includes the actionable walls in the
-    # common case; more distant levels remain explicit in the heatmap markers/card.
-    visible_distance = max(candle_span * 2.6, snapshot.spot * 0.04)
-    structural_levels = tuple(
+    # The candle scale is the primary view. Only genuinely nearby GEX structure may
+    # expand it; distant walls are retained as pinned off-chart labels below. The old
+    # four-percent floor could compress a normal intraday range into ~15% of the panel.
+    visible_distance = max(candle_span * 1.5, snapshot.spot * 0.0025)
+    all_structural_levels = tuple(
         value
         for value in (snapshot.call_wall, snapshot.put_wall, snapshot.zero_gamma)
-        if value is not None and abs(value - snapshot.spot) <= visible_distance
+        if value is not None
+    )
+    structural_levels = tuple(
+        value
+        for value in all_structural_levels
+        if abs(value - snapshot.spot) <= visible_distance
     )
     zone_prices = tuple(
         value
@@ -256,6 +264,39 @@ def render_gex_heatmap(
         draw.text(
             (plot_right - 14, y),
             text,
+            fill=color,
+            font=_font(14, bold=True),
+            anchor="rm",
+        )
+
+    pinned_top = 0
+    pinned_bottom = 0
+    pinned_levels: list[float] = []
+    for level in all_structural_levels:
+        if floor <= level <= ceiling or any(
+            abs(level - item) / level < 0.0005 for item in pinned_levels
+        ):
+            continue
+        pinned_levels.append(level)
+        label, color = _level_label(snapshot, level)
+        above = level > ceiling
+        if above:
+            label_y = plot_top + 20 + pinned_top * 39
+            pinned_top += 1
+        else:
+            label_y = plot_bottom - 20 - pinned_bottom * 39
+            pinned_bottom += 1
+        direction = "↑" if above else "↓"
+        draw.rounded_rectangle(
+            (plot_right - 236, label_y - 16, plot_right - 6, label_y + 16),
+            radius=7,
+            fill="#0A1411",
+            outline=color,
+            width=1,
+        )
+        draw.text(
+            (plot_right - 14, label_y),
+            f"{direction} 图外{label}  {level:,.2f}",
             fill=color,
             font=_font(14, bold=True),
             anchor="rm",
@@ -399,7 +440,7 @@ def render_gex_heatmap(
             anchor="rm",
         )
 
-    legend_y = 874
+    legend_y = 944
     draw.text(
         (heatmap_left, legend_y),
         "绿色：正 GEX   红色：负 GEX   现：现价   零：Gamma 分界   压：压力   撑：支撑",
@@ -407,13 +448,13 @@ def render_gex_heatmap(
         font=_font(11, bold=True),
     )
     draw.text(
-        (margin, 952),
+        (margin, 1030),
         "波动加速区来自负 GEX 集中带；支撑、压力与分界均由当前期权表面确定，不使用模型臆造。",
         fill=secondary,
         font=_font(16, bold=True),
     )
     draw.text(
-        (width - margin, 992),
+        (width - margin, 1081),
         "教育与市场结构研究用途，不构成投资建议",
         fill=muted,
         font=_font(15, bold=True),

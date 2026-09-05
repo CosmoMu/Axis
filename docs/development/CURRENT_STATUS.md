@@ -60,8 +60,9 @@ Implemented:
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
 - Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall、positive/negative zone、
   deterministic bias / triggers；无 LLM 点位。
-- 确定性 1800x1040 中文复合图：左侧真实 1 分钟 K 线 + 压力/支撑/Gamma 分界/加速区，
-  右侧 strike x expiration GEX 热力图；卡片同步中文化。
+- 确定性 1800x1125 中文复合图：16:10 风格布局，左侧真实 1 分钟 K 线绘图区约 1.44:1，
+  右侧 strike x expiration GEX 热力图加宽；纵轴优先保持蜡烛可读，远端压力/支撑/Gamma
+  分界使用图顶/图底标签保留，不再强行压扁 K 线。
 - ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
 - GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
   System Alert dedup / Recovery。
@@ -71,7 +72,8 @@ Implemented:
 Live evidence:
 
 - RDDT Massive + Moomoo 双源只读验收 PASS：240 根当日 1 分钟 K 线、10 个有效 expiry、
-  338 张期权合约，复合 PNG 生成成功。
+  338 张期权合约；K 线实际范围 $154.12–$155.93，优化后不再被 $150 / $160 远端结构位压缩，
+  1800x1125 复合 PNG 已完成视觉复核。
 - Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效
   expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
 - Invalid ticker PASS。

@@ -204,7 +204,7 @@ async def test_approval_auto_trial_is_created_even_when_other_access_is_active()
 @pytest.mark.asyncio
 async def test_extensions_are_separate_and_cross_weekend_and_holiday() -> None:
     database, _, access = await services()
-    friday_expiry = datetime(2026, 9, 5, 3, 59, 59, tzinfo=UTC)
+    christmas_eve_expiry = datetime(2026, 12, 25, 4, 59, 59, tzinfo=UTC)
     try:
         async with database.session() as session:
             source = MembershipEntitlement(
@@ -212,8 +212,8 @@ async def test_extensions_are_separate_and_cross_weekend_and_holiday() -> None:
                 discord_user_id=USER_ID,
                 entitlement_type=EntitlementType.DAY_PASS.value,
                 status=EntitlementStatus.ACTIVE.value,
-                starts_at=datetime(2026, 9, 4, 14, tzinfo=UTC),
-                ends_at=friday_expiry,
+                starts_at=datetime(2026, 12, 24, 14, tzinfo=UTC),
+                ends_at=christmas_eve_expiry,
             )
             session.add(source)
             await session.commit()
@@ -225,11 +225,11 @@ async def test_extensions_are_separate_and_cross_weekend_and_holiday() -> None:
             amount=3,
             actor_user_id=99,
             interaction_id=100,
-            now=datetime(2026, 9, 4, 20, tzinfo=UTC),
+            now=datetime(2026, 12, 24, 20, tzinfo=UTC),
         )
         assert extension.id != source_id
-        assert extension.first_trading_day.isoformat() == "2026-09-08"
-        assert extension.last_trading_day.isoformat() == "2026-09-10"
+        assert extension.first_trading_day.isoformat() == "2026-12-28"
+        assert extension.last_trading_day.isoformat() == "2026-12-30"
         status = await access.status(GUILD_ID, USER_ID)
         assert len(status.entitlements) == 2
     finally:

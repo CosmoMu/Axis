@@ -49,9 +49,13 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   Zero Gamma, GEX-based Call Wall and Put Wall, deterministic positive/negative clusters,
   structural bias, and bullish/bearish trigger/target levels.
 - All levels must come from the normalized option surface. An LLM must never invent GEX levels.
-- The response is one Chinese AXIS Discord card plus one deterministic 1800x1040 composite image:
+- The response is one Chinese AXIS Discord card plus one deterministic 1800x1125 composite image:
   the left side is the real 1-minute K-line with current price and structural overlays; the right
   side is a strike-by-expiration GEX heatmap.
+- The composite uses a 16:10-style layout. The intraday plot is approximately 1.44:1 instead of a
+  stretched wide panel, and the heatmap receives wider expiration cells. The price axis is
+  candle-first and may expand only for nearby GEX structure. Distant Call Wall, Put Wall, or Zero
+  Gamma values remain visible as pinned Chinese off-chart labels and must not flatten the candles.
 - The Call Wall is labeled as upper resistance, the Put Wall as lower support, and Zero Gamma as
   the Gamma boundary. Negative-GEX clusters are rendered as volatility-acceleration zones.
 - Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.

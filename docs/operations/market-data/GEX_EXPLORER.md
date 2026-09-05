@@ -72,11 +72,13 @@ no LLM participates.
 
 ## Heatmap
 
-The Pillow renderer produces a deterministic 1800x1040 black AXIS image. The left panel shows real
-1-minute candles, current price, nearby upper resistance / lower support / Gamma-boundary lines,
-and negative-GEX volatility-acceleration zones. The right panel shows strike rows, up to five
-expiration columns, signed cell intensity, aggregate GEX, and current / boundary / resistance /
-support markers. Visible explanatory text is Chinese. It does not use an image-generation model.
+The Pillow renderer produces a deterministic 1800x1125 black AXIS image. The left panel uses a
+candle-first adaptive axis for real 1-minute candles, current price, nearby upper resistance /
+lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration zones. Distant
+structure is pinned at the top or bottom with its actual price instead of flattening candle bodies.
+The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
+aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
+Chinese. It does not use an image-generation model.
 
 ## Cache, single-flight, and rate limits
 

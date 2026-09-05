@@ -232,7 +232,7 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.snapshot.ticker == second.snapshot.ticker == "SPY"
         assert first.heatmap_png.startswith(b"\x89PNG")
         with Image.open(BytesIO(first.heatmap_png)) as image:
-            assert image.size == (1800, 1040)
+            assert image.size == (1800, 1125)
         assert first.used_expirations == 10
         assert first.intraday_provider == "fake-minute"
         assert first.intraday_bar_count == 120
