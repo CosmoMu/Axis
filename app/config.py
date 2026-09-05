@@ -196,6 +196,9 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    gex_explorer_enabled: bool = False
+    gex_explorer_mode: str = "TEST"
+    gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
     production_data_start_date: date = date(2026, 8, 31)
     production_data_start_timezone: str = "America/New_York"
     deployment_stage: str = "SOFT_OPEN"
@@ -283,6 +286,7 @@ class Settings:
         short_term_tracking_value = os.getenv(
             "SHORT_TERM_TRACKING_CONFIG", "config/short_term_tracking.yaml"
         )
+        gex_policy_value = os.getenv("GEX_EXPLORER_POLICY", "config/gex_explorer.yaml")
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
         default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
@@ -336,6 +340,11 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
+            gex_explorer_mode=(
+                os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"
+            ),
+            gex_explorer_policy_path=(root / gex_policy_value).resolve(),
             production_data_start_date=_parse_date("PRODUCTION_DATA_START_DATE", "2026-08-31"),
             production_data_start_timezone=_parse_timezone(
                 "PRODUCTION_DATA_START_TIMEZONE", "America/New_York"
@@ -567,6 +576,21 @@ class Settings:
             raise ConfigurationError(
                 "当前规格仍禁止启动 AXIS LAB / Model A-B；请将两个开关保持 false。"
             )
+
+    def assert_gex_safety(self) -> None:
+        if self.gex_explorer_mode not in {"OFF", "TEST"}:
+            raise ConfigurationError(
+                "Phase 1 仅允许 GEX_EXPLORER_MODE=TEST；Member Lounge 尚未获批。"
+            )
+        if self.gex_explorer_enabled:
+            if self.gex_explorer_mode != "TEST":
+                raise ConfigurationError("启用 Phase 1 GEX 时必须使用 TEST mode。")
+            if self.discord_owner_user_id is None:
+                raise ConfigurationError("启用 GEX Explorer 必须配置 DISCORD_OWNER_USER_ID。")
+            if not self.massive_api_key:
+                raise ConfigurationError("启用 GEX Explorer 必须配置 MASSIVE_API_KEY。")
+            if not self.gex_explorer_policy_path.is_file():
+                raise ConfigurationError("GEX_EXPLORER_POLICY 文件不存在。")
 
     def assert_personal_execution_safety(self) -> None:
         policy = self.personal_policy

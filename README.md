@@ -15,8 +15,9 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Stripe Payment: LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING
 - Production Stabilization: PARTIAL
 - Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
+- GEX Explorer: PHASE 1 CODE COMPLETE / TEST ONLY / MEMBER LOUNGE NOT LAUNCHED
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 290 passed；focused Personal Execution tests PASS
+- Latest automated regression: 303 passed；Ruff / compileall / database / Discord runtime PASS
 
 ## 文档入口
 
@@ -29,6 +30,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Soft Open Day 1 验证：docs/development/SOFT_OPEN_DAY1_VALIDATION.md
 - Live 上线清单：docs/development/LIVE_MODE_CHECKLIST.md
 - Owner Moomoo 运维：docs/operations/trading/MOOMOO_PERSONAL_EXECUTION.md
+- GEX Explorer 运维：docs/operations/market-data/GEX_EXPLORER.md
 - Stripe Payment 运维：docs/operations/payments/README.md
 - Soft Open Reset 审计：docs/development/SOFT_OPEN_RESET_2026-08-30.md
 - 运维手册：docs/operations/

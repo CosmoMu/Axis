@@ -2,9 +2,9 @@
 
 **Updated:** 2026-09-04
 
-**Current stage:** Owner Personal Moomoo Execution DRY_RUN validation / Production stabilization
+**Current stage:** GEX Explorer Phase 1 TEST ONLY / Production stabilization
 
-**Database revision:** 20260903_0030
+**Database revision:** 20260904_0031
 
 **AXIS LAB:** DEFERRED
 
@@ -42,6 +42,40 @@ Owner-only Personal Moomoo Execution 已吸收最终规格并复用现有 public
 database / system-alert architecture。代码、forward-only migration、Owner-only channel/control card、
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
+
+GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive provider boundary、
+AuditLog、System Alerts 和 Owner-only card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、
+Near-Term、五级 Gamma Regime、Zero Gamma、GEX Walls/Clusters、deterministic triggers、缓存、
+single-flight、限流和移动端 heatmap 已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
+
+## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
+
+Implemented:
+
+- Slash command only；普通 Ticker 消息不触发。输入兼容大小写与 `$` 前缀。
+- Owner + `🧪・card-testing` 双重 runtime gate；Manager、Member、Newcomer 和 `@everyone` 不可用。
+- 复用 Massive Key / base URL 与 AXIS Provider boundary；SPX 独立处理，绝不 fallback 到 SPY。
+- 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
+- Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall、positive/negative zone、
+  deterministic bias / triggers；无 LLM 点位。
+- 确定性 mobile heatmap、source timestamp、market-closed/stale、coverage/cache/policy 标签。
+- ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
+- GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
+  System Alert dedup / Recovery。
+- GEX read-only：不创建或修改 Signal、Trade、Result、Mentor、Analysis、Membership、Tracking 或
+  Moomoo order。
+
+Live evidence:
+
+- Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效
+  expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
+- Invalid ticker PASS。
+- SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
+  `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。
+
+Production status: **GEX Explorer = TEST ONLY.** 只有 Owner 可在 card-testing 使用。必须等待
+Owner 明确发送 `APPROVE GEX LOUNGE LAUNCH` 后，才能开始 Phase 2 权限、回归和上线；本阶段不得
+标记 Member Lounge Live。
 
 ## Owner-only Personal Moomoo Execution — CODE COMPLETE / DRY_RUN E2E BLOCKED
 

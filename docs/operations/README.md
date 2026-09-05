@@ -27,5 +27,10 @@
 - `trading/MOOMOO_PERSONAL_EXECUTION.md` — Owner-only Moomoo DRY_RUN、OpenD 对账、风险控制、
   LIVE gate、kill switch 与事故处理。
 
+## Market data
+
+- `market-data/GEX_EXPLORER.md` — Owner-only `/gex` Test Mode、Massive option surface、GEX 公式、
+  expiry/near-term、walls/clusters/regime/triggers、heatmap、cache/limits、alerts 与 rollback。
+
 Secret、完整 Stripe payload、客户付款信息、Discord 用户 ID 与数据库连接信息不得写进文档、
 命令输出、日志或 Git。

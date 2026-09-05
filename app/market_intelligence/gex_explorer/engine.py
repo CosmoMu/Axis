@@ -12,6 +12,8 @@ from app.market_intelligence.gex_explorer.models import (
     GexExpiration,
     GexOptionContract,
     GexSnapshot,
+    GexTrigger,
+    GexZone,
     OptionSide,
 )
 
@@ -20,6 +22,103 @@ CONTRACT_MULTIPLIER = 100
 DEALER_SIGN_ASSUMPTION = (
     "估算假设：dealer 对 Call 为正 gamma、对 Put 为负 gamma；并非真实持仓观测。"
 )
+DEFAULT_REGIME_THRESHOLDS = (0.25, 0.08, -0.08, -0.25)
+
+
+def classify_gamma_regime(
+    ratio: float,
+    thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
+) -> str:
+    strong_positive, positive, negative, strong_negative = thresholds
+    if ratio >= strong_positive:
+        return "强正 Gamma"
+    if ratio >= positive:
+        return "正 Gamma"
+    if ratio <= strong_negative:
+        return "强负 Gamma"
+    if ratio <= negative:
+        return "负 Gamma"
+    return "Gamma 平衡区"
+
+
+def _zones(
+    points: tuple[GexByStrike, ...],
+    *,
+    positive: bool,
+    relative_threshold: float,
+) -> tuple[GexZone, ...]:
+    values = [
+        (point.strike, point.call_gex if positive else abs(point.put_gex))
+        for point in points
+        if (point.call_gex > 0 if positive else point.put_gex < 0)
+    ]
+    if not values:
+        return ()
+    peak_value = max(value for _, value in values)
+    selected = [
+        (strike, value)
+        for strike, value in values
+        if value >= peak_value * relative_threshold
+    ]
+    all_strikes = sorted(point.strike for point in points)
+    steps = [right - left for left, right in zip(all_strikes, all_strikes[1:], strict=False)]
+    typical_step = sorted(steps)[len(steps) // 2] if steps else 1.0
+    groups: list[list[tuple[float, float]]] = []
+    for item in selected:
+        if not groups or item[0] - groups[-1][-1][0] > typical_step * 1.6:
+            groups.append([item])
+        else:
+            groups[-1].append(item)
+    zones = []
+    for group in groups:
+        peak = max(group, key=lambda item: item[1])
+        zones.append(
+            GexZone(
+                lower=group[0][0],
+                upper=group[-1][0],
+                peak=peak[0],
+                exposure=sum(item[1] for item in group),
+            )
+        )
+    return tuple(sorted(zones, key=lambda zone: zone.exposure, reverse=True)[:3])
+
+
+def _trigger(
+    *,
+    spot: float,
+    zero: float | None,
+    points: tuple[GexByStrike, ...],
+    wall: float | None,
+    bullish: bool,
+) -> GexTrigger:
+    candidates = sorted(
+        (
+            {
+                point.strike
+                for point in points
+                if point.strike > spot and point.net_gex > 0
+            }
+            if bullish
+            else {
+                point.strike
+                for point in points
+                if point.strike < spot and point.net_gex < 0
+            }
+        ),
+        reverse=not bullish,
+    )
+    structural = [value for value in (zero, wall) if value is not None]
+    directional = [
+        value for value in structural if (value > spot if bullish else value < spot)
+    ]
+    levels = sorted(set(candidates + directional), reverse=not bullish)
+    level = levels[0] if levels else None
+    target = levels[1] if len(levels) > 1 else None
+    if level is None:
+        return GexTrigger(None, None, "暂无明确向上触发" if bullish else "暂无明确向下触发")
+    direction = "站上" if bullish else "跌破"
+    continuation = f"，下一结构位 {_fmt(target)}" if target is not None else ""
+    return GexTrigger(level, target, f"{direction} {_fmt(level)}{continuation}")
 
 
 def black_scholes_gamma(
@@ -172,6 +271,8 @@ def build_gex_snapshot(
     *,
     risk_free_rate: float = 0.0425,
     dividend_yield: float = 0.012,
+    regime_thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
+    zone_relative_threshold: float = 0.35,
 ) -> GexSnapshot:
     grouped: defaultdict[object, list[GexOptionContract]] = defaultdict(list)
     for contract in contracts:
@@ -205,39 +306,57 @@ def build_gex_snapshot(
     net = sum(point.net_gex for point in points)
     total_abs = sum(abs(point.call_gex) + abs(point.put_gex) for point in points)
     ratio = net / total_abs if total_abs else 0.0
-    regime = (
-        "正 Gamma 稳定区"
-        if ratio >= 0.08
-        else "负 Gamma 加速区"
-        if ratio <= -0.08
-        else "Gamma 平衡区"
-    )
+    regime = classify_gamma_regime(ratio, regime_thresholds)
     zero = _zero_gamma(points, spot)
     calls = [point for point in points if point.call_gex > 0]
     puts = [point for point in points if point.put_gex < 0]
     call_wall = max(calls, key=lambda item: item.call_gex).strike if calls else None
     put_wall = min(puts, key=lambda item: item.put_gex).strike if puts else None
-    above = [point.strike for point in points if point.strike > spot and point.net_gex > 0]
-    below = [point.strike for point in points if point.strike < spot and point.net_gex < 0]
-    bullish_trigger = (
-        call_wall if call_wall is not None and call_wall > spot else min(above, default=None)
+    bullish = _trigger(
+        spot=spot,
+        zero=zero,
+        points=points,
+        wall=call_wall,
+        bullish=True,
     )
-    bearish_trigger = (
-        put_wall if put_wall is not None and put_wall < spot else max(below, default=None)
+    bearish = _trigger(
+        spot=spot,
+        zero=zero,
+        points=points,
+        wall=put_wall,
+        bullish=False,
     )
+    bullish_trigger = bullish.level
+    bearish_trigger = bearish.level
     location = 0 if zero is None else 1 if spot > zero else -1
-    if location > 0 and ratio < -0.08:
-        bias = "偏多且具备波动扩张条件"
-    elif location < 0 and ratio < -0.08:
-        bias = "偏空且下行波动可能被放大"
-    elif ratio >= 0.08:
-        bias = "正 Gamma 主导，更接近震荡吸附"
+    if location > 0 and ratio <= regime_thresholds[2]:
+        bias = "BULLISH"
+    elif location < 0 and ratio <= regime_thresholds[2]:
+        bias = "BEARISH"
+    elif ratio >= regime_thresholds[1]:
+        bias = "NEUTRAL"
     else:
-        bias = "中性，等待关键 Gamma 位置给出方向"
+        bias = "NEUTRAL → BULLISH" if location > 0 else "NEUTRAL → BEARISH"
+    positive_gex = sum(point.call_gex for point in points)
+    negative_gex = sum(point.put_gex for point in points)
+    near_term = expirations[0]
+    near_term_ratio = (
+        near_term.net_gex / near_term.total_abs_gex if near_term.total_abs_gex else 0.0
+    )
+    positive_zones = _zones(
+        points,
+        positive=True,
+        relative_threshold=zone_relative_threshold,
+    )
+    negative_zones = _zones(
+        points,
+        positive=False,
+        relative_threshold=zone_relative_threshold,
+    )
     analysis = (
         f"当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
         f"Zero Gamma {_fmt(zero)}；Call Wall {_fmt(call_wall)}；Put Wall {_fmt(put_wall)}。",
-        f"当前观察为“{bias}”。向上关注 {_fmt(bullish_trigger)}，向下关注 {_fmt(bearish_trigger)}。",
+        f"结构倾向为“{bias}”。向上：{bullish.description}；向下：{bearish.description}。",
     )
     return GexSnapshot(
         ticker=ticker.upper(),
@@ -261,4 +380,13 @@ def build_gex_snapshot(
         skipped_contracts=skipped,
         data_warnings=tuple(warnings),
         dealer_sign_assumption=DEALER_SIGN_ASSUMPTION,
+        positive_gex=positive_gex,
+        negative_gex=negative_gex,
+        near_term_expiration=near_term.expiration,
+        near_term_net_gex=near_term.net_gex,
+        near_term_regime=classify_gamma_regime(near_term_ratio, regime_thresholds),
+        positive_zones=positive_zones,
+        negative_zones=negative_zones,
+        bullish=bullish,
+        bearish=bearish,
     )

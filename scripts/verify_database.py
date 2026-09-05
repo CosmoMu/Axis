@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-EXPECTED_REVISION = "20260903_0030"
+EXPECTED_REVISION = "20260904_0031"
 
 COUNTED_TABLES = (
     "input_code_counters",
@@ -159,9 +159,10 @@ def main() -> int:
     try:
         asyncio.run(verify())
     except Exception as exc:
+        safe_code = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
         print(
             "AXIS database verification failed; connection details were omitted. "
-            f"error_type={type(exc).__name__}",
+            f"error_type={type(exc).__name__} code={safe_code}",
             file=sys.stderr,
         )
         return 2

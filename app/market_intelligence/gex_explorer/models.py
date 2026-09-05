@@ -44,6 +44,21 @@ class GexExpiration:
 
 
 @dataclass(frozen=True, slots=True)
+class GexZone:
+    lower: float
+    upper: float
+    peak: float
+    exposure: float
+
+
+@dataclass(frozen=True, slots=True)
+class GexTrigger:
+    level: float | None
+    target: float | None
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
 class GexSnapshot:
     ticker: str
     timestamp_et: datetime
@@ -66,6 +81,15 @@ class GexSnapshot:
     skipped_contracts: int
     data_warnings: tuple[str, ...]
     dealer_sign_assumption: str
+    positive_gex: float = 0.0
+    negative_gex: float = 0.0
+    near_term_expiration: date | None = None
+    near_term_net_gex: float = 0.0
+    near_term_regime: str = "Gamma 平衡区"
+    positive_zones: tuple[GexZone, ...] = ()
+    negative_zones: tuple[GexZone, ...] = ()
+    bullish: GexTrigger = GexTrigger(None, None, "暂无明确向上触发")
+    bearish: GexTrigger = GexTrigger(None, None, "暂无明确向下触发")
 
     def __post_init__(self) -> None:
         if self.timestamp_et.tzinfo is None:

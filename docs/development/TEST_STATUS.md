@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 293 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 303 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -25,13 +25,17 @@
 - Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
+- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、live Massive cross-check、
+  deterministic card + heatmap、cache/single-flight/limits/audit 均通过；Member Lounge 未上线。
+- GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
+  `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
 
 ## Commands executed
 
 - .venv/bin/ruff check app tests scripts
 - .venv/bin/python -m compileall -q app scripts
 - .venv/bin/pytest -q
-- .venv/bin/alembic upgrade 20260903_0029:20260903_0030 --sql
+- .venv/bin/python scripts/verify_gex_explorer.py
 - .venv/bin/python scripts/verify_database.py
 - .venv/bin/python scripts/verify_analysis_fusion.py
 - .venv/bin/python scripts/verify_discord_runtime.py
@@ -42,6 +46,7 @@
 - .venv/bin/python scripts/reconcile_stripe_memberships.py --dry-run
 - website: npm test
 - website: npm run lint
+- .venv/bin/python scripts/bootstrap_discord.py（read-only dry-run）
 
 没有在 pyproject.toml 或 CI 配置中发现 mypy / pyright，因此没有把未运行的 type check 标记为 PASS。
 
@@ -149,7 +154,19 @@ Analysis:
 - Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot traceability。
 - Mentor-first / fill-missing、provenance、conflict、scenario gate 和 safe fallback。
 - 确定性 Prediction Chart、无未来 K 线、source image 不转发和 renderer failure isolation。
-- GEX 纯计算 Gamma/IV fallback、Walls、Zero Gamma 与 regime。
+- Analysis 与独立 GEX surface 保持隔离。
+
+GEX Explorer Phase 1:
+
+- `/gex` 唯一入口、Ticker normalization、SPX 独立映射与 plain-ticker no-trigger。
+- Owner/card-testing authorization、wrong-channel / Manager / Member / Newcomer denial。
+- 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
+- Gamma/IV fallback、Net/Positive/Negative GEX、五级 Regime、Zero Gamma、GEX Walls、Clusters、
+  deterministic Bias/Triggers 与 no-LLM level boundary。
+- Deterministic mobile heatmap、closed/stale/coverage labels、invalid ticker、provider/render errors。
+- ticker+policy+provider cache、single-flight、user cooldown、guild limit 与全部 GEX Audit event。
+- GEX 查询后 Trade count 保持 0 的 isolation test；不创建 Signal/Result/Analysis/Tracking/Moomoo。
+- 真实 cold request `1627ms`；同进程 cache hit `2ms`。
 
 Operations / Security:
 
@@ -161,27 +178,27 @@ Operations / Security:
 
 Database:
 
-- revision=20260903_0030
-- source_messages=63
-- trade_drafts=63
-- trades=52
-- trade_events=54
-- trade_publications=54
-- analysis_drafts=0
-- mentor_analyses=0
-- analysis_publications=0
-- market_quote_snapshots=17
-- daily_results_reviews=4
-- daily_results_items=84
-- membership_entitlements=6
-- membership_trials=2
-- newcomer_profiles=7
-- access_applications=2
-- newcomer_risk_flags=2
+- revision=20260904_0031
+- source_messages=88
+- trade_drafts=87
+- trades=67
+- trade_events=66
+- trade_publications=66
+- analysis_drafts=1
+- mentor_analyses=1
+- analysis_publications=1
+- market_quote_snapshots=13
+- daily_results_reviews=5
+- daily_results_items=103
+- membership_entitlements=8
+- membership_trials=3
+- newcomer_profiles=8
+- access_applications=3
+- newcomer_risk_flags=3
 - membership_prices=6
 - payment_events=0
 - system_alerts=4
-- swing_tracking=0 / swing_tracking_events=0 / swing_daily_snapshots=0（migration 后尚无新 Simple Swing）
+- swing_tracking=8 / swing_tracking_events=12 / swing_daily_snapshots=8
 - personal execution settings / positions / orders / fills / events / snapshots / summaries 均为 0；
   DRY_RUN 没有创建假成交或假持仓。
 
@@ -196,13 +213,13 @@ Feature flags:
 - FEATURE_MOOMOO_ENABLED=false
 - FEATURE_PERSONAL_EXECUTION_ENABLED=false
 - RESULTS_REVIEW_ENABLED=true
+- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST
 
 Discord:
 
 - discord_runtime=PASS
-- 本轮 Bootstrap 只创建缺失的 Owner-only `💹・moomoo-trading`；未删除、重命名、移动或更新
-  其他资源。
-- Apply 后 Bootstrap dry-run=REUSE 32 / UPDATE 0 / CREATE 0 / BLOCK 0；服务器修改 0。
+- 本轮 GEX Phase 1 没有创建或修改 Discord 资源；Bootstrap dry-run=REUSE 32 / UPDATE 0 /
+  CREATE 0 / BLOCK 0，服务器修改 0。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
 - Welcome 持久卡片为纯中文审批制文案并显示 3 个美国股票市场交易日完整会员体验、无需信用卡、
@@ -212,7 +229,7 @@ Discord:
 - Member Wins 最新权限：`@everyone` view/send/attach，内容不计入官方 AXIS Results。
 - personas=public, newcomer, member, manager, owner, bot
 - GENERAL guides=idempotent
-- owner test commands=12
+- owner test commands=13（包含 `/gex`）；GEX smoke card 已在 card-testing 发送成功。
 
 Analysis Fusion:
 
@@ -289,13 +306,13 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 290 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 303 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 
 - Policy / budget / opening guard / risk ladder / publication idempotency / adapter safety automated tests: PASS。
 - Safety gate: PASS；mode=`DRY_RUN`，broker writes=`DISABLED`。
 - Discord runtime: PASS；`💹・moomoo-trading` 仅 Owner 与 Bot 可见。
-- Database revision=`20260903_0030`；新增执行表全部为空。
+- Database revision=`20260904_0031`；新增执行表全部为空。
 - OpenD connectivity: BLOCKED — `127.0.0.1:11111` 未监听；未伪造账户、订单、成交或持仓验证。
 - 因外部 E2E 未完成，feature、DRY_RUN accepted gate、REAL environment 与 LIVE write gate 均未启用。

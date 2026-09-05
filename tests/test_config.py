@@ -91,6 +91,20 @@ def test_llm_key_is_optional_at_startup_but_required_to_enable_parser() -> None:
     assert configured.require_openai_api_key() == "test-only-placeholder"
 
 
+def test_gex_phase_one_rejects_member_lounge_and_missing_owner() -> None:
+    base = settings(apply_changes=False, dry_run=True)
+    replace(base, gex_explorer_mode="OFF").assert_gex_safety()
+    with pytest.raises(ConfigurationError, match="Phase 1"):
+        replace(base, gex_explorer_mode="MEMBER_LOUNGE").assert_gex_safety()
+    with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
+        replace(
+            base,
+            gex_explorer_enabled=True,
+            gex_explorer_mode="TEST",
+            massive_api_key="placeholder",
+        ).assert_gex_safety()
+
+
 def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
     monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "25:00")

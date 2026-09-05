@@ -4,6 +4,17 @@
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
+## P0 — GEX Explorer 仍为 TEST ONLY；SPX Provider entitlement 不足
+
+Phase 1 `/gex`、Massive option-chain aggregation、card、heatmap、cache、single-flight、limits、audit
+与 alerts 已实现，但当前只允许 Owner 在 `🧪・card-testing` 使用。Member Lounge 没有开放，也不应
+写成 Live。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前 Massive
+账户对 SPX index snapshot 无 entitlement，option-chain seed 也无法提供可用 underlying spot，故
+返回 `GEX_SPX_UNSUPPORTED`。禁止用 SPY 替代 SPX。
+
+在 Owner 明确发送 `APPROVE GEX LOUNGE LAUNCH` 前，不得实施/启用 Phase 2。正式上线前还需真实
+Discord Desktop/Mobile Test Gate 证据与交易时段 freshness 验证。
+
 ## P0 — Owner Personal Moomoo Execution 外部 DRY_RUN E2E 被 OpenD 阻塞
 
 代码、migration、Discord Owner-only control、synthetic DRY_RUN 与 fail-closed LIVE gate 已完成。
@@ -114,7 +125,7 @@ Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warni
 ## Deliberately deferred, not bugs
 
 - AXIS LAB、Model A / B、Generate / Shadow / Champion / Challenger。
-- GEX Discord 频道、自动发布和交易接口。
+- GEX Member Lounge 发布、自动发布和交易接口；Owner-only card-testing Phase 1 不属于 deferred。
 - 除已授权但仍处于 DRY_RUN gate 的 Owner-only Personal Moomoo Execution 外，任何会员交易、模型
   扫描或其他自动下单。
 - 图片生成模型；当前 Prediction Chart 使用确定性 renderer。

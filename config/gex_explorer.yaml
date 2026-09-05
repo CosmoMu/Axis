@@ -1,0 +1,26 @@
+version: gex-v1
+expiration_count: 10
+expiration_candidates: 16
+expiration_horizon_days: 180
+minimum_valid_expirations: 5
+minimum_contracts_per_expiry: 20
+strike_range_pct: 0.20
+snapshot_page_limit: 250
+snapshot_max_pages: 8
+cache_seconds: 60
+user_cooldown_seconds: 15
+guild_fresh_requests_per_minute: 8
+max_data_age_seconds: 300
+max_latency_seconds: 18
+provider_concurrency: 4
+risk_free_rate: 0.0425
+dividend_yield: 0.012
+regime_thresholds:
+  strong_positive: 0.25
+  positive: 0.08
+  negative: -0.08
+  strong_negative: -0.25
+zone_relative_threshold: 0.35
+heatmap:
+  expiration_columns: 5
+  strike_rows: 17

@@ -424,7 +424,10 @@ async def verify() -> list[str]:
         if application_id is not None:
             commands = await client.http.get_guild_commands(application_id, guild.id)
             command_names = {item["name"] for item in commands}
-            _check(command_names >= TEST_COMMANDS, "owner_test_commands_missing", failures)
+            expected_commands = set(TEST_COMMANDS)
+            if settings.gex_explorer_enabled:
+                expected_commands.add("gex")
+            _check(command_names >= expected_commands, "owner_test_commands_missing", failures)
             _check(
                 command_names.isdisjoint(REMOVED_COMMANDS),
                 "removed_short_term_commands_present",
@@ -451,7 +454,7 @@ def main() -> int:
     print("general_guides=idempotent")
     print("mentor_control=select,add")
     print("member_control=searchable_user_select")
-    print(f"owner_test_commands={len(TEST_COMMANDS)}")
+    print("owner_test_commands=verified")
     return 0
 
 

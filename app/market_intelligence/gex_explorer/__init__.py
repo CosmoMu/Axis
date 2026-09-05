@@ -10,6 +10,8 @@ from app.market_intelligence.gex_explorer.models import (
     GexExpiration,
     GexOptionContract,
     GexSnapshot,
+    GexTrigger,
+    GexZone,
     OptionSide,
 )
 
@@ -19,6 +21,8 @@ __all__ = [
     "GexExpiration",
     "GexOptionContract",
     "GexSnapshot",
+    "GexTrigger",
+    "GexZone",
     "OptionSide",
     "build_gex_snapshot",
     "calculate_gamma_exposure",

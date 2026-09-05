@@ -25,6 +25,7 @@ from app.db.bootstrap import load_discord_ids, seed_guild_config  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.domain.enums import LlmWorkload  # noqa: E402
 from app.domain.public_identity import PublicIdentityPolicy  # noqa: E402
+from app.integrations.gex_market_data import MassiveGexMarketDataProvider  # noqa: E402
 from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
@@ -52,6 +53,7 @@ from app.services.card_review import CardReviewService  # noqa: E402
 from app.services.daily_results_review import DailyResultsReviewService  # noqa: E402
 from app.services.daily_summary import DailySummaryService  # noqa: E402
 from app.services.draft_generation import DraftGenerationService  # noqa: E402
+from app.services.gex_explorer import GexExplorerService, GexPolicy  # noqa: E402
 from app.services.membership_access import (  # noqa: E402
     MembershipAccessService,
     MembershipAcknowledgementService,
@@ -79,6 +81,7 @@ from app.services.trading_calendar import TradingCalendarService  # noqa: E402
 async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_lab_disabled()
+    settings.assert_gex_safety()
     settings.assert_personal_execution_safety()
     level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -132,6 +135,18 @@ async def run() -> None:
             if settings.massive_api_key
             else None
         )
+        gex_explorer_service = None
+        if settings.gex_explorer_enabled:
+            gex_policy = GexPolicy.load(settings.gex_explorer_policy_path)
+            gex_explorer_service = GexExplorerService(
+                database,
+                MassiveGexMarketDataProvider(
+                    api_key=settings.massive_api_key,
+                    base_url=settings.massive_base_url,
+                    concurrency=gex_policy.provider_concurrency,
+                ),
+                gex_policy,
+            )
         contract_resolver = (
             OptionContractResolver(massive_provider) if massive_provider is not None else None
         )
@@ -373,6 +388,7 @@ async def run() -> None:
             daily_results_review_service=daily_results_review_service,
             swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
             personal_execution_service=personal_execution_service,
+            gex_explorer_service=gex_explorer_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

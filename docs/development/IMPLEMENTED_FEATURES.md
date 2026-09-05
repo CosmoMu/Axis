@@ -14,6 +14,20 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - Owner-only `💹・moomoo-trading`、持久 control card 与明确 persona permission isolation。
 
+## GEX Explorer — Phase 1 Test Only
+
+- `/gex ticker:TICKER` Slash Command；不会监听普通 Ticker 消息。
+- Owner-only + `🧪・card-testing`；wrong-channel 与 unauthorized 请求使用 ephemeral feedback。
+- Massive GEX provider、10 个有效 expiration、0DTE / Near-Term、partial-expiry skip 和 minimum
+  coverage gate；SPX 独立映射且绝不使用 SPY 替代。
+- Dollar GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
+  Zero Gamma、GEX-based Walls、Clusters、Bias 与 deterministic triggers。
+- AXIS mobile heatmap、market-closed/stale 标签、source/coverage/cache/policy metadata。
+- Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。
+- 独立 `GEX_EXPLORER_ENABLED` / `GEX_EXPLORER_MODE=TEST` fail-closed gate。
+- 严格 read-only，不触发 Signal、Trade、Result、Analysis、Membership、Tracking 或 Moomoo。
+- Member Lounge mode 尚未实现/启用；等待 `APPROVE GEX LOUNGE LAUNCH`。
+
 ## Owner-only Personal Moomoo Execution
 
 - 独立 `FEATURE_PERSONAL_EXECUTION_ENABLED`；不解除 Model A/B / LAB deferred gate。
@@ -38,14 +52,15 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Database
 
-- Alembic revisions 0001–0030；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
+- Alembic revisions 0001–0031；0020 清除旧 Short-Term 数据中违反 no-Mentor 边界的关联，
   0021 增加期权到期日解析 trace，0022 增加 Daily Results Review，0023 隔离 Stripe Test / Live
   Price、Entitlement、Session 与 Payment Event namespace，0024 规范新 Stripe check constraint 名称，
   0025 将 Free Trial duration 明确拆分为 Calendar Day / Trading Day 并保留历史 claim 到期时间；
   0026 增加永久 Approval、Application、Newcomer risk、Role sync 与 Trial 审批溯源；0027–0028
   增加当前支付/迎新状态；0029 增加 Swing tracking mode 及独立 tracking/event/snapshot 表，并将
   既有 Swing 安全回填为 `LEGACY_SWING`；0030 增加 Owner-only personal execution settings、
-  broker positions / risk epochs、orders、fills、events、account snapshots 与 daily summaries。
+  broker positions / risk epochs、orders、fills、events、account snapshots 与 daily summaries；0031
+  扩展 Analysis chart-source provenance 字段宽度。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。
@@ -252,8 +267,7 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Key Level、Indicator、why-now 和 conflict provenance。
 - 2–3 个内部 Scenario；公开只显示通过 confidence / advantage gate 的 Top Scenario。
 - Stock Analyst provider injection、有限历史模式和安全 fallback。
-- GEX Explorer 的 Gamma / IV fallback、Walls、Zero Gamma 与 regime 纯计算引擎。
-- GEX 当前不连接 Discord 频道、账户或交易接口。
+- Analysis 不调用 GEX；独立 GEX Phase 1 仅连接 Owner-only card-testing，不连接任何交易接口。
 
 ## Prediction Chart
 

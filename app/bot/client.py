@@ -13,6 +13,7 @@ from app.bot.cogs.daily_results_review import DailyResultsReviewCog
 from app.bot.cogs.daily_summary import DailySummaryCog
 from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.general_control import GeneralControlCog
+from app.bot.cogs.gex_explorer import GexExplorerCog
 from app.bot.cogs.manager_control import ManagerControlCog
 from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
@@ -31,6 +32,7 @@ from app.services.card_review import CardReviewService
 from app.services.daily_results_review import DailyResultsReviewService
 from app.services.daily_summary import DailySummaryService
 from app.services.draft_generation import DraftGenerationService
+from app.services.gex_explorer import GexExplorerService
 from app.services.membership_access import (
     MembershipAccessService,
     MembershipAcknowledgementService,
@@ -87,6 +89,7 @@ class AxisBot(commands.Bot):
         daily_results_review_service: DailyResultsReviewService | None,
         swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
         personal_execution_service: PersonalExecutionService | None,
+        gex_explorer_service: GexExplorerService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -224,6 +227,19 @@ class AxisBot(commands.Bot):
             owner_user_id=settings.discord_owner_user_id,
             channel_id=_required_snowflake(channels, "card_testing"),
         )
+        self._gex_explorer_cog = (
+            GexExplorerCog(
+                self,
+                service=gex_explorer_service,
+                guild_id=settings.discord_guild_id,
+                owner_user_id=settings.discord_owner_user_id,
+                card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                mode=settings.gex_explorer_mode,
+            )
+            if gex_explorer_service is not None
+            and settings.discord_owner_user_id is not None
+            else None
+        )
         self._analysis_cog = (
             AnalysisPipelineCog(
                 self,
@@ -305,6 +321,8 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._general_control_cog)
         await self.add_cog(self._payment_webhook_cog)
         await self.add_cog(self._card_testing_cog)
+        if self._gex_explorer_cog is not None:
+            await self.add_cog(self._gex_explorer_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:
