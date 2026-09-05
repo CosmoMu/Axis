@@ -9,6 +9,12 @@ from app.market_intelligence.stock_analyst.indicators import confirmed_pivot_lev
 from app.market_intelligence.stock_analyst.models import DailyBar, StockAnalysis
 
 
+def stock_chart_title(ticker: str) -> str:
+    """Return the environment-neutral title embedded in exported chart images."""
+
+    return f"{ticker.strip().upper()} · AXIS STOCK ANALYST"
+
+
 def _font(size: int, bold: bool = False):
     from PIL import ImageFont
 
@@ -121,7 +127,7 @@ def render_stock_analysis_chart(
         draw.line((0, y_pos, width, y_pos), fill="#081117", width=1)
     draw.text(
         (50, 32),
-        f"{analysis.ticker} · AXIS STOCK ANALYST · TEST",
+        stock_chart_title(analysis.ticker),
         font=_font(42, True),
         fill=white,
     )

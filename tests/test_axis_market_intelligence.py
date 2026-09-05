@@ -21,6 +21,7 @@ from app.market_intelligence.stock_analyst import (
 from app.market_intelligence.stock_analyst.chart import (
     render_stock_analysis_chart,
     resolve_projection_path,
+    stock_chart_title,
 )
 from app.market_intelligence.stock_analyst.engine import analyze_stock
 from app.market_intelligence.stock_analyst.models import (
@@ -84,6 +85,8 @@ def test_axis_stock_analyst_builds_structure_levels_scenarios_and_unified_png() 
     rendered = render_stock_analysis_chart(analysis, history, projection_points=route)
 
     assert AXIS_STOCK_ANALYST == "AXIS Stock Analyst"
+    assert stock_chart_title("nvda") == "NVDA · AXIS STOCK ANALYST"
+    assert "TEST" not in stock_chart_title("nvda")
     assert analysis.support_levels and analysis.resistance_levels
     assert len(analysis.volume_profile_nodes) == 24
     assert sum(item.model_weight_percent for item in analysis.scenarios) == pytest.approx(100)
