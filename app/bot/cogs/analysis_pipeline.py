@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from io import BytesIO
 
 import discord
@@ -80,16 +81,16 @@ class AnalysisPipelineCog(commands.Cog):
             return True
         await send_temporary_ephemeral(
             interaction,
-            "你没有 Analysis 管理权限。",
+            "你没有分析管理权限。",
             delete_after=ERROR_DELETE_AFTER,
         )
         return False
 
     async def handle_error(self, interaction: discord.Interaction, exc: Exception) -> None:
         message = (
-            f"Analysis 操作未完成：{exc.code}"
+            "分析操作未完成，请检查必填字段与当前状态。"
             if isinstance(exc, AnalysisError)
-            else "Analysis 操作暂时失败。"
+            else "分析操作暂时失败，请稍后重试。"
         )
         await send_temporary_ephemeral(
             interaction,
@@ -113,7 +114,7 @@ class AnalysisPipelineCog(commands.Cog):
             configured_owner_id=self.owner_user_id,
             manager_role_id=self.manager_role_id,
         ):
-            await message.reply("你没有提交 Analysis 的权限。", mention_author=False)
+            await message.reply("你没有提交分析内容的权限。", mention_author=False)
             return
         message_input = extract_message_input(message)
         result = await self.input_service.ingest(
@@ -233,7 +234,7 @@ class AnalysisPipelineCog(commands.Cog):
         channel = self.bot.get_channel(self.review_channel_id) or await self.bot.fetch_channel(
             self.review_channel_id
         )
-        marker = f"AXIS Analysis · {draft.draft_code}"
+        marker = f"AXIS 分析 · {draft.draft_code}"
         message = None
         async for candidate in channel.history(limit=100):
             if (
@@ -298,6 +299,30 @@ class AnalysisPipelineCog(commands.Cog):
         except Exception as exc:
             await self.handle_error(interaction, exc)
 
+    async def preview_interaction(
+        self,
+        interaction: discord.Interaction,
+        draft: AnalysisDraftSnapshot,
+    ) -> None:
+        if not await self.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            card = await self.service.preview_card(draft.id)
+            media = await self.service.media_for_draft(draft.id)
+            file = discord.File(BytesIO(media.data), filename=media.filename) if media else None
+            embed = build_public_analysis_embed(
+                card,
+                public_ref="审核预览",
+                image_filename=media.filename if media else None,
+            )
+            if file is not None:
+                await interaction.followup.send(embed=embed, file=file, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as exc:
+            await self.handle_error(interaction, exc)
+
     async def archive_interaction(
         self, interaction: discord.Interaction, draft: AnalysisDraftSnapshot, *, publish: bool
     ) -> None:
@@ -329,14 +354,10 @@ class AnalysisPipelineCog(commands.Cog):
             or result.card is None
             ):
             return result.draft
-        if result.message_id is not None:
-            return await self.service.finalize_publication(
-                result.publication_id, message_id=result.message_id
-            )
         channel = self.bot.get_channel(result.channel_id) or await self.bot.fetch_channel(
             result.channel_id
         )
-        marker = f"AXIS Analysis · {result.public_ref}"
+        marker = f"AXIS 分析 · {result.public_ref}"
         message = None
         media = await self.service.media_for_draft(result.draft.id)
         file = discord.File(BytesIO(media.data), filename=media.filename) if media else None
@@ -346,14 +367,18 @@ class AnalysisPipelineCog(commands.Cog):
             image_filename=media.filename if media else None,
         )
         try:
-            async for candidate in channel.history(limit=200):
-                if (
-                    self.bot.user
-                    and candidate.author.id == self.bot.user.id
-                    and any(e.footer.text == marker for e in candidate.embeds)
-                ):
-                    message = candidate
-                    break
+            if result.message_id is not None:
+                with suppress(discord.NotFound):
+                    message = await channel.fetch_message(result.message_id)
+            if message is None:
+                async for candidate in channel.history(limit=200):
+                    if (
+                        self.bot.user
+                        and candidate.author.id == self.bot.user.id
+                        and any(e.footer.text == marker for e in candidate.embeds)
+                    ):
+                        message = candidate
+                        break
             if message is None:
                 message = (
                     await channel.send(embed=embed, file=file)

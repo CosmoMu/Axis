@@ -847,6 +847,27 @@ def _analysis_price(value: object) -> str:
     return f"${float(value):,.2f}" if isinstance(value, (int, float, Decimal)) else ""
 
 
+_ANALYSIS_STANCE_LABELS = {
+    "BULLISH": "偏多",
+    "BEARISH": "偏空",
+    "NEUTRAL": "中性",
+    "WATCH": "观察",
+}
+
+_ANALYSIS_WARNING_LABELS = {
+    "AXIS_STOCK_ANALYST_UNAVAILABLE": "AXIS 股票分析暂时不可用，当前内容仅依据输入资料。",
+    "AXIS_PREDICTION_CHART_FAILED": "预测图生成失败，可点击“重新生成图片”重试。",
+    "SOURCE_PROJECTION_ATTACHMENT_INVALID": "原始预测图附件无法匹配，请检查输入图片。",
+    "PREDICTION_PATH_NOT_CONFIDENT": "预测路径置信度不足，已保留原始输入图片。",
+    "PREDICTION_PATH_INCOMPLETE": "预测路径点位不完整，已保留原始输入图片。",
+}
+
+
+def _analysis_warning_text(value: object) -> str:
+    raw = str(value)
+    return _ANALYSIS_WARNING_LABELS.get(raw, "需要人工复核解析结果。")
+
+
 def _level_text(level: dict[str, object], *, show_source: bool) -> str:
     price = _analysis_price(level.get("price"))
     high = _analysis_price(level.get("price_high"))
@@ -859,7 +880,7 @@ def _level_text(level: dict[str, object], *, show_source: bool) -> str:
     if description:
         details.append(str(description))
     if show_source:
-        details.append("MENTOR" if level.get("source") == "MENTOR_INPUT" else "AXIS")
+        details.append("导师" if level.get("source") == "MENTOR_INPUT" else "AXIS")
     return " · ".join(item for item in (price_text, *details) if item)
 
 
@@ -897,7 +918,7 @@ def _indicator_text(
         value = item.get("value")
         interpretation = public_analysis_text(item.get("interpretation"))
         source = (
-            " · MENTOR"
+            " · 导师"
             if show_source and item.get("source") == "MENTOR_INPUT"
             else " · AXIS"
             if show_source
@@ -921,7 +942,17 @@ def _scenario_text(
         return "主要预测路径", "当前路径不明确，仅保留关键结构位置。"
     lines = []
     for index, point in enumerate(path):
-        label = public_analysis_text(point.get("label")) or point.get("type") or "结构位置"
+        point_type = {
+            "CURRENT": "当前位置",
+            "START": "起点",
+            "BREAKOUT": "突破",
+            "TARGET": "目标",
+            "SUPPORT": "支撑",
+            "RESISTANCE": "压力",
+            "DOWN": "回落",
+            "UP": "上行",
+        }.get(str(point.get("type")), "结构位置")
+        label = public_analysis_text(point.get("label")) or point_type
         prefix = "" if index == 0 else "→ "
         lines.append(f"{prefix}{label} {_analysis_price(point.get('price'))}".strip())
     invalidation = _analysis_price(scenario.get("invalidation"))
@@ -942,7 +973,7 @@ def build_analysis_review_embed(
         "UNKNOWN": "待识别观点",
     }.get(str(payload.get("analysis_type")), "待识别观点")
     embed = discord.Embed(
-        title=f"FINAL FUSED PREVIEW · {draft.draft_code}",
+        title=f"最终分析预览 · {draft.draft_code}",
         description=str(
             public_analysis_text(payload.get("title") or payload.get("summary")) or "需要人工整理"
         ),
@@ -953,8 +984,15 @@ def build_analysis_review_embed(
         value=", ".join(payload.get("symbols", [])) or payload.get("sector") or type_label,
         inline=True,
     )
-    embed.add_field(name="当前观点", value=str(payload.get("stance", "WATCH")), inline=True)
-    embed.add_field(name="Mentor", value=draft.mentor_name or "尚未选择", inline=True)
+    embed.add_field(
+        name="当前观点",
+        value=_ANALYSIS_STANCE_LABELS.get(
+            str(payload.get("stance", "WATCH")),
+            str(payload.get("stance", "WATCH")),
+        ),
+        inline=True,
+    )
+    embed.add_field(name="导师", value=draft.mentor_name or "尚未选择", inline=True)
     if payload.get("core_thesis"):
         embed.add_field(
             name="核心逻辑",
@@ -963,10 +1001,10 @@ def build_analysis_review_embed(
         )
     levels = _grouped_levels(payload.get("key_levels", []), show_source=True)
     if levels:
-        embed.add_field(name="AXIS 结构观察 · Internal Source", value=levels[:1024], inline=False)
+        embed.add_field(name="AXIS 结构观察 · 内部来源", value=levels[:1024], inline=False)
     indicators = _indicator_text(payload.get("indicators", []), show_source=True)
     if indicators:
-        embed.add_field(name="指标分析 · Internal Source", value=indicators[:1024], inline=False)
+        embed.add_field(name="指标分析 · 内部来源", value=indicators[:1024], inline=False)
     scenario = _scenario_text(payload.get("top_scenario"), payload.get("prediction_path", []))
     if scenario:
         embed.add_field(name=scenario[0], value=scenario[1][:1024], inline=False)
@@ -979,8 +1017,8 @@ def build_analysis_review_embed(
             axis = ", ".join(
                 _analysis_price(value) for value in conflict.get("stock_analyst_values", [])
             )
-            lines.append(f"**{conflict.get('field')}**\nMentor {mentor}\nAXIS {axis}")
-        embed.add_field(name="Data Conflict", value="\n\n".join(lines)[:1024], inline=False)
+            lines.append(f"**{conflict.get('field')}**\n导师 {mentor}\nAXIS {axis}")
+        embed.add_field(name="数据冲突", value="\n\n".join(lines)[:1024], inline=False)
     if payload.get("risks"):
         embed.add_field(
             name="主要风险",
@@ -990,12 +1028,16 @@ def build_analysis_review_embed(
     if draft.warnings or draft.chart_render_error:
         warnings = [*draft.warnings]
         if draft.chart_render_error:
-            warnings.append(f"CHART: {draft.chart_render_error}")
-        embed.add_field(name="Warnings", value="\n".join(warnings)[:1024], inline=False)
+            warnings.append(draft.chart_render_error)
+        embed.add_field(
+            name="解析提示",
+            value="\n".join(_analysis_warning_text(item) for item in warnings)[:1024],
+            inline=False,
+        )
     if image_filename:
         embed.set_image(url=f"attachment://{image_filename}")
     embed.set_footer(
-        text=f"AXIS Analysis · {draft.draft_code} · r{draft.revision} · v{draft.version}"
+        text=f"AXIS 分析 · {draft.draft_code} · 修订 {draft.revision} · 版本 {draft.version}"
     )
     return embed
 
@@ -1013,12 +1055,7 @@ def build_public_analysis_embed(
         "MACRO": "宏观观察",
     }[card.analysis_type]
     subject = ", ".join(card.symbols) or card.sector or card.analysis_code
-    stance = {
-        "BULLISH": "偏多",
-        "BEARISH": "偏空",
-        "NEUTRAL": "中性",
-        "WATCH": "观察",
-    }[card.stance]
+    stance = _ANALYSIS_STANCE_LABELS[card.stance]
     embed = discord.Embed(
         title=f"{type_label} · {subject}",
         description=public_analysis_text(card.title or card.summary),
@@ -1080,5 +1117,5 @@ def build_public_analysis_embed(
     embed.add_field(name="行情截至", value=str(timestamp)[:100], inline=False)
     if image_filename:
         embed.set_image(url=f"attachment://{image_filename}")
-    embed.set_footer(text=f"AXIS Analysis · {public_ref}")
+    embed.set_footer(text=f"AXIS 分析 · {public_ref}")
     return _public(embed)

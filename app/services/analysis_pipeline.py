@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from sqlalchemy import exists, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -294,6 +294,45 @@ class AnalysisPipelineService:
                 raise AnalysisValidationError("ANALYSIS_DRAFT_NOT_FOUND")
             return await self._snapshot(session, draft)
 
+    async def preview_card(self, draft_id: uuid.UUID) -> PublicAnalysisCard:
+        async with self.database.session() as session:
+            draft = await session.get(AnalysisDraft, draft_id)
+            if draft is None:
+                raise AnalysisValidationError("ANALYSIS_DRAFT_NOT_FOUND")
+            source = await session.get(SourceMessage, draft.source_message_id)
+            if source is None:
+                raise AnalysisValidationError("SOURCE_NOT_FOUND")
+            payload = dict(draft.normalized_json)
+            self._validate_archive(payload)
+            return self._public_card_values(
+                analysis_code=draft.draft_code,
+                observed_at=source.received_at,
+                payload=payload,
+            )
+
+    async def reopen_for_review(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        actor_user_id: int,
+    ) -> AnalysisDraftSnapshot:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(AnalysisDraft).where(AnalysisDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise AnalysisValidationError("ANALYSIS_DRAFT_NOT_FOUND")
+            if draft.status == AnalysisDraftStatus.PENDING_REVIEW.value:
+                return await self._snapshot(session, draft)
+            if draft.status != AnalysisDraftStatus.PUBLISHED.value:
+                raise AnalysisValidationError("ANALYSIS_NOT_REOPENABLE")
+            draft.status = AnalysisDraftStatus.PENDING_REVIEW.value
+            draft.reviewed_by = actor_user_id
+            draft.version += 1
+            self._audit(session, draft, actor_user_id, None, "ANALYSIS_REOPENED_FOR_REVIEW")
+            await session.commit()
+            return await self._snapshot(session, draft)
+
     async def attach_review_message(
         self, draft_id: uuid.UUID, *, channel_id: int, message_id: int
     ) -> AnalysisDraftSnapshot:
@@ -472,6 +511,67 @@ class AnalysisPipelineService:
                 select(MentorAnalysis).where(MentorAnalysis.draft_id == draft.id)
             )
             if existing is not None:
+                if draft.status not in EDITABLE:
+                    return await self._archive_result(session, draft, existing)
+                if draft.mentor_id is None:
+                    raise AnalysisValidationError("ANALYSIS_NOT_ARCHIVABLE")
+                payload = dict(draft.normalized_json)
+                self._validate_archive(payload)
+                source = await session.get(SourceMessage, draft.source_message_id)
+                invocation = await session.get(LlmInvocation, draft.llm_invocation_id)
+                config = await session.get(GuildConfig, draft.guild_id)
+                if source is None or invocation is None or config is None:
+                    raise AnalysisValidationError("ANALYSIS_TRACE_MISSING")
+                self._update_analysis(existing, draft, payload, invocation)
+                for model in (
+                    AnalysisSymbol,
+                    AnalysisKeyLevel,
+                    AnalysisPoint,
+                    AnalysisIndicator,
+                    AnalysisScenario,
+                    AnalysisPredictionPoint,
+                ):
+                    await session.execute(delete(model).where(model.analysis_id == existing.id))
+                await session.flush()
+                self._add_children(session, existing.id, payload)
+                publication = await session.scalar(
+                    select(AnalysisPublication).where(
+                        AnalysisPublication.analysis_id == existing.id
+                    )
+                )
+                if publish:
+                    if config.member_lounge_channel_id is None:
+                        raise AnalysisValidationError("MEMBER_LOUNGE_NOT_CONFIGURED")
+                    card = self._public_card(existing, payload)
+                    existing.public_snapshot = self._json_snapshot(card)
+                    existing.publication_status = PublicationStatus.PENDING.value
+                    if publication is None:
+                        publication = AnalysisPublication(
+                            guild_id=draft.guild_id,
+                            analysis_id=existing.id,
+                            channel_id=config.member_lounge_channel_id,
+                            public_ref=f"AN-P-{uuid.uuid4().hex[:10].upper()}",
+                            status=PublicationStatus.PENDING.value,
+                        )
+                        session.add(publication)
+                    else:
+                        publication.status = PublicationStatus.PENDING.value
+                        publication.last_error_code = None
+                draft.status = AnalysisDraftStatus.ARCHIVED.value
+                draft.reviewed_by = actor_user_id
+                draft.version += 1
+                self._audit(
+                    session,
+                    draft,
+                    actor_user_id,
+                    interaction_id,
+                    (
+                        "ANALYSIS_REARCHIVED_FOR_PUBLICATION"
+                        if publish
+                        else "ANALYSIS_REARCHIVED"
+                    ),
+                )
+                await session.commit()
                 return await self._archive_result(session, draft, existing)
             if draft.status not in EDITABLE or draft.mentor_id is None:
                 raise AnalysisValidationError("ANALYSIS_NOT_ARCHIVABLE")
@@ -784,9 +884,9 @@ class AnalysisPipelineService:
         warnings.extend(enriched.get("warnings", []))
         enriched["warnings"] = list(dict.fromkeys(warnings))
         generated_chart_png = None
-        chart_source = None
+        chart_source = "SOURCE" if source_attachment_id is not None else None
         chart_render_error = None
-        if enriched.get("prediction_path"):
+        if chart_source is None and enriched.get("prediction_path"):
             try:
                 generated_chart_png = render_prediction_chart(enriched)
                 chart_source = "AXIS_STOCK_ANALYST"
@@ -829,6 +929,15 @@ class AnalysisPipelineService:
     async def retry_prediction_chart(self, draft_id: uuid.UUID) -> AnalysisDraftSnapshot:
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
+            if draft.chart_source_attachment_id is not None:
+                draft.chart_source = "SOURCE"
+                draft.chart_storage_key = None
+                draft.chart_checksum_sha256 = None
+                draft.chart_content_type = None
+                draft.chart_render_error = None
+                draft.version += 1
+                await session.commit()
+                return await self._snapshot(session, draft)
             payload = dict(draft.normalized_json)
             guild_id = draft.guild_id
             revision = draft.revision
@@ -969,6 +1078,19 @@ class AnalysisPipelineService:
 
     @staticmethod
     def _public_card(analysis: MentorAnalysis, payload: dict[str, Any]) -> PublicAnalysisCard:
+        return AnalysisPipelineService._public_card_values(
+            analysis_code=analysis.analysis_code,
+            observed_at=analysis.observed_at,
+            payload=payload,
+        )
+
+    @staticmethod
+    def _public_card_values(
+        *,
+        analysis_code: str,
+        observed_at,
+        payload: dict[str, Any],
+    ) -> PublicAnalysisCard:
         levels = tuple(
             {
                 key: item.get(key)
@@ -1015,7 +1137,7 @@ class AnalysisPipelineService:
             if isinstance(item, dict)
         )
         return PublicAnalysisCard(
-            analysis_code=analysis.analysis_code,
+            analysis_code=analysis_code,
             analysis_type=payload["analysis_type"],
             symbols=tuple(payload.get("symbols", [])),
             sector=payload.get("sector"),
@@ -1033,7 +1155,7 @@ class AnalysisPipelineService:
             market_conditions=tuple(payload.get("market_conditions", [])),
             methodology_notice=payload.get("methodology_notice"),
             market_as_of=payload.get("market_as_of"),
-            observed_at=analysis.observed_at,
+            observed_at=observed_at,
         )
 
     @classmethod
@@ -1059,6 +1181,34 @@ class AnalysisPipelineService:
             ),
             message_id=publication.message_id if publication else None,
         )
+
+    @staticmethod
+    def _update_analysis(
+        analysis: MentorAnalysis,
+        draft: AnalysisDraft,
+        payload: dict[str, Any],
+        invocation: LlmInvocation,
+    ) -> None:
+        analysis.mentor_id = draft.mentor_id
+        analysis.analysis_type = payload["analysis_type"]
+        analysis.stance = payload["stance"]
+        analysis.time_horizon = payload["time_horizon"]
+        analysis.title = payload.get("title")
+        analysis.summary = payload.get("summary")
+        analysis.core_thesis = payload.get("core_thesis")
+        analysis.why_now_json = list(payload.get("why_now", []))
+        analysis.invalidation = payload.get("invalidation")
+        analysis.sector = payload.get("sector")
+        analysis.normalized_json = payload
+        analysis.normalized_mentor_json = dict(draft.normalized_mentor_json)
+        analysis.stock_analyst_snapshot = dict(draft.market_context_json)
+        analysis.final_fused_json = payload
+        analysis.conflict_detected = bool(payload.get("conflict_detected"))
+        analysis.approved_at = utc_now()
+        analysis.llm_model = invocation.model
+        analysis.llm_workload = invocation.workload
+        analysis.prompt_version = invocation.prompt_version
+        analysis.schema_version = invocation.schema_version
 
     @staticmethod
     def _add_children(

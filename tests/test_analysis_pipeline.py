@@ -12,7 +12,7 @@ import discord
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cards import build_public_analysis_embed
+from app.bot.cards import build_analysis_review_embed, build_public_analysis_embed
 from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
 from app.db.base import Base
 from app.db.models import (
@@ -427,7 +427,7 @@ async def test_stock_analyst_failure_keeps_llm_input_card_available(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_source_projection_is_kept_as_text_without_publishing_image(
+async def test_source_projection_preserves_original_image_for_review_and_publication(
     tmp_path: Path,
 ) -> None:
     database, store, _ = await setup_database(tmp_path)
@@ -481,12 +481,14 @@ async def test_source_projection_is_kept_as_text_without_publishing_image(
         async with database.session() as session:
             draft = await session.scalar(select(AnalysisDraft))
         assert draft is not None
-        assert draft.chart_source is None
+        assert draft.chart_source == "SOURCE"
         assert draft.chart_source_attachment_id == source_attachment_id
         assert draft.chart_storage_key is None
         assert analyst.calls == [("NVDA", False, None)]
         assert draft.normalized_json["source_projection"]["path_points"][0]["price"] == 127.0
-        assert await service.media_for_draft(draft.id) is None
+        media = await service.media_for_draft(draft.id)
+        assert media is not None
+        assert media.data == source_png
     finally:
         await database.dispose()
 
@@ -790,6 +792,35 @@ async def test_publish_uses_public_whitelist_and_failure_retry_preserves_archive
         assert retried.publication_id == archived.publication_id
         published = await service.finalize_publication(archived.publication_id, message_id=888)
         assert published.status == AnalysisDraftStatus.PUBLISHED.value
+
+        reopened = await service.reopen_for_review(draft.id, actor_user_id=901)
+        assert reopened.status == AnalysisDraftStatus.PENDING_REVIEW.value
+        preview = await service.preview_card(draft.id)
+        assert preview.analysis_code == draft.draft_code
+        revised_payload = dict(reopened.normalized)
+        revised_payload["summary"] = "重新审核后的公开摘要"
+        revised = await service.edit(
+            draft.id,
+            revised_payload,
+            actor_user_id=901,
+            interaction_id=909,
+        )
+        rearchived = await service.archive(
+            revised.id,
+            publish=True,
+            actor_user_id=901,
+            interaction_id=910,
+        )
+        assert rearchived.analysis_id == archived.analysis_id
+        assert rearchived.publication_id == archived.publication_id
+        assert rearchived.message_id == 888
+        assert rearchived.card is not None
+        assert rearchived.card.summary == "重新审核后的公开摘要"
+        republished = await service.finalize_publication(
+            archived.publication_id,
+            message_id=888,
+        )
+        assert republished.status == AnalysisDraftStatus.PUBLISHED.value
 
         async with database.session() as session:
             stored_draft = await session.get(AnalysisDraft, draft.id)
@@ -1294,7 +1325,15 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         f"axis:analysis:mentor:select:{draft_id.hex}:v3"
     } | {
         f"axis:analysis:{action}:{draft_id.hex}:v3"
-        for action in ("edit", "rewrite", "chart", "archive", "publish", "delete")
+        for action in (
+            "edit",
+            "preview",
+            "rewrite",
+            "chart",
+            "archive",
+            "publish",
+            "delete",
+        )
     }
     mentor_select = next(
         item for item in review_view.children if isinstance(item, discord.ui.Select)
@@ -1304,10 +1343,19 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
     assert [option.value for option in mentor_select.options if option.default] == [str(mentor_id)]
     assert [(button.label, button.row) for button in buttons] == [
         ("编辑", 1),
+        ("预览", 1),
         ("重新生成文本", 1),
         ("重新生成图片", 1),
         ("仅归档", 2),
         ("归档并发布", 2),
         ("删除", 2),
     ]
+    review_embed = build_analysis_review_embed(draft).to_dict()
+    assert review_embed["title"] == "最终分析预览 · AN-D-TEST"
+    assert {field["name"] for field in review_embed["fields"]} >= {
+        "标的",
+        "当前观点",
+        "导师",
+        "核心逻辑",
+    }
     assert retry_ids == {f"axis:analysis:retry:{draft_id.hex}:v3"}

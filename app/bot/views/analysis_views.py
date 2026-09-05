@@ -15,6 +15,50 @@ if TYPE_CHECKING:
     from app.bot.cogs.analysis_pipeline import AnalysisPipelineCog
 
 
+ANALYSIS_TYPE_LABELS = {
+    "MARKET": "市场",
+    "TICKER": "个股",
+    "SECTOR": "板块",
+    "MACRO": "宏观",
+}
+STANCE_LABELS = {
+    "BULLISH": "偏多",
+    "BEARISH": "偏空",
+    "NEUTRAL": "中性",
+    "WATCH": "观察",
+}
+HORIZON_LABELS = {
+    "INTRADAY": "日内",
+    "SHORT_TERM": "短期",
+    "SWING": "波段",
+    "LONG_TERM": "长期",
+    "UNSPECIFIED": "未指定",
+}
+STRUCTURE_LABELS = {
+    "SUPPORT": "支撑",
+    "RESISTANCE": "压力",
+    "BREAKOUT": "突破",
+    "TARGET": "目标",
+    "INVALIDATION": "失效",
+    "WATCH": "关注",
+    "OTHER": "其他",
+    "CURRENT": "当前位置",
+    "START": "起点",
+    "UP": "上行",
+    "DOWN": "回落",
+    "FLAT": "震荡",
+    "KEY_ZONE": "关键区域",
+    "PIVOT": "转折位",
+    "STRUCTURE": "结构位置",
+}
+
+
+def _enum_value(value: str, labels: dict[str, str]) -> str:
+    normalized = value.strip().upper()
+    reverse = {label: key for key, label in labels.items()}
+    return reverse.get(value.strip(), normalized)
+
+
 class AnalysisEditModal(discord.ui.Modal):
     def __init__(self, controller: AnalysisPipelineCog, draft: AnalysisDraftSnapshot) -> None:
         super().__init__(title=f"编辑 {draft.draft_code}", timeout=300)
@@ -22,11 +66,15 @@ class AnalysisEditModal(discord.ui.Modal):
         self.draft = draft
         p = draft.normalized
         self.classification = discord.ui.TextInput(
-            label="TYPE | STANCE | HORIZON",
-            default=f"{p.get('analysis_type')} | {p.get('stance')} | {p.get('time_horizon')}",
+            label="类型｜方向｜周期",
+            default=(
+                f"{ANALYSIS_TYPE_LABELS.get(str(p.get('analysis_type')), '个股')} | "
+                f"{STANCE_LABELS.get(str(p.get('stance')), '观察')} | "
+                f"{HORIZON_LABELS.get(str(p.get('time_horizon')), '未指定')}"
+            ),
         )
         self.subject = discord.ui.TextInput(
-            label="Symbols | Sector | Related Symbols",
+            label="标的｜板块｜相关标的",
             default=(
                 f"{','.join(p.get('symbols', []))} | {p.get('sector') or '-'} | "
                 f"{','.join(p.get('related_symbols', []))}"
@@ -34,17 +82,17 @@ class AnalysisEditModal(discord.ui.Modal):
             required=False,
         )
         self.title_input = discord.ui.TextInput(
-            label="Title", default=p.get("title") or "", required=False, max_length=160
+            label="标题", default=p.get("title") or "", required=False, max_length=160
         )
         self.summary = discord.ui.TextInput(
-            label="Summary",
+            label="摘要",
             default=p.get("summary") or "",
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=1200,
         )
         self.thesis = discord.ui.TextInput(
-            label="Core Thesis",
+            label="核心逻辑",
             default=p.get("core_thesis") or "",
             required=False,
             style=discord.TextStyle.paragraph,
@@ -65,14 +113,12 @@ class AnalysisEditModal(discord.ui.Modal):
         await interaction.response.defer(ephemeral=True)
         try:
             payload = dict(self.draft.normalized)
-            kind, stance, horizon = [
-                x.strip().upper() for x in self.classification.value.split("|")
-            ]
+            kind, stance, horizon = [x.strip() for x in self.classification.value.split("|")]
             symbols, sector, related = [x.strip() for x in self.subject.value.split("|")]
             payload.update(
-                analysis_type=kind,
-                stance=stance,
-                time_horizon=horizon,
+                analysis_type=_enum_value(kind, ANALYSIS_TYPE_LABELS),
+                stance=_enum_value(stance, STANCE_LABELS),
+                time_horizon=_enum_value(horizon, HORIZON_LABELS),
                 symbols=[x.strip().upper() for x in symbols.split(",") if x.strip()],
                 sector=None if sector in {"", "-", "—"} else sector,
                 related_symbols=[x.strip().upper() for x in related.split(",") if x.strip()],
@@ -110,7 +156,10 @@ class AnalysisStructureEditModal(discord.ui.Modal):
                 " | ".join(
                     str(value) if value is not None else ""
                     for value in (
-                        item.get("role") or item.get("level_type") or "WATCH",
+                        STRUCTURE_LABELS.get(
+                            str(item.get("role") or item.get("level_type") or "WATCH"),
+                            "关注",
+                        ),
                         item.get("price"),
                         item.get("price_high"),
                         item.get("strength"),
@@ -133,47 +182,51 @@ class AnalysisStructureEditModal(discord.ui.Modal):
                 )
         top = payload.get("top_scenario") or {}
         path_lines = [
-            f"WEIGHT | {top.get('model_weight_percent') or ''} | "
-            f"INVALIDATION | {top.get('invalidation') or ''}"
+            f"权重 | {top.get('model_weight_percent') or ''} | "
+            f"失效 | {top.get('invalidation') or ''}"
         ]
         for item in payload.get("prediction_path", []):
             if isinstance(item, dict):
                 path_lines.append(
                     " | ".join(
                         str(value) if value is not None else ""
-                        for value in (item.get("type"), item.get("price"), item.get("label"))
+                        for value in (
+                            STRUCTURE_LABELS.get(str(item.get("type")), "结构位置"),
+                            item.get("price"),
+                            item.get("label"),
+                        )
                     )
                 )
         self.levels = discord.ui.TextInput(
-            label="ROLE | PRICE | HIGH | STRENGTH | NOTE",
+            label="角色｜价格｜上限｜强度｜说明",
             default="\n".join(level_lines)[:4000],
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=4000,
         )
         self.indicators = discord.ui.TextInput(
-            label="INDICATOR | VALUE | INTERPRETATION",
+            label="指标｜数值｜解读",
             default="\n".join(indicator_lines)[:4000],
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=4000,
         )
         self.path = discord.ui.TextInput(
-            label="WEIGHT / INVALIDATION + PATH POINTS",
+            label="权重、失效位与预测路径",
             default="\n".join(path_lines)[:4000],
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=4000,
         )
         self.invalidation = discord.ui.TextInput(
-            label="Invalidation Text",
+            label="失效条件",
             default=payload.get("invalidation") or "",
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=1500,
         )
         self.risks = discord.ui.TextInput(
-            label="Risk · one per line",
+            label="主要风险（每行一项）",
             default="\n".join(payload.get("risks", []))[:4000],
             required=False,
             style=discord.TextStyle.paragraph,
@@ -204,8 +257,8 @@ class AnalysisStructureEditModal(discord.ui.Modal):
                 levels.append(
                     {
                         "symbol": (payload.get("symbols") or [None])[0],
-                        "role": parts[0].upper(),
-                        "level_type": parts[0].upper(),
+                        "role": _enum_value(parts[0], STRUCTURE_LABELS),
+                        "level_type": _enum_value(parts[0], STRUCTURE_LABELS),
                         "price": self._number(parts[1]),
                         "price_high": self._number(parts[2]),
                         "strength": self._number(parts[3]),
@@ -235,7 +288,7 @@ class AnalysisStructureEditModal(discord.ui.Modal):
             path = []
             if path_lines:
                 header = [item.strip() for item in path_lines[0].split("|")]
-                if len(header) >= 4 and header[0].upper() == "WEIGHT":
+                if len(header) >= 4 and header[0].strip().upper() in {"WEIGHT", "权重"}:
                     weight = self._number(header[1])
                     invalidation = self._number(header[3])
                     if weight is not None:
@@ -249,7 +302,7 @@ class AnalysisStructureEditModal(discord.ui.Modal):
                     if parts[0] and price is not None:
                         path.append(
                             {
-                                "type": parts[0].upper(),
+                                "type": _enum_value(parts[0], STRUCTURE_LABELS),
                                 "price": price,
                                 "label": parts[2] or parts[0],
                                 "sequence": sequence,
@@ -331,10 +384,10 @@ class AnalysisMentorSelect(discord.ui.Select):
                 for mid, name in choices
             ]
         else:
-            options = [discord.SelectOption(label="No active Mentor", value="none-mentor")]
+            options = [discord.SelectOption(label="没有可用导师", value="none-mentor")]
         super().__init__(
             placeholder=(
-                f"MENTOR · {draft.mentor_name}" if draft.mentor_name else "SELECT MENTOR"
+                f"导师 · {draft.mentor_name}" if draft.mentor_name else "选择导师"
             )[:150],
             min_values=1,
             max_values=1,
@@ -358,7 +411,7 @@ class AnalysisMentorSelect(discord.ui.Select):
             await self.controller.refresh(updated)
             await send_temporary_ephemeral(
                 interaction,
-                "Mentor 已保存。",
+                "导师已保存。",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
@@ -418,6 +471,7 @@ class AnalysisReviewView(discord.ui.View):
         self.add_item(AnalysisMentorSelect(controller, draft, mentor_choices))
         definitions = (
             ("编辑", "edit", discord.ButtonStyle.primary, 1, self.edit),
+            ("预览", "preview", discord.ButtonStyle.primary, 1, self.preview),
             ("重新生成文本", "rewrite", discord.ButtonStyle.secondary, 1, self.rewrite),
             ("重新生成图片", "chart", discord.ButtonStyle.secondary, 1, self.chart),
             ("仅归档", "archive", discord.ButtonStyle.secondary, 2, self.archive),
@@ -438,11 +492,14 @@ class AnalysisReviewView(discord.ui.View):
         if not await self.controller.authorize(interaction):
             return
         await interaction.response.send_message(
-            "请选择要编辑的 Final Analysis 部分：",
+            "请选择要编辑的最终分析内容：",
             view=OneSelectView(AnalysisEditSelect(self.controller, self.draft)),
             ephemeral=True,
             delete_after=180,
         )
+
+    async def preview(self, interaction: discord.Interaction) -> None:
+        await self.controller.preview_interaction(interaction, self.draft)
 
     async def rewrite(self, interaction: discord.Interaction) -> None:
         if not await self.controller.authorize(interaction):
