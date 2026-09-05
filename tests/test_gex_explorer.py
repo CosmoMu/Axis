@@ -72,6 +72,8 @@ class FakeGexProvider:
         expirations = tuple(date.today() + timedelta(days=index + 1) for index in range(10))
         used = expirations[: self.expiration_count]
         contracts = []
+        call_volume = {90.0: 60, 95.0: 160, 100.0: 180, 105.0: 220, 110.0: 260}
+        put_volume = {90.0: 300, 95.0: 80, 100.0: 100, 105.0: 80, 110.0: 60}
         for expiration in used:
             for strike in (90.0, 95.0, 100.0, 105.0, 110.0):
                 contracts.append(
@@ -82,7 +84,7 @@ class FakeGexProvider:
                         OptionSide.CALL,
                         100 + int(strike),
                         gamma=0.02,
-                        volume=100 + int(strike),
+                        volume=call_volume[strike],
                     )
                 )
                 contracts.append(
@@ -93,7 +95,7 @@ class FakeGexProvider:
                         OptionSide.PUT,
                         80 + int(110 - strike),
                         gamma=0.018,
-                        volume=80 + int(110 - strike),
+                        volume=put_volume[strike],
                     )
                 )
         return GexProviderResult(
@@ -259,6 +261,27 @@ def test_volume_weighted_gex_uses_actual_option_volume_instead_of_oi() -> None:
         build_gex_snapshot("TEST", 97, no_volume, now, exposure_basis="volume")
 
 
+def test_gross_call_wall_inside_negative_net_zone_is_not_a_magnet() -> None:
+    now = datetime(2026, 9, 4, 12, 0, tzinfo=ET)
+    expiration = date(2026, 9, 4)
+    contracts = (
+        GexOptionContract("C100", expiration, 100, OptionSide.CALL, 1, 0.02, volume=1_000),
+        GexOptionContract("P100", expiration, 100, OptionSide.PUT, 1, 0.02, volume=2_000),
+        GexOptionContract("C105", expiration, 105, OptionSide.CALL, 1, 0.02, volume=500),
+        GexOptionContract("P105", expiration, 105, OptionSide.PUT, 1, 0.02, volume=10),
+    )
+
+    snapshot = build_gex_snapshot("TEST", 97, contracts, now, exposure_basis="volume")
+
+    assert snapshot.call_wall == 100
+    assert snapshot.upper_magnet == 105
+    assert snapshot.by_strike[0].net_gex < 0
+    assert any(zone.lower <= 100 <= zone.upper for zone in snapshot.negative_zones)
+    assert all(
+        not (zone.lower <= snapshot.upper_magnet <= zone.upper) for zone in snapshot.negative_zones
+    )
+
+
 def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
     allowed = dict(
         guild_id=GUILD_ID,
@@ -309,19 +332,19 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         with Image.open(BytesIO(first.heatmap_png)) as image:
             assert image.size == (1800, 1125)
             rgb = image.convert("RGB")
-            pressure_run = max(
+            upper_magnet_run = max(
                 sum(rgb.getpixel((x, y)) == (216, 184, 91) for x in range(76, 1113))
                 for y in range(190, 911)
             )
-            support_run = max(
+            lower_magnet_run = max(
                 sum(rgb.getpixel((x, y)) == (119, 169, 151) for x in range(76, 1113))
                 for y in range(190, 911)
             )
-            minor_pressure_run = max(
+            secondary_upper_magnet_run = max(
                 sum(rgb.getpixel((x, y)) == (200, 184, 121) for x in range(76, 1113))
                 for y in range(190, 911)
             )
-            minor_support_run = max(
+            secondary_lower_magnet_run = max(
                 sum(rgb.getpixel((x, y)) == (143, 183, 168) for x in range(76, 1113))
                 for y in range(190, 911)
             )
@@ -329,10 +352,10 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
                 sum(rgb.getpixel((x, y)) == (89, 42, 132) for x in range(76, 1113))
                 for y in range(190, 911)
             )
-            assert pressure_run > 400
-            assert support_run > 400
-            assert minor_pressure_run > 200
-            assert minor_support_run > 200
+            assert upper_magnet_run > 400
+            assert lower_magnet_run > 400
+            assert secondary_upper_magnet_run > 200
+            assert secondary_lower_magnet_run > 200
             assert acceleration_run > 900
         zero_label, _ = _level_label(first.snapshot, first.snapshot.zero_gamma or 0)
         assert "0 Gamma · Gamma 分界" in zero_label
@@ -343,9 +366,27 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.snapshot.exposure_basis == "volume"
         assert first.snapshot.near_term_expiration is not None
         assert first.snapshot.call_wall == 110
-        assert first.snapshot.minor_resistance == 105
+        assert first.snapshot.upper_magnet == 110
+        assert first.snapshot.secondary_upper_magnet == 105
         assert first.snapshot.put_wall == 90
-        assert first.snapshot.minor_support == 100
+        assert first.snapshot.lower_magnet == 100
+        assert first.snapshot.secondary_lower_magnet == 95
+        assert all(
+            first.snapshot.by_strike[
+                next(
+                    index
+                    for index, point in enumerate(first.snapshot.by_strike)
+                    if point.strike == level
+                )
+            ].net_gex
+            > 0
+            for level in (
+                first.snapshot.upper_magnet,
+                first.snapshot.secondary_upper_magnet,
+                first.snapshot.lower_magnet,
+                first.snapshot.secondary_lower_magnet,
+            )
+        )
         assert cached.cache_hit is True
         async with db.session() as session:
             actions = list(
@@ -456,14 +497,20 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         assert "数据时间早于实时阈值" in status
         assert "部分到期日已跳过" in status
         assert all("Market" not in field.name for field in embed.fields)
-        key_levels = next(field.value for field in embed.fields if field.name == "关键位置")
+        key_levels = next(field.value for field in embed.fields if field.name == "磁吸位置")
         assert "0 Gamma · Gamma 分界" in key_levels
-        assert "Call Wall · 大压力" in key_levels
-        assert "小压力" in key_levels
-        assert "Put Wall · 大支撑" in key_levels
-        assert "小支撑" in key_levels
-        assert "大压力" in result.snapshot.analysis_zh[1]
-        assert "小支撑" in result.snapshot.analysis_zh[1]
+        assert "上方主磁吸" in key_levels
+        assert "上方次磁吸" in key_levels
+        assert "下方主磁吸" in key_levels
+        assert "下方次磁吸" in key_levels
+        wall_reference = next(
+            field.value for field in embed.fields if field.name == "Gross Wall 参考"
+        )
+        assert "Call Wall" in wall_reference
+        assert "Put Wall" in wall_reference
+        assert "不直接等同压力 / 支撑" in wall_reference
+        assert "正 Net GEX 磁吸" in result.snapshot.analysis_zh[1]
+        assert "不直接等同于压力或支撑" in result.snapshot.analysis_zh[2]
     finally:
         await db.dispose()
 

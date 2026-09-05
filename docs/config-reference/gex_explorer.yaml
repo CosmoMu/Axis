@@ -1,4 +1,4 @@
-version: gex-v5-volume-flow-5m
+version: gex-v6-net-magnet-acceleration
 expiration_count: 10
 expiration_candidates: 16
 expiration_horizon_days: 180
@@ -22,7 +22,7 @@ regime_thresholds:
   strong_negative: -0.25
 exposure_basis: volume
 zone_relative_threshold: 0.35
-minor_level_relative_threshold: 0.15
+secondary_magnet_relative_threshold: 0.15
 heatmap:
   expiration_columns: 5
   strike_rows: 19

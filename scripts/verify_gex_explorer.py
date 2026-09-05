@@ -81,7 +81,7 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 dividend_yield=policy.dividend_yield,
                 regime_thresholds=policy.regime_thresholds,
                 zone_relative_threshold=policy.zone_relative_threshold,
-                minor_level_relative_threshold=policy.minor_level_relative_threshold,
+                secondary_magnet_relative_threshold=(policy.secondary_magnet_relative_threshold),
                 exposure_basis=policy.exposure_basis,
             )
             heatmap = render_gex_heatmap(snapshot, intraday.bars, policy)
@@ -97,17 +97,55 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 (point for point in snapshot.by_strike if point.put_gex < 0),
                 key=lambda point: point.put_gex,
             ).strike
+            point_map = {point.strike: point for point in snapshot.by_strike}
+            magnets = tuple(
+                level
+                for level in (
+                    snapshot.upper_magnet,
+                    snapshot.secondary_upper_magnet,
+                    snapshot.lower_magnet,
+                    snapshot.secondary_lower_magnet,
+                )
+                if level is not None
+            )
+            positive_zone_strikes = {
+                point.strike
+                for point in snapshot.by_strike
+                if any(zone.lower <= point.strike <= zone.upper for zone in snapshot.positive_zones)
+            }
+            negative_zone_strikes = {
+                point.strike
+                for point in snapshot.by_strike
+                if any(zone.lower <= point.strike <= zone.upper for zone in snapshot.negative_zones)
+            }
             checks = {
                 "ten_expirations": len(snapshot.expirations) == policy.expiration_count,
                 "net_reconciles": abs(by_strike_net - snapshot.net_gex) < 0.01,
                 "call_wall_reconciles": wall_check == snapshot.call_wall,
                 "put_wall_reconciles": put_check == snapshot.put_wall,
-                "minor_resistance_above_spot": (
-                    snapshot.minor_resistance is None or snapshot.minor_resistance > snapshot.spot
+                "upper_magnets_are_positive_net": all(
+                    level > snapshot.spot and point_map[level].net_gex > 0
+                    for level in (
+                        snapshot.upper_magnet,
+                        snapshot.secondary_upper_magnet,
+                    )
+                    if level is not None
                 ),
-                "minor_support_below_spot": (
-                    snapshot.minor_support is None or snapshot.minor_support < snapshot.spot
+                "lower_magnets_are_positive_net": all(
+                    level < snapshot.spot and point_map[level].net_gex > 0
+                    for level in (
+                        snapshot.lower_magnet,
+                        snapshot.secondary_lower_magnet,
+                    )
+                    if level is not None
                 ),
+                "positive_zones_are_positive_net": all(
+                    point_map[strike].net_gex > 0 for strike in positive_zone_strikes
+                ),
+                "negative_zones_are_negative_net": all(
+                    point_map[strike].net_gex < 0 for strike in negative_zone_strikes
+                ),
+                "magnets_do_not_overlap_acceleration": not set(magnets) & negative_zone_strikes,
                 "png_valid": heatmap.startswith(b"\x89PNG"),
                 "minute_bars_present": len(intraday.bars) >= policy.intraday_minimum_bars,
             }
@@ -142,11 +180,13 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                         "source_timestamp": raw.source_timestamp.isoformat(),
                         "regime": snapshot.gamma_regime,
                         "levels": {
-                            "call_wall_major_resistance": snapshot.call_wall,
-                            "minor_resistance": snapshot.minor_resistance,
-                            "put_wall_major_support": snapshot.put_wall,
-                            "minor_support": snapshot.minor_support,
+                            "upper_magnet": snapshot.upper_magnet,
+                            "secondary_upper_magnet": snapshot.secondary_upper_magnet,
+                            "lower_magnet": snapshot.lower_magnet,
+                            "secondary_lower_magnet": snapshot.secondary_lower_magnet,
                             "zero_gamma": snapshot.zero_gamma,
+                            "gross_call_wall_reference": snapshot.call_wall,
+                            "gross_put_wall_reference": snapshot.put_wall,
                         },
                         "checks": checks,
                     },

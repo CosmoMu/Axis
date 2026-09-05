@@ -100,8 +100,10 @@ class GexSnapshot:
     data_warnings: tuple[str, ...]
     dealer_sign_assumption: str
     exposure_basis: str = "open_interest"
-    minor_resistance: float | None = None
-    minor_support: float | None = None
+    upper_magnet: float | None = None
+    secondary_upper_magnet: float | None = None
+    lower_magnet: float | None = None
+    secondary_lower_magnet: float | None = None
     positive_gex: float = 0.0
     negative_gex: float = 0.0
     near_term_expiration: date | None = None

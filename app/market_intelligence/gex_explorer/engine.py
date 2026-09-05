@@ -48,9 +48,9 @@ def _zones(
     relative_threshold: float,
 ) -> tuple[GexZone, ...]:
     values = [
-        (point.strike, point.call_gex if positive else abs(point.put_gex))
+        (point.strike, point.net_gex if positive else abs(point.net_gex))
         for point in points
-        if (point.call_gex > 0 if positive else point.put_gex < 0)
+        if (point.net_gex > 0 if positive else point.net_gex < 0)
     ]
     if not values:
         return ()
@@ -84,29 +84,40 @@ def _zones(
 def _trigger(
     *,
     spot: float,
-    zero: float | None,
-    points: tuple[GexByStrike, ...],
-    wall: float | None,
+    acceleration_zones: tuple[GexZone, ...],
+    magnet: float | None,
     bullish: bool,
 ) -> GexTrigger:
-    candidates = sorted(
-        (
-            {point.strike for point in points if point.strike > spot and point.net_gex > 0}
-            if bullish
-            else {point.strike for point in points if point.strike < spot and point.net_gex < 0}
-        ),
-        reverse=not bullish,
+    containing = next(
+        (zone for zone in acceleration_zones if zone.lower <= spot <= zone.upper),
+        None,
     )
-    structural = [value for value in (zero, wall) if value is not None]
-    directional = [value for value in structural if (value > spot if bullish else value < spot)]
-    levels = sorted(set(candidates + directional), reverse=not bullish)
-    level = levels[0] if levels else None
-    target = levels[1] if len(levels) > 1 else None
-    if level is None:
-        return GexTrigger(None, None, "暂无明确向上触发" if bullish else "暂无明确向下触发")
-    direction = "站上" if bullish else "跌破"
-    continuation = f"，下一结构位 {_fmt(target)}" if target is not None else ""
-    return GexTrigger(level, target, f"{direction} {_fmt(level)}{continuation}")
+    if containing is not None:
+        level = containing.upper if bullish else containing.lower
+        target_text = f"，关注{'上方' if bullish else '下方'}磁吸 {_fmt(magnet)}" if magnet else ""
+        return GexTrigger(
+            level,
+            magnet,
+            f"当前位于负 Net GEX 加速区 {containing.lower:g}–{containing.upper:g}{target_text}",
+        )
+    directional_zones = [
+        zone for zone in acceleration_zones if (zone.lower > spot if bullish else zone.upper < spot)
+    ]
+    if directional_zones:
+        zone = min(
+            directional_zones,
+            key=lambda item: abs((item.lower if bullish else item.upper) - spot),
+        )
+        level = zone.lower if bullish else zone.upper
+        direction = "上方" if bullish else "下方"
+        target_text = f"，后续关注{direction}磁吸 {_fmt(magnet)}" if magnet else ""
+        return GexTrigger(
+            level, magnet, f"进入{direction}负 Net GEX 加速区 {_fmt(level)}{target_text}"
+        )
+    if magnet is not None:
+        direction = "上方" if bullish else "下方"
+        return GexTrigger(magnet, None, f"暂无同向加速区；关注{direction}磁吸 {_fmt(magnet)}")
+    return GexTrigger(None, None, "暂无明确向上结构" if bullish else "暂无明确向下结构")
 
 
 def black_scholes_gamma(
@@ -255,43 +266,32 @@ def _fmt(value: float | None) -> str:
     return "—" if value is None else f"${value:,.2f}"
 
 
-def _minor_structural_level(
+def _magnet_levels(
     points: tuple[GexByStrike, ...],
     *,
     spot: float,
-    major_level: float | None,
-    resistance: bool,
+    upper: bool,
     relative_threshold: float,
-) -> float | None:
-    """Select the nearest meaningful secondary wall on the correct side of spot."""
+) -> tuple[float | None, float | None]:
+    """Return strongest and nearest-secondary positive Net-GEX magnets on one side."""
 
     exposures = [
-        (
-            point.strike,
-            point.call_gex if resistance else abs(point.put_gex),
-        )
+        (point.strike, point.net_gex)
         for point in points
-        if (point.strike > spot if resistance else point.strike < spot)
-        and (point.call_gex > 0 if resistance else point.put_gex < 0)
-        and (major_level is None or abs(point.strike - major_level) > 1e-9)
+        if (point.strike > spot if upper else point.strike < spot) and point.net_gex > 0
     ]
     if not exposures:
-        return None
-    side_peak = max(
-        (
-            point.call_gex if resistance else abs(point.put_gex)
-            for point in points
-            if (point.call_gex > 0 if resistance else point.put_gex < 0)
-        ),
-        default=0.0,
-    )
+        return None, None
+    major_level, side_peak = max(exposures, key=lambda item: item[1])
     meaningful = [
         (strike, exposure)
         for strike, exposure in exposures
-        if exposure >= side_peak * relative_threshold
+        if abs(strike - major_level) > 1e-9 and exposure >= side_peak * relative_threshold
     ]
-    candidates = meaningful or exposures
-    return min(candidates, key=lambda item: abs(item[0] - spot))[0]
+    remaining = [item for item in exposures if abs(item[0] - major_level) > 1e-9]
+    candidates = meaningful or remaining
+    secondary = min(candidates, key=lambda item: abs(item[0] - spot))[0] if candidates else None
+    return major_level, secondary
 
 
 def build_gex_snapshot(
@@ -304,7 +304,7 @@ def build_gex_snapshot(
     dividend_yield: float = 0.012,
     regime_thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
     zone_relative_threshold: float = 0.35,
-    minor_level_relative_threshold: float = 0.15,
+    secondary_magnet_relative_threshold: float = 0.15,
     exposure_basis: str = "open_interest",
 ) -> GexSnapshot:
     if exposure_basis not in {"open_interest", "volume"}:
@@ -351,32 +351,38 @@ def build_gex_snapshot(
     puts = [point for point in points if point.put_gex < 0]
     call_wall = max(calls, key=lambda item: item.call_gex).strike if calls else None
     put_wall = min(puts, key=lambda item: item.put_gex).strike if puts else None
-    minor_resistance = _minor_structural_level(
+    upper_magnet, secondary_upper_magnet = _magnet_levels(
         points,
         spot=spot,
-        major_level=call_wall,
-        resistance=True,
-        relative_threshold=minor_level_relative_threshold,
+        upper=True,
+        relative_threshold=secondary_magnet_relative_threshold,
     )
-    minor_support = _minor_structural_level(
+    lower_magnet, secondary_lower_magnet = _magnet_levels(
         points,
         spot=spot,
-        major_level=put_wall,
-        resistance=False,
-        relative_threshold=minor_level_relative_threshold,
+        upper=False,
+        relative_threshold=secondary_magnet_relative_threshold,
+    )
+    positive_zones = _zones(
+        points,
+        positive=True,
+        relative_threshold=zone_relative_threshold,
+    )
+    negative_zones = _zones(
+        points,
+        positive=False,
+        relative_threshold=zone_relative_threshold,
     )
     bullish = _trigger(
         spot=spot,
-        zero=zero,
-        points=points,
-        wall=call_wall,
+        acceleration_zones=negative_zones,
+        magnet=upper_magnet,
         bullish=True,
     )
     bearish = _trigger(
         spot=spot,
-        zero=zero,
-        points=points,
-        wall=put_wall,
+        acceleration_zones=negative_zones,
+        magnet=lower_magnet,
         bullish=False,
     )
     bullish_trigger = bullish.level
@@ -390,28 +396,19 @@ def build_gex_snapshot(
         bias = "中性"
     else:
         bias = "中性偏多" if location > 0 else "中性偏空"
-    positive_gex = sum(point.call_gex for point in points)
-    negative_gex = sum(point.put_gex for point in points)
+    positive_gex = sum(point.net_gex for point in points if point.net_gex > 0)
+    negative_gex = sum(point.net_gex for point in points if point.net_gex < 0)
     near_term = expirations[0]
     near_term_ratio = (
         near_term.net_gex / near_term.total_abs_gex if near_term.total_abs_gex else 0.0
     )
-    positive_zones = _zones(
-        points,
-        positive=True,
-        relative_threshold=zone_relative_threshold,
-    )
-    negative_zones = _zones(
-        points,
-        positive=False,
-        relative_threshold=zone_relative_threshold,
-    )
     analysis = (
         f"{basis_label} 当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
-        f"0 Gamma / Gamma 分界 {_fmt(zero)}；Call Wall / 大压力 {_fmt(call_wall)}；"
-        f"小压力 {_fmt(minor_resistance)}；Put Wall / 大支撑 {_fmt(put_wall)}；"
-        f"小支撑 {_fmt(minor_support)}。",
-        f"结构倾向为“{bias}”。向上：{bullish.description}；向下：{bearish.description}。",
+        f"正 Net GEX 磁吸：上方 {_fmt(upper_magnet)} / {_fmt(secondary_upper_magnet)}；"
+        f"下方 {_fmt(lower_magnet)} / {_fmt(secondary_lower_magnet)}；"
+        f"0 Gamma / Gamma 分界 {_fmt(zero)}。",
+        f"Gross Wall 仅作成交结构参考：Call {_fmt(call_wall)}；Put {_fmt(put_wall)}；"
+        "不直接等同于压力或支撑。",
     )
     return GexSnapshot(
         ticker=ticker.upper(),
@@ -436,8 +433,10 @@ def build_gex_snapshot(
         data_warnings=tuple(warnings),
         dealer_sign_assumption=DEALER_SIGN_ASSUMPTION,
         exposure_basis=exposure_basis,
-        minor_resistance=minor_resistance,
-        minor_support=minor_support,
+        upper_magnet=upper_magnet,
+        secondary_upper_magnet=secondary_upper_magnet,
+        lower_magnet=lower_magnet,
+        secondary_lower_magnet=secondary_lower_magnet,
         positive_gex=positive_gex,
         negative_gex=negative_gex,
         near_term_expiration=near_term.expiration,

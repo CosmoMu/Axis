@@ -49,29 +49,38 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         name="成交量 GEX 结构" if snapshot.exposure_basis == "volume" else "持仓量 GEX 结构",
         value=(
             f"净 GEX {_gex(snapshot.net_gex)}\n"
-            f"正 GEX {_gex(snapshot.positive_gex)}\n"
-            f"负 GEX {_gex(snapshot.negative_gex)}"
+            f"正 Net GEX {_gex(snapshot.positive_gex)}\n"
+            f"负 Net GEX {_gex(snapshot.negative_gex)}"
         ),
         inline=True,
     )
     embed.add_field(
-        name="关键位置",
+        name="磁吸位置",
         value=(
             f"0 Gamma · Gamma 分界 {_money(snapshot.zero_gamma)}\n"
-            f"Call Wall · 大压力 {_money(snapshot.call_wall)}\n"
-            f"小压力 {_money(snapshot.minor_resistance)}\n"
-            f"Put Wall · 大支撑 {_money(snapshot.put_wall)}\n"
-            f"小支撑 {_money(snapshot.minor_support)}"
+            f"上方主磁吸 {_money(snapshot.upper_magnet)}\n"
+            f"上方次磁吸 {_money(snapshot.secondary_upper_magnet)}\n"
+            f"下方主磁吸 {_money(snapshot.lower_magnet)}\n"
+            f"下方次磁吸 {_money(snapshot.secondary_lower_magnet)}"
+        ),
+        inline=True,
+    )
+    embed.add_field(
+        name="Gross Wall 参考",
+        value=(
+            f"Call Wall {_money(snapshot.call_wall)}\n"
+            f"Put Wall {_money(snapshot.put_wall)}\n"
+            "仅表示单边成交 Gamma 集中，不直接等同压力 / 支撑"
         ),
         inline=True,
     )
     positive_key = snapshot.positive_zones[0] if snapshot.positive_zones else None
     negative_key = snapshot.negative_zones[0] if snapshot.negative_zones else None
     embed.add_field(
-        name="主要 GEX 区域",
+        name="主要磁吸 / 加速区",
         value=(
-            f"稳定区 {_money(positive_key.peak if positive_key else None)}\n"
-            f"波动加速区 {_money(negative_key.peak if negative_key else None)}"
+            f"磁吸区 {_money(positive_key.peak if positive_key else None)}\n"
+            f"加速区 {_money(negative_key.peak if negative_key else None)}"
         ),
         inline=True,
     )
@@ -93,8 +102,8 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         ),
         inline=True,
     )
-    embed.add_field(name="正 GEX 集中区", value=_zones(snapshot.positive_zones), inline=True)
-    embed.add_field(name="负 GEX 加速区", value=_zones(snapshot.negative_zones), inline=True)
+    embed.add_field(name="正 Net GEX 磁吸区", value=_zones(snapshot.positive_zones), inline=True)
+    embed.add_field(name="负 Net GEX 加速区", value=_zones(snapshot.negative_zones), inline=True)
     embed.add_field(
         name="结构触发",
         value=f"向上：{snapshot.bullish.description}\n向下：{snapshot.bearish.description}",

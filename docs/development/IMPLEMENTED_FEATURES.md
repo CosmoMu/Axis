@@ -22,15 +22,15 @@ LIVE_MODE_CHECKLIST.md 为准。
   Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
 - Moomoo OpenD 5 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
   和 source timestamp，永不选择或阻止 Massive 正式输出。
-- 当日期权成交量 GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
-  Zero Gamma、GEX-based major Walls、现价附近 deterministic minor pressure/support、Clusters、
-  Bias 与 deterministic triggers。
-- 1800x1125 中文复合图：左侧真实 5 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
+- 当日期权成交量 GEX / 1% move、vendor Gamma + IV fallback、Net GEX、五级 Regime、
+  Zero Gamma、正 Net GEX 主/次磁吸、负 Net GEX 加速区、Gross Call/Put Wall 参考、
+  Bias 与 deterministic structure descriptions。
+- 1800x1125 中文复合图：左侧真实 5 分钟 K 线、磁吸/Gamma 分界、负 Net GEX
   波动加速区；右侧加宽的 strike x expiration GEX 热力图。K 线采用 candle-first 自适应
-  纵轴；远端压力/支撑/Gamma 分界以横贯绘图区的图外结构轨显示，远端负 GEX 加速区
+  纵轴；远端磁吸/Gamma 分界以横贯绘图区的图外结构轨显示，远端负 Net GEX 加速区
   以紫色全宽图外带显示实际点位或范围，既不压缩真实蜡烛波幅，也不会丢失结构。
-- 图表与 Discord 卡片统一保留 `Call Wall · 大压力`、`小压力`、`Put Wall · 大支撑`、
-  `小支撑`、`0 Gamma · Gamma 分界` 标准名称与中文解释。
+- 图表与 Discord 卡片统一显示上/下方主次磁吸和 `0 Gamma · Gamma 分界`；Gross
+  `Call Wall` / `Put Wall` 只作参考，不直接等同压力/支撑。磁吸与加速按执行价互斥。
 - 中文 Discord 卡片、market-closed/stale 标签、Massive 正式数据时间和
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。

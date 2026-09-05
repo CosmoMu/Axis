@@ -68,7 +68,7 @@ class GexPolicy:
     regime_thresholds: tuple[float, float, float, float]
     exposure_basis: str
     zone_relative_threshold: float
-    minor_level_relative_threshold: float
+    secondary_magnet_relative_threshold: float
     heatmap_expiration_columns: int
     heatmap_strike_rows: int
     intraday_bar_count: int
@@ -115,7 +115,9 @@ class GexPolicy:
             ),
             exposure_basis=str(payload["exposure_basis"]).strip().lower(),
             zone_relative_threshold=float(payload["zone_relative_threshold"]),
-            minor_level_relative_threshold=float(payload["minor_level_relative_threshold"]),
+            secondary_magnet_relative_threshold=float(
+                payload["secondary_magnet_relative_threshold"]
+            ),
             heatmap_expiration_columns=int(heatmap["expiration_columns"]),
             heatmap_strike_rows=int(heatmap["strike_rows"]),
             intraday_bar_count=int(intraday["bar_count"]),
@@ -162,7 +164,7 @@ class GexPolicy:
         if (
             not 0 < self.strike_range_pct < 1
             or not 0 < self.zone_relative_threshold <= 1
-            or not 0 < self.minor_level_relative_threshold <= 1
+            or not 0 < self.secondary_magnet_relative_threshold <= 1
         ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         if self.intraday_minimum_bars > self.intraday_bar_count or self.intraday_bar_count > 1000:
@@ -385,7 +387,9 @@ class GexExplorerService:
                 dividend_yield=self.policy.dividend_yield,
                 regime_thresholds=self.policy.regime_thresholds,
                 zone_relative_threshold=self.policy.zone_relative_threshold,
-                minor_level_relative_threshold=self.policy.minor_level_relative_threshold,
+                secondary_magnet_relative_threshold=(
+                    self.policy.secondary_magnet_relative_threshold
+                ),
                 exposure_basis=self.policy.exposure_basis,
             )
         except (TypeError, ValueError) as exc:

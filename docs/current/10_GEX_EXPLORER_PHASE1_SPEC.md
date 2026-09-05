@@ -1,6 +1,6 @@
 # AXIS GEX Explorer — Phase 1 Specification
 
-**Version:** GEX V5 Volume Flow / 5-Minute / Massive Primary / Moomoo Shadow / 2026-09-05
+**Version:** GEX V6 Net Magnet / Acceleration / 5-Minute / Massive Primary / Moomoo Shadow / 2026-09-05
 
 **Status:** TEST ONLY
 
@@ -50,30 +50,34 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   assumption, not observed dealer positioning.
 - Missing vendor Gamma may use Black-Scholes Gamma only when provider IV is present. Missing or zero
   current-day option volume, or both missing Gamma and IV, is skipped and never replaced with OI.
-- Aggregate and Near-Term surfaces calculate Net/Positive/Negative GEX, five-level Gamma Regime,
-  Zero Gamma, GEX-based Call Wall / major resistance, Put Wall / major support, nearby meaningful
-  minor resistance/support, deterministic positive/negative clusters, structural bias, and
-  bullish/bearish trigger/target levels.
+- Aggregate and Near-Term surfaces calculate Net GEX, five-level Gamma Regime, Zero Gamma,
+  positive-Net-GEX magnet levels/zones, negative-Net-GEX acceleration zones, gross Call/Put Wall
+  references, structural bias, and deterministic structure descriptions.
+- Positive Net GEX means magnet / pin structure; negative Net GEX means acceleration structure.
+  Magnet and acceleration classification is mutually exclusive at every strike. Gross Call Wall
+  and Put Wall remain useful one-sided concentration references, but must never be presented as
+  direct resistance or support merely because that side has large gross exposure.
 - All levels must come from the normalized option surface. An LLM must never invent GEX levels.
 - The response is one Chinese AXIS Discord card plus one deterministic 1800x1125 composite image:
   the left side is the real 5-minute K-line with current price and structural overlays; the right
   side is a strike-by-expiration volume-GEX heatmap.
 - The composite uses a 16:10-style layout. The intraday plot is approximately 1.44:1 instead of a
   stretched wide panel, and the heatmap receives wider expiration cells. The price axis is
-  candle-first and may expand only for nearby GEX structure. Distant Call Wall, Put Wall, or Zero
-  Gamma values remain visible as full-width Chinese off-scale rails and must not flatten the
-  candles. Distant negative-GEX clusters remain visible as full-width purple off-scale acceleration
+  candle-first and may expand only for nearby Net-GEX structure. Distant magnet or Zero Gamma
+  values remain visible as full-width Chinese off-scale rails and must not flatten the candles.
+  Distant negative-Net-GEX clusters remain visible as full-width purple off-scale acceleration
   bands with their actual level or range; they must never disappear merely because they are outside
   the focused candle axis.
-- Every chart and Discord card keeps the standard market-structure names beside the Chinese
-  explanation: `Call Wall · 大压力`, `小压力`, `Put Wall · 大支撑`, `小支撑`, and
-  `0 Gamma · Gamma 分界`. Major levels are the strongest side walls. Minor levels are the nearest
-  same-side secondary strikes that meet the configured relative-GEX threshold, with nearest
-  non-zero same-side exposure as a deterministic fallback. Negative-GEX clusters are rendered as
-  volatility-acceleration zones.
+- Every chart and Discord card uses `上方主磁吸`, `上方次磁吸`, `下方主磁吸`, `下方次磁吸`, and
+  `0 Gamma · Gamma 分界`. Main magnets are the strongest positive-Net-GEX strikes on each side of
+  spot. Secondary magnets are the nearest same-side positive-Net-GEX strikes that meet the
+  configured relative threshold, with the nearest remaining positive-Net-GEX strike as a
+  deterministic fallback. Negative-Net-GEX clusters are rendered only as acceleration zones.
+- Gross `Call Wall` / `Put Wall` remain visible in the strike heatmap and Discord reference field
+  as `C墙` / `P墙`; they are not drawn as K-line pressure/support rails.
 - Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.
   AXIS, GEX, Gamma, ticker symbols, provider brands, and ET may remain as technical names.
-- All pressure, support, boundary, and acceleration levels come from the normalized option surface.
+- All magnet, boundary, wall-reference, and acceleration levels come from the normalized option surface.
   The renderer does not use an LLM or image-generation model.
 
 ## Reliability and safety

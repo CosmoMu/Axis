@@ -59,38 +59,40 @@ Each date must contain both Call and Put contracts and meet `minimum_contracts_p
 five valid dates are required by current policy. Same-day valid expiry is 0DTE; otherwise the first
 valid date is labeled `Near-Term Structure`.
 
-## Zero Gamma, Walls, and Clusters
+## Zero Gamma, Magnets, Gross Walls, and Acceleration
 
 - Zero Gamma is the nearest interpolated cumulative Net GEX crossing; if no crossing exists, the
   nearest minimum-absolute cumulative point is used.
-- Call Wall is the strike with the greatest positive Call GEX.
-- Put Wall is the strike with the greatest absolute negative Put GEX.
-- `Call Wall · 大压力` and `Put Wall · 大支撑` are the major levels. `小压力` is the nearest
-  meaningful positive-Call-GEX strike above spot excluding Call Wall; `小支撑` is the nearest
-  meaningful negative-Put-GEX strike below spot excluding Put Wall. A secondary strike is
-  meaningful at 15% of that side's peak exposure; if none reaches the threshold, the nearest
-  non-zero same-side strike is used. Missing same-side structure remains `—` and is never invented.
-- Positive/negative zones group adjacent strikes whose side exposure exceeds the configured
-  fraction of that side's peak. The peak and zone boundaries always come from actual strikes.
+- Positive Net GEX strikes are magnet / pin candidates. The strongest positive-Net-GEX strike
+  above and below spot becomes the main upper/lower magnet. The nearest remaining positive-Net-GEX
+  strike meeting 15% of that side's peak becomes the secondary magnet; otherwise the nearest
+  remaining positive-Net-GEX strike is used. Missing same-side structure remains `—`.
+- Negative Net GEX strikes are acceleration candidates. Adjacent qualifying negative-Net-GEX
+  strikes become acceleration zones. A strike cannot be both a magnet and an acceleration strike.
+- Call Wall is the strike with the greatest gross Call GEX; Put Wall is the strike with the
+  greatest absolute gross Put GEX. They remain raw one-sided concentration references and are not
+  direct pressure/support labels. A gross wall inside a negative-Net-GEX zone remains an
+  acceleration strike and is not promoted to a magnet.
 
 ## Gamma Regime, Bias, and Triggers
 
 The configured normalized Net GEX thresholds produce Strong Positive, Positive, Balanced,
-Negative, or Strong Negative Gamma. Bias combines Spot vs Zero Gamma with regime. Bullish and
-bearish triggers/targets are selected only from Zero Gamma, GEX walls, or signed surface strikes;
-no LLM participates.
+Negative, or Strong Negative Gamma. Bias combines Spot vs Zero Gamma with regime. Directional
+descriptions identify the nearest negative-Net-GEX acceleration zone and same-direction positive
+Net-GEX magnet; no LLM participates.
 
 ## Heatmap
 
 The Pillow renderer produces a deterministic 1800x1125 black AXIS image. The left panel uses a
-candle-first adaptive axis for real 5-minute candles, current price, nearby upper resistance /
-lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration zones. Distant
-pressure, support, and Gamma boundaries use full-width top/bottom off-scale rails with actual
-prices instead of flattening candle bodies. Distant negative-GEX zones use full-width purple
+candle-first adaptive axis for real 5-minute candles, current price, upper/lower positive-Net-GEX
+magnet lines, Gamma boundary, and negative-Net-GEX acceleration zones. Distant magnets and Gamma
+boundaries use full-width top/bottom off-scale rails with actual prices instead of flattening
+candle bodies. Distant negative-Net-GEX zones use full-width purple
 off-scale bands with actual level ranges, so acceleration structure remains visible on the chart.
-Nearby and off-scale labels both preserve `Call Wall · 大压力`, `小压力`, `Put Wall · 大支撑`,
-`小支撑`, and `0 Gamma · Gamma 分界`. Major levels use solid lines; minor levels use lighter dashed
-lines. The heatmap strike rail marks 大压 / 小压 / 大撑 / 小撑 explicitly.
+Nearby and off-scale labels preserve main/secondary upper/lower magnets and
+`0 Gamma · Gamma 分界`. Main magnets use solid lines; secondary magnets use lighter dashed lines.
+The heatmap strike rail marks `上主` / `上次` / `下主` / `下次`, plus gross `C墙` / `P墙`
+references explicitly.
 The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
 aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
 Chinese. It does not use an image-generation model.

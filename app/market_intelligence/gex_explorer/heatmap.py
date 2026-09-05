@@ -66,10 +66,14 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
         for value in (
             _nearest_strike(strikes, snapshot.spot),
             _nearest_strike(strikes, snapshot.zero_gamma),
+            snapshot.upper_magnet,
+            snapshot.secondary_upper_magnet,
+            snapshot.lower_magnet,
+            snapshot.secondary_lower_magnet,
+            # Gross walls remain visible in the strike heatmap as raw structure
+            # references, but are intentionally not K-line pressure/support rails.
             snapshot.call_wall,
-            snapshot.minor_resistance,
             snapshot.put_wall,
-            snapshot.minor_support,
         )
         if value is not None
     }
@@ -82,27 +86,33 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
 
 def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
     labels: list[str] = []
-    if snapshot.call_wall is not None and abs(level - snapshot.call_wall) < 1e-9:
-        labels.append("Call Wall · 大压力")
-    if snapshot.minor_resistance is not None and abs(level - snapshot.minor_resistance) < 1e-9:
-        labels.append("小压力")
-    if snapshot.put_wall is not None and abs(level - snapshot.put_wall) < 1e-9:
-        labels.append("Put Wall · 大支撑")
-    if snapshot.minor_support is not None and abs(level - snapshot.minor_support) < 1e-9:
-        labels.append("小支撑")
+    if snapshot.upper_magnet is not None and abs(level - snapshot.upper_magnet) < 1e-9:
+        labels.append("上方主磁吸")
+    if (
+        snapshot.secondary_upper_magnet is not None
+        and abs(level - snapshot.secondary_upper_magnet) < 1e-9
+    ):
+        labels.append("上方次磁吸")
+    if snapshot.lower_magnet is not None and abs(level - snapshot.lower_magnet) < 1e-9:
+        labels.append("下方主磁吸")
+    if (
+        snapshot.secondary_lower_magnet is not None
+        and abs(level - snapshot.secondary_lower_magnet) < 1e-9
+    ):
+        labels.append("下方次磁吸")
     if snapshot.zero_gamma is not None and abs(level - snapshot.zero_gamma) < 1e-9:
         labels.append("0 Gamma · Gamma 分界")
     if not labels:
         labels.append("GEX 结构")
     color = (
         "#D8B85B"
-        if labels[0].startswith("Call Wall")
+        if labels[0] == "上方主磁吸"
         else "#C8B879"
-        if labels[0] == "小压力"
+        if labels[0] == "上方次磁吸"
         else "#77A997"
-        if labels[0].startswith("Put Wall")
+        if labels[0] == "下方主磁吸"
         else "#8FB7A8"
-        if labels[0] == "小支撑"
+        if labels[0] == "下方次磁吸"
         else "#9A6AF0"
     )
     return " / ".join(labels), color
@@ -132,7 +142,7 @@ def render_gex_heatmap(
     intraday_bars: tuple[GexIntradayBar, ...],
     policy: HeatmapPolicy,
 ) -> bytes:
-    """Render one desktop-first chart: real 1m candles, GEX levels/zones, and heatmap."""
+    """Render one desktop-first chart with real candles and Net-GEX structure."""
 
     from PIL import Image, ImageDraw
 
@@ -167,7 +177,7 @@ def render_gex_heatmap(
     draw.text((margin, 34), f"AXIS GEX · {snapshot.ticker}", fill=white, font=_font(38, bold=True))
     draw.text(
         (margin, 87),
-        (f"真实 {policy.intraday_interval_minutes} 分钟 K 线 · 成交量 GEX · 支撑压力 · 波动加速区"),
+        (f"真实 {policy.intraday_interval_minutes} 分钟 K 线 · 成交量 GEX · 磁吸 · 波动加速区"),
         fill=secondary,
         font=_font(20, bold=True),
     )
@@ -224,10 +234,10 @@ def render_gex_heatmap(
     all_structural_levels = tuple(
         value
         for value in (
-            snapshot.call_wall,
-            snapshot.minor_resistance,
-            snapshot.put_wall,
-            snapshot.minor_support,
+            snapshot.upper_magnet,
+            snapshot.secondary_upper_magnet,
+            snapshot.lower_magnet,
+            snapshot.secondary_lower_magnet,
             snapshot.zero_gamma,
         )
         if value is not None
@@ -379,7 +389,7 @@ def render_gex_heatmap(
     for level in unique_levels:
         label, color = _level_label(snapshot, level)
         y = price_y(level)
-        is_minor = label.startswith("小压力") or label.startswith("小支撑")
+        is_minor = "次磁吸" in label
         if is_minor:
             _dashed_horizontal(
                 draw,
@@ -432,7 +442,7 @@ def render_gex_heatmap(
             max(326, int(draw.textlength(text, font=label_font)) + 28),
         )
         is_boundary = "0 Gamma" in label
-        is_minor = label.startswith("小压力") or label.startswith("小支撑")
+        is_minor = "次磁吸" in label
         _dashed_horizontal(
             draw,
             left=plot_left,
@@ -533,10 +543,12 @@ def render_gex_heatmap(
     for strike, label in (
         (spot_row, "现"),
         (_nearest_strike(strikes, snapshot.zero_gamma), "零"),
-        (snapshot.call_wall, "大压"),
-        (snapshot.minor_resistance, "小压"),
-        (snapshot.put_wall, "大撑"),
-        (snapshot.minor_support, "小撑"),
+        (snapshot.upper_magnet, "上主"),
+        (snapshot.secondary_upper_magnet, "上次"),
+        (snapshot.lower_magnet, "下主"),
+        (snapshot.secondary_lower_magnet, "下次"),
+        (snapshot.call_wall, "C墙"),
+        (snapshot.put_wall, "P墙"),
     ):
         if strike is not None and strike in strikes:
             marker_map.setdefault(strike, []).append(label)
@@ -602,13 +614,13 @@ def render_gex_heatmap(
     legend_y = 944
     draw.text(
         (heatmap_left, legend_y),
-        "绿色：正 GEX   红色：负 GEX   现：现价   零：0 Gamma   大压/小压：压力   大撑/小撑：支撑",
+        "绿色：正 Net GEX   红色：负 Net GEX   上/下主次：磁吸   C墙/P墙：Gross Wall 参考",
         fill=muted,
         font=_font(11, bold=True),
     )
     draw.text(
         (margin, 1030),
-        "按当日期权成交量加权 Gamma；大级别取最强墙，小级别取现价附近有效次级结构。",
+        "正 Net GEX = 磁吸 / Pin；负 Net GEX = 加速；同一执行价不会同时标为磁吸与加速。",
         fill=secondary,
         font=_font(16, bold=True),
     )

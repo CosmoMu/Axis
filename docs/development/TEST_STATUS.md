@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 310 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 311 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -39,11 +39,14 @@
 - GEX V3 AVGO real comparison: PASS — Massive 10 valid expirations / 654 option contracts /
   240 one-minute RTH bars；Moomoo shadow 240 bars / 240 overlapping timestamps；latest common-close
   difference `0.0545%`、timestamp difference `0s`；Call Wall / Put Wall / 0 Gamma 全部显示。
-- GEX V4 tiered levels: PASS — AVGO Massive 实际表面计算出大压力 360、小压力 365、
-  大支撑 350、小支撑 355、0 Gamma 290；图表、Discord 卡片和热力图标记使用同一套点位。
-- GEX V5 volume-flow / 5-minute: PASS — AVGO Massive 78 根 5 分钟 K 线、10 valid expirations、
-  654 contracts；成交量 GEX 得出大压力 360、小压力 357.5、大支撑 355、小支撑 352.5、
-  0 Gamma 359.79；Moomoo shadow 78/78 overlap，正式输出仍只选 Massive。
+- GEX V4 tiered levels / V5 volume-flow evidence: historical PASS — 原 Gross Wall
+  压力/支撑展示语义已由 V6 Net Magnet / Acceleration 取代；Massive 5 分钟正式源与 Moomoo
+  shadow 边界保持不变。
+- GEX V6 Net Magnet / Acceleration: PASS — AVGO Massive 78 根 5 分钟 K 线、10 valid
+  expirations、654 contracts；上方正 Net GEX 磁吸 370 / 357.5、下方磁吸 355 / 332.5、
+  负 Net GEX 加速区独立计算，0 Gamma 359.79。Gross Call Wall 360 / Put Wall 355 只作
+  参考；自动验证 `magnets_do_not_overlap_acceleration=true`。新增回归覆盖 Gross Call Wall
+  位于负 Net GEX 执行价时不得被标为磁吸。
 
 ## Commands executed
 
@@ -329,7 +332,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 310 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 311 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 
