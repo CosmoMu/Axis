@@ -153,7 +153,7 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
         anchor = "la" if index == 0 else "ma" if index < len(points) - 1 else "ra"
         label_x = x_pos + 16 if index == 0 else x_pos if index < len(points) - 1 else x_pos - 16
         draw.text(
-            (label_x, y_pos - 66),
+            (label_x, y_pos - 82),
             point["label"].upper(),
             font=_font(18, bold=True),
             fill=muted,
@@ -161,7 +161,7 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
         )
         value_label = f"${point['price']:,.2f}" if point["price"] is not None else "仅表示方向"
         draw.text(
-            (label_x, y_pos - 37),
+            (label_x, y_pos - 43),
             value_label,
             font=_font(25, bold=True),
             fill=color,
