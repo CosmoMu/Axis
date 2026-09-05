@@ -144,11 +144,10 @@ def build_stock_analyst_embed(
         embed.add_field(name="数据状态", value="\n".join(states), inline=False)
     updated = result.source_timestamp.astimezone(ET).strftime("%m/%d %I:%M %p ET")
     embed.add_field(
-        name="数据与版本",
+        name="数据",
         value=(
             f"更新 {updated}\n数据源 {result.provider.title()} · 日 K\n"
-            f"缓存 {'命中' if result.cache_hit else '未命中'} · {result.latency_ms} 毫秒\n"
-            f"策略 {result.strategy_version}"
+            f"缓存 {'命中' if result.cache_hit else '未命中'} · {result.latency_ms} 毫秒"
         ),
         inline=False,
     )

@@ -390,6 +390,8 @@ async def test_card_uses_same_structured_levels_as_chart_result() -> None:
     )
     rendered = str(build_stock_analyst_embed(result).to_dict())
     assert "AXIS STOCK ANALYST · TEST" in rendered
+    assert "COSMOS" not in rendered.upper()
+    assert "数据与版本" not in rendered
     assert f"${result.analysis.support_levels[0].price:,.2f}" in rendered
     assert f"${result.analysis.resistance_levels[0].price:,.2f}" in rendered
     assert result.structured_result["support_levels"][0] == result.analysis.support_levels[0].price
@@ -403,4 +405,5 @@ async def test_card_uses_same_structured_levels_as_chart_result() -> None:
     live = str(build_stock_analyst_embed(result, mode="MEMBER_LOUNGE").to_dict())
     assert "AXIS STOCK ANALYST · NVDA" in live
     assert "AXIS STOCK ANALYST · TEST" not in live
+    assert "COSMOS" not in live.upper()
     assert "会员专属研究工具" in live
