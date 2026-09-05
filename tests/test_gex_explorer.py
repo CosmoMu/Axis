@@ -277,12 +277,22 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
                 sum(rgb.getpixel((x, y)) == (119, 169, 151) for x in range(76, 1113))
                 for y in range(190, 911)
             )
+            minor_pressure_run = max(
+                sum(rgb.getpixel((x, y)) == (200, 184, 121) for x in range(76, 1113))
+                for y in range(190, 911)
+            )
+            minor_support_run = max(
+                sum(rgb.getpixel((x, y)) == (143, 183, 168) for x in range(76, 1113))
+                for y in range(190, 911)
+            )
             acceleration_run = max(
                 sum(rgb.getpixel((x, y)) == (89, 42, 132) for x in range(76, 1113))
                 for y in range(190, 911)
             )
             assert pressure_run > 400
             assert support_run > 400
+            assert minor_pressure_run > 200
+            assert minor_support_run > 200
             assert acceleration_run > 900
         zero_label, _ = _level_label(first.snapshot, first.snapshot.zero_gamma or 0)
         assert "0 Gamma · Gamma 分界" in zero_label
@@ -290,6 +300,10 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.intraday_provider == "fake-minute"
         assert first.intraday_bar_count == 120
         assert first.snapshot.near_term_expiration is not None
+        assert first.snapshot.call_wall == 110
+        assert first.snapshot.minor_resistance == 105
+        assert first.snapshot.put_wall == 90
+        assert first.snapshot.minor_support == 100
         assert cached.cache_hit is True
         async with db.session() as session:
             actions = list(
@@ -402,9 +416,12 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         assert all("Market" not in field.name for field in embed.fields)
         key_levels = next(field.value for field in embed.fields if field.name == "关键位置")
         assert "0 Gamma · Gamma 分界" in key_levels
-        assert "Call Wall · 上方压力" in key_levels
-        assert "Put Wall · 下方支撑" in key_levels
-        assert "上方压力" in result.snapshot.analysis_zh[1]
+        assert "Call Wall · 大压力" in key_levels
+        assert "小压力" in key_levels
+        assert "Put Wall · 大支撑" in key_levels
+        assert "小支撑" in key_levels
+        assert "大压力" in result.snapshot.analysis_zh[1]
+        assert "小支撑" in result.snapshot.analysis_zh[1]
     finally:
         await db.dispose()
 

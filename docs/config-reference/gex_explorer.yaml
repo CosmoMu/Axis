@@ -1,4 +1,4 @@
-version: gex-v3-massive-primary
+version: gex-v4-tiered-levels
 expiration_count: 10
 expiration_candidates: 16
 expiration_horizon_days: 180
@@ -21,6 +21,7 @@ regime_thresholds:
   negative: -0.08
   strong_negative: -0.25
 zone_relative_threshold: 0.35
+minor_level_relative_threshold: 0.15
 heatmap:
   expiration_columns: 5
   strike_rows: 19

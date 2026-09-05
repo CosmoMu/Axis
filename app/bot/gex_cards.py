@@ -58,8 +58,10 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         name="关键位置",
         value=(
             f"0 Gamma · Gamma 分界 {_money(snapshot.zero_gamma)}\n"
-            f"Call Wall · 上方压力 {_money(snapshot.call_wall)}\n"
-            f"Put Wall · 下方支撑 {_money(snapshot.put_wall)}"
+            f"Call Wall · 大压力 {_money(snapshot.call_wall)}\n"
+            f"小压力 {_money(snapshot.minor_resistance)}\n"
+            f"Put Wall · 大支撑 {_money(snapshot.put_wall)}\n"
+            f"小支撑 {_money(snapshot.minor_support)}"
         ),
         inline=True,
     )
@@ -91,9 +93,7 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         ),
         inline=True,
     )
-    embed.add_field(
-        name="正 GEX 集中区", value=_zones(snapshot.positive_zones), inline=True
-    )
+    embed.add_field(name="正 GEX 集中区", value=_zones(snapshot.positive_zones), inline=True)
     embed.add_field(name="负 GEX 加速区", value=_zones(snapshot.negative_zones), inline=True)
     embed.add_field(
         name="结构触发",
@@ -117,9 +117,7 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     if states:
         embed.add_field(name="数据状态", value="\n".join(states), inline=False)
     source_time = result.source_timestamp.astimezone(ET).strftime("%m/%d %H:%M:%S ET")
-    intraday_time = result.intraday_source_timestamp.astimezone(ET).strftime(
-        "%m/%d %H:%M:%S ET"
-    )
+    intraday_time = result.intraday_source_timestamp.astimezone(ET).strftime("%m/%d %H:%M:%S ET")
     embed.add_field(
         name="数据与覆盖",
         value=(

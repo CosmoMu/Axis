@@ -62,6 +62,11 @@ valid date is labeled `Near-Term Structure`.
   nearest minimum-absolute cumulative point is used.
 - Call Wall is the strike with the greatest positive Call GEX.
 - Put Wall is the strike with the greatest absolute negative Put GEX.
+- `Call Wall · 大压力` and `Put Wall · 大支撑` are the major levels. `小压力` is the nearest
+  meaningful positive-Call-GEX strike above spot excluding Call Wall; `小支撑` is the nearest
+  meaningful negative-Put-GEX strike below spot excluding Put Wall. A secondary strike is
+  meaningful at 15% of that side's peak exposure; if none reaches the threshold, the nearest
+  non-zero same-side strike is used. Missing same-side structure remains `—` and is never invented.
 - Positive/negative zones group adjacent strikes whose side exposure exceeds the configured
   fraction of that side's peak. The peak and zone boundaries always come from actual strikes.
 
@@ -80,8 +85,9 @@ lower support / Gamma-boundary lines, and negative-GEX volatility-acceleration z
 pressure, support, and Gamma boundaries use full-width top/bottom off-scale rails with actual
 prices instead of flattening candle bodies. Distant negative-GEX zones use full-width purple
 off-scale bands with actual level ranges, so acceleration structure remains visible on the chart.
-Nearby and off-scale labels both preserve the standard terms `Call Wall`, `Put Wall`, and
-`0 Gamma`, followed by the Chinese pressure / support / boundary explanation.
+Nearby and off-scale labels both preserve `Call Wall · 大压力`, `小压力`, `Put Wall · 大支撑`,
+`小支撑`, and `0 Gamma · Gamma 分界`. Major levels use solid lines; minor levels use lighter dashed
+lines. The heatmap strike rail marks 大压 / 小压 / 大撑 / 小撑 explicitly.
 The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
 aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
 Chinese. It does not use an image-generation model.

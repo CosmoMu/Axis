@@ -56,9 +56,7 @@ def _zones(
         return ()
     peak_value = max(value for _, value in values)
     selected = [
-        (strike, value)
-        for strike, value in values
-        if value >= peak_value * relative_threshold
+        (strike, value) for strike, value in values if value >= peak_value * relative_threshold
     ]
     all_strikes = sorted(point.strike for point in points)
     steps = [right - left for left, right in zip(all_strikes, all_strikes[1:], strict=False)]
@@ -93,24 +91,14 @@ def _trigger(
 ) -> GexTrigger:
     candidates = sorted(
         (
-            {
-                point.strike
-                for point in points
-                if point.strike > spot and point.net_gex > 0
-            }
+            {point.strike for point in points if point.strike > spot and point.net_gex > 0}
             if bullish
-            else {
-                point.strike
-                for point in points
-                if point.strike < spot and point.net_gex < 0
-            }
+            else {point.strike for point in points if point.strike < spot and point.net_gex < 0}
         ),
         reverse=not bullish,
     )
     structural = [value for value in (zero, wall) if value is not None]
-    directional = [
-        value for value in structural if (value > spot if bullish else value < spot)
-    ]
+    directional = [value for value in structural if (value > spot if bullish else value < spot)]
     levels = sorted(set(candidates + directional), reverse=not bullish)
     level = levels[0] if levels else None
     target = levels[1] if len(levels) > 1 else None
@@ -263,6 +251,45 @@ def _fmt(value: float | None) -> str:
     return "—" if value is None else f"${value:,.2f}"
 
 
+def _minor_structural_level(
+    points: tuple[GexByStrike, ...],
+    *,
+    spot: float,
+    major_level: float | None,
+    resistance: bool,
+    relative_threshold: float,
+) -> float | None:
+    """Select the nearest meaningful secondary wall on the correct side of spot."""
+
+    exposures = [
+        (
+            point.strike,
+            point.call_gex if resistance else abs(point.put_gex),
+        )
+        for point in points
+        if (point.strike > spot if resistance else point.strike < spot)
+        and (point.call_gex > 0 if resistance else point.put_gex < 0)
+        and (major_level is None or abs(point.strike - major_level) > 1e-9)
+    ]
+    if not exposures:
+        return None
+    side_peak = max(
+        (
+            point.call_gex if resistance else abs(point.put_gex)
+            for point in points
+            if (point.call_gex > 0 if resistance else point.put_gex < 0)
+        ),
+        default=0.0,
+    )
+    meaningful = [
+        (strike, exposure)
+        for strike, exposure in exposures
+        if exposure >= side_peak * relative_threshold
+    ]
+    candidates = meaningful or exposures
+    return min(candidates, key=lambda item: abs(item[0] - spot))[0]
+
+
 def build_gex_snapshot(
     ticker: str,
     spot: float,
@@ -273,6 +300,7 @@ def build_gex_snapshot(
     dividend_yield: float = 0.012,
     regime_thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
     zone_relative_threshold: float = 0.35,
+    minor_level_relative_threshold: float = 0.15,
 ) -> GexSnapshot:
     grouped: defaultdict[object, list[GexOptionContract]] = defaultdict(list)
     for contract in contracts:
@@ -312,6 +340,20 @@ def build_gex_snapshot(
     puts = [point for point in points if point.put_gex < 0]
     call_wall = max(calls, key=lambda item: item.call_gex).strike if calls else None
     put_wall = min(puts, key=lambda item: item.put_gex).strike if puts else None
+    minor_resistance = _minor_structural_level(
+        points,
+        spot=spot,
+        major_level=call_wall,
+        resistance=True,
+        relative_threshold=minor_level_relative_threshold,
+    )
+    minor_support = _minor_structural_level(
+        points,
+        spot=spot,
+        major_level=put_wall,
+        resistance=False,
+        relative_threshold=minor_level_relative_threshold,
+    )
     bullish = _trigger(
         spot=spot,
         zero=zero,
@@ -355,8 +397,9 @@ def build_gex_snapshot(
     )
     analysis = (
         f"当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
-        f"0 Gamma / Gamma 分界 {_fmt(zero)}；Call Wall / 上方压力 {_fmt(call_wall)}；"
-        f"Put Wall / 下方支撑 {_fmt(put_wall)}。",
+        f"0 Gamma / Gamma 分界 {_fmt(zero)}；Call Wall / 大压力 {_fmt(call_wall)}；"
+        f"小压力 {_fmt(minor_resistance)}；Put Wall / 大支撑 {_fmt(put_wall)}；"
+        f"小支撑 {_fmt(minor_support)}。",
         f"结构倾向为“{bias}”。向上：{bullish.description}；向下：{bearish.description}。",
     )
     return GexSnapshot(
@@ -381,6 +424,8 @@ def build_gex_snapshot(
         skipped_contracts=skipped,
         data_warnings=tuple(warnings),
         dealer_sign_assumption=DEALER_SIGN_ASSUMPTION,
+        minor_resistance=minor_resistance,
+        minor_support=minor_support,
         positive_gex=positive_gex,
         negative_gex=negative_gex,
         near_term_expiration=near_term.expiration,

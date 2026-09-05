@@ -48,8 +48,9 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 - Missing vendor Gamma may use Black-Scholes Gamma only when provider IV is present. Missing OI or
   both Gamma and IV is skipped, never silently filled with zero.
 - Aggregate and Near-Term surfaces calculate Net/Positive/Negative GEX, five-level Gamma Regime,
-  Zero Gamma, GEX-based Call Wall and Put Wall, deterministic positive/negative clusters,
-  structural bias, and bullish/bearish trigger/target levels.
+  Zero Gamma, GEX-based Call Wall / major resistance, Put Wall / major support, nearby meaningful
+  minor resistance/support, deterministic positive/negative clusters, structural bias, and
+  bullish/bearish trigger/target levels.
 - All levels must come from the normalized option surface. An LLM must never invent GEX levels.
 - The response is one Chinese AXIS Discord card plus one deterministic 1800x1125 composite image:
   the left side is the real 1-minute K-line with current price and structural overlays; the right
@@ -62,8 +63,11 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   bands with their actual level or range; they must never disappear merely because they are outside
   the focused candle axis.
 - Every chart and Discord card keeps the standard market-structure names beside the Chinese
-  explanation: `Call Wall · 上方压力`, `Put Wall · 下方支撑`, and
-  `0 Gamma · Gamma 分界`. Negative-GEX clusters are rendered as volatility-acceleration zones.
+  explanation: `Call Wall · 大压力`, `小压力`, `Put Wall · 大支撑`, `小支撑`, and
+  `0 Gamma · Gamma 分界`. Major levels are the strongest side walls. Minor levels are the nearest
+  same-side secondary strikes that meet the configured relative-GEX threshold, with nearest
+  non-zero same-side exposure as a deterministic fallback. Negative-GEX clusters are rendered as
+  volatility-acceleration zones.
 - Visible labels, explanations, status text, chart headings, legends, and disclaimers are Chinese.
   AXIS, GEX, Gamma, ticker symbols, provider brands, and ET may remain as technical names.
 - All pressure, support, boundary, and acceleration levels come from the normalized option surface.

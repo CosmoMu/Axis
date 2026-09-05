@@ -79,6 +79,7 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 dividend_yield=policy.dividend_yield,
                 regime_thresholds=policy.regime_thresholds,
                 zone_relative_threshold=policy.zone_relative_threshold,
+                minor_level_relative_threshold=policy.minor_level_relative_threshold,
             )
             heatmap = render_gex_heatmap(snapshot, intraday.bars, policy)
             if output_dir is not None:
@@ -98,6 +99,12 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 "net_reconciles": abs(by_strike_net - snapshot.net_gex) < 0.01,
                 "call_wall_reconciles": wall_check == snapshot.call_wall,
                 "put_wall_reconciles": put_check == snapshot.put_wall,
+                "minor_resistance_above_spot": (
+                    snapshot.minor_resistance is None or snapshot.minor_resistance > snapshot.spot
+                ),
+                "minor_support_below_spot": (
+                    snapshot.minor_support is None or snapshot.minor_support < snapshot.spot
+                ),
                 "png_valid": heatmap.startswith(b"\x89PNG"),
                 "minute_bars_present": len(intraday.bars) >= policy.intraday_minimum_bars,
             }
@@ -129,6 +136,13 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                         },
                         "source_timestamp": raw.source_timestamp.isoformat(),
                         "regime": snapshot.gamma_regime,
+                        "levels": {
+                            "call_wall_major_resistance": snapshot.call_wall,
+                            "minor_resistance": snapshot.minor_resistance,
+                            "put_wall_major_support": snapshot.put_wall,
+                            "minor_support": snapshot.minor_support,
+                            "zero_gamma": snapshot.zero_gamma,
+                        },
                         "checks": checks,
                     },
                     ensure_ascii=False,

@@ -66,7 +66,9 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
             _nearest_strike(strikes, snapshot.spot),
             _nearest_strike(strikes, snapshot.zero_gamma),
             snapshot.call_wall,
+            snapshot.minor_resistance,
             snapshot.put_wall,
+            snapshot.minor_support,
         )
         if value is not None
     }
@@ -80,9 +82,13 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
 def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
     labels: list[str] = []
     if snapshot.call_wall is not None and abs(level - snapshot.call_wall) < 1e-9:
-        labels.append("Call Wall · 上方压力")
+        labels.append("Call Wall · 大压力")
+    if snapshot.minor_resistance is not None and abs(level - snapshot.minor_resistance) < 1e-9:
+        labels.append("小压力")
     if snapshot.put_wall is not None and abs(level - snapshot.put_wall) < 1e-9:
-        labels.append("Put Wall · 下方支撑")
+        labels.append("Put Wall · 大支撑")
+    if snapshot.minor_support is not None and abs(level - snapshot.minor_support) < 1e-9:
+        labels.append("小支撑")
     if snapshot.zero_gamma is not None and abs(level - snapshot.zero_gamma) < 1e-9:
         labels.append("0 Gamma · Gamma 分界")
     if not labels:
@@ -90,8 +96,12 @@ def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
     color = (
         "#D8B85B"
         if labels[0].startswith("Call Wall")
+        else "#C8B879"
+        if labels[0] == "小压力"
         else "#77A997"
         if labels[0].startswith("Put Wall")
+        else "#8FB7A8"
+        if labels[0] == "小支撑"
         else "#9A6AF0"
     )
     return " / ".join(labels), color
@@ -207,7 +217,13 @@ def render_gex_heatmap(
     visible_distance = max(candle_span * 1.5, snapshot.spot * 0.0025)
     all_structural_levels = tuple(
         value
-        for value in (snapshot.call_wall, snapshot.put_wall, snapshot.zero_gamma)
+        for value in (
+            snapshot.call_wall,
+            snapshot.minor_resistance,
+            snapshot.put_wall,
+            snapshot.minor_support,
+            snapshot.zero_gamma,
+        )
         if value is not None
     )
     structural_levels = tuple(
@@ -357,7 +373,20 @@ def render_gex_heatmap(
     for level in unique_levels:
         label, color = _level_label(snapshot, level)
         y = price_y(level)
-        draw.line((plot_left, y, plot_right, y), fill=color, width=2)
+        is_minor = label.startswith("小压力") or label.startswith("小支撑")
+        if is_minor:
+            _dashed_horizontal(
+                draw,
+                left=plot_left,
+                right=plot_right,
+                y=y,
+                fill=color,
+                width=2,
+                dash=6,
+                gap=7,
+            )
+        else:
+            draw.line((plot_left, y, plot_right, y), fill=color, width=2)
         text = f"{label}  {level:,.2f}"
         label_font = _font(14, bold=True)
         box_width = min(
@@ -396,7 +425,8 @@ def render_gex_heatmap(
             plot_right - plot_left - 12,
             max(326, int(draw.textlength(text, font=label_font)) + 28),
         )
-        is_boundary = label.startswith("0 Gamma")
+        is_boundary = "0 Gamma" in label
+        is_minor = label.startswith("小压力") or label.startswith("小支撑")
         _dashed_horizontal(
             draw,
             left=plot_left,
@@ -404,8 +434,8 @@ def render_gex_heatmap(
             y=label_y,
             fill=color,
             width=2,
-            dash=4 if is_boundary else 13,
-            gap=7 if is_boundary else 8,
+            dash=4 if is_boundary else 6 if is_minor else 13,
+            gap=7 if is_boundary or is_minor else 8,
         )
         draw.rounded_rectangle(
             (plot_right - box_width, label_y - 16, plot_right - 6, label_y + 16),
@@ -457,7 +487,7 @@ def render_gex_heatmap(
     strikes = _selected_strikes(snapshot, policy.heatmap_strike_rows)
     table_top = 220
     row_height = min(34, max(24, int((plot_bottom - table_top) / max(1, len(strikes)))))
-    strike_width = 66
+    strike_width = 104
     total_width = 82
     cell_width = max(
         54,
@@ -494,8 +524,10 @@ def render_gex_heatmap(
     for strike, label in (
         (spot_row, "现"),
         (_nearest_strike(strikes, snapshot.zero_gamma), "零"),
-        (snapshot.call_wall, "压"),
-        (snapshot.put_wall, "撑"),
+        (snapshot.call_wall, "大压"),
+        (snapshot.minor_resistance, "小压"),
+        (snapshot.put_wall, "大撑"),
+        (snapshot.minor_support, "小撑"),
     ):
         if strike is not None and strike in strikes:
             marker_map.setdefault(strike, []).append(label)
@@ -561,13 +593,13 @@ def render_gex_heatmap(
     legend_y = 944
     draw.text(
         (heatmap_left, legend_y),
-        "绿色：正 GEX   红色：负 GEX   现：现价   零：0 Gamma   压：Call Wall   撑：Put Wall",
+        "绿色：正 GEX   红色：负 GEX   现：现价   零：0 Gamma   大压/小压：压力   大撑/小撑：支撑",
         fill=muted,
         font=_font(11, bold=True),
     )
     draw.text(
         (margin, 1030),
-        "波动加速区来自负 GEX 集中带；支撑、压力与分界均由当前期权表面确定，不使用模型臆造。",
+        "大级别取最强 GEX 墙，小级别取现价附近有效次级结构；所有点位均由期权表面确定。",
         fill=secondary,
         font=_font(16, bold=True),
     )

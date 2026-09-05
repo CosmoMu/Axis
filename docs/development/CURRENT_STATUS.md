@@ -46,7 +46,7 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface / spot /
 1 分钟 K 线正式 provider、Moomoo OpenD 后台影子比较、AuditLog、System Alerts 和 Owner-only
 card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、五级 Gamma Regime、
-Gamma 分界、上方压力、下方支撑、负 GEX 加速区、真实 1 分钟 K 线和中文复合
+Gamma 分界、大/小压力、大/小支撑、负 GEX 加速区、真实 1 分钟 K 线和中文复合
 热力图已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
 
 ## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
@@ -59,14 +59,15 @@ Implemented:
   即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
   和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
-- Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall、positive/negative zone、
-  deterministic bias / triggers；无 LLM 点位。
+- Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall 大级别、现价附近
+  有效次级小压力/小支撑、positive/negative zone、deterministic bias / triggers；无 LLM 点位。
 - 确定性 1800x1125 中文复合图：16:10 风格布局，左侧真实 1 分钟 K 线绘图区约 1.44:1，
   右侧 strike x expiration GEX 热力图加宽；纵轴优先保持蜡烛可读，远端压力/支撑/Gamma
   分界使用横贯绘图区的图外结构轨保留，远端负 GEX 加速区使用紫色全宽图外带保留
   实际点位或范围；不再强行压扁 K 线，也不会因超出聚焦纵轴而丢失结构。
-- 图表及 Discord 关键位置卡片明确显示 `Call Wall · 上方压力`、`Put Wall · 下方支撑`、
-  `0 Gamma · Gamma 分界`，附近点位与图外结构轨使用同一套命名。
+- 图表及 Discord 关键位置卡片明确显示 `Call Wall · 大压力`、`小压力`、
+  `Put Wall · 大支撑`、`小支撑`、`0 Gamma · Gamma 分界`；大级别用实线，小级别用浅色
+  虚线，附近点位与图外结构轨使用同一套命名。
 - ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
 - GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
   System Alert dedup / Recovery。
@@ -82,6 +83,8 @@ Live evidence:
   复合 PNG 已完成视觉复核。
 - Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效
   expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
+- AVGO 四层级别真实 Massive 验收 PASS：大压力 360、小压力 365、大支撑 350、
+  小支撑 355、0 Gamma 290；四层点位均进入 K 线覆盖和热力图标记。
 - Invalid ticker PASS。
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。

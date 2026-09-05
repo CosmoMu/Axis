@@ -39,6 +39,8 @@
 - GEX V3 AVGO real comparison: PASS — Massive 10 valid expirations / 654 option contracts /
   240 one-minute RTH bars；Moomoo shadow 240 bars / 240 overlapping timestamps；latest common-close
   difference `0.0545%`、timestamp difference `0s`；Call Wall / Put Wall / 0 Gamma 全部显示。
+- GEX V4 tiered levels: PASS — AVGO Massive 实际表面计算出大压力 360、小压力 365、
+  大支撑 350、小支撑 355、0 Gamma 290；图表、Discord 卡片和热力图标记使用同一套点位。
 
 ## Commands executed
 
