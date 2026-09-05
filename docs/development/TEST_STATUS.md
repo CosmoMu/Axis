@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 290 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 293 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED

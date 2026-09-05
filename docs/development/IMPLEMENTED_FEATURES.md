@@ -258,7 +258,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 ## Prediction Chart
 
 - 确定性单一路径 renderer。
-- 输入明确点位优先；缺失时只使用融合层可追溯点位。
+- 输入图片仅作内部证据；明确点位与方向由 AXIS renderer 重新绘制，原图不进入 Review 或
+  会员频道；缺失时只使用融合层可追溯点位。
 - 不生成未来 K 线，不使用图片生成模型。
 - Source 图片不转发到 Review 或会员频道。
 - renderer 失败不阻塞文字 Analysis 归档，支持独立重试。

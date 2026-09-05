@@ -51,6 +51,7 @@ from app.market_intelligence.stock_analyst import (
     AxisStockAnalystError,
     AxisStockAnalystService,
     PredictionChartError,
+    input_projection_points,
     merge_stock_analysis,
     render_prediction_chart,
     sanitize_input_analysis,
@@ -132,6 +133,63 @@ EDITABLE = {
     AnalysisDraftStatus.PENDING_REVIEW.value,
     AnalysisDraftStatus.PARSE_FAILED.value,
 }
+
+
+def _axis_chart_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Build chart-only data; source images are evidence, never presentation media."""
+
+    projection = payload.get("source_projection")
+    source_points = (
+        input_projection_points(payload, allow_image=True)
+        if isinstance(projection, dict) and projection.get("present") is True
+        else None
+    )
+    if source_points:
+        path = []
+        numeric_count = 0
+        for position, point in enumerate(source_points):
+            price = point.get("price")
+            if price is not None:
+                numeric_count += 1
+            label = point.get("label") or ("当前位置" if position == 0 else "预测路径")
+            label_upper = str(label).upper()
+            path.append(
+                {
+                    "type": (
+                        "CURRENT"
+                        if position == 0
+                        else "TARGET"
+                        if "目标" in str(label) or "TARGET" in label_upper
+                        else "STRUCTURE"
+                    ),
+                    "price": price,
+                    "direction": point.get("direction"),
+                    "label": label,
+                    "sequence": position,
+                }
+            )
+        if len(path) >= 2 and numeric_count >= 1:
+            existing_scenario = payload.get("top_scenario")
+            scenario = dict(existing_scenario) if isinstance(existing_scenario, dict) else {}
+            scenario["direction_clear"] = True
+            scenario.setdefault("model_weight_percent", 0)
+            return {
+                **payload,
+                "top_scenario": scenario,
+                "prediction_path": path,
+                "chart_path_basis": "SOURCE_PROJECTION",
+            }
+
+    scenario = payload.get("top_scenario")
+    path = payload.get("prediction_path")
+    if (
+        isinstance(scenario, dict)
+        and scenario.get("direction_clear") is True
+        and isinstance(path, list)
+        and path
+    ):
+        return payload
+    return None
 
 
 class AnalysisPipelineService:
@@ -390,9 +448,10 @@ class AnalysisPipelineService:
         self._validate_archive(payload)
         chart_png = None
         chart_error = None
-        if payload.get("prediction_path"):
+        chart_payload = _axis_chart_payload(payload)
+        if chart_payload is not None:
             try:
-                chart_png = render_prediction_chart(payload)
+                chart_png = render_prediction_chart(chart_payload)
             except (PredictionChartError, OSError, RuntimeError) as exc:
                 chart_error = (str(exc) or type(exc).__name__)[:64]
         async with self.database.session() as session:
@@ -415,7 +474,7 @@ class AnalysisPipelineService:
                 draft.chart_checksum_sha256 = stored.checksum_sha256
                 draft.chart_content_type = stored.content_type
                 draft.chart_render_error = None
-            elif not payload.get("prediction_path"):
+            elif chart_payload is None:
                 draft.chart_source = None
                 draft.chart_storage_key = None
                 draft.chart_checksum_sha256 = None
@@ -884,11 +943,12 @@ class AnalysisPipelineService:
         warnings.extend(enriched.get("warnings", []))
         enriched["warnings"] = list(dict.fromkeys(warnings))
         generated_chart_png = None
-        chart_source = "SOURCE" if source_attachment_id is not None else None
+        chart_source = None
         chart_render_error = None
-        if chart_source is None and enriched.get("prediction_path"):
+        chart_payload = _axis_chart_payload(enriched)
+        if chart_payload is not None:
             try:
-                generated_chart_png = render_prediction_chart(enriched)
+                generated_chart_png = render_prediction_chart(chart_payload)
                 chart_source = "AXIS_STOCK_ANALYST"
             except (PredictionChartError, OSError, RuntimeError) as exc:
                 chart_render_error = str(exc)[:64] or type(exc).__name__
@@ -929,20 +989,14 @@ class AnalysisPipelineService:
     async def retry_prediction_chart(self, draft_id: uuid.UUID) -> AnalysisDraftSnapshot:
         async with self.database.session() as session:
             draft = await self._locked_editable(session, draft_id)
-            if draft.chart_source_attachment_id is not None:
-                draft.chart_source = "SOURCE"
-                draft.chart_storage_key = None
-                draft.chart_checksum_sha256 = None
-                draft.chart_content_type = None
-                draft.chart_render_error = None
-                draft.version += 1
-                await session.commit()
-                return await self._snapshot(session, draft)
             payload = dict(draft.normalized_json)
             guild_id = draft.guild_id
             revision = draft.revision
+        chart_payload = _axis_chart_payload(payload)
+        if chart_payload is None:
+            raise AnalysisValidationError("ANALYSIS_CHART_PATH_REQUIRED")
         try:
-            png = render_prediction_chart(payload)
+            png = render_prediction_chart(chart_payload)
         except (PredictionChartError, OSError, RuntimeError) as exc:
             async with self.database.session() as session:
                 draft = await self._locked_editable(session, draft_id)
@@ -971,12 +1025,8 @@ class AnalysisPipelineService:
             if draft is None or draft.chart_source is None:
                 return None
             if draft.chart_source == "SOURCE":
-                row = await session.get(SourceAttachment, draft.chart_source_attachment_id)
-                if row is None or not row.storage_key or not row.checksum_sha256:
-                    raise AttachmentStorageError("analysis source media metadata missing")
-                storage_key = row.storage_key
-                checksum = row.checksum_sha256
-                content_type = row.content_type
+                # Legacy rows may still carry SOURCE; originals remain audit evidence only.
+                return None
             else:
                 if not draft.chart_storage_key or not draft.chart_checksum_sha256:
                     raise AttachmentStorageError("analysis generated media metadata missing")

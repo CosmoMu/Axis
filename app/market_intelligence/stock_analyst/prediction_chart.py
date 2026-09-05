@@ -49,27 +49,62 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
         or not isinstance(raw_points, list)
     ):
         raise PredictionChartError("PREDICTION_PATH_NOT_CONFIDENT")
+    source_derived = payload.get("chart_path_basis") == "SOURCE_PROJECTION"
     points = []
     for item in raw_points:
         if not isinstance(item, dict):
             continue
         price = item.get("price")
-        if not isinstance(price, (int, float)) or isinstance(price, bool) or float(price) <= 0:
+        numeric_price = (
+            float(price)
+            if isinstance(price, (int, float))
+            and not isinstance(price, bool)
+            and float(price) > 0
+            else None
+        )
+        direction = str(item.get("direction") or "").upper()
+        if numeric_price is None and (
+            not source_derived or direction not in {"UP", "DOWN", "FLAT"}
+        ):
             continue
         points.append(
             {
                 "type": str(item.get("type") or "STRUCTURE").upper(),
-                "price": float(price),
+                "price": numeric_price,
+                "direction": direction,
                 "label": str(item.get("label") or "结构位置")[:40],
             }
         )
+    known_prices = [item["price"] for item in points if item["price"] is not None]
+    if len(points) < 2 or not known_prices:
+        raise PredictionChartError("PREDICTION_PATH_INCOMPLETE")
+
+    known_floor, known_ceiling = min(known_prices), max(known_prices)
+    visual_span = max(known_ceiling - known_floor, max(known_prices) * 0.06)
+    resolved_points = []
+    for item in points:
+        plot_price = item["price"]
+        if plot_price is None:
+            if not resolved_points:
+                continue
+            previous = resolved_points[-1]["plot_price"]
+            direction_step = visual_span * 0.45
+            plot_price = (
+                previous + direction_step
+                if item["direction"] == "UP"
+                else max(previous - direction_step, 0.01)
+                if item["direction"] == "DOWN"
+                else previous
+            )
+        resolved_points.append({**item, "plot_price": plot_price})
+    points = resolved_points
     if len(points) < 2:
         raise PredictionChartError("PREDICTION_PATH_INCOMPLETE")
 
     invalidation = scenario.get("invalidation")
     if not isinstance(invalidation, (int, float)) or isinstance(invalidation, bool):
         invalidation = None
-    values = [item["price"] for item in points]
+    values = [item["plot_price"] for item in points]
     if invalidation is not None and float(invalidation) > 0:
         values.append(float(invalidation))
     floor, ceiling = min(values), max(values)
@@ -90,15 +125,22 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
 
     ticker = ", ".join(str(item) for item in payload.get("symbols", [])[:2]) or "AXIS"
     weight = float(scenario.get("model_weight_percent") or 0)
-    draw.text((left, 58), f"{ticker} · AXIS ANALYSIS", font=_font(42, bold=True), fill=white)
+    draw.text((left, 58), f"{ticker} · AXIS 结构分析", font=_font(42, bold=True), fill=white)
+    subtitle = (
+        "根据输入点位重绘 · 结构预测路径"
+        if source_derived
+        else f"主要结构路径 · 模型权重 {weight:.0f}%"
+    )
     draw.text(
         (left, 120),
-        f"PRIMARY STRUCTURAL PATH · {weight:.0f}% MODEL WEIGHT",
+        subtitle,
         font=_font(23, bold=True),
         fill=green,
     )
     step = (right - left) / max(len(points) - 1, 1)
-    coordinates = [(left + index * step, y(item["price"])) for index, item in enumerate(points)]
+    coordinates = [
+        (left + index * step, y(item["plot_price"])) for index, item in enumerate(points)
+    ]
     draw.line(coordinates, fill=green, width=7, joint="curve")
     for index, ((x_pos, y_pos), point) in enumerate(zip(coordinates, points, strict=True)):
         is_current = point["type"] == "CURRENT" or index == 0
@@ -117,9 +159,10 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
             fill=muted,
             anchor=anchor,
         )
+        value_label = f"${point['price']:,.2f}" if point["price"] is not None else "仅表示方向"
         draw.text(
             (label_x, y_pos - 37),
-            f"${point['price']:,.2f}",
+            value_label,
             font=_font(25, bold=True),
             fill=color,
             anchor=anchor,
@@ -129,14 +172,18 @@ def render_prediction_chart(payload: dict[str, Any]) -> bytes:
         draw.line((left, invalidation_y, right, invalidation_y), fill=muted, width=3)
         draw.text(
             (right, invalidation_y - 13),
-            f"INVALIDATION  ${float(invalidation):,.2f}",
+            f"失效位  ${float(invalidation):,.2f}",
             font=_font(18, bold=True),
             fill=muted,
             anchor="rs",
         )
     draw.text(
         (left, 830),
-        "STRUCTURAL PATH · NO FUTURE CANDLESTICKS · MODEL WEIGHT IS NOT PROBABILITY",
+        (
+            "AXIS 重绘 · 仅使用输入中的点位与方向 · 不展示原图"
+            if source_derived
+            else "结构路径 · 不绘制未来 K 线 · 模型权重不代表概率"
+        ),
         font=_font(17, bold=True),
         fill=muted,
     )

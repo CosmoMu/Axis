@@ -15,8 +15,9 @@ Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path �
   强度和 Scenario，当前只在单 Ticker Analysis 中补 Mentor 缺失字段。
 - `AXIS GEX Explorer` 当前只有 Provider-independent 纯计算引擎，不建频道、不抓取、不发布。
 - Stock Analyst 当前行情适配器只读本机 Moomoo OpenD；失败时保留 LLM 对输入的忠实整理。
-- 预测图只来自 Final Fused `prediction_path` 的确定性 renderer，不使用生成图片模型，不画
-  未来 K 线；失败不阻止文字归档。
+- 输入图片只作为内部证据与点位/方向提取来源，绝不直接转发到 Review 或会员频道。若输入
+  含明确预测路径，AXIS 使用其中可追溯的点位与方向确定性重绘；否则预测图来自 Final Fused
+  `prediction_path`。两者均不使用生成图片模型、不画未来 K 线；失败不阻止文字归档。
 - Dealer sign、资金流与筹码峰均是公开假设或代理，Scenario weight 不是胜率。
 
 ---

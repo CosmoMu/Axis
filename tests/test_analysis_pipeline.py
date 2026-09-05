@@ -427,7 +427,7 @@ async def test_stock_analyst_failure_keeps_llm_input_card_available(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_source_projection_preserves_original_image_for_review_and_publication(
+async def test_source_projection_is_redrawn_for_review_and_publication(
     tmp_path: Path,
 ) -> None:
     database, store, _ = await setup_database(tmp_path)
@@ -462,8 +462,15 @@ async def test_source_projection_preserves_original_image_for_review_and_publica
                 {
                     "sequence": 1,
                     "direction": "UP",
-                    "price": None,
+                    "price": 136.0,
                     "label": "反弹",
+                    "source": "IMAGE",
+                },
+                {
+                    "sequence": 2,
+                    "direction": "DOWN",
+                    "price": None,
+                    "label": "上行后回落",
                     "source": "IMAGE",
                 },
             ],
@@ -481,14 +488,15 @@ async def test_source_projection_preserves_original_image_for_review_and_publica
         async with database.session() as session:
             draft = await session.scalar(select(AnalysisDraft))
         assert draft is not None
-        assert draft.chart_source == "SOURCE"
+        assert draft.chart_source == "AXIS_STOCK_ANALYST"
         assert draft.chart_source_attachment_id == source_attachment_id
-        assert draft.chart_storage_key is None
+        assert draft.chart_storage_key is not None
         assert analyst.calls == [("NVDA", False, None)]
         assert draft.normalized_json["source_projection"]["path_points"][0]["price"] == 127.0
         media = await service.media_for_draft(draft.id)
         assert media is not None
-        assert media.data == source_png
+        assert media.data.startswith(b"\x89PNG\r\n\x1a\n")
+        assert media.data != source_png
     finally:
         await database.dispose()
 
