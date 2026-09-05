@@ -43,8 +43,8 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
-GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface
-provider、Moomoo OpenD 1 分钟 K 线 provider、AuditLog、System Alerts 和 Owner-only
+GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface / spot /
+1 分钟 K 线正式 provider、Moomoo OpenD 后台影子比较、AuditLog、System Alerts 和 Owner-only
 card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、五级 Gamma Regime、
 Gamma 分界、上方压力、下方支撑、负 GEX 加速区、真实 1 分钟 K 线和中文复合
 热力图已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
@@ -55,8 +55,9 @@ Implemented:
 
 - Slash command only；普通 Ticker 消息不触发。输入兼容大小写与 `$` 前缀。
 - Owner + `🧪・card-testing` 双重 runtime gate；Manager、Member、Newcomer 和 `@everyone` 不可用。
-- Massive 只读期权表面 + Moomoo OpenD 只读 1 分钟 K 线；两路数据分工明确，任一失败
-  即 fail-closed，不合成假 K 线。SPX 独立处理，绝不 fallback 到 SPY。
+- Massive 只读期权表面、现价和真实 1 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
+  即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
+  和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
 - Net / Positive / Negative GEX、五级 Regime、Zero Gamma、Call/Put Wall、positive/negative zone、
   deterministic bias / triggers；无 LLM 点位。
@@ -74,8 +75,9 @@ Implemented:
 
 Live evidence:
 
-- RDDT Massive + Moomoo 双源只读验收 PASS：240 根当日 1 分钟 K 线、10 个有效 expiry、
-  338 张期权合约；K 线实际范围 $154.12–$155.93，优化后不再被 $150 / $160 远端结构位压缩，
+- RDDT Massive-primary / Moomoo-shadow 只读验收 PASS：Massive 240 根当日 1 分钟 K 线、
+  10 个有效 expiry、338 张期权合约；K 线实际范围 $154.12–$155.93，优化后不再被
+  $150 / $160 远端结构位压缩，
   同时完整显示 $160 压力轨、$150 支撑轨、Gamma 分界轨和远端负 GEX 加速带；1800x1125
   复合 PNG 已完成视觉复核。
 - Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效

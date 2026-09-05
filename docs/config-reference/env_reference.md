@@ -109,9 +109,9 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 ## AXIS Market Intelligence
 
 - `AXIS Stock Analyst`：当前已接 Analysis Pipeline。
-- `AXIS GEX Explorer`：Phase 1 已接 Owner-only card-testing Slash Command、Massive GEX
-  provider 与 Moomoo 1 分钟 K 线 provider，仍是 TEST ONLY、read-only，未开放
-  Member Lounge，也不连接交易接口。
+- `AXIS GEX Explorer`：Phase 1 已接 Owner-only card-testing Slash Command；Massive 是 GEX
+  surface、现价与 1 分钟 K 线正式 provider，Moomoo 仅运行后台影子比较。仍是 TEST ONLY、
+  read-only，未开放 Member Lounge，也不连接交易接口。
 
 两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
 仓库。旧 `FEATURE_COSMOS_STOCK_ANALYST_ENABLED` 仅保留一版配置兼容，新环境不得继续使用。

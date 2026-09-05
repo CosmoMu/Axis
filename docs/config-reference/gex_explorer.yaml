@@ -1,4 +1,4 @@
-version: gex-v2
+version: gex-v3-massive-primary
 expiration_count: 10
 expiration_candidates: 16
 expiration_horizon_days: 180

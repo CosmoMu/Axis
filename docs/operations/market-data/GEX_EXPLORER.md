@@ -5,10 +5,10 @@
 ## How `/gex` works
 
 The Owner runs `/gex ticker:NVDA`. AXIS normalizes the symbol, acknowledges the interaction, checks
-cache and limits, loads a Massive option surface and genuine Moomoo 1-minute candles through two
-separate read-only provider boundaries, evaluates the deterministic GEX engine, renders one
-desktop-first composite chart, and edits the interaction with one Chinese card plus one PNG. A
-plain `NVDA` message does nothing.
+cache and limits, loads the Massive option surface and Massive 1-minute candles, evaluates the
+deterministic GEX engine, renders one desktop-first composite chart, and edits the interaction with
+one Chinese card plus one PNG. A separate Moomoo shadow comparison runs in the background and never
+selects or blocks production output. A plain `NVDA` message does nothing.
 
 ## Who can use it
 
@@ -27,15 +27,17 @@ docs are changed from TEST to LIVE.
 ## Market Data Provider
 
 Phase 1 uses the existing `MASSIVE_API_KEY` and `MASSIVE_BASE_URL` through
-`MassiveGexMarketDataProvider`. The adapter fetches underlying/index spot, candidate expirations,
-and exact-expiry option snapshots; it normalizes only symbol, expiry, strike, Call/Put, OI, Gamma,
-IV, volume, and timestamps into the provider-independent engine. SPX is never mapped to SPY.
+`MassiveGexMarketDataProvider` and `MassiveGexIntradayProvider`. The first adapter fetches
+underlying/index spot, candidate expirations, and exact-expiry option snapshots. The second fetches
+Massive one-minute aggregate bars, keeps only the latest U.S. regular session, de-duplicates
+timestamps, and returns up to the configured bar count. If either Massive boundary cannot provide
+real data, `/gex` stops with a stable error; it never draws fake candles. SPX is never mapped to SPY.
 
-The K-line panel uses `MoomooGexIntradayProvider` through local OpenD at the configured
-`MOOMOO_OPEND_HOST` / `MOOMOO_OPEND_PORT`. It requests subscribed `K_1M` bars, keeps only the latest
-U.S. regular session, de-duplicates timestamps, and returns up to the configured bar count. If
-OpenD, subscription rights, or real minute bars are unavailable, `/gex` stops with a stable error;
-it never draws fake candles.
+`MoomooGexIntradayProvider` remains connected through local OpenD only as a background candidate.
+`GexIntradayShadowBox` compares bar counts, overlapping timestamps, latest common close, and source
+timestamp differences against Massive. Results are structured internal logs only. Moomoo data is
+never used in the card or image, and OpenD / entitlement / subscription failure never blocks the
+Massive result.
 
 ## GEX Formula and Sign Convention
 
@@ -97,10 +99,10 @@ Values are maintained in `config/gex_explorer.yaml`, not scattered through handl
 
 ## Data freshness and market close
 
-The card separately shows Massive GEX time and Moomoo 1-minute K-line time, coverage, cache status,
-and policy version. Data older than the configured threshold is marked in Chinese as stale. A
-closed-market result is labeled in Chinese and described as the latest available snapshot; it is
-never called live.
+The card shows Massive GEX time and Massive 1-minute K-line time, coverage, cache status, and policy
+version. Moomoo shadow details remain internal. Data older than the configured threshold is marked
+in Chinese as stale. A closed-market result is labeled in Chinese and described as the latest
+available snapshot; it is never called live.
 
 ## Error handling and System Alerts
 
@@ -126,8 +128,8 @@ Run:
 
 Also run the repository's Discord blueprint dry-run/permission verification. Review SPY, QQQ,
 NVDA, TSLA, AAPL, invalid-symbol, closed-market, partial-expiry, cache, single-flight, cooldown,
-global-limit, stale-data, renderer/provider failure, Moomoo minute-data failure, PNG dimensions,
-Chinese UI, and SPX-entitlement evidence.
+global-limit, stale-data, renderer/provider failure, Massive minute-data failure, non-blocking
+Moomoo shadow failure, PNG dimensions, Chinese UI, and SPX-entitlement evidence.
 
 ## Disable and rollback
 

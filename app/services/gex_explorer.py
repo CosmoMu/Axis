@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from collections import defaultdict, deque
@@ -15,13 +16,21 @@ import yaml
 
 from app.db.models import AuditLog
 from app.db.session import Database
-from app.integrations.gex_intraday_data import GexIntradayDataProvider
+from app.integrations.gex_intraday_data import (
+    GexIntradayDataProvider,
+    GexIntradayResult,
+)
+from app.integrations.gex_intraday_shadow import (
+    GexIntradayShadowBox,
+    GexIntradayShadowComparison,
+)
 from app.integrations.gex_market_data import GexMarketDataProvider
 from app.market_intelligence.gex_explorer.engine import build_gex_snapshot
 from app.market_intelligence.gex_explorer.heatmap import render_gex_heatmap
 from app.market_intelligence.gex_explorer.models import GexSnapshot
 
 TICKER_PATTERN = re.compile(r"^[A-Z][A-Z0-9.-]{0,9}$")
+logger = logging.getLogger(__name__)
 
 
 class GexExplorerError(RuntimeError):
@@ -134,9 +143,7 @@ class GexPolicy:
         if any(value <= 0 for value in positive):
             raise GexExplorerError("GEX_POLICY_INVALID")
         if not (
-            self.minimum_valid_expirations
-            <= self.expiration_count
-            <= self.expiration_candidates
+            self.minimum_valid_expirations <= self.expiration_count <= self.expiration_candidates
         ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         strong_positive, positive_threshold, negative_threshold, strong_negative = (
@@ -184,11 +191,20 @@ class GexExplorerService:
         provider: GexMarketDataProvider,
         intraday_provider: GexIntradayDataProvider,
         policy: GexPolicy,
+        *,
+        shadow_intraday_provider: GexIntradayDataProvider | None = None,
     ) -> None:
         self.database = database
         self.provider = provider
         self.intraday_provider = intraday_provider
         self.policy = policy
+        self.shadow_intraday = (
+            GexIntradayShadowBox(shadow_intraday_provider)
+            if shadow_intraday_provider is not None
+            else None
+        )
+        self.shadow_observations: dict[str, GexIntradayShadowComparison] = {}
+        self._shadow_tasks: set[asyncio.Task[None]] = set()
         self._cache: dict[tuple[str, str, str], _CacheEntry] = {}
         self._inflight: dict[tuple[str, str, str], asyncio.Task[GexQueryResult]] = {}
         self._last_user_request: dict[tuple[int, int], float] = {}
@@ -376,7 +392,7 @@ class GexExplorerService:
             0.0,
             (provider_result.fetched_at - intraday_result.source_timestamp).total_seconds(),
         )
-        return GexQueryResult(
+        result = GexQueryResult(
             snapshot=snapshot,
             heatmap_png=heatmap,
             provider=provider_result.provider,
@@ -397,6 +413,50 @@ class GexExplorerService:
             intraday_source_timestamp=intraday_result.source_timestamp,
             intraday_session_date=intraday_result.session_date,
             intraday_bar_count=len(intraday_result.bars),
+        )
+        self._schedule_intraday_shadow(ticker, intraday_result)
+        return result
+
+    def _schedule_intraday_shadow(
+        self,
+        ticker: str,
+        primary: GexIntradayResult,
+    ) -> None:
+        if self.shadow_intraday is None:
+            return
+        task = asyncio.create_task(self._run_intraday_shadow(ticker, primary))
+        self._shadow_tasks.add(task)
+        task.add_done_callback(self._shadow_tasks.discard)
+
+    async def _run_intraday_shadow(self, ticker: str, primary: GexIntradayResult) -> None:
+        assert self.shadow_intraday is not None
+        comparison = await self.shadow_intraday.compare(
+            ticker=ticker,
+            bar_count=self.policy.intraday_bar_count,
+            primary=primary,
+            compared_at=datetime.now(UTC),
+        )
+        self.shadow_observations[ticker] = comparison
+        if comparison.candidate_error_code is not None:
+            logger.warning(
+                "event=gex_intraday_shadow candidate=%s ticker=%s status=unavailable error_type=%s",
+                comparison.candidate_provider,
+                ticker,
+                comparison.candidate_error_code,
+            )
+            return
+        logger.info(
+            "event=gex_intraday_shadow primary=%s candidate=%s ticker=%s status=compared "
+            "primary_bars=%d candidate_bars=%d overlap=%d close_diff_pct=%.6f "
+            "timestamp_diff_seconds=%.3f",
+            comparison.primary_provider,
+            comparison.candidate_provider,
+            ticker,
+            comparison.primary_bar_count,
+            comparison.candidate_bar_count,
+            comparison.overlapping_bar_count,
+            comparison.close_relative_difference_pct or 0.0,
+            comparison.source_timestamp_difference_seconds or 0.0,
         )
 
     async def _audit_locked_rate_limit(

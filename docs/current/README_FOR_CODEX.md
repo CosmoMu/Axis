@@ -29,8 +29,8 @@
    Active View、EOD 与 Results 的最终规则。
 10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
     Gate、对账、风险和控制面板的最新规则。
-11. 10_GEX_EXPLORER_PHASE1_SPEC.md — `/gex` Owner-only card-testing、Massive option surface、
-    Moomoo 真实 1 分钟 K 线、中文 GEX 复合图及 Test Gate。
+11. 10_GEX_EXPLORER_PHASE1_SPEC.md — `/gex` Owner-only card-testing、Massive 正式 option
+    surface / 现价 / 1 分钟 K 线、Moomoo 后台影子比较、中文 GEX 复合图及 Test Gate。
 12. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
@@ -65,8 +65,9 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer Phase 1 已实现为 Owner-only `/gex`，只允许在 `🧪・card-testing`。当前使用
-  Massive 期权 GEX + Moomoo 真实 1 分钟 K 线，生成中文压力/支撑/加速区复合图。
+- GEX Explorer Phase 1 已实现为 Owner-only `/gex`，只允许在 `🧪・card-testing`。当前正式
+  数据全部来自 Massive；Moomoo 只在后台运行 1 分钟 K 线黑盒比较，不参与发布选择。
+  系统生成中文压力/支撑/加速区复合图。
   状态仍为 TEST ONLY；未获准进入 Member Lounge。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署

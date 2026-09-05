@@ -78,11 +78,23 @@ def _selected_strikes(snapshot: GexSnapshot, limit: int) -> tuple[float, ...]:
 
 
 def _level_label(snapshot: GexSnapshot, level: float) -> tuple[str, str]:
+    labels: list[str] = []
     if snapshot.call_wall is not None and abs(level - snapshot.call_wall) < 1e-9:
-        return "Call Wall · 上方压力", "#D8B85B"
+        labels.append("Call Wall · 上方压力")
     if snapshot.put_wall is not None and abs(level - snapshot.put_wall) < 1e-9:
-        return "Put Wall · 下方支撑", "#77A997"
-    return "0 Gamma · Gamma 分界", "#9A6AF0"
+        labels.append("Put Wall · 下方支撑")
+    if snapshot.zero_gamma is not None and abs(level - snapshot.zero_gamma) < 1e-9:
+        labels.append("0 Gamma · Gamma 分界")
+    if not labels:
+        labels.append("GEX 结构")
+    color = (
+        "#D8B85B"
+        if labels[0].startswith("Call Wall")
+        else "#77A997"
+        if labels[0].startswith("Put Wall")
+        else "#9A6AF0"
+    )
+    return " / ".join(labels), color
 
 
 def _dashed_horizontal(
@@ -199,9 +211,7 @@ def render_gex_heatmap(
         if value is not None
     )
     structural_levels = tuple(
-        value
-        for value in all_structural_levels
-        if abs(value - snapshot.spot) <= visible_distance
+        value for value in all_structural_levels if abs(value - snapshot.spot) <= visible_distance
     )
     zone_prices = tuple(
         value
@@ -232,16 +242,19 @@ def render_gex_heatmap(
 
     top_rail_count = 0
     bottom_rail_count = 0
+    occupied_structure_y = tuple(price_y(level) for level in structural_levels)
 
     def next_rail_y(*, above: bool) -> float:
         nonlocal top_rail_count, bottom_rail_count
-        if above:
-            result = plot_top + 25 + top_rail_count * 44
-            top_rail_count += 1
-            return result
-        result = plot_bottom - 25 - bottom_rail_count * 44
-        bottom_rail_count += 1
-        return result
+        while True:
+            if above:
+                result = plot_top + 25 + top_rail_count * 44
+                top_rail_count += 1
+            else:
+                result = plot_bottom - 25 - bottom_rail_count * 44
+                bottom_rail_count += 1
+            if all(abs(result - occupied) >= 38 for occupied in occupied_structure_y):
+                return result
 
     for zone in snapshot.negative_zones[:3]:
         if zone.upper < floor or zone.lower > ceiling:
@@ -346,7 +359,11 @@ def render_gex_heatmap(
         y = price_y(level)
         draw.line((plot_left, y, plot_right, y), fill=color, width=2)
         text = f"{label}  {level:,.2f}"
-        box_width = 260
+        label_font = _font(14, bold=True)
+        box_width = min(
+            plot_right - plot_left - 12,
+            max(260, int(draw.textlength(text, font=label_font)) + 28),
+        )
         draw.rounded_rectangle(
             (plot_right - box_width, y - 16, plot_right - 6, y + 16),
             radius=7,
@@ -358,13 +375,13 @@ def render_gex_heatmap(
             (plot_right - 14, y),
             text,
             fill=color,
-            font=_font(14, bold=True),
+            font=label_font,
             anchor="rm",
         )
 
     off_scale_levels: list[float] = []
     for level in all_structural_levels:
-        if floor <= level <= ceiling or any(
+        if any(abs(level - item) / level < 0.0005 for item in unique_levels) or any(
             abs(level - item) / level < 0.0005 for item in off_scale_levels
         ):
             continue
@@ -373,6 +390,12 @@ def render_gex_heatmap(
         above = level > ceiling
         label_y = next_rail_y(above=above)
         direction = "↑" if above else "↓"
+        text = f"{direction} 图外 · {label}  {level:,.2f}"
+        label_font = _font(14, bold=True)
+        box_width = min(
+            plot_right - plot_left - 12,
+            max(326, int(draw.textlength(text, font=label_font)) + 28),
+        )
         is_boundary = label.startswith("0 Gamma")
         _dashed_horizontal(
             draw,
@@ -385,7 +408,7 @@ def render_gex_heatmap(
             gap=7 if is_boundary else 8,
         )
         draw.rounded_rectangle(
-            (plot_right - 326, label_y - 16, plot_right - 6, label_y + 16),
+            (plot_right - box_width, label_y - 16, plot_right - 6, label_y + 16),
             radius=7,
             fill="#0A1411",
             outline=color,
@@ -393,9 +416,9 @@ def render_gex_heatmap(
         )
         draw.text(
             (plot_right - 14, label_y),
-            f"{direction} 图外 · {label}  {level:,.2f}",
+            text,
             fill=color,
-            font=_font(14, bold=True),
+            font=label_font,
             anchor="rm",
         )
 
@@ -429,9 +452,7 @@ def render_gex_heatmap(
 
     heatmap_left = right_panel_left + 18
     heatmap_right = width - margin - 18
-    draw.text(
-        (heatmap_left, 158), "GEX 热力图", fill=secondary, font=_font(17, bold=True)
-    )
+    draw.text((heatmap_left, 158), "GEX 热力图", fill=secondary, font=_font(17, bold=True))
     expirations = snapshot.expirations[: policy.heatmap_expiration_columns]
     strikes = _selected_strikes(snapshot, policy.heatmap_strike_rows)
     table_top = 220

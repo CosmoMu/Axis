@@ -18,9 +18,10 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 - `/gex ticker:TICKER` Slash Command；不会监听普通 Ticker 消息。
 - Owner-only + `🧪・card-testing`；wrong-channel 与 unauthorized 请求使用 ephemeral feedback。
-- Massive GEX option-surface provider + Moomoo OpenD 1 分钟 K 线 provider；10 个有效
-  expiration、0DTE / Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射
-  且绝不使用 SPY 替代。
+- Massive GEX option-surface / spot / 1 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
+  Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
+- Moomoo OpenD 1 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
+  和 source timestamp，永不选择或阻止 Massive 正式输出。
 - Dollar GEX / 1% move、vendor Gamma + IV fallback、Net/Positive/Negative GEX、五级 Regime、
   Zero Gamma、GEX-based Walls、Clusters、Bias 与 deterministic triggers。
 - 1800x1125 中文复合图：左侧真实 1 分钟 K 线、压力/支撑/Gamma 分界、负 GEX
@@ -29,7 +30,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   以紫色全宽图外带显示实际点位或范围，既不压缩真实蜡烛波幅，也不会丢失结构。
 - 图表与 Discord 卡片统一保留 `Call Wall · 上方压力`、`Put Wall · 下方支撑`、
   `0 Gamma · Gamma 分界` 标准名称与中文解释。
-- 中文 Discord 卡片、market-closed/stale 标签、Massive/Moomoo 双数据源时间和
+- 中文 Discord 卡片、market-closed/stale 标签、Massive 正式数据时间和
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。
 - Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。

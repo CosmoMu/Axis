@@ -1,6 +1,6 @@
 # AXIS GEX Explorer — Phase 1 Specification
 
-**Version:** GEX V2 / 2026-09-04
+**Version:** GEX V3 Massive Primary / Moomoo Shadow / 2026-09-05
 
 **Status:** TEST ONLY
 
@@ -24,13 +24,15 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 
 - Normalize case and an optional leading `$`; `SPXW` normalizes to `SPX` for a GEX request.
 - SPX must use the provider's SPX index/options symbols and must never fall back to SPY.
-- GEX and option-surface inputs use the existing Massive credential and AXIS provider boundary.
-  Secrets remain in `.env`.
-- The left chart uses genuine 1-minute underlying candles from the local read-only Moomoo OpenD
-  connection. It uses the latest U.S. regular-session bars and never constructs or interpolates
-  synthetic candles.
-- Massive GEX failure and Moomoo 1-minute failure are both fail-closed. One source must never be
-  presented as if it supplied the other source's data.
+- Massive is the only production-selected GEX data source. The existing Massive credential and
+  AXIS provider boundaries supply spot, the option surface, and genuine 1-minute underlying
+  candles. Secrets remain in `.env`.
+- The left chart uses Massive aggregate 1-minute bars from the latest U.S. regular session and
+  never constructs or interpolates synthetic candles. Massive option-surface or minute-bar failure
+  is fail-closed.
+- Moomoo OpenD runs only as a background shadow candidate for 1-minute-bar comparison. Shadow data
+  must never select, replace, alter, delay, or block the Massive production result. Moomoo failure
+  is recorded internally and does not fail the Discord card.
 - Select the latest 10 valid option expirations from a larger candidate set. Skip empty,
   incomplete, or truncated expirations. Configured minimum coverage is fail-closed.
 - Near-Term means 0DTE when a valid same-day expiry exists; otherwise it means the nearest valid
@@ -84,7 +86,7 @@ Newcomer, Short-Term, Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 ## Test Gate
 
 Phase 1 requires automated tests, Ruff, compileall, database/runtime/Discord verifiers, invalid and
-partial failure tests, cache/single-flight/rate-limit tests, closed-market labeling, a fail-closed
-Moomoo minute-data test, PNG dimension validation, and live Massive + Moomoo cross-checks. SPX is
-included only when the provider entitlement can produce a genuine SPX spot/options surface. Phase 1
-ends after its report and remains TEST ONLY.
+partial failure tests, cache/single-flight/rate-limit tests, closed-market labeling, fail-closed
+Massive minute-data tests, non-blocking Moomoo shadow failure tests, PNG dimension validation, and
+live Massive-primary / Moomoo-shadow cross-checks. SPX is included only when the Massive entitlement
+can produce a genuine SPX spot/options surface. Phase 1 ends after its report and remains TEST ONLY.

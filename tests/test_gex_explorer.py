@@ -17,10 +17,15 @@ from app.bot.gex_cards import build_gex_embed
 from app.db.base import Base
 from app.db.models import AuditLog, GuildConfig, Trade
 from app.db.session import Database
-from app.integrations.gex_intraday_data import GexIntradayDataError, GexIntradayResult
+from app.integrations.gex_intraday_data import (
+    GexIntradayDataError,
+    GexIntradayResult,
+    MassiveGexIntradayProvider,
+)
 from app.integrations.gex_market_data import GexProviderResult
 from app.integrations.massive_market_data import MarketDataProviderError
 from app.market_intelligence.gex_explorer.engine import classify_gamma_regime
+from app.market_intelligence.gex_explorer.heatmap import _level_label
 from app.market_intelligence.gex_explorer.models import (
     GexIntradayBar,
     GexOptionContract,
@@ -151,6 +156,14 @@ class FailingGexIntradayProvider:
         raise GexIntradayDataError("GEX_INTRADAY_UNAVAILABLE")
 
 
+class FakeMoomooIntradayProvider(FakeGexIntradayProvider):
+    name = "moomoo"
+
+
+class FailingMoomooIntradayProvider(FailingGexIntradayProvider):
+    name = "moomoo"
+
+
 def policy() -> GexPolicy:
     return GexPolicy.load(Path(__file__).parents[1] / "config" / "gex_explorer.yaml")
 
@@ -181,6 +194,31 @@ def test_five_level_gamma_regime_is_policy_deterministic() -> None:
     assert classify_gamma_regime(-0.30) == "强负 Gamma"
 
 
+def test_massive_intraday_normalizes_only_regular_session_minutes() -> None:
+    regular = datetime(2026, 9, 4, 14, 30, tzinfo=UTC)
+    extended = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
+    payload = {
+        "results": [
+            {"t": int(extended.timestamp() * 1000), "o": 99, "h": 100, "l": 98, "c": 99.5},
+            {
+                "t": int(regular.timestamp() * 1000),
+                "o": 100,
+                "h": 101,
+                "l": 99,
+                "c": 100.5,
+                "v": 1200,
+            },
+        ]
+    }
+
+    bars = MassiveGexIntradayProvider._normalize(payload)
+
+    assert len(bars) == 1
+    assert bars[0].timestamp_et.hour == 10
+    assert bars[0].close == 100.5
+    assert bars[0].volume == 1200
+
+
 def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
     allowed = dict(
         guild_id=GUILD_ID,
@@ -193,10 +231,7 @@ def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
     )
     assert gex_authorization_error(**allowed) is None
     assert gex_authorization_error(**(allowed | {"user_id": 333})) == "PERMISSION_DENIED"
-    assert (
-        gex_authorization_error(**(allowed | {"channel_id": 444}))
-        == "TEST_CHANNEL_REQUIRED"
-    )
+    assert gex_authorization_error(**(allowed | {"channel_id": 444})) == "TEST_CHANNEL_REQUIRED"
     assert gex_authorization_error(**(allowed | {"mode": "OFF"})) == "GEX_DISABLED"
 
 
@@ -235,10 +270,11 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
             assert image.size == (1800, 1125)
             rgb = image.convert("RGB")
             pressure_run = max(
-                sum(
-                    rgb.getpixel((x, y)) == (216, 184, 91)
-                    for x in range(76, 1113)
-                )
+                sum(rgb.getpixel((x, y)) == (216, 184, 91) for x in range(76, 1113))
+                for y in range(190, 911)
+            )
+            support_run = max(
+                sum(rgb.getpixel((x, y)) == (119, 169, 151) for x in range(76, 1113))
                 for y in range(190, 911)
             )
             acceleration_run = max(
@@ -246,7 +282,10 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
                 for y in range(190, 911)
             )
             assert pressure_run > 400
+            assert support_run > 400
             assert acceleration_run > 900
+        zero_label, _ = _level_label(first.snapshot, first.snapshot.zero_gamma or 0)
+        assert "0 Gamma · Gamma 分界" in zero_label
         assert first.used_expirations == 10
         assert first.intraday_provider == "fake-minute"
         assert first.intraday_bar_count == 120
@@ -269,6 +308,70 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
 
 
 @pytest.mark.asyncio
+async def test_moomoo_shadow_compares_in_background_without_selecting_output() -> None:
+    db = await database()
+    primary = FakeGexIntradayProvider()
+    primary.name = "massive"
+    candidate = FakeMoomooIntradayProvider()
+    service = GexExplorerService(
+        db,
+        FakeGexProvider(),  # type: ignore[arg-type]
+        primary,
+        policy(),
+        shadow_intraday_provider=candidate,
+    )
+    try:
+        result = await service.query(
+            guild_id=GUILD_ID,
+            actor_user_id=OWNER_ID,
+            ticker="SPY",
+            enforce_rate_limits=False,
+        )
+        for _ in range(10):
+            if "SPY" in service.shadow_observations:
+                break
+            await asyncio.sleep(0)
+        comparison = service.shadow_observations["SPY"]
+        assert result.intraday_provider == "massive"
+        assert candidate.calls == 1
+        assert comparison.candidate_provider == "moomoo"
+        assert comparison.overlapping_bar_count == 120
+        assert comparison.close_relative_difference_pct == 0
+    finally:
+        await db.dispose()
+
+
+@pytest.mark.asyncio
+async def test_moomoo_shadow_failure_does_not_block_massive_output() -> None:
+    db = await database()
+    primary = FakeGexIntradayProvider()
+    primary.name = "massive"
+    service = GexExplorerService(
+        db,
+        FakeGexProvider(),  # type: ignore[arg-type]
+        primary,
+        policy(),
+        shadow_intraday_provider=FailingMoomooIntradayProvider(),
+    )
+    try:
+        result = await service.query(
+            guild_id=GUILD_ID,
+            actor_user_id=OWNER_ID,
+            ticker="QQQ",
+            enforce_rate_limits=False,
+        )
+        for _ in range(10):
+            if "QQQ" in service.shadow_observations:
+                break
+            await asyncio.sleep(0)
+        comparison = service.shadow_observations["QQQ"]
+        assert result.intraday_provider == "massive"
+        assert comparison.candidate_error_code == "GEX_INTRADAY_UNAVAILABLE"
+    finally:
+        await db.dispose()
+
+
+@pytest.mark.asyncio
 async def test_partial_expiry_success_and_closed_stale_labels() -> None:
     db = await database()
     provider = FakeGexProvider(
@@ -277,7 +380,10 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         market_status="closed",
     )
     service = GexExplorerService(
-        db, provider, FakeGexIntradayProvider(), policy()  # type: ignore[arg-type]
+        db,
+        provider,
+        FakeGexIntradayProvider(),
+        policy(),  # type: ignore[arg-type]
     )
     try:
         result = await service.query(

@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 306 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 309 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -27,13 +27,18 @@
 - Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
-- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、Massive GEX + Moomoo
-  真实 1 分钟 K 线、中文双面板图、cache/single-flight/limits/audit 均通过；
+- GEX Explorer Phase 1: TEST ONLY / PASS — Owner-only card-testing、Massive GEX / spot /
+  真实 1 分钟 K 线正式数据、Moomoo 后台 shadow、中文双面板图、cache/single-flight/limits/audit
+  均通过；
   Member Lounge 未上线。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
   `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
-- GEX V2 RDDT dual-provider evidence: PASS — Massive 10 valid expirations / 338 option contracts；
-  Moomoo 240 genuine 1-minute RTH bars；1800x1125 balanced PNG rendered and visually reviewed。
+- GEX V3 RDDT Massive-primary / Moomoo-shadow evidence: PASS — Massive 10 valid expirations /
+  338 option contracts / 240 genuine 1-minute RTH bars；Moomoo shadow comparison does not select
+  public output；1800x1125 balanced PNG rendered and visually reviewed。
+- GEX V3 AVGO real comparison: PASS — Massive 10 valid expirations / 654 option contracts /
+  240 one-minute RTH bars；Moomoo shadow 240 bars / 240 overlapping timestamps；latest common-close
+  difference `0.0545%`、timestamp difference `0s`；Call Wall / Put Wall / 0 Gamma 全部显示。
 
 ## Commands executed
 
@@ -174,8 +179,8 @@ GEX Explorer Phase 1:
   pressure/support/Gamma rails；real 1-minute K-line；full-width purple negative-GEX acceleration
   bands with actual levels；
   strike x expiration heatmap。
-- Massive or Moomoo failure is fail-closed；no synthetic candle fallback；PNG dimension and
-  dual-provider metadata tests PASS。
+- Massive GEX or Massive minute failure is fail-closed；Moomoo shadow failure is non-blocking；
+  no synthetic candle fallback；PNG dimension and shadow metadata tests PASS。
 - ticker+policy+provider cache、single-flight、user cooldown、guild limit 与全部 GEX Audit event。
 - GEX 查询后 Trade count 保持 0 的 isolation test；不创建 Signal/Result/Analysis/Tracking/Moomoo。
 - 真实 cold request `1627ms`；同进程 cache hit `2ms`。
@@ -318,7 +323,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 306 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 309 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 
