@@ -93,8 +93,9 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 - `FEATURE_MOOMOO_ENABLED=false`：旧 Moomoo 行情健康开关；不启动 Model Scanning。
 - `FEATURE_PERSONAL_EXECUTION_ENABLED=false`：Owner-only Personal Execution 总开关，模板默认关。
 - `GEX_EXPLORER_ENABLED=false`：GEX kill switch；生产 Secret 可显式开启。
-- `GEX_EXPLORER_MODE=TEST`：安全默认，只允许 Owner 在 card-testing 使用。代码支持
-  `MEMBER_LOUNGE`，但必须收到 `APPROVE GEX LOUNGE LAUNCH` 后才可切换部署。
+- `GEX_EXPLORER_MODE=TEST`：新环境安全默认，只允许 Owner 在 card-testing 使用。
+  生产 Secret 已在 Owner 于 2026-09-05 发送 `APPROVE GEX LOUNGE LAUNCH` 后设置为
+  `MEMBER_LOUNGE`；不得将真实 `.env` 写入 Git。
 - `GEX_EXPLORER_POLICY=config/gex_explorer.yaml`：expiry、regime、cache、limit、freshness、
   5 分钟 K 线数量、V7 分类权重和 renderer policy 单一来源。GEX 期权表面使用 Massive，
   盘中 K 线使用现有 `MOOMOO_OPEND_HOST` / `MOOMOO_OPEND_PORT`，不需要新 Secret。

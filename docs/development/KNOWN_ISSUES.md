@@ -20,11 +20,11 @@ POC/VA 是 Daily OHLCV high-low 分箱代理。闭市验收已完成；交易时
 
 V7 Massive option-chain aggregation、card、heatmap、cache、single-flight、limits、audit 与 alerts
 已实现；严格 `gex TICKER`、Member/Manager/Owner role gate 和 exact channel gate 已通过自动化。
-Member Lounge 更新代码已完成，runtime 仍等待精确批准短语。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前
+Member Lounge 已于 2026-09-05 获 Owner 批准并部署，runtime verifier PASS。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前
 Massive 账户对 SPX index snapshot 无 entitlement，option-chain seed 也无法提供可用 underlying
 spot，故返回 `GEX_SPX_UNSUPPORTED`。禁止用 SPY 替代 SPX。
 
-仍需部署并积累真实会员请求的 Discord Desktop/Mobile、交易时段 freshness、rate-limit 和
+仍需积累真实会员请求的 Discord Desktop/Mobile、交易时段 freshness、rate-limit 和
 entitlement 证据。
 
 ## P0 — Owner Personal Moomoo Execution 外部 DRY_RUN E2E 被 OpenD 阻塞
@@ -137,7 +137,7 @@ Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warni
 ## Deliberately deferred, not bugs
 
 - AXIS LAB、Model A / B、Generate / Shadow / Champion / Challenger。
-- GEX Member Lounge runtime 切换（等待精确 launch approval）、自动发布和交易接口。
+- GEX 自动发布和交易接口；Member Lounge 只读查询入口已上线。
 - 除已授权但仍处于 DRY_RUN gate 的 Owner-only Personal Moomoo Execution 外，任何会员交易、模型
   扫描或其他自动下单。
 - 图片生成模型；当前 Prediction Chart 使用确定性 renderer。

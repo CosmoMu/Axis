@@ -66,11 +66,11 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer V7 的 Member Lounge 更新代码已完成。启用后 Member / Manager / Owner 可发送
+- GEX Explorer V7 已在 Member Lounge 正式上线。Member / Manager / Owner 可发送
   严格格式 `gex SPY`（或使用 `/gex ticker:SPY`）生成中文盘中结构卡；其他普通消息不触发。
-  普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。当前 runtime
-  仍为 `TEST`，只有 Owner 可在 `🧪・card-testing` 使用 `/gex`；必须收到精确批准短语
-  `APPROVE GEX LOUNGE LAUNCH` 才可切换部署。正式数据来自 Massive；Moomoo 只做后台比较。
+  普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。Owner 已于
+  2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・card-testing`
+  使用 `/gex`。正式数据来自 Massive；Moomoo 只做后台比较。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
 事实，但不得取代本目录的产品规格。
@@ -85,7 +85,7 @@
 - Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控
-- GEX Explorer V7 Owner-only card-testing 验证；Member Lounge 代码等待明确 launch gate
+- GEX Explorer V7 Member Lounge 只读查询与 Owner card-testing 维护入口
 
 当前明确不做：
 
@@ -95,7 +95,6 @@
 - 除 `09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md` 明确授权的 Owner-only layer 外的 Moomoo
   自动下单、模型扫描或账户能力
 - 未经新规格确认的频道或产品架构扩张
-- 未经 `APPROVE GEX LOUNGE LAUNCH` 的 GEX Member Lounge runtime 切换
 
 AXIS LAB 频道可以保留，FEATURE_LAB_ENABLED 与 FEATURE_MODEL_AB_ENABLED 必须保持 false。
 `💹・moomoo-trading` 是这条 Deferred 边界中的明确 Owner-only 例外，不代表启动 Model A/B。

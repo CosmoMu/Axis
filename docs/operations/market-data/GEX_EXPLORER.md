@@ -1,6 +1,6 @@
 # AXIS GEX Explorer Operations
 
-**Current mode:** `TEST` / Owner-only / `🧪・card-testing`
+**Current mode:** `MEMBER_LOUNGE` / Member + Manager + Owner / `🛋️・member-lounge`
 
 ## Runtime flow
 
@@ -9,8 +9,8 @@ channel + role, normalizes the ticker, applies cache/rate limits,
 loads Massive spot, selected option expirations, and the latest real five-minute U.S. session,
 runs the shared V7 classifier, renders one Chinese Discord card plus a 1800×1600 PNG, and records
 the existing GEX AuditLog events. Only the strict `gex TICKER` message shape triggers; a plain
-ticker or normal lounge conversation does not. Current production remains TEST until the exact
-launch approval is received; Owner `/gex` remains available in card-testing.
+ticker or normal lounge conversation does not. Owner approved the launch on 2026-09-05 and the
+production runtime is now `MEMBER_LOUNGE`; Owner `/gex` remains available in card-testing.
 
 The code-ready Member Lounge anti-spam rules are separate from provider protection: ordinary members may make one
 request every 30 seconds, and the same normalized ticker may be requested once per Guild every 60
@@ -102,5 +102,5 @@ Gamma Flip, and non-fabrication of unavailable fields.
 ## Disable / rollback
 
 Set `GEX_EXPLORER_ENABLED=false` in the deployment Secret environment and restart the Bot. No data
-is deleted. Owner-only validation uses `GEX_EXPLORER_MODE=TEST`; do not switch to `MEMBER_LOUNGE`
-without the exact approval `APPROVE GEX LOUNGE LAUNCH`.
+is deleted. To retain Owner-only validation while removing Member Lounge access, set
+`GEX_EXPLORER_MODE=TEST` and restart the Bot.

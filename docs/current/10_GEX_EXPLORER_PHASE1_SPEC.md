@@ -2,7 +2,7 @@
 
 **Version:** GEX V7 Professional Ladder / Member Lounge Launch / 2026-09-05
 
-**Status:** MEMBER LOUNGE UPDATE CODE COMPLETE / LAUNCH APPROVAL PENDING
+**Status:** MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
 This is the current source of truth for AXIS GEX Explorer. It supersedes earlier V3–V6 display and
 classification rules without changing Signal, Analysis, Trade, Results, Membership, Short-Term,
@@ -15,8 +15,8 @@ Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 - Access requires Member, Manager, Guild Owner, or configured AXIS Owner identity in the configured
   Guild and exact Member Lounge channel. Channel permissions remain an additional isolation layer.
 - Owner may continue using `/gex` in `🧪・card-testing` for maintenance validation.
-- `GEX_EXPLORER_ENABLED` is the kill switch. Production remains in `TEST` until the Owner sends the
-  exact launch approval `APPROVE GEX LOUNGE LAUNCH`.
+- `GEX_EXPLORER_ENABLED` is the kill switch. The Owner sent the exact launch approval
+  `APPROVE GEX LOUNGE LAUNCH` on 2026-09-05; production mode is `MEMBER_LOUNGE`.
 - GEX is strictly read-only. It never writes broker orders or mutates Signal, Trade, Result,
   Analysis, Mentor, Membership, tracking state, or production history.
 - GEX describes market structure. It must not output BUY CALL, BUY PUT, LONG, or SHORT.
@@ -100,4 +100,5 @@ Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
   LLM or image model participates in GEX levels, chart data, or the ladder.
 - Test gate includes parser/authorization/listener tests, unit/regression, renderer dimension and
   missing-value checks, policy/config validation, database/runtime verification, and live read-only
-  Massive cross-checks. Member Lounge deployment remains blocked by the explicit launch gate.
+  Massive cross-checks. The explicit launch gate was satisfied on 2026-09-05; remaining work is
+  post-launch observation of real member traffic, market-hours freshness, and mobile readability.

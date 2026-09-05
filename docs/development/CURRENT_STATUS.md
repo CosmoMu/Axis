@@ -43,12 +43,12 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
-GEX Explorer 已升级为 V7 Professional Ladder，Member Lounge 入口代码与测试已完成。Massive option surface / spot / 真实 5 分钟
+GEX Explorer 已升级为 V7 Professional Ladder，并已在 Member Lounge 正式上线。Massive option surface / spot / 真实 5 分钟
 K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底部连续 Strike × Expiration Ladder
 共用一套可配置 Intraday Importance Score、Gamma Node、主要/次要支撑压力、单一 Gamma Magnet、
 Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
 Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道、缓存与限流已覆盖
-`gex SPY`；当前 runtime 仍为 TEST，等待精确批准短语后部署。
+`gex SPY`；当前 runtime 为 `MEMBER_LOUNGE`，进入真实会员请求与移动端体验监测阶段。
 
 AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
 analysis engine。Phase 1 只开放 Owner 在 `🧪・card-testing` 使用 `/stock ticker:TICKER`；Manager、
@@ -90,7 +90,7 @@ Live read-only evidence:
 Production status: **STOCK ANALYST = TEST ONLY.** Phase 1 Test Gate 已通过；Member Lounge、普通
 文字触发、自动扫描、自动信号与 broker execution 均未启用，等待 Owner 后续明确指令。
 
-## GEX Explorer — MEMBER LOUNGE UPDATE CODE COMPLETE / LAUNCH PENDING
+## GEX Explorer — MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
 Implemented:
 
@@ -143,14 +143,20 @@ Live evidence:
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。
 
-Production status: **GEX Explorer = TEST ONLY.** 新规则代码已通过：普通会员每人 30 秒、同一
+Production status: **GEX Explorer = MEMBER LOUNGE LIVE.** 普通会员每人 30 秒、同一
 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。8 fresh requests/minute guild
-provider 保护、60 秒 cache 与 single-flight 继续启用。Member Lounge deployment 仍等待 Owner
-明确发送 `APPROVE GEX LOUNGE LAUNCH`；Owner 可继续在 `🧪・card-testing` 维护验证。
+provider 保护、60 秒 cache 与 single-flight 继续启用。Owner 于 2026-09-05 明确发送
+`APPROVE GEX LOUNGE LAUNCH`；runtime 已切换为 `MEMBER_LOUNGE`，Owner 仍可在
+`🧪・card-testing` 维护验证。
 
 Current V7 runtime evidence: AXIS BOT 已部署并处于 running；Discord runtime PASS；HOOD V7
 真实 Massive 测试卡已发送至 `🧪・card-testing`（Message `1545703467908206655`）。网站精确
 构建已保存为 Sites Version 6；现有公开网站尚未在本轮被替换，等待单独发布指令。
+
+Member Lounge launch evidence (2026-09-05): deployed runtime reports
+`GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=MEMBER_LOUNGE`；AXIS BOT LaunchAgent is
+running；Discord runtime verifier PASS。真实会员并发、交易时段 freshness 与 Desktop/Mobile
+可读性继续作为 post-launch monitoring，不阻止当前只读查询入口。
 
 ## Owner-only Personal Moomoo Execution — CODE COMPLETE / DRY_RUN E2E BLOCKED
 

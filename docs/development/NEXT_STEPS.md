@@ -24,11 +24,11 @@ wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synth
 - 如进入 Phase 2，必须单独设计/批准 Member role、exact channel、限流容量、运营 runbook 与
   rollback；不得仅改变 `.env` 绕过现有启动门。
 
-## Current Gate — GEX Explorer Member Lounge Launch
+## Current Gate — GEX Explorer Post-Launch Monitoring
 
-- 当前保持 `GEX_EXPLORER_MODE=TEST`。新欢迎语与冷却规则代码已完成；收到精确批准
-  `APPROVE GEX LOUNGE LAUNCH` 后才可部署为 `MEMBER_LOUNGE`。
-- 上线后观察 SPY / QQQ / NVDA / TSLA / AAPL、普通会员 30 秒个人冷却、同 ticker 60 秒冷却、
+- Owner 已于 2026-09-05 发送 `APPROVE GEX LOUNGE LAUNCH`；runtime 已部署为
+  `GEX_EXPLORER_MODE=MEMBER_LOUNGE`，Discord verifier PASS。
+- 继续观察 SPY / QQQ / NVDA / TSLA / AAPL、普通会员 30 秒个人冷却、同 ticker 60 秒冷却、
   管理员豁免、provider limit、stale/closed label 与失败/恢复卡片。
 - 当前 Massive entitlement 无法生成真实 SPX surface；不得映射 SPY，等待 Provider entitlement
   或原生 SPX data source。

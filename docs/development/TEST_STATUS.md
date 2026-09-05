@@ -27,9 +27,10 @@
 - Simple Tracked Swing: CODE / MIGRATION TEST PASS；真实 Discord / Massive E2E PENDING
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
-- GEX Explorer V7 Member Lounge: CODE / AUTOMATED TEST PASS — 严格 `gex TICKER` parser、
+- GEX Explorer V7 Member Lounge: LIVE / AUTOMATED + RUNTIME PASS — 严格 `gex TICKER` parser、
   Member/Manager/Owner access、exact Guild/channel gate、真实回复 listener、Owner card-testing
-  维护入口、Massive 数据、Moomoo shadow、cache/single-flight/limits/audit 均通过。
+  维护入口、Massive 数据、Moomoo shadow、cache/single-flight/limits/audit 均通过；deployed
+  runtime 为 `MEMBER_LOUNGE`，Discord verifier PASS。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
   `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
 - GEX V3 RDDT Massive-primary / Moomoo-shadow evidence: PASS — Massive 10 valid expirations /
@@ -257,12 +258,12 @@ Feature flags:
 - FEATURE_MOOMOO_ENABLED=false
 - FEATURE_PERSONAL_EXECUTION_ENABLED=false
 - RESULTS_REVIEW_ENABLED=true
-- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=TEST（updated Member Lounge launch pending）
+- GEX_EXPLORER_ENABLED=true / GEX_EXPLORER_MODE=MEMBER_LOUNGE（Owner approved and deployed 2026-09-05）
 
 Discord:
 
 - discord_runtime=PASS
-- GEX Member Lounge launch 没有创建、删除、重命名或移动 Discord 资源；现有 member-lounge
+- GEX Member Lounge runtime 已部署并通过 verifier；上线没有创建、删除、重命名或移动 Discord 资源；现有 member-lounge
   权限继续由 Blueprint 与 runtime verifier 管理。
 - `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
