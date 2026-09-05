@@ -1,4 +1,4 @@
-version: gex-v6-net-magnet-acceleration
+version: gex-v7-professional-ladder
 expiration_count: 10
 expiration_candidates: 16
 expiration_horizon_days: 180
@@ -22,7 +22,23 @@ regime_thresholds:
   strong_negative: -0.25
 exposure_basis: volume
 zone_relative_threshold: 0.35
-secondary_magnet_relative_threshold: 0.15
+classification:
+  score_weights:
+    zero_dte: 0.35
+    nearest_expiration: 0.20
+    aggregate_net: 0.15
+    volume_gamma: 0.10
+    open_interest_gamma: 0.10
+    proximity: 0.10
+  robust_percentile: 0.90
+  node_neighbor_ratio: 1.80
+  node_minimum_score: 45
+  major_minimum_score: 68
+  minor_minimum_score: 42
+  magnet_minimum_score: 58
+  magnet_maximum_steps_from_spot: 8
+  major_levels_per_side: 2
+  minor_levels_per_side: 2
 heatmap:
   expiration_columns: 5
   strike_rows: 19

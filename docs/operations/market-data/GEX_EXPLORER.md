@@ -2,152 +2,97 @@
 
 **Current mode:** `TEST` / Owner-only / `🧪・card-testing`
 
-## How `/gex` works
+## Runtime flow
 
-The Owner runs `/gex ticker:NVDA`. AXIS normalizes the symbol, acknowledges the interaction, checks
-cache and limits, loads the Massive option surface and Massive 5-minute candles, evaluates the
-deterministic GEX engine, renders one desktop-first composite chart, and edits the interaction with
-one Chinese card plus one PNG. A separate Moomoo shadow comparison runs in the background and never
-selects or blocks production output. A plain `NVDA` message does nothing.
+`/gex ticker:HOOD` validates Owner + channel, normalizes the ticker, applies cache/rate limits,
+loads Massive spot, selected option expirations, and the latest real five-minute U.S. session,
+runs the shared V7 classifier, renders one Chinese Discord card plus a 1800×1600 PNG, and records
+the existing GEX AuditLog events. A plain ticker message does not trigger the feature.
 
-## Who can use it
+Moomoo OpenD compares five-minute bars in a background black box only. It never selects, replaces,
+delays, or blocks the Massive result. GEX remains read-only and does not connect to trade execution.
 
-Phase 1 allows only the configured `DISCORD_OWNER_USER_ID` in the configured `card_testing` channel.
-Manager, Member, Newcomer, and everyone else receive an ephemeral denial. An Owner request in any
-other channel receives an ephemeral Test Mode redirect. Existing Discord blueprint permissions
-also keep `🧪・card-testing` Owner + Bot only.
+## Data and calculation
 
-## Test Mode and Member Lounge Mode
+- Production data: Massive spot, option snapshot, current-day option volume, OI, Gamma/IV, and
+  five-minute aggregates. SPX must use real SPX data and never SPY as a proxy.
+- Primary cell: `Gamma × option volume × 100 × Spot² × 0.01` per 1% underlying move.
+- Independent OI metric: `Gamma × OI × 100 × Spot² × 0.01`; it does not fill missing volume.
+- Call positive / Put negative is a documented dealer-sign estimate, not observed positioning.
+- Vendor Gamma is preferred; Black-Scholes Gamma may use real vendor IV as fallback.
+- Missing cells are `—`. Do not convert unavailable values to zero. `ΔGEX` remains absent until
+  real timestamped snapshots are persisted and comparable.
 
-`GEX_EXPLORER_MODE=TEST` is the only accepted Phase 1 mode. `MEMBER_LOUNGE` is reserved for Phase 2
-and the current startup safety gate rejects it. It must not be enabled until `GEX_TEST_GATE=PASS`,
-the Owner says `APPROVE GEX LOUNGE LAUNCH`, Member/Newcomer permission tests pass, and the status
-docs are changed from TEST to LIVE.
+## Expirations and strikes
 
-## Market Data Provider
+The provider discovers up to 16 candidate expirations and requires the configured minimum valid
+coverage. Valid same-day expiration is first and labeled 0DTE; otherwise the nearest valid expiry
+is first. The Discord export shows five expiration columns and up to 19 actual listed strikes
+centered around spot. The website offers 3 / 5 / 8 / ALL within the 16-expiration discovery window.
 
-Phase 1 uses the existing `MASSIVE_API_KEY` and `MASSIVE_BASE_URL` through
-`MassiveGexMarketDataProvider` and `MassiveGexIntradayProvider`. The first adapter fetches
-underlying/index spot, candidate expirations, and exact-expiry option snapshots. The second fetches
-Massive five-minute aggregate bars, keeps only the latest U.S. regular session, de-duplicates
-timestamps, and returns up to the configured bar count. If either Massive boundary cannot provide
-real data, `/gex` stops with a stable error; it never draws fake candles. SPX is never mapped to SPY.
+Never invent strike rows. A missing exact Strike × Expiration observation remains `—`.
 
-`MoomooGexIntradayProvider` remains connected through local OpenD only as a background candidate.
-`GexIntradayShadowBox` compares bar counts, overlapping timestamps, latest common close, and source
-timestamp differences against Massive. Results are structured internal logs only. Moomoo data is
-never used in the card or image, and OpenD / entitlement / subscription failure never blocks the
-Massive result.
+## Shared V7 classification
 
-## GEX Formula and Sign Convention
+`config/gex_explorer.yaml` owns all score weights and thresholds. Current score inputs are:
 
-Dollar GEX per 1% underlying move:
+- 35% 0DTE Gamma concentration
+- 20% nearest-expiration Gamma
+- 15% aggregate Net GEX
+- 10% Volume × Gamma
+- 10% OI × Gamma
+- 10% proximity to spot
 
-`Gamma × current-day option volume × 100 contract multiplier × Spot² × 0.01`
+The classifier applies log / 90th-percentile robust normalization. Gamma Nodes compare each
+strike's absolute Net GEX with adjacent listed strikes. Positive-Net strikes above/below spot may
+become major/minor resistance/support when their score or node strength qualifies. Negative-Net
+concentrations become acceleration zones. Both the main chart and ladder consume these exact same
+classifications.
 
-Call GEX is positive and Put GEX is negative under the documented dealer-sign estimate. The card
-states that this is an assumption rather than observed dealer inventory. Vendor Gamma is preferred;
-Black-Scholes Gamma may be derived from vendor IV. Missing/zero current-day option volume or
-missing Gamma/IV is skipped; Open Interest is not used as a fallback. Massive `day.volume` is
-actual aggregate option trading volume, but it has no aggressor-side classification. The output is
-therefore volume-weighted structure, not buyer/seller flow or observed dealer inventory.
+At most one Gamma Magnet is allowed, and only in a positive-Gamma regime with sufficient positive
+Net GEX, score, proximity, and near-term evidence. Gamma Flip is computed separately and may be
+interpolated. Call Wall and Put Wall are gross one-sided references; they are never promoted to
+resistance/support solely because they are walls.
 
-## Expiry Selection and Near-Term Logic
+## Presentation
 
-The policy discovers 16 candidate dates and accepts the first 10 complete, non-truncated dates.
-Each date must contain both Call and Put contracts and meet `minimum_contracts_per_expiry`. At least
-five valid dates are required by current policy. Same-day valid expiry is 0DTE; otherwise the first
-valid date is labeled `Near-Term Structure`.
+The main AXIS chart keeps real five-minute candles, a white spot line, yellow resistance rails,
+teal support rails, thick dashed major lines, dotted minor lines, purple negative-Gamma
+acceleration zones, and right-side labels. It draws only actionable levels.
 
-## Zero Gamma, Magnets, Gross Walls, and Acceleration
+The professional ladder below it is continuous around spot and contains Strike, sparse Role,
+expiration cells, and TOTAL. The 0DTE header is emphasized when available. Positive cells are
+green/teal; negative cells are purple/magenta; near-zero/unavailable cells remain dark. Color
+strength uses robust normalization.
 
-- Zero Gamma is the nearest interpolated cumulative Net GEX crossing; if no crossing exists, the
-  nearest minimum-absolute cumulative point is used.
-- Positive Net GEX strikes are magnet / pin candidates. The strongest positive-Net-GEX strike
-  above and below spot becomes the main upper/lower magnet. The nearest remaining positive-Net-GEX
-  strike meeting 15% of that side's peak becomes the secondary magnet; otherwise the nearest
-  remaining positive-Net-GEX strike is used. Missing same-side structure remains `—`.
-- Negative Net GEX strikes are acceleration candidates. Adjacent qualifying negative-Net-GEX
-  strikes become acceleration zones. A strike cannot be both a magnet and an acceleration strike.
-- Call Wall is the strike with the greatest gross Call GEX; Put Wall is the strike with the
-  greatest absolute gross Put GEX. They remain raw one-sided concentration references and are not
-  direct pressure/support labels. A gross wall inside a negative-Net-GEX zone remains an
-  acceleration strike and is not promoted to a magnet.
+Website hover/tap reveals only available Net/Call/Put/Volume/OI values, DTE, classification, and
+strength. Clicking a strike temporarily emphasizes it on the chart and shows TOTAL plus 0DTE when
+available. No GEX surface may output a directional trade instruction.
 
-## Gamma Regime, Bias, and Triggers
+## Data status and failure behavior
 
-The configured normalized Net GEX thresholds produce Strong Positive, Positive, Balanced,
-Negative, or Strong Negative Gamma. Bias combines Spot vs Zero Gamma with regime. Directional
-descriptions identify the nearest negative-Net-GEX acceleration zone and same-direction positive
-Net-GEX magnet; no LLM participates.
+Closed-market output is labeled as the latest available snapshot. Stale data is labeled
+independently. Insufficient coverage, invalid data, provider/auth/rate failures, and rendering
+errors fail closed and use stable error codes plus deduplicated System Alert/Recovery handling.
+Secrets and full provider URLs are never logged.
 
-## Heatmap
-
-The Pillow renderer produces a deterministic 1800x1125 black AXIS image. The left panel uses a
-candle-first adaptive axis for real 5-minute candles, current price, upper/lower positive-Net-GEX
-magnet lines, Gamma boundary, and negative-Net-GEX acceleration zones. Distant magnets and Gamma
-boundaries use full-width top/bottom off-scale rails with actual prices instead of flattening
-candle bodies. Distant negative-Net-GEX zones use full-width purple
-off-scale bands with actual level ranges, so acceleration structure remains visible on the chart.
-Nearby and off-scale labels preserve main/secondary upper/lower magnets and
-`0 Gamma · Gamma 分界`. Main magnets use solid lines; secondary magnets use lighter dashed lines.
-The heatmap strike rail marks `上主` / `上次` / `下主` / `下次`, plus gross `C墙` / `P墙`
-references explicitly.
-The wider right panel shows strike rows, up to five expiration columns, signed cell intensity,
-aggregate GEX, and current / boundary / resistance / support markers. Visible explanatory text is
-Chinese. It does not use an image-generation model.
-
-## Cache, single-flight, and rate limits
-
-- Cache key: `(ticker, policy version, provider)`.
-- Current TTL: 60 seconds.
-- Identical concurrent misses share one provider calculation.
-- Current user cooldown: 15 seconds.
-- Current guild limit: eight fresh calculations per rolling minute.
-- Cache hits still respect user cooldown to avoid Discord interaction spam.
-
-Values are maintained in `config/gex_explorer.yaml`, not scattered through handlers.
-
-## Data freshness and market close
-
-The card shows Massive GEX time, Massive 5-minute K-line time, valid volume-weighted contract
-coverage, cache status, and policy version. Moomoo shadow details remain internal. Data older than
-the configured threshold is marked
-in Chinese as stale. A closed-market result is labeled in Chinese and described as the latest
-available snapshot; it is never called live.
-
-## Error handling and System Alerts
-
-Invalid/not-found symbols return short, safe responses without tracebacks. Insufficient coverage,
-provider entitlement/rate/network failures, bad data, renderer errors, command failures, and
-excessive latency use stable error codes. Operational failures go through the existing deduplicated
-System Alert service; a later successful request closes matching fingerprints and sends one
-Recovery card when the failure had been notified. Secrets and full provider URLs are never logged.
-
-## Test Gate
-
-Run:
+## Verification
 
 ```text
 .venv/bin/ruff check app tests scripts
 .venv/bin/python -m compileall -q app scripts
 .venv/bin/pytest -q
-.venv/bin/python scripts/verify_gex_explorer.py
-.venv/bin/python scripts/verify_gex_explorer.py RDDT --skip-invalid --output-dir /tmp/gex-review
+.venv/bin/python scripts/verify_gex_explorer.py HOOD SPY --skip-invalid --output-dir /tmp/gex-review
 .venv/bin/python scripts/verify_database.py
 .venv/bin/python scripts/verify_discord_runtime.py
 ```
 
-Also run the repository's Discord blueprint dry-run/permission verification. Review SPY, QQQ,
-NVDA, TSLA, AAPL, invalid-symbol, closed-market, partial-expiry, cache, single-flight, cooldown,
-global-limit, stale-data, renderer/provider failure, Massive minute-data failure, non-blocking
-Moomoo shadow failure, PNG dimensions, Chinese UI, and SPX-entitlement evidence.
+Review the generated desktop/mobile image, actual strike continuity, 0DTE ordering when available,
+TOTAL reconciliation, positive/negative colors, spot row, Wall-vs-level separation, single Magnet,
+Gamma Flip, and non-fabrication of unavailable fields.
 
-## Disable and rollback
+## Disable / rollback
 
-To disable `/gex`, set `GEX_EXPLORER_ENABLED=false` in the deployment Secret environment and restart
-the Bot. The command is not registered and no data is deleted.
-
-After a future Member Lounge launch, the intended emergency rollback is to change
-`GEX_EXPLORER_MODE=MEMBER_LOUNGE` back to `TEST` and restart. Member use stops while Owner testing in
-`🧪・card-testing` remains available. Phase 1 deliberately does not accept Member Lounge mode.
+Set `GEX_EXPLORER_ENABLED=false` in the deployment Secret environment and restart the Bot. No data
+is deleted. Phase 1 deliberately rejects Member Lounge mode; do not change that gate without the
+Owner's separate explicit launch approval.

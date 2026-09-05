@@ -274,12 +274,10 @@ def test_gross_call_wall_inside_negative_net_zone_is_not_a_magnet() -> None:
     snapshot = build_gex_snapshot("TEST", 97, contracts, now, exposure_basis="volume")
 
     assert snapshot.call_wall == 100
-    assert snapshot.upper_magnet == 105
+    assert snapshot.gamma_magnet is None
     assert snapshot.by_strike[0].net_gex < 0
     assert any(zone.lower <= 100 <= zone.upper for zone in snapshot.negative_zones)
-    assert all(
-        not (zone.lower <= snapshot.upper_magnet <= zone.upper) for zone in snapshot.negative_zones
-    )
+    assert 100 not in (*snapshot.major_resistance, *snapshot.minor_resistance)
 
 
 def test_phase_one_authorization_is_owner_and_card_testing_only() -> None:
@@ -330,35 +328,26 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.snapshot.ticker == second.snapshot.ticker == "SPY"
         assert first.heatmap_png.startswith(b"\x89PNG")
         with Image.open(BytesIO(first.heatmap_png)) as image:
-            assert image.size == (1800, 1125)
+            assert image.size == (1800, 1600)
             rgb = image.convert("RGB")
-            upper_magnet_run = max(
-                sum(rgb.getpixel((x, y)) == (216, 184, 91) for x in range(76, 1113))
-                for y in range(190, 911)
+            assert any(
+                green > red and green > blue
+                for red, green, blue in (
+                    rgb.getpixel((x, y))
+                    for x in range(400, 1650, 80)
+                    for y in range(1110, 1460, 24)
+                )
             )
-            lower_magnet_run = max(
-                sum(rgb.getpixel((x, y)) == (119, 169, 151) for x in range(76, 1113))
-                for y in range(190, 911)
+            assert any(
+                blue > green and red > green
+                for red, green, blue in (
+                    rgb.getpixel((x, y))
+                    for x in range(400, 1650, 80)
+                    for y in range(1110, 1460, 24)
+                )
             )
-            secondary_upper_magnet_run = max(
-                sum(rgb.getpixel((x, y)) == (200, 184, 121) for x in range(76, 1113))
-                for y in range(190, 911)
-            )
-            secondary_lower_magnet_run = max(
-                sum(rgb.getpixel((x, y)) == (143, 183, 168) for x in range(76, 1113))
-                for y in range(190, 911)
-            )
-            acceleration_run = max(
-                sum(rgb.getpixel((x, y)) == (89, 42, 132) for x in range(76, 1113))
-                for y in range(190, 911)
-            )
-            assert upper_magnet_run > 400
-            assert lower_magnet_run > 400
-            assert secondary_upper_magnet_run > 200
-            assert secondary_lower_magnet_run > 200
-            assert acceleration_run > 900
         zero_label, _ = _level_label(first.snapshot, first.snapshot.zero_gamma or 0)
-        assert "0 Gamma · Gamma 分界" in zero_label
+        assert "Gamma Flip" in zero_label
         assert first.used_expirations == 10
         assert first.intraday_provider == "fake-minute"
         assert first.intraday_bar_count == 78
@@ -366,11 +355,11 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
         assert first.snapshot.exposure_basis == "volume"
         assert first.snapshot.near_term_expiration is not None
         assert first.snapshot.call_wall == 110
-        assert first.snapshot.upper_magnet == 110
-        assert first.snapshot.secondary_upper_magnet == 105
         assert first.snapshot.put_wall == 90
-        assert first.snapshot.lower_magnet == 100
-        assert first.snapshot.secondary_lower_magnet == 95
+        assert len(first.snapshot.major_resistance) <= policy().major_levels_per_side
+        assert len(first.snapshot.minor_resistance) <= policy().minor_levels_per_side
+        assert len(first.snapshot.major_support) <= policy().major_levels_per_side
+        assert len(first.snapshot.minor_support) <= policy().minor_levels_per_side
         assert all(
             first.snapshot.by_strike[
                 next(
@@ -381,12 +370,16 @@ async def test_service_singleflight_cache_heatmap_and_audit() -> None:
             ].net_gex
             > 0
             for level in (
-                first.snapshot.upper_magnet,
-                first.snapshot.secondary_upper_magnet,
-                first.snapshot.lower_magnet,
-                first.snapshot.secondary_lower_magnet,
+                *first.snapshot.major_resistance,
+                *first.snapshot.minor_resistance,
+                *first.snapshot.major_support,
+                *first.snapshot.minor_support,
             )
         )
+        if first.snapshot.gamma_magnet is not None:
+            assert first.snapshot.gamma_magnet in {
+                point.strike for point in first.snapshot.by_strike if point.net_gex > 0
+            }
         assert cached.cache_hit is True
         async with db.session() as session:
             actions = list(
@@ -497,20 +490,22 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         assert "数据时间早于实时阈值" in status
         assert "部分到期日已跳过" in status
         assert all("Market" not in field.name for field in embed.fields)
-        key_levels = next(field.value for field in embed.fields if field.name == "磁吸位置")
-        assert "0 Gamma · Gamma 分界" in key_levels
-        assert "上方主磁吸" in key_levels
-        assert "上方次磁吸" in key_levels
-        assert "下方主磁吸" in key_levels
-        assert "下方次磁吸" in key_levels
+        key_levels = next(field.value for field in embed.fields if field.name == "Gamma 关键结构")
+        assert "Gamma Flip" in key_levels
+        assert "Gamma Magnet" in key_levels
+        intraday_levels = next(
+            field.value for field in embed.fields if field.name == "日内支撑 / 压力"
+        )
+        assert "大压力" in intraday_levels
+        assert "大支撑" in intraday_levels
         wall_reference = next(
             field.value for field in embed.fields if field.name == "Gross Wall 参考"
         )
         assert "Call Wall" in wall_reference
         assert "Put Wall" in wall_reference
         assert "不直接等同压力 / 支撑" in wall_reference
-        assert "正 Net GEX 磁吸" in result.snapshot.analysis_zh[1]
-        assert "不直接等同于压力或支撑" in result.snapshot.analysis_zh[2]
+        assert "Gamma Magnet" in result.snapshot.analysis_zh[1]
+        assert "不单独代表方向" in result.snapshot.analysis_zh[2]
     finally:
         await db.dispose()
 

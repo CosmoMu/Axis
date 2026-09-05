@@ -34,6 +34,10 @@ def _zones(zones) -> str:
     return "\n".join(rendered)
 
 
+def _levels(values: tuple[float, ...]) -> str:
+    return " / ".join(_money(value) for value in values) or "—"
+
+
 def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     snapshot = result.snapshot
     color = 0x86F7A8 if snapshot.net_gex >= 0 else 0xD66A6A
@@ -55,13 +59,11 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         inline=True,
     )
     embed.add_field(
-        name="磁吸位置",
+        name="Gamma 关键结构",
         value=(
-            f"0 Gamma · Gamma 分界 {_money(snapshot.zero_gamma)}\n"
-            f"上方主磁吸 {_money(snapshot.upper_magnet)}\n"
-            f"上方次磁吸 {_money(snapshot.secondary_upper_magnet)}\n"
-            f"下方主磁吸 {_money(snapshot.lower_magnet)}\n"
-            f"下方次磁吸 {_money(snapshot.secondary_lower_magnet)}"
+            f"Gamma Flip {_money(snapshot.zero_gamma)}\n"
+            f"Gamma Magnet {_money(snapshot.gamma_magnet)}\n"
+            f"Gamma Nodes {_levels(snapshot.gamma_nodes)}"
         ),
         inline=True,
     )
@@ -74,13 +76,13 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         ),
         inline=True,
     )
-    positive_key = snapshot.positive_zones[0] if snapshot.positive_zones else None
-    negative_key = snapshot.negative_zones[0] if snapshot.negative_zones else None
     embed.add_field(
-        name="主要磁吸 / 加速区",
+        name="日内支撑 / 压力",
         value=(
-            f"磁吸区 {_money(positive_key.peak if positive_key else None)}\n"
-            f"加速区 {_money(negative_key.peak if negative_key else None)}"
+            f"大压力 {_levels(snapshot.major_resistance)}\n"
+            f"小压力 {_levels(snapshot.minor_resistance)}\n"
+            f"大支撑 {_levels(snapshot.major_support)}\n"
+            f"小支撑 {_levels(snapshot.minor_support)}"
         ),
         inline=True,
     )
@@ -102,7 +104,6 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
         ),
         inline=True,
     )
-    embed.add_field(name="正 Net GEX 磁吸区", value=_zones(snapshot.positive_zones), inline=True)
     embed.add_field(name="负 Net GEX 加速区", value=_zones(snapshot.negative_zones), inline=True)
     embed.add_field(
         name="结构触发",

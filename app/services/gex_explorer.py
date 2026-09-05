@@ -68,7 +68,16 @@ class GexPolicy:
     regime_thresholds: tuple[float, float, float, float]
     exposure_basis: str
     zone_relative_threshold: float
-    secondary_magnet_relative_threshold: float
+    score_weights: tuple[float, float, float, float, float, float]
+    robust_percentile: float
+    node_neighbor_ratio: float
+    node_minimum_score: int
+    major_minimum_score: int
+    minor_minimum_score: int
+    magnet_minimum_score: int
+    magnet_maximum_steps_from_spot: int
+    major_levels_per_side: int
+    minor_levels_per_side: int
     heatmap_expiration_columns: int
     heatmap_strike_rows: int
     intraday_bar_count: int
@@ -83,10 +92,16 @@ class GexPolicy:
         regimes = payload.get("regime_thresholds")
         heatmap = payload.get("heatmap")
         intraday = payload.get("intraday")
+        classification = payload.get("classification")
+        score_weights = (
+            classification.get("score_weights") if isinstance(classification, dict) else None
+        )
         if (
             not isinstance(regimes, dict)
             or not isinstance(heatmap, dict)
             or not isinstance(intraday, dict)
+            or not isinstance(classification, dict)
+            or not isinstance(score_weights, dict)
         ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         policy = cls(
@@ -115,9 +130,23 @@ class GexPolicy:
             ),
             exposure_basis=str(payload["exposure_basis"]).strip().lower(),
             zone_relative_threshold=float(payload["zone_relative_threshold"]),
-            secondary_magnet_relative_threshold=float(
-                payload["secondary_magnet_relative_threshold"]
+            score_weights=(
+                float(score_weights["zero_dte"]),
+                float(score_weights["nearest_expiration"]),
+                float(score_weights["aggregate_net"]),
+                float(score_weights["volume_gamma"]),
+                float(score_weights["open_interest_gamma"]),
+                float(score_weights["proximity"]),
             ),
+            robust_percentile=float(classification["robust_percentile"]),
+            node_neighbor_ratio=float(classification["node_neighbor_ratio"]),
+            node_minimum_score=int(classification["node_minimum_score"]),
+            major_minimum_score=int(classification["major_minimum_score"]),
+            minor_minimum_score=int(classification["minor_minimum_score"]),
+            magnet_minimum_score=int(classification["magnet_minimum_score"]),
+            magnet_maximum_steps_from_spot=int(classification["magnet_maximum_steps_from_spot"]),
+            major_levels_per_side=int(classification["major_levels_per_side"]),
+            minor_levels_per_side=int(classification["minor_levels_per_side"]),
             heatmap_expiration_columns=int(heatmap["expiration_columns"]),
             heatmap_strike_rows=int(heatmap["strike_rows"]),
             intraday_bar_count=int(intraday["bar_count"]),
@@ -147,6 +176,13 @@ class GexPolicy:
             self.heatmap_strike_rows,
             self.intraday_bar_count,
             self.intraday_minimum_bars,
+            self.node_minimum_score,
+            self.major_minimum_score,
+            self.minor_minimum_score,
+            self.magnet_minimum_score,
+            self.magnet_maximum_steps_from_spot,
+            self.major_levels_per_side,
+            self.minor_levels_per_side,
         )
         if any(value <= 0 for value in positive):
             raise GexExplorerError("GEX_POLICY_INVALID")
@@ -164,7 +200,10 @@ class GexPolicy:
         if (
             not 0 < self.strike_range_pct < 1
             or not 0 < self.zone_relative_threshold <= 1
-            or not 0 < self.secondary_magnet_relative_threshold <= 1
+            or not 0 < self.robust_percentile <= 1
+            or self.node_neighbor_ratio <= 1
+            or abs(sum(self.score_weights) - 1) > 1e-9
+            or any(weight < 0 for weight in self.score_weights)
         ):
             raise GexExplorerError("GEX_POLICY_INVALID")
         if self.intraday_minimum_bars > self.intraday_bar_count or self.intraday_bar_count > 1000:
@@ -387,9 +426,16 @@ class GexExplorerService:
                 dividend_yield=self.policy.dividend_yield,
                 regime_thresholds=self.policy.regime_thresholds,
                 zone_relative_threshold=self.policy.zone_relative_threshold,
-                secondary_magnet_relative_threshold=(
-                    self.policy.secondary_magnet_relative_threshold
-                ),
+                score_weights=self.policy.score_weights,
+                robust_percentile=self.policy.robust_percentile,
+                node_neighbor_ratio=self.policy.node_neighbor_ratio,
+                node_minimum_score=self.policy.node_minimum_score,
+                major_minimum_score=self.policy.major_minimum_score,
+                minor_minimum_score=self.policy.minor_minimum_score,
+                magnet_minimum_score=self.policy.magnet_minimum_score,
+                magnet_maximum_steps_from_spot=(self.policy.magnet_maximum_steps_from_spot),
+                major_levels_per_side=self.policy.major_levels_per_side,
+                minor_levels_per_side=self.policy.minor_levels_per_side,
                 exposure_basis=self.policy.exposure_basis,
             )
         except (TypeError, ValueError) as exc:

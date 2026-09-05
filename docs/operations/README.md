@@ -29,7 +29,8 @@
 
 ## Market data
 
-- `market-data/GEX_EXPLORER.md` — Owner-only `/gex` Test Mode、Massive option surface、GEX 公式、
+- `market-data/GEX_EXPLORER.md` — Owner-only `/gex` Test Mode、Massive option surface、V7 shared
+  classifier、专业 Strike × Expiration Ladder、GEX 公式、
   expiry/near-term、walls/clusters/regime/triggers、heatmap、cache/limits、alerts 与 rollback。
 
 Secret、完整 Stripe payload、客户付款信息、Discord 用户 ID 与数据库连接信息不得写进文档、

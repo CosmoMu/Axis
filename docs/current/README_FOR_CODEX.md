@@ -30,7 +30,8 @@
 10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
     Gate、对账、风险和控制面板的最新规则。
 11. 10_GEX_EXPLORER_PHASE1_SPEC.md — `/gex` Owner-only card-testing、Massive 正式 option
-    surface / 现价 / 5 分钟 K 线、当日期权成交量 GEX、Moomoo 后台影子比较、中文复合图及 Test Gate。
+    surface / 现价 / 5 分钟 K 线、V7 shared intraday classifier、专业 Strike × Expiration
+    Ladder、Moomoo 后台影子比较、中文复合图及 Test Gate。
 12. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：

@@ -81,7 +81,16 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 dividend_yield=policy.dividend_yield,
                 regime_thresholds=policy.regime_thresholds,
                 zone_relative_threshold=policy.zone_relative_threshold,
-                secondary_magnet_relative_threshold=(policy.secondary_magnet_relative_threshold),
+                score_weights=policy.score_weights,
+                robust_percentile=policy.robust_percentile,
+                node_neighbor_ratio=policy.node_neighbor_ratio,
+                node_minimum_score=policy.node_minimum_score,
+                major_minimum_score=policy.major_minimum_score,
+                minor_minimum_score=policy.minor_minimum_score,
+                magnet_minimum_score=policy.magnet_minimum_score,
+                magnet_maximum_steps_from_spot=(policy.magnet_maximum_steps_from_spot),
+                major_levels_per_side=policy.major_levels_per_side,
+                minor_levels_per_side=policy.minor_levels_per_side,
                 exposure_basis=policy.exposure_basis,
             )
             heatmap = render_gex_heatmap(snapshot, intraday.bars, policy)
@@ -98,15 +107,11 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 key=lambda point: point.put_gex,
             ).strike
             point_map = {point.strike: point for point in snapshot.by_strike}
-            magnets = tuple(
-                level
-                for level in (
-                    snapshot.upper_magnet,
-                    snapshot.secondary_upper_magnet,
-                    snapshot.lower_magnet,
-                    snapshot.secondary_lower_magnet,
-                )
-                if level is not None
+            classified_levels = (
+                *snapshot.major_resistance,
+                *snapshot.minor_resistance,
+                *snapshot.major_support,
+                *snapshot.minor_support,
             )
             positive_zone_strikes = {
                 point.strike
@@ -123,21 +128,8 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 "net_reconciles": abs(by_strike_net - snapshot.net_gex) < 0.01,
                 "call_wall_reconciles": wall_check == snapshot.call_wall,
                 "put_wall_reconciles": put_check == snapshot.put_wall,
-                "upper_magnets_are_positive_net": all(
-                    level > snapshot.spot and point_map[level].net_gex > 0
-                    for level in (
-                        snapshot.upper_magnet,
-                        snapshot.secondary_upper_magnet,
-                    )
-                    if level is not None
-                ),
-                "lower_magnets_are_positive_net": all(
-                    level < snapshot.spot and point_map[level].net_gex > 0
-                    for level in (
-                        snapshot.lower_magnet,
-                        snapshot.secondary_lower_magnet,
-                    )
-                    if level is not None
+                "classified_levels_are_positive_net": all(
+                    point_map[level].net_gex > 0 for level in classified_levels
                 ),
                 "positive_zones_are_positive_net": all(
                     point_map[strike].net_gex > 0 for strike in positive_zone_strikes
@@ -145,7 +137,14 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                 "negative_zones_are_negative_net": all(
                     point_map[strike].net_gex < 0 for strike in negative_zone_strikes
                 ),
-                "magnets_do_not_overlap_acceleration": not set(magnets) & negative_zone_strikes,
+                "magnet_is_single_positive_net": (
+                    snapshot.gamma_magnet is None or point_map[snapshot.gamma_magnet].net_gex > 0
+                ),
+                "classified_levels_do_not_overlap_acceleration": (
+                    not set(classified_levels) & negative_zone_strikes
+                ),
+                "listed_strikes_are_real": set(snapshot.listed_strikes)
+                == {contract.strike for contract in raw.contracts},
                 "png_valid": heatmap.startswith(b"\x89PNG"),
                 "minute_bars_present": len(intraday.bars) >= policy.intraday_minimum_bars,
             }
@@ -180,10 +179,12 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                         "source_timestamp": raw.source_timestamp.isoformat(),
                         "regime": snapshot.gamma_regime,
                         "levels": {
-                            "upper_magnet": snapshot.upper_magnet,
-                            "secondary_upper_magnet": snapshot.secondary_upper_magnet,
-                            "lower_magnet": snapshot.lower_magnet,
-                            "secondary_lower_magnet": snapshot.secondary_lower_magnet,
+                            "gamma_magnet": snapshot.gamma_magnet,
+                            "major_resistance": snapshot.major_resistance,
+                            "minor_resistance": snapshot.minor_resistance,
+                            "major_support": snapshot.major_support,
+                            "minor_support": snapshot.minor_support,
+                            "gamma_nodes": snapshot.gamma_nodes,
                             "zero_gamma": snapshot.zero_gamma,
                             "gross_call_wall_reference": snapshot.call_wall,
                             "gross_put_wall_reference": snapshot.put_wall,

@@ -43,11 +43,11 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
 
-GEX Explorer Phase 1 已复用现有 provider-independent GEX engine、Massive option-surface / spot /
-5 分钟 K 线正式 provider、Moomoo OpenD 后台影子比较、AuditLog、System Alerts 和 Owner-only
-card-testing 权限。`/gex ticker:TICKER`、10 个有效到期日、五级 Gamma Regime、
-Gamma 分界、正 Net GEX 主/次磁吸、负 Net GEX 加速区、真实 5 分钟 K 线和成交量 GEX 中文复合
-热力图已完成。当前严格 **TEST ONLY**，Member Lounge 未开放。
+GEX Explorer Phase 1 已升级为 V7 Professional Ladder。Massive option surface / spot / 真实 5 分钟
+K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底部连续 Strike × Expiration Ladder
+共用一套可配置 Intraday Importance Score、Gamma Node、主要/次要支撑压力、单一 Gamma Magnet、
+Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
+Discord 使用 1800×1600 纵向移动端导出。当前严格 **TEST ONLY**，Member Lounge 未开放。
 
 ## GEX Explorer — PHASE 1 CODE COMPLETE / TEST ONLY
 
@@ -59,17 +59,15 @@ Implemented:
   即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
   和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
-- 当日 Option Volume 加权的 Net GEX、五级 Regime、Zero Gamma、上/下方正 Net GEX
-  主/次磁吸、负 Net GEX 加速区、Gross Call/Put Wall 参考、deterministic bias / structure
-  descriptions；无成交不以 OI 填补，无 LLM 点位。
-- 确定性 1800x1125 中文复合图：16:10 风格布局，左侧真实 5 分钟 K 线绘图区约 1.44:1，
-  右侧 strike x expiration GEX 热力图加宽；纵轴优先保持蜡烛可读，远端磁吸/Gamma
-  分界使用横贯绘图区的图外结构轨保留，远端负 GEX 加速区使用紫色全宽图外带保留
-  实际点位或范围；不再强行压扁 K 线，也不会因超出聚焦纵轴而丢失结构。
-- 图表及 Discord 卡片明确显示 `上方主磁吸`、`上方次磁吸`、`下方主磁吸`、
-  `下方次磁吸`、`0 Gamma · Gamma 分界`；主磁吸用实线、次磁吸用浅色虚线。
-  Gross `Call Wall` / `Put Wall` 仅在卡片及热力图作为 `C墙` / `P墙` 参考，不直接等同
-  压力或支撑；磁吸和加速按执行价互斥。
+- 当日 Option Volume × Gamma 主表面与独立 OI × Gamma、0DTE / nearest / aggregate、
+  五级 Regime、Gamma Node、单一高置信度 Magnet、Gamma Flip、正 Net GEX 主要/次要
+  支撑压力和负 Net GEX 加速区；缺失值显示 `—`，无成交不以 OI 填补，无 LLM 点位。
+- 可配置 Importance Score：35% 0DTE、20% nearest expiry、15% aggregate、10% Volume ×
+  Gamma、10% OI × Gamma、10% proximity；使用 log / 90th percentile clipping。
+- 确定性 1800×1600 中文纵向图：顶部即时结构、中部保留 AXIS 真实 5 分钟 K 线及粗虚线/
+  点线/紫色加速区、底部连续真实行权价 × 五到期日 Ladder、Role、0DTE 和 TOTAL。
+- Gross `Call Wall` / `Put Wall` 只作原始单边参考，不自动等同支撑压力；主图与 Ladder
+  必须复用同一分类。Gamma 不单独输出 BUY CALL / BUY PUT / LONG / SHORT。
 - ticker+policy+provider cache、single-flight、per-user cooldown、guild fresh-request limit。
 - GEX_REQUESTED / CACHE_HIT / CACHE_MISS / GENERATED / FAILED / RATE_LIMITED AuditLog；现有
   System Alert dedup / Recovery。
@@ -77,6 +75,13 @@ Implemented:
   Moomoo order。
 
 Live evidence:
+
+- V7 HOOD / SPY Massive closed-market read-only PASS：HOOD 484、SPY 2134 张有效期权合约，
+  各 10 valid expirations、78 根真实 5 分钟 K 线；Net/Wall/分类/真实 strike/PNG 全部对账。
+  HOOD 单一 Magnet 123、主要压力 123/125、次级压力 124/126、Flip 124.62；Gross Call
+  Wall 125 / Put Wall 120 保持原始参考。Moomoo shadow 78/78 timestamps overlap，不参与输出。
+- V7 1800×1600 纵向 Discord PNG 已视觉复核；连续 19 行真实 strike、5 个 expiration、
+  TOTAL、SPOT 行、绿色正 GEX、紫色负 GEX和缺失 `—` 均可读。
 
 - RDDT Massive-primary / Moomoo-shadow 只读验收 PASS：Massive 240 根当日 1 分钟 K 线、
   10 个有效 expiry、338 张期权合约；K 线实际范围 $154.12–$155.93，优化后不再被
@@ -86,11 +91,11 @@ Live evidence:
 - Massive closed-market read-only checks PASS：SPY、QQQ、NVDA、TSLA、AAPL 均取得 10 个有效
   expiry；Net、Call Wall、Put Wall 与 normalized raw surface 重算一致；PNG valid。
 - AVGO V4 旧四层级别验收记录保留作历史证据；其中将 Gross Wall 直接命名为压力/支撑的
-  展示语义已由 V6 Net Magnet / Acceleration 取代，不再用于当前输出。
-- AVGO V6 Net Magnet / Acceleration 真实验收 PASS：78 根 Massive 5 分钟 K 线、10 个有效
+  展示语义已由 V7 shared classifier 取代，不再用于当前输出。
+- AVGO V6 Net Magnet / Acceleration 历史验收 PASS：78 根 Massive 5 分钟 K 线、10 个有效
   expiry、654 张期权合约；上方磁吸 370 / 357.5、下方磁吸 355 / 332.5、0 Gamma 359.79；
   Gross Call Wall 360 / Put Wall 355 仅作参考。正 Net GEX 磁吸与负 Net GEX 加速执行价
-  互斥，验证器确认无重叠；Moomoo shadow 78/78 timestamps overlap，不参与正式输出。
+  互斥，验证器确认无重叠；该多磁吸显示规则已由 V7 单一 Magnet + shared classifier 取代。
 - Invalid ticker PASS。
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。

@@ -12,6 +12,7 @@ from app.market_intelligence.gex_explorer.models import (
     GexExpiration,
     GexOptionContract,
     GexSnapshot,
+    GexStrikeImportance,
     GexTrigger,
     GexZone,
     OptionSide,
@@ -248,6 +249,7 @@ def _expiration(
     expiration: object,
     points: tuple[GexByStrike, ...],
     included: int,
+    oi_points: tuple[GexByStrike, ...] = (),
 ) -> GexExpiration:
     calls = [point for point in points if point.call_gex > 0]
     puts = [point for point in points if point.put_gex < 0]
@@ -259,6 +261,7 @@ def _expiration(
         put_wall=min(puts, key=lambda item: item.put_gex).strike if puts else None,
         included_contracts=included,
         by_strike=points,
+        oi_by_strike=oi_points,
     )
 
 
@@ -266,32 +269,153 @@ def _fmt(value: float | None) -> str:
     return "—" if value is None else f"${value:,.2f}"
 
 
-def _magnet_levels(
+def _percentile(values: list[float], fraction: float) -> float:
+    if not values:
+        return 1.0
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int((len(ordered) - 1) * fraction)))
+    return max(1.0, ordered[index])
+
+
+def _robust(value: float, scale: float) -> float:
+    if value == 0:
+        return 0.0
+    return min(1.0, math.log1p(abs(value)) / math.log1p(max(1.0, scale)))
+
+
+def _median_step(points: tuple[GexByStrike, ...]) -> float:
+    steps = sorted(
+        right.strike - left.strike
+        for left, right in zip(points, points[1:], strict=False)
+        if right.strike > left.strike
+    )
+    return steps[len(steps) // 2] if steps else 1.0
+
+
+def _importance(
     points: tuple[GexByStrike, ...],
+    oi_points: tuple[GexByStrike, ...],
+    expirations: tuple[GexExpiration, ...],
+    *,
+    spot: float,
+    now_et: datetime,
+    score_weights: tuple[float, float, float, float, float, float],
+    robust_percentile: float,
+) -> tuple[GexStrikeImportance, ...]:
+    """Score intraday relevance with robust cross-strike normalization."""
+
+    point_map = {point.strike: point for point in points}
+    oi_map = {point.strike: point for point in oi_points}
+    session_date = now_et.astimezone(ZoneInfo("America/New_York")).date()
+    zero_expiration = next(
+        (item for item in expirations if item.expiration == session_date),
+        None,
+    )
+    nearest_expiration = (
+        expirations[1] if zero_expiration is not None and len(expirations) > 1 else expirations[0]
+    )
+    zero_map = (
+        {point.strike: point for point in zero_expiration.by_strike}
+        if zero_expiration is not None
+        else {}
+    )
+    nearest_map = {point.strike: point for point in nearest_expiration.by_strike}
+    aggregate_scale = _percentile([abs(point.net_gex) for point in points], robust_percentile)
+    zero_scale = _percentile([abs(point.net_gex) for point in zero_map.values()], robust_percentile)
+    nearest_scale = _percentile(
+        [abs(point.net_gex) for point in nearest_map.values()], robust_percentile
+    )
+    volume_scale = _percentile(
+        [abs(point.call_gex) + abs(point.put_gex) for point in points],
+        robust_percentile,
+    )
+    oi_scale = _percentile(
+        [abs(point.call_gex) + abs(point.put_gex) for point in oi_points],
+        robust_percentile,
+    )
+    step = _median_step(points)
+    zero_weight, nearest_weight, aggregate_weight, volume_weight, oi_weight, proximity_weight = (
+        score_weights
+    )
+    scores: list[GexStrikeImportance] = []
+    for index, point in enumerate(points):
+        oi_point = oi_map.get(point.strike)
+        proximity = max(0.0, 1 - abs(point.strike - spot) / max(step * 12, 1))
+        score = round(
+            100
+            * (
+                zero_weight
+                * _robust(
+                    zero_map[point.strike].net_gex if point.strike in zero_map else 0,
+                    zero_scale,
+                )
+                + nearest_weight
+                * _robust(
+                    nearest_map[point.strike].net_gex if point.strike in nearest_map else 0,
+                    nearest_scale,
+                )
+                + aggregate_weight * _robust(point.net_gex, aggregate_scale)
+                + volume_weight * _robust(abs(point.call_gex) + abs(point.put_gex), volume_scale)
+                + oi_weight
+                * _robust(
+                    abs(oi_point.call_gex) + abs(oi_point.put_gex) if oi_point is not None else 0,
+                    oi_scale,
+                )
+                + proximity_weight * proximity
+            )
+        )
+        neighbors = [
+            candidate
+            for candidate in (
+                points[index - 1] if index > 0 else None,
+                points[index + 1] if index + 1 < len(points) else None,
+            )
+            if candidate is not None
+        ]
+        baseline = (
+            sum(abs(candidate.net_gex) for candidate in neighbors) / len(neighbors)
+            if neighbors
+            else 0
+        )
+        node_strength = abs(point_map[point.strike].net_gex) / baseline if baseline else 0.0
+        scores.append(GexStrikeImportance(point.strike, score, node_strength))
+    return tuple(scores)
+
+
+def _classified_levels(
+    points: tuple[GexByStrike, ...],
+    importance: tuple[GexStrikeImportance, ...],
     *,
     spot: float,
     upper: bool,
-    relative_threshold: float,
-) -> tuple[float | None, float | None]:
-    """Return strongest and nearest-secondary positive Net-GEX magnets on one side."""
-
-    exposures = [
-        (point.strike, point.net_gex)
-        for point in points
-        if (point.strike > spot if upper else point.strike < spot) and point.net_gex > 0
-    ]
-    if not exposures:
-        return None, None
-    major_level, side_peak = max(exposures, key=lambda item: item[1])
-    meaningful = [
-        (strike, exposure)
-        for strike, exposure in exposures
-        if abs(strike - major_level) > 1e-9 and exposure >= side_peak * relative_threshold
-    ]
-    remaining = [item for item in exposures if abs(item[0] - major_level) > 1e-9]
-    candidates = meaningful or remaining
-    secondary = min(candidates, key=lambda item: abs(item[0] - spot))[0] if candidates else None
-    return major_level, secondary
+    node_neighbor_ratio: float,
+    major_minimum_score: int,
+    minor_minimum_score: int,
+    major_levels_per_side: int,
+    minor_levels_per_side: int,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    score_map = {item.strike: item for item in importance}
+    candidates = sorted(
+        (
+            point
+            for point in points
+            if (point.strike > spot if upper else point.strike < spot) and point.net_gex > 0
+        ),
+        key=lambda point: score_map[point.strike].score,
+        reverse=True,
+    )
+    major = tuple(
+        point.strike
+        for point in candidates
+        if score_map[point.strike].score >= major_minimum_score
+        or score_map[point.strike].node_strength >= node_neighbor_ratio
+    )[:major_levels_per_side]
+    minor = tuple(
+        point.strike
+        for point in sorted(candidates, key=lambda point: abs(point.strike - spot))
+        if point.strike not in major and score_map[point.strike].score >= minor_minimum_score
+    )[:minor_levels_per_side]
+    return major, minor
 
 
 def build_gex_snapshot(
@@ -304,7 +428,23 @@ def build_gex_snapshot(
     dividend_yield: float = 0.012,
     regime_thresholds: tuple[float, float, float, float] = DEFAULT_REGIME_THRESHOLDS,
     zone_relative_threshold: float = 0.35,
-    secondary_magnet_relative_threshold: float = 0.15,
+    score_weights: tuple[float, float, float, float, float, float] = (
+        0.35,
+        0.20,
+        0.15,
+        0.10,
+        0.10,
+        0.10,
+    ),
+    robust_percentile: float = 0.90,
+    node_neighbor_ratio: float = 1.80,
+    node_minimum_score: int = 45,
+    major_minimum_score: int = 68,
+    minor_minimum_score: int = 42,
+    magnet_minimum_score: int = 58,
+    magnet_maximum_steps_from_spot: int = 8,
+    major_levels_per_side: int = 2,
+    minor_levels_per_side: int = 2,
     exposure_basis: str = "open_interest",
 ) -> GexSnapshot:
     if exposure_basis not in {"open_interest", "volume"}:
@@ -313,7 +453,7 @@ def build_gex_snapshot(
     grouped: defaultdict[object, list[GexOptionContract]] = defaultdict(list)
     for contract in contracts:
         grouped[contract.expiration].append(contract)
-    expirations = []
+    expirations: list[GexExpiration] = []
     warnings = []
     methods = set()
     for expiration in sorted(grouped):
@@ -330,7 +470,15 @@ def build_gex_snapshot(
             weight_label = "成交量" if exposure_basis == "volume" else "OI"
             warnings.append(f"{expiration:%m/%d} 缺少可用 Gamma/{weight_label}")
             continue
-        expirations.append(_expiration(expiration, points, included))
+        oi_expiration_points, _, _, _ = calculate_gamma_exposure(
+            tuple(grouped[expiration]),
+            spot,
+            now_et,
+            risk_free_rate=risk_free_rate,
+            dividend_yield=dividend_yield,
+            exposure_basis="open_interest",
+        )
+        expirations.append(_expiration(expiration, points, included, oi_expiration_points))
     if not expirations:
         raise ValueError("option chain did not contain usable Gamma and open interest")
     points, included, skipped, method = calculate_gamma_exposure(
@@ -342,6 +490,14 @@ def build_gex_snapshot(
         exposure_basis=exposure_basis,
     )
     methods.add(method)
+    oi_points, _, _, _ = calculate_gamma_exposure(
+        contracts,
+        spot,
+        now_et,
+        risk_free_rate=risk_free_rate,
+        dividend_yield=dividend_yield,
+        exposure_basis="open_interest",
+    )
     net = sum(point.net_gex for point in points)
     total_abs = sum(abs(point.call_gex) + abs(point.put_gex) for point in points)
     ratio = net / total_abs if total_abs else 0.0
@@ -351,18 +507,65 @@ def build_gex_snapshot(
     puts = [point for point in points if point.put_gex < 0]
     call_wall = max(calls, key=lambda item: item.call_gex).strike if calls else None
     put_wall = min(puts, key=lambda item: item.put_gex).strike if puts else None
-    upper_magnet, secondary_upper_magnet = _magnet_levels(
+    importance = _importance(
         points,
+        oi_points,
+        tuple(expirations),
+        spot=spot,
+        now_et=now_et,
+        score_weights=score_weights,
+        robust_percentile=robust_percentile,
+    )
+    major_resistance, minor_resistance = _classified_levels(
+        points,
+        importance,
         spot=spot,
         upper=True,
-        relative_threshold=secondary_magnet_relative_threshold,
+        node_neighbor_ratio=node_neighbor_ratio,
+        major_minimum_score=major_minimum_score,
+        minor_minimum_score=minor_minimum_score,
+        major_levels_per_side=major_levels_per_side,
+        minor_levels_per_side=minor_levels_per_side,
     )
-    lower_magnet, secondary_lower_magnet = _magnet_levels(
+    major_support, minor_support = _classified_levels(
         points,
+        importance,
         spot=spot,
         upper=False,
-        relative_threshold=secondary_magnet_relative_threshold,
+        node_neighbor_ratio=node_neighbor_ratio,
+        major_minimum_score=major_minimum_score,
+        minor_minimum_score=minor_minimum_score,
+        major_levels_per_side=major_levels_per_side,
+        minor_levels_per_side=minor_levels_per_side,
     )
+    score_map = {item.strike: item for item in importance}
+    gamma_nodes = tuple(
+        item.strike
+        for item in sorted(
+            importance,
+            key=lambda item: (item.node_strength, item.score),
+            reverse=True,
+        )
+        if item.node_strength >= node_neighbor_ratio and item.score >= node_minimum_score
+    )[:5]
+    step = _median_step(points)
+    gamma_magnet = None
+    if ratio >= regime_thresholds[1]:
+        magnet_candidates = [
+            point
+            for point in points
+            if point.net_gex > 0
+            and score_map[point.strike].score >= magnet_minimum_score
+            and abs(point.strike - spot) <= step * magnet_maximum_steps_from_spot
+        ]
+        if magnet_candidates:
+            gamma_magnet = max(
+                magnet_candidates,
+                key=lambda point: (
+                    score_map[point.strike].score - 2 * abs(point.strike - spot) / max(step, 1e-9),
+                    score_map[point.strike].node_strength,
+                ),
+            ).strike
     positive_zones = _zones(
         points,
         positive=True,
@@ -376,13 +579,13 @@ def build_gex_snapshot(
     bullish = _trigger(
         spot=spot,
         acceleration_zones=negative_zones,
-        magnet=upper_magnet,
+        magnet=gamma_magnet if gamma_magnet is not None and gamma_magnet > spot else None,
         bullish=True,
     )
     bearish = _trigger(
         spot=spot,
         acceleration_zones=negative_zones,
-        magnet=lower_magnet,
+        magnet=gamma_magnet if gamma_magnet is not None and gamma_magnet < spot else None,
         bullish=False,
     )
     bullish_trigger = bullish.level
@@ -404,11 +607,11 @@ def build_gex_snapshot(
     )
     analysis = (
         f"{basis_label} 当前处于{regime}；净 GEX 占总绝对 GEX 的 {ratio:+.1%}。",
-        f"正 Net GEX 磁吸：上方 {_fmt(upper_magnet)} / {_fmt(secondary_upper_magnet)}；"
-        f"下方 {_fmt(lower_magnet)} / {_fmt(secondary_lower_magnet)}；"
-        f"0 Gamma / Gamma 分界 {_fmt(zero)}。",
+        f"主要压力 {_fmt(major_resistance[0] if major_resistance else None)}；"
+        f"主要支撑 {_fmt(major_support[0] if major_support else None)}；"
+        f"Gamma Magnet {_fmt(gamma_magnet)}；Gamma Flip {_fmt(zero)}。",
         f"Gross Wall 仅作成交结构参考：Call {_fmt(call_wall)}；Put {_fmt(put_wall)}；"
-        "不直接等同于压力或支撑。",
+        "支撑、压力、磁吸与加速区均由同一套实时分类产生，Gamma 不单独代表方向。",
     )
     return GexSnapshot(
         ticker=ticker.upper(),
@@ -433,10 +636,15 @@ def build_gex_snapshot(
         data_warnings=tuple(warnings),
         dealer_sign_assumption=DEALER_SIGN_ASSUMPTION,
         exposure_basis=exposure_basis,
-        upper_magnet=upper_magnet,
-        secondary_upper_magnet=secondary_upper_magnet,
-        lower_magnet=lower_magnet,
-        secondary_lower_magnet=secondary_lower_magnet,
+        gamma_magnet=gamma_magnet,
+        major_resistance=tuple(sorted(major_resistance)),
+        minor_resistance=tuple(sorted(minor_resistance)),
+        major_support=tuple(sorted(major_support, reverse=True)),
+        minor_support=tuple(sorted(minor_support, reverse=True)),
+        gamma_nodes=gamma_nodes,
+        importance_by_strike=importance,
+        oi_by_strike=oi_points,
+        listed_strikes=tuple(sorted({contract.strike for contract in contracts})),
         positive_gex=positive_gex,
         negative_gex=negative_gex,
         near_term_expiration=near_term.expiration,

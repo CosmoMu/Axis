@@ -59,6 +59,7 @@ class GexExpiration:
     put_wall: float | None
     included_contracts: int
     by_strike: tuple[GexByStrike, ...]
+    oi_by_strike: tuple[GexByStrike, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,13 @@ class GexTrigger:
     level: float | None
     target: float | None
     description: str
+
+
+@dataclass(frozen=True, slots=True)
+class GexStrikeImportance:
+    strike: float
+    score: int
+    node_strength: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,10 +108,15 @@ class GexSnapshot:
     data_warnings: tuple[str, ...]
     dealer_sign_assumption: str
     exposure_basis: str = "open_interest"
-    upper_magnet: float | None = None
-    secondary_upper_magnet: float | None = None
-    lower_magnet: float | None = None
-    secondary_lower_magnet: float | None = None
+    gamma_magnet: float | None = None
+    major_resistance: tuple[float, ...] = ()
+    minor_resistance: tuple[float, ...] = ()
+    major_support: tuple[float, ...] = ()
+    minor_support: tuple[float, ...] = ()
+    gamma_nodes: tuple[float, ...] = ()
+    importance_by_strike: tuple[GexStrikeImportance, ...] = ()
+    oi_by_strike: tuple[GexByStrike, ...] = ()
+    listed_strikes: tuple[float, ...] = ()
     positive_gex: float = 0.0
     negative_gex: float = 0.0
     near_term_expiration: date | None = None

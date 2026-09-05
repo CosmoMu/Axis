@@ -96,7 +96,7 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 - `GEX_EXPLORER_MODE=TEST`：Phase 1 只允许 Owner 在 card-testing 使用；当前 startup gate
   拒绝 `MEMBER_LOUNGE`。
 - `GEX_EXPLORER_POLICY=config/gex_explorer.yaml`：expiry、regime、cache、limit、freshness、
-  1 分钟 K 线数量和 renderer policy 单一来源。GEX 期权表面使用 Massive，左侧
+  5 分钟 K 线数量、V7 分类权重和 renderer policy 单一来源。GEX 期权表面使用 Massive，
   盘中 K 线使用现有 `MOOMOO_OPEND_HOST` / `MOOMOO_OPEND_PORT`，不需要新 Secret。
 - `FEATURE_DAILY_SUMMARY_ENABLED=true`：启用收盘总结与 Daily Results；Swing / LEAPS Active
   Summary 使用 Massive 当日正式期权收盘价，Short-Term 使用独立 Tracking 数据。
@@ -110,7 +110,8 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 
 - `AXIS Stock Analyst`：当前已接 Analysis Pipeline。
 - `AXIS GEX Explorer`：Phase 1 已接 Owner-only card-testing Slash Command；Massive 是 GEX
-  surface、现价与 1 分钟 K 线正式 provider，Moomoo 仅运行后台影子比较。仍是 TEST ONLY、
+  surface、现价与 5 分钟 K 线正式 provider，Moomoo 仅运行后台影子比较。V7 使用专业
+  Strike × Expiration Ladder 与 shared intraday classifier。仍是 TEST ONLY、
   read-only，未开放 Member Lounge，也不连接交易接口。
 
 两个模块都在 AXIS 仓库的 `app/market_intelligence/` 内运行，不 import、启动或读取 Cosmos
