@@ -937,9 +937,8 @@ def _scenario_text(
 ) -> tuple[str, str] | None:
     if not scenario:
         return None
-    weight = float(scenario.get("model_weight_percent") or 0)
     if scenario.get("direction_clear") is not True or not path:
-        return "主要预测路径", "当前路径不明确，仅保留关键结构位置。"
+        return "预测路径", "当前方向未确认，先观察关键位置。"
     lines = []
     for index, point in enumerate(path):
         point_type = {
@@ -958,7 +957,7 @@ def _scenario_text(
     invalidation = _analysis_price(scenario.get("invalidation"))
     if invalidation:
         lines.extend(("", f"**失效**\n{invalidation}"))
-    return f"主要预测路径 · {weight:.0f}%", "\n".join(lines)
+    return "预测路径", "\n".join(lines)
 
 
 def build_analysis_review_embed(
@@ -974,9 +973,14 @@ def build_analysis_review_embed(
     }.get(str(payload.get("analysis_type")), "待识别观点")
     embed = discord.Embed(
         title=f"最终分析预览 · {draft.draft_code}",
-        description=str(
-            public_analysis_text(payload.get("title") or payload.get("summary")) or "需要人工整理"
-        ),
+        description="\n".join(
+            dict.fromkeys(
+                str(text)
+                for value in (payload.get("title"), payload.get("summary"))
+                if (text := public_analysis_text(value))
+            )
+        )
+        or "需要人工整理",
         color=DANGER if draft.status == "PARSE_FAILED" else MUTED,
     )
     embed.add_field(
@@ -1002,9 +1006,6 @@ def build_analysis_review_embed(
     levels = _grouped_levels(payload.get("key_levels", []), show_source=True)
     if levels:
         embed.add_field(name="AXIS 结构观察 · 内部来源", value=levels[:1024], inline=False)
-    indicators = _indicator_text(payload.get("indicators", []), show_source=True)
-    if indicators:
-        embed.add_field(name="指标分析 · 内部来源", value=indicators[:1024], inline=False)
     scenario = _scenario_text(payload.get("top_scenario"), payload.get("prediction_path", []))
     if scenario:
         embed.add_field(name=scenario[0], value=scenario[1][:1024], inline=False)
@@ -1022,7 +1023,9 @@ def build_analysis_review_embed(
     if payload.get("risks"):
         embed.add_field(
             name="主要风险",
-            value="\n".join(f"• {public_analysis_text(item)}" for item in payload["risks"])[:1024],
+            value="\n".join(
+                f"• {public_analysis_text(item)}" for item in payload["risks"][:2]
+            )[:1024],
             inline=False,
         )
     if draft.warnings or draft.chart_render_error:
@@ -1058,7 +1061,13 @@ def build_public_analysis_embed(
     stance = _ANALYSIS_STANCE_LABELS[card.stance]
     embed = discord.Embed(
         title=f"{type_label} · {subject}",
-        description=public_analysis_text(card.title or card.summary),
+        description="\n".join(
+            dict.fromkeys(
+                str(text)
+                for value in (card.title, card.summary)
+                if (text := public_analysis_text(value))
+            )
+        ),
         color=ACCENT_GREEN,
     )
     embed.add_field(name="当前观点", value=stance, inline=False)
@@ -1071,45 +1080,20 @@ def build_public_analysis_embed(
     levels = _grouped_levels(card.key_levels, show_source=False)
     if levels:
         embed.add_field(name="AXIS 结构观察", value=levels[:1024], inline=False)
-    profile = card.market_profile
-    profile_lines = []
-    if profile.get("point_of_control") is not None:
-        profile_lines.append(f"**POC**\n{_analysis_price(profile['point_of_control'])}")
-    if profile.get("value_area_low") is not None and profile.get("value_area_high") is not None:
-        profile_lines.append(
-            "**70% Value Area**\n"
-            f"{_analysis_price(profile['value_area_low'])} – "
-            f"{_analysis_price(profile['value_area_high'])}"
-        )
-    if profile.get("money_flow_score") is not None:
-        profile_lines.append(
-            "**资金流向代理**\n"
-            f"{profile.get('money_flow_label') or 'NEUTRAL'} · "
-            f"{float(profile['money_flow_score']):.0f}/100"
-        )
-    if profile_lines:
-        embed.add_field(
-            name="筹码峰与资金分布", value="\n\n".join(profile_lines)[:1024], inline=False
-        )
-    indicators = _indicator_text(card.indicators, show_source=False)
-    if indicators:
-        embed.add_field(name="指标分析", value=indicators[:1024], inline=False)
     scenario = _scenario_text(card.top_scenario, card.prediction_path)
     if scenario:
         embed.add_field(name=scenario[0], value=scenario[1][:1024], inline=False)
     risks = [public_analysis_text(item) for item in card.risks if public_analysis_text(item)]
-    if card.market_conditions:
+    if not risks and card.market_conditions:
         risks.extend(
             public_analysis_text(item)
             for item in card.market_conditions
             if public_analysis_text(item)
         )
-    if card.methodology_notice:
-        risks.append(public_analysis_text(card.methodology_notice))
     if risks:
         embed.add_field(
             name="主要风险",
-            value="\n".join(f"• {item}" for item in dict.fromkeys(risks))[:1024],
+            value="\n".join(f"• {item}" for item in dict.fromkeys(risks[:2]))[:1024],
             inline=False,
         )
     observed = card.observed_at.astimezone(ZoneInfo("America/Toronto"))

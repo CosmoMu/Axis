@@ -13,7 +13,11 @@ import pytest
 from sqlalchemy import func, select
 
 from app.bot.cards import build_analysis_review_embed, build_public_analysis_embed
-from app.bot.views.analysis_views import AnalysisRetryView, AnalysisReviewView
+from app.bot.views.analysis_views import (
+    AnalysisRetryView,
+    AnalysisReviewView,
+    _sync_prediction_path,
+)
 from app.db.base import Base
 from app.db.models import (
     AnalysisDraft,
@@ -1332,6 +1336,35 @@ def test_prediction_chart_refuses_to_fabricate_daily_candles() -> None:
         render_prediction_chart(payload)
 
 
+def test_manager_key_level_edit_rebuilds_chart_path_from_mentor_values() -> None:
+    payload = {
+        "stance": "BULLISH",
+        "current_price": 154.46,
+        "key_levels": [
+            {
+                **mentor_level("KEY_ZONE", 144.0, "回踩关注区"),
+                "price_high": 150.0,
+            },
+            mentor_level("TARGET", 168.0, "第一目标"),
+            mentor_level("TARGET", 175.0, "第二目标"),
+            mentor_level("INVALIDATION", 141.0, "结构失效"),
+        ],
+        "prediction_path": [],
+        "top_scenario": {"direction_clear": False, "model_weight_percent": 62},
+    }
+
+    _sync_prediction_path(payload)
+
+    assert [point["price"] for point in payload["prediction_path"]] == [
+        154.46,
+        147.0,
+        168.0,
+        175.0,
+    ]
+    assert payload["top_scenario"]["direction_clear"] is True
+    assert payload["top_scenario"]["invalidation"] == 141.0
+
+
 @pytest.mark.parametrize("analysis_type", ["MARKET", "TICKER", "SECTOR", "MACRO"])
 def test_all_supported_analysis_types_pass_archive_validation(analysis_type: str) -> None:
     AnalysisPipelineService._validate_archive(valid_analysis_payload(analysis_type=analysis_type))
@@ -1339,12 +1372,16 @@ def test_all_supported_analysis_types_pass_archive_validation(analysis_type: str
 
 def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
     draft_id = uuid.uuid4()
+    payload = {
+        **valid_analysis_payload(),
+        "key_levels": [mentor_level("TARGET", 190.0, "导师目标")],
+    }
     draft = AnalysisDraftSnapshot(
         id=draft_id,
         guild_id=GUILD_ID,
         draft_code="AN-D-TEST",
         status=AnalysisDraftStatus.PENDING_REVIEW.value,
-        normalized=valid_analysis_payload(),
+        normalized=payload,
         mentor_name="Mentor Zero",
         missing_fields=(),
         warnings=(),
@@ -1354,7 +1391,7 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
         revision=1,
         version=3,
         chart_source=None,
-        normalized_mentor=valid_analysis_payload(),
+        normalized_mentor=payload,
         market_context={},
         conflicts=(),
         chart_render_error=None,
@@ -1370,7 +1407,8 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
     retry_ids = {item.custom_id for item in AnalysisRetryView(controller, draft).children}
 
     assert review_ids == {
-        f"axis:analysis:mentor:select:{draft_id.hex}:v3"
+        f"axis:analysis:mentor:select:{draft_id.hex}:v3",
+        f"axis:analysis:level:select:{draft_id.hex}:v3",
     } | {
         f"axis:analysis:{action}:{draft_id.hex}:v3"
         for action in (
@@ -1383,20 +1421,27 @@ def test_analysis_views_have_stable_unique_persistent_component_ids() -> None:
             "delete",
         )
     }
-    mentor_select = next(
-        item for item in review_view.children if isinstance(item, discord.ui.Select)
-    )
+    selects = [item for item in review_view.children if isinstance(item, discord.ui.Select)]
+    mentor_select = selects[0]
+    level_select = selects[1]
     buttons = [item for item in review_view.children if isinstance(item, discord.ui.Button)]
     assert mentor_select.row == 0
+    assert level_select.row == 1
     assert [option.value for option in mentor_select.options if option.default] == [str(mentor_id)]
+    assert any(option.value.startswith("EDIT:") for option in level_select.options)
+    assert {option.value for option in level_select.options if option.value.startswith("NEW:")} >= {
+        "NEW:KEY_ZONE",
+        "NEW:TARGET",
+        "NEW:INVALIDATION",
+    }
     assert [(button.label, button.row) for button in buttons] == [
-        ("编辑", 1),
-        ("预览", 1),
-        ("重新生成文本", 1),
-        ("重新生成图片", 1),
-        ("仅归档", 2),
-        ("归档并发布", 2),
-        ("删除", 2),
+        ("编辑文字", 2),
+        ("预览", 2),
+        ("重新生成文本", 2),
+        ("重新生成图片", 2),
+        ("仅归档", 3),
+        ("归档并发布", 3),
+        ("删除", 3),
     ]
     review_embed = build_analysis_review_embed(draft).to_dict()
     assert review_embed["title"] == "最终分析预览 · AN-D-TEST"

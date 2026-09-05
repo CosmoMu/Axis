@@ -1,6 +1,6 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-04
+**Updated:** 2026-09-05
 
 **Current stage:** GEX Explorer Phase 1 TEST ONLY / Production stabilization
 
@@ -393,8 +393,8 @@ Production status: 已部署。
 
 ## Analysis Pipeline — COMPLETE
 
-Implemented: analysis-input、A-00001 编号、Mentor 下拉、编辑、重写、归档、发布、删除、
-Raw / Normalized / Public Snapshot 与模型 Trace。
+Implemented: analysis-input、A-00001 编号、Mentor 下拉、关键点位逐项下拉编辑/新增/删除、
+简短中文编辑与重写、归档、发布、删除、Raw / Normalized / Public Snapshot 与模型 Trace。
 
 Remaining: 用真实 Mentor 内容继续做质量与移动端 UX 复核。
 
@@ -415,17 +415,20 @@ Tests: 来源优先级、冲突、阈值、fallback 和 card/chart 同源。
 Production status: FEATURE_AXIS_STOCK_ANALYST_ENABLED=true；Reset 后等待第一份 Soft Open
 Mentor input 做真实质量复核。
 
-## Prediction Chart — PARTIAL
+## Prediction Chart — CODE COMPLETE / LIVE MOBILE UX PENDING
 
-Implemented: 确定性 renderer、真实日 K 历史底图、右侧单一预测路径、关键点位水平线、无未来
-假 K 线；输入图片仅作内部证据，Review / Public 只展示 AXIS 根据输入点位与方向重绘的图；
-真实 OHLC 缺失时拒绝合成蜡烛，图片失败不阻塞文字归档。
+Implemented: AXIS 自有 Pilot-style 确定性 renderer、真实日 K、HLX 25 / 90 High-Low EMA
+通道、蓝色起点、黄色关注区、红色失效线、绿色突破/目标线、右侧白色预测路径及 Mentor-first
+点位；输入图片仅作内部证据，Review / Public 只展示 AXIS 根据最终点位与方向重绘的图；真实
+OHLC 缺失时拒绝合成蜡烛，图片失败不阻塞文字归档。
 
 Remaining: 真实 Mentor 输入和移动端 Discord 的视觉验收；当前策略不新增 AI 生图。
 
-Tests: renderer、fallback、路径同源和 source image 不转发。
+Tests: renderer、fallback、路径同源、Manager 点位重建和 source image 不转发；已用数据库保存的
+RDDT 82 根真实日 K 完成本机 1600×900 视觉复核。
 
-Production status: 可生成并发布，但尚未形成完整 UX 验收记录。
+Production status: 新 renderer 与关键点位 Review UI 已部署到 `com.axis.bot`，源码/运行时
+SHA-256 一致，Discord runtime verifier PASS；尚未形成完整移动端 UX 验收记录。
 
 ## Results — COMPLETE
 

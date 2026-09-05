@@ -1,12 +1,32 @@
 # AXIS — Analysis Fusion Pipeline Specification
 
-**版本：** 2026-08-30 Fusion Lock
+**版本：** 2026-09-04 Pilot-style Chart / Concise Card Lock
 
 **状态：** 当前有效 Analysis 规格
 
 本规格定义 Mentor-first、AXIS-fill-missing 的单一最终 Analysis。与旧 Analysis Card、Mentor
 Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path 或 Chart 设计冲突时，
 以本文件为准。
+
+## 2026-09-04 Analysis UX Lock
+
+本节是当前 Analysis 图片、文案与 Review 的最新覆盖规则；与本文后续旧示例冲突时，以本节
+为准。
+
+- Prediction Chart 采用 AXIS 自有的 Cosmos Pilot-style 确定性绘图方法：黑色背景、真实日 K、
+  HLX 25 / 90 High-Low EMA 通道、蓝色起点、黄色关注区、红色失效线、绿色突破/目标线，以及
+  右侧白色结构预测路径。实现代码已复制并收口到 AXIS，不在运行时 import、调用或启动 Cosmos。
+- 历史区域只画 Provider 返回的真实 Daily OHLC；白色路径位于最后一根真实 K 线右侧，不画
+  未来蜡烛。无需使用独立的有底色预测面板或硬分隔线。
+- 所有明确数值严格 Mentor First。导师给出的 Support、Resistance、Key Zone、Breakout、
+  Target 与 Invalidation 不得被 AXIS 推导值替换；AXIS 只补缺失角色，并可在导师点位之间生成
+  不带新价格标签的结构回踩形状。
+- `analysis-review` 在 Mentor 下拉菜单之后固定显示关键点位下拉菜单。Manager 可逐项选择既有
+  点位并单独编辑类型、价格、区间上限和简短说明，也可新增或删除点位。经 Manager 编辑的点位
+  记为 `MENTOR_INPUT`，保存后立即用同一份最终点位重绘图片。
+- Review 与 Public Card 使用简短中文：标题、单句摘要、最多三句条件式核心逻辑、关键点位、
+  预测路径与最多两条主要风险。筹码峰、资金分布代理和指标仍保存于后台，但不再默认堆叠在
+  Public Card。
 
 ## Current Market Intelligence Boundary
 
@@ -899,7 +919,8 @@ Muted Gray
 Minimal Text
 
 预测路径必须从最后一根真实日 K 右侧开始；关键支撑、压力、突破、目标和失效位使用水平线
-贯穿图表，并标注价格。历史区与预测区必须有明显分隔。
+贯穿图表，并标注价格。历史 K 线在最后一个真实交易日结束，右侧只出现白色结构路径；不要求
+额外的有底色预测框或硬分隔线。
 
 
 ==================================================

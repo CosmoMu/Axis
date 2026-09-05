@@ -261,7 +261,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - 与 Signal 完全隔离的 Source queue。
 - Text / image / multi-image ANALYSIS_PARSE 和 ANALYSIS_REWRITE。
 - MARKET / TICKER / SECTOR / MACRO、stance、horizon 和 missing-data safeguards。
-- Mentor 下拉、编辑、重写文本、重新生成图片、仅归档、归档并发布、删除。
+- Mentor 下拉、关键点位逐项下拉编辑/新增/删除、编辑文字、重写文本、重新生成图片、仅归档、
+  归档并发布、删除。
 - A-00001 独立编号、Revision、Archive 和失败重试。
 - 公开层使用中性 AXIS 口吻，不暴露第一人称、作者、Mentor、Source 或模型信息。
 
@@ -276,8 +277,11 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 ## Prediction Chart
 
-- 确定性日 K + 单一路径 renderer：左侧使用 Stock Analyst 取得的真实 Daily OHLC，右侧单独
-  展示预测走势，并在整张图上画出支撑、压力、突破、目标和失效位水平线。
+- Pilot-style 确定性日 K + 单一路径 renderer：使用 Stock Analyst 取得的真实 Daily OHLC、
+  HLX 25 / 90 High-Low EMA 通道，在整张图上画出蓝色起点、黄色关注区、红色失效位、绿色
+  突破/目标位，并在最后一根真实 K 线右侧画白色预测路径。
+- Mentor 点位是数值 Source of Truth；Manager 在 Review 逐项编辑后，卡片路径与 PNG 使用同一
+  份最终点位立即重建。Pilot 绘图方法属于 AXIS 自有代码，运行时不依赖 Cosmos repo。
 - 输入图片仅作内部证据；明确点位与方向由 AXIS renderer 重新绘制，原图不进入 Review 或
   会员频道；缺失时只使用融合层可追溯点位。
 - 不生成未来 K 线，不使用图片生成模型；真实日 K 不足时不合成蜡烛，文字归档继续可用。

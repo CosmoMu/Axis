@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -52,11 +53,306 @@ STRUCTURE_LABELS = {
     "STRUCTURE": "结构位置",
 }
 
+EDITABLE_LEVEL_ROLES = (
+    "KEY_ZONE",
+    "SUPPORT",
+    "RESISTANCE",
+    "PIVOT",
+    "BREAKOUT",
+    "TARGET",
+    "INVALIDATION",
+    "WATCH",
+)
+
 
 def _enum_value(value: str, labels: dict[str, str]) -> str:
     normalized = value.strip().upper()
     reverse = {label: key for key, label in labels.items()}
     return reverse.get(value.strip(), normalized)
+
+
+def _price(value: str, *, required: bool = False) -> float | None:
+    cleaned = value.strip().replace(",", "").removeprefix("$")
+    if not cleaned:
+        if required:
+            raise ValueError("价格不能为空")
+        return None
+    parsed = float(cleaned)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise ValueError("价格必须是大于 0 的数字")
+    return parsed
+
+
+def _sync_prediction_path(payload: dict[str, Any]) -> None:
+    """Keep the deterministic chart route aligned with manager-approved levels."""
+
+    current = payload.get("current_price")
+    if not isinstance(current, (int, float)) or isinstance(current, bool) or current <= 0:
+        current = next(
+            (
+                item.get("price")
+                for item in payload.get("prediction_path", [])
+                if isinstance(item, dict)
+                and item.get("type") == "CURRENT"
+                and isinstance(item.get("price"), (int, float))
+            ),
+            None,
+        )
+    if not isinstance(current, (int, float)) or isinstance(current, bool) or current <= 0:
+        return
+
+    levels = [item for item in payload.get("key_levels", []) if isinstance(item, dict)]
+    bullish = str(payload.get("stance") or "WATCH") != "BEARISH"
+    path: list[dict[str, Any]] = [
+        {"type": "CURRENT", "price": float(current), "label": "当前", "sequence": 0}
+    ]
+
+    zones = [
+        item
+        for item in levels
+        if item.get("role") in {"KEY_ZONE", "SUPPORT", "RESISTANCE", "PIVOT"}
+        and isinstance(item.get("price"), (int, float))
+        and (
+            (bullish and float(item["price"]) <= float(current))
+            or (not bullish and float(item["price"]) >= float(current))
+        )
+    ]
+    if zones:
+        zone = min(zones, key=lambda item: abs(float(item["price"]) - float(current)))
+        zone_price = (
+            float(zone["price"]) + float(zone.get("price_high") or zone["price"])
+        ) / 2
+        path.append(
+            {
+                "type": "STRUCTURE",
+                "price": zone_price,
+                "label": "关注区",
+                "sequence": len(path),
+            }
+        )
+
+    objectives = [
+        item
+        for item in levels
+        if item.get("role") in {"BREAKOUT", "RESISTANCE", "SUPPORT", "TARGET"}
+        and isinstance(item.get("price"), (int, float))
+        and (
+            (bullish and float(item["price"]) > float(current))
+            or (not bullish and float(item["price"]) < float(current))
+        )
+    ]
+    objectives.sort(key=lambda item: float(item["price"]), reverse=not bullish)
+    for item in objectives[:4]:
+        value = float(item["price"])
+        if any(abs(value - float(point["price"])) / value < 0.0005 for point in path):
+            continue
+        role = str(item.get("role"))
+        path.append(
+            {
+                "type": "BREAKOUT" if role == "BREAKOUT" else "TARGET",
+                "price": value,
+                "label": (
+                    "关键突破"
+                    if role == "BREAKOUT"
+                    else str(item.get("description") or STRUCTURE_LABELS.get(role) or "目标")
+                )[:80],
+                "sequence": len(path),
+            }
+        )
+
+    top = dict(payload.get("top_scenario") or {})
+    invalidation = next(
+        (
+            item.get("price")
+            for item in levels
+            if item.get("role") == "INVALIDATION" and item.get("price") is not None
+        ),
+        None,
+    )
+    if invalidation is not None:
+        top["invalidation"] = invalidation
+    else:
+        top.pop("invalidation", None)
+    if len(path) < 2:
+        payload["prediction_path"] = []
+        top["direction_clear"] = False
+        payload["top_scenario"] = top
+        return
+    payload["prediction_path"] = path
+    top["direction_clear"] = True
+    top.setdefault("model_weight_percent", 0)
+    payload["top_scenario"] = top
+
+
+class AnalysisLevelModal(discord.ui.Modal):
+    def __init__(
+        self,
+        controller: AnalysisPipelineCog,
+        draft: AnalysisDraftSnapshot,
+        *,
+        level_index: int | None = None,
+        new_role: str | None = None,
+    ) -> None:
+        levels = draft.normalized.get("key_levels", [])
+        existing = (
+            levels[level_index]
+            if level_index is not None
+            and level_index < len(levels)
+            and isinstance(levels[level_index], dict)
+            else {}
+        )
+        role = str(existing.get("role") or new_role or "WATCH")
+        super().__init__(
+            title=f"{'新增' if level_index is None else '编辑'}点位 · {draft.draft_code}",
+            timeout=300,
+        )
+        self.controller = controller
+        self.draft = draft
+        self.level_index = level_index
+        self.role = discord.ui.TextInput(
+            label="点位类型",
+            default=STRUCTURE_LABELS.get(role, role),
+            placeholder="关键区域 / 支撑 / 压力 / 突破 / 目标 / 失效",
+            max_length=20,
+        )
+        self.value = discord.ui.TextInput(
+            label="价格",
+            default=str(existing.get("price") or ""),
+            placeholder="例如 38.50",
+            max_length=24,
+        )
+        self.upper = discord.ui.TextInput(
+            label="区间上限（单一价位请留空）",
+            default=str(existing.get("price_high") or ""),
+            required=False,
+            placeholder="例如 39.20",
+            max_length=24,
+        )
+        self.description = discord.ui.TextInput(
+            label="简短说明",
+            default=str(existing.get("description") or existing.get("note") or ""),
+            required=False,
+            placeholder="例如：站稳后确认突破",
+            max_length=180,
+        )
+        self.remove = discord.ui.TextInput(
+            label="删除该点位（需要删除时输入：删除）",
+            required=False,
+            placeholder="平时留空",
+            max_length=8,
+        )
+        for item in (self.role, self.value, self.upper, self.description, self.remove):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            payload = dict(self.draft.normalized)
+            levels = [
+                dict(item)
+                for item in payload.get("key_levels", [])
+                if isinstance(item, dict)
+            ]
+            deleting = self.remove.value.strip() == "删除"
+            if deleting:
+                if self.level_index is None or self.level_index >= len(levels):
+                    raise ValueError("新点位尚未保存，无法删除")
+                levels.pop(self.level_index)
+                message = "点位已删除。"
+            else:
+                role = _enum_value(self.role.value, STRUCTURE_LABELS)
+                if role not in EDITABLE_LEVEL_ROLES:
+                    raise ValueError("点位类型无效")
+                level = {
+                    "symbol": (payload.get("symbols") or [None])[0],
+                    "role": role,
+                    "level_type": role,
+                    "price": _price(self.value.value, required=True),
+                    "price_high": _price(self.upper.value),
+                    "strength": None,
+                    "description": self.description.value.strip() or None,
+                    "note": self.description.value.strip() or None,
+                    "source": "MENTOR_INPUT",
+                }
+                if self.level_index is None:
+                    levels.append(level)
+                    message = "导师点位已新增。"
+                else:
+                    levels[self.level_index] = level
+                    message = "导师点位已更新。"
+            payload["key_levels"] = levels
+            projection = payload.get("source_projection")
+            if isinstance(projection, dict) and projection.get("present") is True:
+                payload["source_projection"] = {
+                    "present": False,
+                    "attachment_index": None,
+                    "evidence": "关键点位已由管理员确认并编辑。",
+                    "path_points": [],
+                }
+            _sync_prediction_path(payload)
+            updated = await self.controller.service.edit(
+                self.draft.id,
+                payload,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                message,
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+
+class AnalysisLevelSelect(discord.ui.Select):
+    def __init__(self, controller: AnalysisPipelineCog, draft: AnalysisDraftSnapshot) -> None:
+        self.controller = controller
+        self.draft = draft
+        options: list[discord.SelectOption] = []
+        for index, item in enumerate(draft.normalized.get("key_levels", [])[:17]):
+            if not isinstance(item, dict) or item.get("price") is None:
+                continue
+            role = str(item.get("role") or item.get("level_type") or "WATCH")
+            source = "导师" if item.get("source") == "MENTOR_INPUT" else "AXIS"
+            options.append(
+                discord.SelectOption(
+                    label=(
+                        f"编辑 · {STRUCTURE_LABELS.get(role, role)} · "
+                        f"{float(item['price']):g} · {source}"
+                    )[:100],
+                    value=f"EDIT:{index}",
+                )
+            )
+        for role in EDITABLE_LEVEL_ROLES:
+            options.append(
+                discord.SelectOption(
+                    label=f"＋ 新增{STRUCTURE_LABELS[role]}",
+                    value=f"NEW:{role}",
+                )
+            )
+        super().__init__(
+            placeholder="选择关键点位进行编辑或新增",
+            options=options[:25],
+            row=1,
+            custom_id=f"axis:analysis:level:select:{draft.id.hex}:v{draft.version}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.controller.authorize(interaction):
+            return
+        action, value = self.values[0].split(":", maxsplit=1)
+        await interaction.response.send_modal(
+            AnalysisLevelModal(
+                self.controller,
+                self.draft,
+                level_index=int(value) if action == "EDIT" else None,
+                new_role=value if action == "NEW" else None,
+            )
+        )
 
 
 class AnalysisEditModal(discord.ui.Modal):
@@ -349,7 +645,7 @@ class AnalysisEditSelect(discord.ui.Select):
             placeholder="选择编辑内容",
             options=(
                 discord.SelectOption(label="标题、方向与核心逻辑", value="OVERVIEW"),
-                discord.SelectOption(label="点位、指标、路径与风险", value="STRUCTURE"),
+                discord.SelectOption(label="指标、路径与风险（高级）", value="STRUCTURE"),
             ),
             custom_id=f"axis:analysis:edit:select:{draft.id.hex}:v{draft.version}",
         )
@@ -469,14 +765,15 @@ class AnalysisReviewView(discord.ui.View):
         self.controller = controller
         self.draft = draft
         self.add_item(AnalysisMentorSelect(controller, draft, mentor_choices))
+        self.add_item(AnalysisLevelSelect(controller, draft))
         definitions = (
-            ("编辑", "edit", discord.ButtonStyle.primary, 1, self.edit),
-            ("预览", "preview", discord.ButtonStyle.primary, 1, self.preview),
-            ("重新生成文本", "rewrite", discord.ButtonStyle.secondary, 1, self.rewrite),
-            ("重新生成图片", "chart", discord.ButtonStyle.secondary, 1, self.chart),
-            ("仅归档", "archive", discord.ButtonStyle.secondary, 2, self.archive),
-            ("归档并发布", "publish", discord.ButtonStyle.success, 2, self.publish),
-            ("删除", "delete", discord.ButtonStyle.danger, 2, self.delete),
+            ("编辑文字", "edit", discord.ButtonStyle.primary, 2, self.edit),
+            ("预览", "preview", discord.ButtonStyle.primary, 2, self.preview),
+            ("重新生成文本", "rewrite", discord.ButtonStyle.secondary, 2, self.rewrite),
+            ("重新生成图片", "chart", discord.ButtonStyle.secondary, 2, self.chart),
+            ("仅归档", "archive", discord.ButtonStyle.secondary, 3, self.archive),
+            ("归档并发布", "publish", discord.ButtonStyle.success, 3, self.publish),
+            ("删除", "delete", discord.ButtonStyle.danger, 3, self.delete),
         )
         for label, action, style, row, callback in definitions:
             button = discord.ui.Button(

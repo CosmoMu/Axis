@@ -183,12 +183,14 @@ def _key_levels(payload: dict[str, Any], points: list[dict[str, Any]]) -> list[d
         if not isinstance(item, dict):
             continue
         price = _finite_price(item.get("price"))
-        if price is None:
+        price_high = _finite_price(item.get("price_high"))
+        if price is None and price_high is None:
             continue
         role = str(item.get("role") or item.get("level_type") or "WATCH").upper()
         candidates.append(
             {
-                "price": price,
+                "price": price or price_high,
+                "price_high": price_high,
                 "role": role,
                 "label": str(item.get("description") or "")[:28],
                 "rank": role_rank.get(role, 8),
@@ -199,15 +201,24 @@ def _key_levels(payload: dict[str, Any], points: list[dict[str, Any]]) -> list[d
         invalidation = _finite_price(scenario.get("invalidation"))
         if invalidation is not None:
             candidates.append(
-                {"price": invalidation, "role": "INVALIDATION", "label": "", "rank": 0}
+                {
+                    "price": invalidation,
+                    "price_high": None,
+                    "role": "INVALIDATION",
+                    "label": "",
+                    "rank": 0,
+                }
             )
     for point in points[1:]:
         if point["price"] is None:
             continue
-        role = "TARGET" if point["type"] == "TARGET" else "BREAKOUT"
+        if point["type"] not in {"TARGET", "BREAKOUT"}:
+            continue
+        role = point["type"]
         candidates.append(
             {
                 "price": point["price"],
+                "price_high": None,
                 "role": role,
                 "label": point["label"],
                 "rank": role_rank[role],
@@ -231,15 +242,81 @@ def _key_levels(payload: dict[str, Any], points: list[dict[str, Any]]) -> list[d
     return unique[:8]
 
 
+def _ema_channel(values: list[float], period: int) -> list[float]:
+    """Cosmos Pilot HLX-compatible full EMA channel, copied into AXIS ownership."""
+
+    if not values:
+        return []
+    alpha = 2 / (period + 1)
+    output = [values[0]]
+    for value in values[1:]:
+        output.append(value * alpha + output[-1] * (1 - alpha))
+    return output
+
+
+def _hlx_ladder_channels(bars: list[DailyBar]) -> tuple[list[float], ...]:
+    highs = [bar.high for bar in bars]
+    lows = [bar.low for bar in bars]
+    return (
+        _ema_channel(highs, 25),
+        _ema_channel(lows, 25),
+        _ema_channel(highs, 90),
+        _ema_channel(lows, 90),
+    )
+
+
+def _pilot_route(
+    points: list[dict[str, Any]],
+    levels: list[dict[str, Any]],
+    *,
+    stance: str,
+    source_derived: bool,
+) -> list[tuple[float, str | None]]:
+    """Build the Pilot-style pullback/confirm/target shape without inventing key levels."""
+
+    current = float(points[0]["plot_price"])
+    if source_derived:
+        return [
+            (float(item["plot_price"]), str(item.get("label") or "") or None)
+            for item in points
+        ]
+
+    bullish = stance != "BEARISH"
+    candidates: list[tuple[float, str | None]] = [(current, "当前")]
+    zones = [item for item in levels if item["role"] in {"KEY_ZONE", "SUPPORT", "RESISTANCE"}]
+    directional_zones = [
+        item
+        for item in zones
+        if (bullish and float(item["price"]) <= current)
+        or (not bullish and float(item["price"]) >= current)
+    ]
+    if directional_zones:
+        zone = min(directional_zones, key=lambda item: abs(float(item["price"]) - current))
+        high = float(zone.get("price_high") or zone["price"])
+        candidates.append(((float(zone["price"]) + high) / 2, "关注区"))
+
+    for item in points[1:]:
+        price = float(item["plot_price"])
+        if all(abs(price - existing[0]) / price >= 0.0005 for existing in candidates):
+            candidates.append((price, str(item.get("label") or "结构位置")))
+
+    if len(candidates) >= 4:
+        # The Pilot entry chart uses one restrained retracement after the first
+        # objective. It is a route shape between Mentor levels, not a new level.
+        first_objective = 2 if len(directional_zones) else 1
+        if first_objective + 1 < len(candidates):
+            before = candidates[first_objective - 1][0]
+            peak = candidates[first_objective][0]
+            retrace = before + (peak - before) * 0.55
+            candidates.insert(first_objective + 1, (retrace, None))
+    return candidates[:7]
+
+
 def render_prediction_chart(
     payload: dict[str, Any],
     daily_bars: Iterable[DailyBar | dict[str, Any]] | None = None,
 ) -> bytes:
-    """Render real daily candles plus one deterministic structural forecast path.
-
-    Historical candles always come from provider OHLC. The forecast area contains a line only;
-    it never fabricates future candles.
-    """
+    """Render real daily candles with Mentor-first levels and one Pilot-style route."""
 
     try:
         from PIL import Image, ImageDraw
@@ -264,9 +341,16 @@ def render_prediction_chart(
         item for item in levels if relevant_floor <= item["price"] <= relevant_ceiling
     ]
 
+    route = _pilot_route(
+        points,
+        levels,
+        stance=str(payload.get("stance") or "WATCH").upper(),
+        source_derived=source_derived,
+    )
     values = [*lows, *highs]
-    values.extend(item["plot_price"] for item in points)
+    values.extend(price for price, _ in route)
     values.extend(item["price"] for item in levels)
+    values.extend(item["price_high"] for item in levels if item.get("price_high") is not None)
     floor, ceiling = min(values), max(values)
     padding = max((ceiling - floor) * 0.075, bars[-1].close * 0.006)
     floor, ceiling = floor - padding, ceiling + padding
@@ -274,60 +358,33 @@ def render_prediction_chart(
         raise PredictionChartError("DAILY_K_RANGE_INVALID")
 
     width, height = 1600, 900
-    image = Image.new("RGB", (width, height), "#040807")
+    image = Image.new("RGB", (width, height), "#05070A")
     draw = ImageDraw.Draw(image)
-    white, muted, secondary, green = "#F4F6F2", "#7D8984", "#A2AEA9", "#48D597"
-    red, grid, panel = "#C86A72", "#15201C", "#07100D"
-    left, history_right, forecast_left, right = 92, 1120, 1155, 1490
-    top, bottom = 168, 758
+    white, muted, green = "#F3F4F2", "#68716E", "#42CB8A"
+    red, grid, cyan, gold, blue = "#E64A68", "#17201E", "#00AEEB", "#E3BE4D", "#3F73E6"
+    left, history_right, forecast_left, right = 58, 1080, 1110, 1518
+    top, bottom = 48, 824
 
-    draw.rounded_rectangle((58, 138, 1534, 797), radius=18, fill=panel, outline="#1B2B25", width=2)
-    draw.rectangle((forecast_left, top, right, bottom), fill="#091511")
     for index in range(6):
         y_pos = top + (bottom - top) * index / 5
         draw.line((left, y_pos, right, y_pos), fill=grid, width=1)
         price = ceiling - (ceiling - floor) * index / 5
         draw.text(
-            (right - 6, y_pos + 7),
+            (right + 8, y_pos),
             f"{price:,.2f}",
-            font=_font(15, bold=True),
+            font=_font(13, bold=True),
             fill=muted,
-            anchor="ra",
+            anchor="lm",
         )
 
     def y(price: float) -> float:
         return bottom - (price - floor) / (ceiling - floor) * (bottom - top)
 
-    ticker = ", ".join(str(item) for item in payload.get("symbols", [])[:2]) or "AXIS"
-    market_as_of = str(payload.get("market_as_of") or bars[-1].timestamp.date().isoformat())[:10]
-    draw.text((74, 43), f"{ticker} · 日 K 结构预测", font=_font(38, bold=True), fill=white)
-    draw.text(
-        (74, 98),
-        f"1D · 截至 {market_as_of} · 历史蜡烛为真实行情",
-        font=_font(20, bold=True),
-        fill=secondary,
-    )
-    draw.text(
-        (1515, 55),
-        "AXIS ANALYSIS",
-        font=_font(22, bold=True),
-        fill=green,
-        anchor="ra",
-    )
-    draw.text((left, 151), "历史日 K", font=_font(16, bold=True), fill=muted, anchor="ls")
-    draw.text(
-        (forecast_left + 14, 151),
-        "预测走势",
-        font=_font(16, bold=True),
-        fill=green,
-        anchor="ls",
-    )
-
     candle_step = (history_right - left) / len(bars)
     candle_width = max(5, int(candle_step * 0.58))
     for index, bar in enumerate(bars):
         x_pos = left + candle_step * (index + 0.5)
-        color = green if bar.close >= bar.open else red
+        color = white if bar.close >= bar.open else red
         draw.line((x_pos, y(bar.high), x_pos, y(bar.low)), fill=color, width=2)
         upper, lower = sorted((y(bar.open), y(bar.close)))
         lower = max(lower, upper + 2)
@@ -336,128 +393,151 @@ def render_prediction_chart(
             fill=color,
         )
 
-    closes = [item.close for item in bars]
-    ema20 = _ema(closes, 20)
-    ema_points = [
-        (left + candle_step * (index + 0.5), y(value))
-        for index, value in enumerate(ema20)
-        if value is not None
-    ]
-    if len(ema_points) > 1:
-        draw.line(ema_points, fill="#D8C67E", width=2, joint="curve")
-        draw.text(
-            (history_right - 8, top + 17),
-            "EMA20",
-            font=_font(13, bold=True),
-            fill="#D8C67E",
-            anchor="ra",
-        )
+    for channel, color in zip(_hlx_ladder_channels(bars), (cyan, cyan, gold, gold), strict=True):
+        channel_points = [
+            (left + candle_step * (index + 0.5), y(value))
+            for index, value in enumerate(channel)
+        ]
+        draw.line(channel_points, fill=color, width=3, joint="curve")
 
-    role_names = {
-        "INVALIDATION": "失效",
-        "SUPPORT": "支撑",
-        "KEY_ZONE": "关键区",
-        "PIVOT": "枢轴",
-        "BREAKOUT": "突破",
-        "RESISTANCE": "压力",
-        "TARGET": "目标",
-        "WATCH": "关注",
-    }
-    role_colors = {
-        "INVALIDATION": "#A8656C",
-        "SUPPORT": "#6F8D84",
-        "KEY_ZONE": "#7F948C",
-        "PIVOT": "#8A948F",
-        "BREAKOUT": "#7CAF99",
-        "RESISTANCE": "#A99A73",
-        "TARGET": "#48D597",
-        "WATCH": "#7D8984",
-    }
-    label_positions: list[float] = []
-    for level in sorted(levels, key=lambda item: item["price"], reverse=True):
-        actual_y = y(level["price"])
-        color = role_colors.get(level["role"], muted)
-        draw.line((left, actual_y, right, actual_y), fill=color, width=2)
-        label_y = actual_y
-        while any(abs(label_y - occupied) < 27 for occupied in label_positions):
-            label_y += 28
-        label_y = min(max(label_y, top + 14), bottom - 14)
-        label_positions.append(label_y)
-        if abs(label_y - actual_y) > 2:
-            draw.line((right - 182, actual_y, right - 145, label_y), fill=color, width=1)
-        role = role_names.get(level["role"], "关键位")
-        label = f"{role}  {level['price']:,.2f}"
-        draw.rounded_rectangle(
-            (right - 142, label_y - 14, right - 7, label_y + 14),
-            radius=7,
-            fill="#0B1713",
-            outline=color,
-            width=1,
-        )
-        draw.text((right - 14, label_y), label, font=_font(14, bold=True), fill=color, anchor="rm")
-
-    draw.line(
-        (forecast_left - 18, top, forecast_left - 18, bottom),
-        fill="#365047",
-        width=2,
+    current_y = y(bars[-1].close)
+    draw.line((left, current_y, right, current_y), fill=blue, width=2)
+    draw.text(
+        (right - 8, current_y - 9),
+        f"起点  {bars[-1].close:,.2f}",
+        font=_font(14, bold=True),
+        fill="#6F9CF4",
+        anchor="rb",
     )
-    forecast_width = right - forecast_left - 160
+
+    zones = [
+        item
+        for item in levels
+        if item["role"] == "KEY_ZONE"
+        or (
+            item.get("price_high") is not None
+            and item["role"] in {"SUPPORT", "RESISTANCE"}
+        )
+    ]
+    for zone in zones[:1]:
+        low, high = sorted((float(zone["price"]), float(zone.get("price_high") or zone["price"])))
+        zone_top, zone_bottom = sorted((y(high), y(low)))
+        if zone_bottom - zone_top < 8:
+            zone_top -= 4
+            zone_bottom += 4
+        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        ImageDraw.Draw(overlay).rectangle(
+            (left, zone_top, right, zone_bottom),
+            fill=(139, 104, 21, 55),
+            outline=(139, 104, 21, 220),
+        )
+        image = Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(image)
+        draw.text(
+            (right - 8, (zone_top + zone_bottom) / 2),
+            f"关注区  {low:,.2f}–{high:,.2f}" if high != low else f"关注区  {low:,.2f}",
+            font=_font(13, bold=True),
+            fill=gold,
+            anchor="rm",
+        )
+
+    target_candidates = [
+        item for item in levels if item["role"] in {"BREAKOUT", "RESISTANCE", "TARGET"}
+    ]
+    bullish = str(payload.get("stance") or "WATCH").upper() != "BEARISH"
+    target_candidates.sort(key=lambda item: float(item["price"]), reverse=not bullish)
+    target_index = 0
+    for level in target_candidates[:4]:
+        level_y = y(float(level["price"]))
+        color = "#236B49" if level["role"] != "TARGET" else "#238A54"
+        if level["role"] == "BREAKOUT":
+            label = "突破"
+        else:
+            target_index += 1
+            label = f"目标{target_index}"
+        draw.line((left, level_y, right, level_y), fill=color, width=2)
+        high = float(level.get("price_high") or level["price"])
+        price_label = (
+            f"{float(level['price']):,.2f}–{high:,.2f}"
+            if abs(high - float(level["price"])) > 1e-9
+            else f"{float(level['price']):,.2f}"
+        )
+        draw.text(
+            (right - 8, level_y - 8),
+            f"{label}  {price_label}",
+            font=_font(13, bold=True),
+            fill=green,
+            anchor="rb",
+        )
+
+    invalidation = next((item for item in levels if item["role"] == "INVALIDATION"), None)
+    if invalidation is not None:
+        invalidation_y = y(float(invalidation["price"]))
+        draw.line((left, invalidation_y, right, invalidation_y), fill="#A93244", width=2)
+        draw.text(
+            (right - 8, invalidation_y - 8),
+            f"失效  {float(invalidation['price']):,.2f}",
+            font=_font(13, bold=True),
+            fill="#D46A78",
+            anchor="rb",
+        )
+
+    for level in (
+        item
+        for item in levels
+        if item["role"] in {"SUPPORT", "PIVOT", "WATCH"}
+        and item.get("price_high") is None
+    ):
+        level_y = y(float(level["price"]))
+        draw.line((left, level_y, right, level_y), fill="#315149", width=1)
+        draw.text(
+            (right - 8, level_y + 8),
+            f"支撑  {float(level['price']):,.2f}",
+            font=_font(12, bold=True),
+            fill="#6E9C8D",
+            anchor="rt",
+        )
+
     path_coordinates = [
         (
-            forecast_left + index * forecast_width / max(len(points) - 1, 1),
-            y(item["plot_price"]),
+            forecast_left + index * (right - forecast_left) / max(len(route) - 1, 1),
+            y(price),
         )
-        for index, item in enumerate(points)
+        for index, (price, _) in enumerate(route)
     ]
-    draw.line(path_coordinates, fill=green, width=6, joint="curve")
-    for index, ((x_pos, y_pos), point) in enumerate(zip(path_coordinates, points, strict=True)):
-        is_current = index == 0 or point["type"] == "CURRENT"
-        color = white if is_current else green
-        radius = 8 if is_current else 7
-        draw.ellipse((x_pos - radius, y_pos - radius, x_pos + radius, y_pos + radius), fill=color)
-        if index == 0:
-            continue
-        price_text = f"{point['price']:,.2f}" if point["price"] is not None else "方向"
-        label_y = y_pos - 31 if index % 2 else y_pos + 30
-        draw.text(
-            (x_pos, label_y),
-            f"{point['label']} · {price_text}",
-            font=_font(14, bold=True),
-            fill=white,
-            anchor="mb" if index % 2 else "mt",
-        )
-
-    last_candle_y = y(bars[-1].close)
+    draw.line(path_coordinates, fill=white, width=4, joint="curve")
+    for x_pos, y_pos in path_coordinates:
+        draw.ellipse((x_pos - 5, y_pos - 5, x_pos + 5, y_pos + 5), fill=white)
     draw.line(
-        (history_right - 15, last_candle_y, forecast_left, path_coordinates[0][1]),
+        (history_right, current_y, forecast_left, path_coordinates[0][1]),
         fill=white,
         width=2,
     )
     draw.text(
-        (forecast_left + 4, path_coordinates[0][1] - 16),
-        f"当前 {bars[-1].close:,.2f}",
+        (forecast_left, top + 10),
+        "预测路径",
         font=_font(14, bold=True),
-        fill=white,
-        anchor="ls",
+        fill=muted,
     )
 
     date_indexes = sorted({0, len(bars) // 3, len(bars) * 2 // 3, len(bars) - 1})
     for index in date_indexes:
         x_pos = left + candle_step * (index + 0.5)
         draw.text(
-            (x_pos, bottom + 19),
+            (x_pos, bottom + 17),
             bars[index].timestamp.strftime("%m/%d"),
             font=_font(14, bold=True),
             fill=muted,
             anchor="ma",
         )
 
-    basis = "输入点位重绘" if source_derived else "融合结构路径"
+    market_as_of = str(payload.get("market_as_of") or bars[-1].timestamp.date().isoformat())[:10]
+    basis = "导师路径重绘" if source_derived else "导师点位 · AXIS 路径"
     draw.text(
-        (74, 840),
-        f"{basis} · 关键点位为水平线 · 右侧仅为预测路径，不代表未来真实 K 线",
-        font=_font(17, bold=True),
-        fill=secondary,
+        (left, 872),
+        f"{basis} · 真实日 K 截至 {market_as_of} · 右侧为结构路径，不是未来 K 线",
+        font=_font(14, bold=True),
+        fill=muted,
     )
     output = BytesIO()
     image.save(output, format="PNG", optimize=True)

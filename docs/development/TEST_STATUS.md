@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-09-04
+**Date:** 2026-09-05
 
 ## Summary
 
-- Full pytest suite: PASS — 307 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 308 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -14,8 +14,8 @@
 - Database verifier: PASS
 - Discord runtime verifier: PASS
 - Analysis Fusion verifier: PASS
-- Analysis 日 K Prediction Chart：PASS — 真实 Daily OHLC、关键位水平线、单一预测路径、
-  缺失 OHLC 时拒绝合成蜡烛
+- Analysis Pilot-style 日 K Prediction Chart：PASS — 真实 Daily OHLC、HLX 25 / 90
+  High-Low EMA、Mentor-first 关键位、白色单一预测路径、缺失 OHLC 时拒绝合成蜡烛
 - Stripe Test setup verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe Test external E2E verifier: HISTORICAL PASS / NOT RERUN AFTER KEY ROTATION REQUIREMENT
 - Stripe dual-environment / kill switch / livemode / pricing / reconciliation regression: PASS
@@ -155,10 +155,12 @@ Membership / Stripe:
 Analysis:
 
 - Signal / Analysis queue 隔离、四类 Analysis、text/image/multi-image 和 strict schema。
-- Mentor select、edit、rewrite、archive-only、archive+publish、delete 和 publication retry。
+- Mentor select、关键点位逐项下拉编辑/新增/删除、edit、rewrite、archive-only、
+  archive+publish、delete 和 publication retry。
 - Raw / Mentor / Stock Analyst / Final Fused / Public Snapshot traceability。
 - Mentor-first / fill-missing、provenance、conflict、scenario gate 和 safe fallback。
-- 确定性 Prediction Chart、无未来 K 线、source image 不转发和 renderer failure isolation。
+- Pilot-style 确定性 Prediction Chart、Manager 点位重建、无未来 K 线、source image 不转发和
+  renderer failure isolation；使用已保存的 RDDT 82 根真实日 K 完成 1600×900 视觉复核。
 - Analysis 与独立 GEX surface 保持隔离。
 
 GEX Explorer Phase 1:
@@ -314,7 +316,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 307 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 308 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 

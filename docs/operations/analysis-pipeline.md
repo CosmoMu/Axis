@@ -25,9 +25,10 @@ analysis-input
 发生 `.webp` 文件名与 PNG MIME 不一致时，以真实图片签名归一化，非真实图片仍拒绝。
 
 Ticker Analysis 只在恰好识别出一个 symbol 时调用 AXIS Stock Analyst。引擎通过本机
-Moomoo OpenD 读取日 K，不 import 或启动 Cosmos。Prediction Chart 左侧使用真实 Daily OHLC
-蜡烛，右侧只画结构预测路径，关键点位以水平线标注；不得生成未来假 K 线或在取数失败时合成
-蜡烛。Mentor 明确表达的观点、点位、目标、失效和
+Moomoo OpenD 读取日 K，不 import 或启动 Cosmos。Prediction Chart 使用 AXIS 内部持有的
+Pilot-style renderer：真实 Daily OHLC 蜡烛、HLX 25 / 90 High-Low EMA 通道、全宽关键位和
+最后一根真实 K 线右侧的白色结构路径；不得生成未来假 K 线或在取数失败时合成蜡烛。Mentor
+明确表达的观点、点位、目标、失效和
 指标是 Source of Truth；AXIS 只补同角色缺失的结构、资金流代理、板块相对强度、指标和情景。
 Stock Analyst 不可用时保留 Mentor View 并加入安全
 warning，只使用 LLM 对原始 input 的忠实整理，不让整条 Analysis 失败。
@@ -36,7 +37,8 @@ Source 原图只作为 LLM 解析证据，公开文字不得依赖“图中/箭�
 个模型情景，公开只使用 Top Scenario；Top weight 小于 50%，或 Top1 与 Top2 差小于 10%，
 不显示强方向路径。通过门槛后，确定性 PIL renderer 使用与卡片相同的 `prediction_path`，在
 真实日 K 底图右侧生成单一结构路径并标出关键水平线，不画未来假 K 线。Renderer 失败不阻止
-文字归档，可在 Review 重试。
+文字归档，可在 Review 重试。Public Card 默认只保留简短标题/摘要、核心逻辑、点位、路径和
+最多两条风险；指标与资金分布代理继续归档但不默认公开堆叠。
 
 归档同时保存 Raw Source、Normalized Mentor View、Stock Analyst Snapshot、Final Fused
 Analysis 与 Public Card Snapshot。点位、指标分别标记 `MENTOR_INPUT` / `STOCK_ANALYST`；
@@ -48,8 +50,10 @@ Analysis 与 Public Card Snapshot。点位、指标分别标记 `MENTOR_INPUT` /
 
 ## 审核规则
 
-- Review 主卡第一行直接显示 Mentor 下拉菜单；第二行是编辑、重新生成文本、重新生成图片；
-  第三行是仅归档、归档并发布、删除。发布后的主卡保留在 `analysis-review` 并移除操作组件。
+- Review 主卡第一行直接显示 Mentor 下拉菜单，第二行显示可逐项编辑/新增/删除的关键点位下拉
+  菜单；第三行是编辑文字、预览、重新生成文本、重新生成图片；第四行是仅归档、归档并发布、
+  删除。点位表单一个输入框只填写一个字段，保存后立即按最终点位重绘。发布后的主卡保留在
+  `analysis-review` 并移除操作组件。
 - 操作产生的 ephemeral 成功提示 4 秒后删除，错误提示 12 秒后删除；编辑与文本重写的
   ephemeral 选择菜单 180 秒后删除。
 - 必须选择 Active Mentor 才能归档。

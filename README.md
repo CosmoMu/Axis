@@ -17,7 +17,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
 - GEX Explorer: PHASE 1 CHINESE 1M K-LINE + GEX HEATMAP / TEST ONLY / MEMBER LOUNGE NOT LAUNCHED
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 307 passed；Ruff / compileall / database / Discord runtime PASS
+- Latest automated regression: 308 passed；Ruff / compileall / database / Discord runtime PASS
 
 ## 文档入口
 
