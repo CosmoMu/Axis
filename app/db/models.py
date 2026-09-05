@@ -863,7 +863,7 @@ class AnalysisDraft(UuidPrimaryKeyMixin, TimestampMixin, Base):
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
     review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     review_message_id: Mapped[int | None] = mapped_column(BigInteger)
-    chart_source: Mapped[str | None] = mapped_column(String(16))
+    chart_source: Mapped[str | None] = mapped_column(String(32))
     chart_source_attachment_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("source_attachments.id", ondelete="SET NULL"), index=True
     )

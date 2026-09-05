@@ -10,6 +10,7 @@
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS
+- Analysis chart-source schema width / migration: PASS
 - Database verifier: PASS
 - Discord runtime verifier: PASS
 - Analysis Fusion verifier: PASS
