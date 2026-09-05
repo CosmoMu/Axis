@@ -201,7 +201,10 @@ class GexExplorerCog(commands.Cog):
             filename = f"axis-gex-{result.snapshot.ticker.lower()}.png"
             await interaction.edit_original_response(
                 content=None,
-                embed=build_gex_embed(result),
+                embed=build_gex_embed(
+                    result,
+                    test_mode=interaction.channel_id == self.card_testing_channel_id,
+                ),
                 attachments=[discord.File(BytesIO(result.heatmap_png), filename=filename)],
             )
             if result.latency_ms > self.service.policy.max_latency_seconds * 1000:
@@ -266,7 +269,7 @@ class GexExplorerCog(commands.Cog):
                 )
             filename = f"axis-gex-{result.snapshot.ticker.lower()}.png"
             await message.reply(
-                embed=build_gex_embed(result),
+                embed=build_gex_embed(result, test_mode=False),
                 file=discord.File(BytesIO(result.heatmap_png), filename=filename),
                 mention_author=False,
             )

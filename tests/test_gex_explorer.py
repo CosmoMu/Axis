@@ -594,6 +594,10 @@ async def test_partial_expiry_success_and_closed_stale_labels() -> None:
         assert result.used_expirations == 6
         assert result.stale is True
         embed = build_gex_embed(result)
+        live_embed = build_gex_embed(result, test_mode=False)
+        assert live_embed.description == "**会员专属研究工具**"
+        assert "测试模式" not in (live_embed.footer.text or "")
+        assert "会员专属研究工具" in (live_embed.footer.text or "")
         status = next(field.value for field in embed.fields if field.name == "数据状态")
         assert "市场已收盘" in status
         assert "数据时间早于实时阈值" in status

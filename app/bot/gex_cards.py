@@ -38,12 +38,16 @@ def _levels(values: tuple[float, ...]) -> str:
     return " / ".join(_money(value) for value in values) or "—"
 
 
-def build_gex_embed(result: GexQueryResult) -> discord.Embed:
+def build_gex_embed(result: GexQueryResult, *, test_mode: bool = True) -> discord.Embed:
     snapshot = result.snapshot
     color = 0x86F7A8 if snapshot.net_gex >= 0 else 0xD66A6A
     embed = discord.Embed(
         title=f"AXIS GEX · {snapshot.ticker}",
-        description="**测试模式 · 仅限所有者 · 卡片测试频道**",
+        description=(
+            "**测试模式 · 仅限所有者 · 卡片测试频道**"
+            if test_mode
+            else "**会员专属研究工具**"
+        ),
         color=color,
     )
     embed.add_field(name="现价", value=_money(snapshot.spot), inline=True)
@@ -146,7 +150,8 @@ def build_gex_embed(result: GexQueryResult) -> discord.Embed:
     embed.set_image(url=f"attachment://axis-gex-{snapshot.ticker.lower()}.png")
     embed.set_footer(
         text=(
-            "AXIS GEX · 测试模式 · 教育与结构研究用途，不构成投资建议 · "
+            f"AXIS GEX · {'测试模式' if test_mode else '会员专属研究工具'} · "
+            "教育与结构研究用途，不构成投资建议 · "
             "按当日期权成交量加权；不代表主动买卖方向或真实做市商持仓"
         )
     )
