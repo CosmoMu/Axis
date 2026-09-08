@@ -692,7 +692,7 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
                 f"{close_result}"
                 + (f" · 成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
-                + f"\n最高 TP {trade.highest_tp_level or '—'}"
+                + f"\n最高 TP {_percent(trade.highest_tp_return_pct)}"
                 + (
                     f"\n追踪最高 {_money(trade.highest_price)} · "
                     f"{_percent(trade.highest_return_pct)}"

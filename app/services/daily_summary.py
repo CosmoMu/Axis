@@ -240,6 +240,9 @@ def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
                     if item.get("highest_tp_level")
                     else None
                 ),
+                highest_tp_return_pct=_optional_decimal(
+                    item.get("highest_tp_return_pct")
+                ),
                 highest_price=_optional_decimal(item.get("highest_price")),
                 highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
             )
@@ -339,11 +342,30 @@ class DailySummaryService:
         calendar: TradingCalendarService | None = None,
         *,
         results_review_enabled: bool = False,
+        swing_tracking_policies: tuple[ShortTermTrackingPolicy, ...] = (),
     ) -> None:
         self.database = database
         self.market_data = market_data
         self.calendar = calendar or TradingCalendarService()
         self.results_review_enabled = results_review_enabled
+        self.swing_tracking_policies = {
+            policy.version: policy for policy in swing_tracking_policies
+        }
+
+    def _swing_tp_return_pct(self, tracking: SwingTracking) -> Decimal | None:
+        if tracking.highest_tp_level is None:
+            return None
+        policy = self.swing_tracking_policies.get(tracking.tracking_policy_version)
+        if policy is None:
+            return None
+        return next(
+            (
+                Decimal(rule.return_pct)
+                for rule in policy.tp_levels
+                if rule.label == tracking.highest_tp_level
+            ),
+            None,
+        )
 
     async def prepare_session(self, guild_id: int, session_date: date) -> bool:
         if not self.calendar.is_trading_day(session_date):
@@ -545,6 +567,11 @@ class DailySummaryService:
                         tracking_mode=trade.tracking_mode,
                         highest_tp_level=(
                             swing_tracking.highest_tp_level
+                            if swing_tracking is not None
+                            else None
+                        ),
+                        highest_tp_return_pct=(
+                            self._swing_tp_return_pct(swing_tracking)
                             if swing_tracking is not None
                             else None
                         ),

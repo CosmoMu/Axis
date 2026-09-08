@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -26,6 +27,7 @@ from app.integrations.moomoo_market_data import (
     PostCloseQuoteBatch,
 )
 from app.services.daily_summary import DailySummaryService, scheduled_session_date
+from app.services.short_term_policy import ShortTermTrackingPolicy
 
 GUILD_ID = 1543309921066684567
 SESSION_DATE = date(2026, 8, 28)
@@ -290,7 +292,13 @@ async def test_simple_swing_eod_summary_is_active_and_keeps_lifetime_high() -> N
             )
             await session.commit()
 
-        service = DailySummaryService(database, FakeMarketData())
+        service = DailySummaryService(
+            database,
+            FakeMarketData(),
+            swing_tracking_policies=(
+                ShortTermTrackingPolicy.load(Path("config/short_term_tracking.yaml")),
+            ),
+        )
         assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
         async with database.session() as session:
             publication = await session.scalar(
@@ -310,12 +318,28 @@ async def test_simple_swing_eod_summary_is_active_and_keeps_lifetime_high() -> N
         )
         assert active["tracking_mode"] == "SIMPLE_TRACKED_SWING"
         assert active["highest_tp_level"] == "TP5"
+        assert Decimal(active["highest_tp_return_pct"]) == Decimal("100")
         assert Decimal(active["highest_return_pct"]) == Decimal("100")
         assert Decimal(active["reference_price"]) == Decimal("1.5")
         assert Decimal(active["unrealized_pnl_pct"]) == Decimal("50")
         assert snapshot.closing_price == Decimal("1.5000")
         assert snapshot.highest_return_pct == Decimal("100.0000")
         assert stored_trade.state == TradeState.ACTIVE.value
+
+        claims = []
+        for message_id in (2001, 2002):
+            claim = await service.next_publishable(GUILD_ID, SESSION_DATE)
+            assert claim is not None
+            claims.append(claim)
+            await service.finalize(claim.publication_id, message_id)
+        swing_summary = next(
+            claim.summary
+            for claim in claims
+            if claim.summary.category == TradeCategory.SWING.value
+        )
+        rendered = str(build_daily_summary_embeds(swing_summary)[0].to_dict())
+        assert "最高 TP +100.00%" in rendered
+        assert "最高 TP TP5" not in rendered
     finally:
         await database.dispose()
 

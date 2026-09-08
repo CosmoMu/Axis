@@ -277,6 +277,10 @@ async def run() -> None:
                     else None
                 ),
                 results_review_enabled=settings.results_review_enabled,
+                swing_tracking_policies=(
+                    short_term_policy,
+                    *historical_short_term_policies,
+                ),
             )
         daily_results_review_service = (
             DailyResultsReviewService(

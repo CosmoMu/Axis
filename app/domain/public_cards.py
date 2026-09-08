@@ -198,6 +198,7 @@ class DailyActiveTrade:
     is_lotto: bool = False
     tracking_mode: str | None = None
     highest_tp_level: str | None = None
+    highest_tp_return_pct: Decimal | None = None
     highest_price: Decimal | None = None
     highest_return_pct: Decimal | None = None
 
