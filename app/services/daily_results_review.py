@@ -105,7 +105,7 @@ def _percent(value: Decimal | None) -> str:
     return f"{rendered}%"
 
 
-def _short_term_result_emoji(value: Decimal | None) -> str:
+def _result_emoji(value: Decimal | None) -> str:
     if value is None or value == 0:
         return "➖"
     return "✅" if value > 0 else "❌"
@@ -160,16 +160,14 @@ def _review_item_sort_key(item: DailyResultsItem) -> tuple[int, str, int, str]:
 def _display_line(item: DailyResultsItem) -> str:
     if item.display_text_override:
         override = item.display_text_override.strip()
-        if item.category != TradeCategory.SHORT_TERM.value or override.startswith(
-            ("✅", "❌", "➖")
-        ):
-            return override
-        return f"{_short_term_result_emoji(item.display_result_pct)} {override}"
+        if override.startswith(("✅", "❌", "➖")):
+            override = override[1:].lstrip()
+        return f"{_result_emoji(item.display_result_pct)} {override}"
     payload = item.snapshot_json
     head = f"{payload['public_trade_id']} · {_contract(payload)}"
     if item.category == TradeCategory.SHORT_TERM.value:
         return (
-            f"{_short_term_result_emoji(item.display_result_pct)} "
+            f"{_result_emoji(item.display_result_pct)} "
             f"{payload['public_trade_id']} · "
             f"{_short_term_result_contract(payload)} "
             f"{_percent(item.display_result_pct)}"
@@ -197,7 +195,20 @@ def _display_line(item: DailyResultsItem) -> str:
         details.append(f"最高收益 {_percent(Decimal(str(highest)))}")
     if not details:
         details.append(f"最终收益 {_percent(item.display_result_pct)}")
-    return f"{head}\n" + " · ".join(details)
+    return f"{_result_emoji(item.display_result_pct)} {head}\n" + " · ".join(details)
+
+
+def _entry_date(payload: dict[str, object], timezone_name: str) -> date | None:
+    raw = payload.get("opened_at") or payload.get("created_at")
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(ZoneInfo(timezone_name)).date()
 
 
 class DailyResultsReviewService:
@@ -879,6 +890,7 @@ class DailyResultsReviewService:
 
     @staticmethod
     def _trade_payload(trade: Trade) -> dict[str, object]:
+        entry_timestamp = trade.opened_at or trade.created_at
         return {
             "public_trade_id": trade.public_trade_id,
             "ticker": trade.ticker,
@@ -886,6 +898,7 @@ class DailyResultsReviewService:
             "strike": str(trade.strike),
             "option_side": trade.option_side,
             "is_lotto": trade.is_lotto,
+            "opened_at": entry_timestamp.isoformat() if entry_timestamp is not None else None,
         }
 
     @staticmethod
@@ -944,7 +957,7 @@ class DailyResultsReviewService:
             candidate = tracking_by_trade.get(item.trade_id)
             if candidate is None:
                 continue
-            tracking, _ = candidate
+            tracking, trade = candidate
             prior_peak = prior_peaks.get(item.trade_id)
             improved = prior_peak is None or tracking.highest_return_pct > prior_peak
             manager_owned = (
@@ -958,6 +971,10 @@ class DailyResultsReviewService:
                 continue
             if item.corrected_at is None and item.display_result_pct != tracking.highest_return_pct:
                 item.display_result_pct = tracking.highest_return_pct
+                updated += 1
+            payload = self._trade_payload(trade)
+            if item.snapshot_json != payload:
+                item.snapshot_json = payload
                 updated += 1
 
         next_order = max((item.display_order for item in items), default=-1) + 1
@@ -1165,7 +1182,6 @@ class DailyResultsReviewService:
         order = self._parse_section_order(overrides.get("section_order"))
         sections = []
         for category in order:
-            lines = []
             category_items = sorted(
                 (
                     item
@@ -1174,9 +1190,23 @@ class DailyResultsReviewService:
                 ),
                 key=_public_trade_sort_key,
             )
-            for item in category_items:
-                marker = "" if public else ("✓ " if item.included else "✕ ")
-                lines.append(marker + _display_line(item))
+            today_items = [
+                item
+                for item in category_items
+                if _entry_date(item.snapshot_json, self.timezone_name) == review.trading_date
+            ]
+            prior_items = [item for item in category_items if item not in today_items]
+            lines = []
+            for label, grouped_items in (
+                ("今日进场", today_items),
+                ("此前进场", prior_items),
+            ):
+                if not grouped_items:
+                    continue
+                lines.append(f"**── {label} ──**")
+                for item in grouped_items:
+                    marker = "" if public else ("✓ " if item.included else "✕ ")
+                    lines.append(marker + _display_line(item))
             sections.append(
                 {
                     "category": category,

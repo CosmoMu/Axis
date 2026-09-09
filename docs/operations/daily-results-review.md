@@ -28,7 +28,8 @@ RESULTS_TIMEZONE=America/New_York
    从未出现在已发布 Results 的新订单正常进入 Review。
 4. 当天终止的 Simple Tracked Swing 与当天 CLOSED Legacy Swing / LEAPS 默认 Included，不应用
    Short-Term 重复抑制规则；Active Simple Swing 不进入 Results。
-5. Loss Trade 不自动隐藏。
+5. Loss Trade 不自动隐藏，并在 Review / Public Card 使用 `❌` 明确标记；盈利与持平分别使用
+   `✅` / `➖`。
 6. Manager / Owner 可使用 MANAGE TRADES、EDIT CARD、PREVIEW、PUBLISH NOW。
 7. 未经人工操作时，`16:15 ET` 仍自动发布所有默认 Included Items。
 8. Publish Now 后 Scheduled Job 只认领已有 Public Message，不重复发送。
@@ -39,6 +40,8 @@ Short-Term 始终使用完整追踪周期内的 `highest_price` 相对 `entry_pr
 Close Reference 不参与 Daily Results（仅在 CLOSE 卡标注平仓收益）。Legacy Swing / LEAPS 显示原有 TP / SL event 与最高收益。Public
 Card 不显示 totals、win rate、average return 或 closed count；
 Short-Term Results 对 `is_lotto=true` 的订单在合约后显示 `(LOTTO)`。
+每个 Category 内按首次入场时间分成 `今日进场` 与 `此前进场`，使用横线标题分隔；两组内部仍
+按订单号数字升序。入场日期按 Results 配置的 Eastern Time 判断。
 
 ## Manager Actions
 

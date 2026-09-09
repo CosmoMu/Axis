@@ -65,6 +65,9 @@ lifecycle and highest-return Results rule.
   `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
   LOTTO orders append `(LOTTO)` after the option contract. Lines are sorted by the numeric part of
   the order ID in ascending order.
+- Review and public Results use the same `✅` / `❌` / `➖` status markers for every category.
+  Within each category, a horizontal heading separates `今日进场` from `此前进场`; entry-day
+  classification uses the Results timezone and each group remains sorted by numeric order ID.
 - Closed Swing/LEAPS trades list realized TP event returns in numeric TP order and the highest
   recorded return. An SL close lists SL return and highest return.
 - No totals, win rate, average profit, maximum drawdown, or multi-line Short-Term diagnostics are

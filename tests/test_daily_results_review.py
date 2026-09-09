@@ -86,6 +86,7 @@ async def review_database() -> Database:
             position_eighths=0,
             max_position_eighths=0,
             is_lotto=True,
+            opened_at=ENDED_AT - timedelta(hours=1),
         )
         short_active = Trade(
             guild_id=GUILD_ID,
@@ -98,6 +99,7 @@ async def review_database() -> Database:
             state="ACTIVE",
             position_eighths=0,
             max_position_eighths=0,
+            opened_at=ENDED_AT - timedelta(days=1),
         )
         swing = Trade(
             guild_id=GUILD_ID,
@@ -112,6 +114,7 @@ async def review_database() -> Database:
             max_position_eighths=1,
             closed_at=ENDED_AT,
             final_return_pct=Decimal("70"),
+            opened_at=ENDED_AT - timedelta(days=2),
         )
         leaps = Trade(
             guild_id=GUILD_ID,
@@ -126,6 +129,7 @@ async def review_database() -> Database:
             max_position_eighths=1,
             closed_at=ENDED_AT,
             final_return_pct=Decimal("-22"),
+            opened_at=ENDED_AT - timedelta(hours=2),
         )
         active_swing = Trade(
             guild_id=GUILD_ID,
@@ -307,6 +311,17 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         assert "✅ ST-0001 · NVDA 08/28 200C (LOTTO) +130%" in rendered
         assert "✅ ST-0002 · QQQ 08/28 714C +19%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
+        assert "❌ LP-0001 · RGTI 35C" in rendered
+        assert rendered.count("**── 今日进场 ──**") == 2
+        assert rendered.count("**── 此前进场 ──**") == 2
+        short_term_section = next(
+            section
+            for section in first.snapshot["sections"]
+            if section["category"] == "SHORT_TERM"
+        )
+        short_term_text = "\n".join(short_term_section["lines"])
+        assert short_term_text.index("今日进场") < short_term_text.index("ST-0001")
+        assert short_term_text.index("此前进场") < short_term_text.index("ST-0002")
         async with database.session() as session:
             stored_items = list(
                 await session.scalars(
@@ -531,22 +546,25 @@ async def test_display_edit_and_result_correction_do_not_modify_trade() -> None:
         item = next(item for item in review.items if item.public_trade_id == "ST-0001")
         await service.edit_item_display(
             item.id,
-            display_text="ST-0001 · NVDA 08/28 200C +140%",
+            display_text="✅ 手动展示内容",
             actor_user_id=99,
         )
         await service.correct_result(
             item.id,
-            corrected_value=Decimal("140"),
+            corrected_value=Decimal("-12"),
             reason="BAD_QUOTE",
             actor_user_id=99,
         )
+        refreshed = await service.get_review(review.id)
+        corrected = next(current for current in refreshed.items if current.id == item.id)
+        assert corrected.display_text == "❌ 手动展示内容"
         async with database.session() as session:
             trade = await session.get(Trade, item.trade_id)
             saved = await session.get(DailyResultsItem, item.id)
             assert trade is not None and trade.final_return_pct is None
             assert saved is not None
             assert saved.original_result_pct == Decimal("130.0000")
-            assert saved.display_result_pct == Decimal("140.0000")
+            assert saved.display_result_pct == Decimal("-12.0000")
             actions = set(await session.scalars(select(AuditLog.action_type)))
             assert "DAILY_RESULTS_DISPLAY_EDITED" in actions
             assert "DAILY_RESULTS_RESULT_CORRECTED" in actions
