@@ -116,6 +116,7 @@ async def verify() -> list[str]:
         results_review = channel("results_review")
         join_review = channel("join_review")
         mentor_control = channel("mentor_control")
+        member_control = channel("member_control")
         moomoo_trading = channel("moomoo_trading")
 
         newcomer_allowed = {"welcome", "official_results", "member_wins"}
@@ -300,6 +301,24 @@ async def verify() -> list[str]:
         )
 
         if config is not None:
+            saved_member_panel_id = config.member_panel_message_id
+            _check(saved_member_panel_id is not None, "member_panel_message_id_missing", failures)
+            recent_member_messages = [item async for item in member_control.history(limit=100)]
+            member_panels = [
+                item
+                for item in recent_member_messages
+                if item.author.id == bot_member.id
+                and any(
+                    embed.footer.text == "AXIS Member Control v1" for embed in item.embeds
+                )
+            ]
+            _check(len(member_panels) == 1, "member_control_panel_not_unique", failures)
+            _check(
+                bool(recent_member_messages)
+                and recent_member_messages[0].id == saved_member_panel_id,
+                "member_control_panel_not_last",
+                failures,
+            )
             for channel_key, (field_name, title) in GUIDE_TITLES.items():
                 guide_channel = channel(channel_key)
                 saved_id = getattr(config, field_name)
@@ -521,7 +540,7 @@ def main() -> int:
     print("permissions=public,newcomer,member,manager,owner,bot")
     print("general_guides=idempotent")
     print("mentor_control=select,add")
-    print("member_control=searchable_user_select")
+    print("member_control=searchable_user_select,unique_panel,last_message")
     print("command_visibility=members:gex,stock;owner:test-suite")
     return 0
 

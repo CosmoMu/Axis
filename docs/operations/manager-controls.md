@@ -53,6 +53,14 @@
 Owner 在 Discord 手工添加或移除 Member Role 时，Bot 会同步数据库。Bot 自己执行的 Role
 变更带有预期标记，不会被误判为 Owner 手工操作。
 
+Stripe 首次付款确认后，Bot 会在本频道发送 `💳 会员付款成功`，显示 Discord mention、方案、
+首次购买/自动续费和金额；不显示 Stripe customer、subscription、checkout 或 payment event ID。
+Monthly 首次购买只提醒一次，后续成功续费再单独提醒，重复 Webhook 不重复通知。
+
+`AXIS Member Control` 必须保持为频道最后一条公开消息。Bot 在付款提醒或其他频道消息之后创建
+新的 persistent panel，确认成功后删除旧面板并更新 `guild_config.member_panel_message_id`；如果
+替换失败则保留旧面板且发送独立系统告警，不影响已经确认的付款和 Role。
+
 ## Official Results
 
 订单完全关闭后，Bot 从全部 Trade Event 计算：

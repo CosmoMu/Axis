@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 332 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 336 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -103,6 +103,8 @@ Core / Discord:
 - Mentor Control 顶层按钮精简、详情 Edit / Delete、删除二次确认、未使用 Mentor 物理删除、
   关联 Trade 历史阻止和 `MENTOR_DELETED` Audit。
 - Member Control searchable User Select、选择后详情按钮、会员开始/到期字段和 Member Role 展示。
+- Stripe 首次付款 / Monthly 续费提醒、duplicate 与 subscription-create invoice 去重、金额展示，
+  以及提醒后替换旧面板并持久化最新 `AXIS Member Control` Message ID。
 
 Signal / Trade:
 

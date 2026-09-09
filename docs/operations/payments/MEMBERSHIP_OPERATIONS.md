@@ -12,6 +12,9 @@
   不计入，通过 `TradingCalendarService` 固化边界，但不经过 Stripe。
 - Day Pass：Stripe one-time payment 成功后，按 XNYS 一个交易日创建 Entitlement。
 - Monthly：Stripe recurring subscription；价格和版本在 signup 时快照，后续自动续费。
+- Stripe 首次付款和 Monthly 后续成功续费会通知 `👤・会员管理`；重复 event 和首次订阅的
+  `checkout.session.completed` / `invoice.paid` 组合不会产生重复提醒。通知只包含 Discord mention、
+  方案、付款类型和金额，不包含 Stripe/customer/subscription/checkout ID。
 - Gift / Manual：Manager/Owner 授权并写 Audit；不冒充 Stripe payment。
 - Manual Extension：新增独立 Entitlement，不覆盖原付款来源或到期日。
 
@@ -31,6 +34,8 @@ Free Trial 有效期间阻止重复购买 Day Pass，但允许用户升级 Month
 Member Control 的 searchable user dropdown 只选择 Guild 成员。查看信息至少核对 Discord 加入
 时间、会员开始时间、有效 Entitlement、来源、到期日、cancel-at-period-end 和 Member Role。
 任何金额或付款状态疑问以 Stripe + Entitlement 对账为准，不以 Role 外观为准。
+付款提醒之后应立即显示唯一的 `AXIS Member Control` 末位面板；若不在末位，检查
+`PAYMENT_NOTIFICATION_FAILED` 系统告警和 `guild_config.member_panel_message_id`，不要手工复制面板。
 
 ## Never do
 

@@ -432,7 +432,8 @@ metadata environment 验证；environment-scoped dedup；最小 payment event；
 signup snapshot；grandfathering；15 分钟对账、受控修复和 Owner-only mismatch alert；受保护的
 Live resource setup/readiness verifier；完整 Payment 运维手册；`axisdesk.fyi` Sites Worker 原始
 body 签名验证；最小化 D1 事件队列；Bot 私密 relay poll / ACK / retry；支付 success、cancel 和
-Portal return 页面。
+Portal return 页面；新的首次付款与 Monthly 续费成功会在 Manager-only `👤・会员管理` 提醒，
+并自动保持唯一 `AXIS Member Control` 控制卡位于频道最下方。
 
 Remaining: Owner 自行完成真实首笔付款；验收 Day Pass 到期、Monthly renewal/failure/recovery、
 payment-method update、cancel、重复/乱序 delivery 与真实 Price Grandfathering。Test key 在

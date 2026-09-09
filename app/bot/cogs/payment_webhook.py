@@ -10,7 +10,11 @@ from discord.ext import commands, tasks
 
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.integrations.stripe_gateway import StripeGateway, StripeGatewayError
-from app.services.membership_stripe import MembershipStripeError, MembershipStripeService
+from app.services.membership_stripe import (
+    MembershipStripeError,
+    MembershipStripeService,
+    StripeWebhookApplication,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,9 @@ class PaymentWebhookCog(commands.Cog):
         gateway: StripeGateway | None,
         payment_service: MembershipStripeService,
         sync_role: Callable[[int, bool], Awaitable[None]],
+        notify_payment: (
+            Callable[[dict[str, Any], StripeWebhookApplication], Awaitable[None]] | None
+        ) = None,
         reconciliation_minutes: int = 15,
         relay_url: str | None = None,
         relay_secret: str = "",
@@ -38,6 +45,7 @@ class PaymentWebhookCog(commands.Cog):
         self.gateway = gateway
         self.payment_service = payment_service
         self.sync_role = sync_role
+        self.notify_payment = notify_payment
         self.relay_url = relay_url.rstrip("/") if relay_url else None
         self.relay_secret = relay_secret
         self.runner: web.AppRunner | None = None
@@ -87,6 +95,7 @@ class PaymentWebhookCog(commands.Cog):
             )
             if result.discord_user_id is not None and result.should_have_role is not None:
                 await self.sync_role(result.discord_user_id, result.should_have_role)
+            await self._notify_payment(event, result)
             await report_system_recovery(
                 self.bot,
                 service="Stripe Webhook",
@@ -192,6 +201,7 @@ class PaymentWebhookCog(commands.Cog):
             )
             if result.discord_user_id is not None and result.should_have_role is not None:
                 await self.sync_role(result.discord_user_id, result.should_have_role)
+            await self._notify_payment(event, result)
             await self._relay_update(
                 client,
                 event_id,
@@ -218,6 +228,32 @@ class PaymentWebhookCog(commands.Cog):
                 attempt_count=attempt_count,
             )
             raise
+
+    async def _notify_payment(
+        self,
+        event: dict[str, Any],
+        result: StripeWebhookApplication,
+    ) -> None:
+        if self.notify_payment is None:
+            return
+        try:
+            await self.notify_payment(event, result)
+            await report_system_recovery(
+                self.bot,
+                service="Membership Payment Notification",
+                error_type="PAYMENT_NOTIFICATION_FAILED",
+                affected="Member Control",
+            )
+        except Exception as exc:
+            logger.warning("event=payment_notification_failed error_type=%s", type(exc).__name__)
+            await report_system_failure(
+                self.bot,
+                severity="ERROR",
+                service="Membership Payment Notification",
+                error_type="PAYMENT_NOTIFICATION_FAILED",
+                affected="Member Control",
+                detail=type(exc).__name__,
+            )
 
     async def _relay_update(
         self,

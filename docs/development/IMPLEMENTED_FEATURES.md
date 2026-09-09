@@ -192,6 +192,11 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   关联的 Mentor 可物理删除，已有历史时 fail closed 并写明原因；成功删除写 Audit。
 - Member Control 使用 Discord 原生 searchable User Select；选择服务器成员后显示 Discord 加入
   时间、会员开始时间、状态、来源、Entitlements、Role 和到期日，并提供查看、赠送、移除。
+- 新的 Stripe 首次付款成功会在 `👤・会员管理` 提醒 Manager；Monthly 后续自动续费成功同样
+  提醒。Webhook event dedup 与首次订阅 invoice 过滤避免重复通知，卡片不展示 Stripe/customer/
+  subscription ID 或其他付款隐私。
+- `AXIS Member Control` 是频道永久末位控制面板；付款提醒或其他公开消息出现后，Bot 会幂等
+  重发新面板、删除旧面板并更新保存的 Message ID，避免重复控制卡。
 - 底层 gift、manual extension、cancel-at-expiry、immediate revoke 能力继续保留。
 - 单一 Member Role 与多 Entitlement 合并访问。
 - Scheduled expiry 和持续 Role reconciliation。
@@ -252,6 +257,8 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Day Pass 与 Monthly Stripe Test Mode E2E 工具。
 - Stripe Live account/KYC/payout、V1 Product/Prices、Customer Portal 和 0-blocker readiness。
 - `axisdesk.fyi` 签名 webhook、最小 D1 relay queue、Bot 私密 poll / ACK / retry 与回跳页面。
+- 首次购买及后续成功续费的 Manager-only Discord 通知；通知失败不会回滚已确认付款或导致
+  Webhook 重复应用，独立使用系统告警追踪。
 
 ## GENERAL
 

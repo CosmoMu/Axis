@@ -211,6 +211,7 @@ class AxisBot(commands.Bot):
             gateway=stripe_gateway,
             payment_service=membership_stripe_service,
             sync_role=self._manager_control_cog.sync_member_role,
+            notify_payment=self._manager_control_cog.notify_successful_payment,
             reconciliation_minutes=settings.stripe_reconciliation_minutes,
             relay_url=(
                 settings.stripe_live_webhook_relay_url

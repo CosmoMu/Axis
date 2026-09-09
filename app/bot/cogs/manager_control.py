@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import suppress
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 import discord
 from discord.ext import commands, tasks
@@ -15,6 +18,9 @@ from app.db.models import AuditLog, GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
 from app.services.mentor_management import MentorError, MentorManagementService
 from app.services.official_results import OfficialResultsService, ResultsError
+
+if TYPE_CHECKING:
+    from app.services.membership_stripe import StripeWebhookApplication
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,7 @@ class ManagerControlCog(commands.Cog):
         self._panels_ready = False
         self._member_import_complete = False
         self._role_expectations: dict[int, bool] = {}
+        self._member_panel_lock = asyncio.Lock()
         self.control_loop.start()
         self.membership_loop.start()
         if publish_individual_results:
@@ -293,6 +300,58 @@ class ManagerControlCog(commands.Cog):
                 detail=type(exc).__name__,
             )
 
+    async def notify_successful_payment(
+        self,
+        event: dict[str, Any],
+        result: StripeWebhookApplication,
+    ) -> None:
+        """Notify managers once for a successful charge and keep Member Control last."""
+        notice = _payment_notice(event, result)
+        if notice is None:
+            return
+        user_id, plan_label, payment_label, amount_label = notice
+        channel = self.bot.get_channel(self.member_channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(self.member_channel_id)
+        embed = discord.Embed(
+            title="💳 会员付款成功",
+            description=f"<@{user_id}> 的付款已经确认，会员权限已同步。",
+            color=0x86F7A8,
+        )
+        embed.add_field(name="会员", value=f"<@{user_id}>", inline=True)
+        embed.add_field(name="方案", value=plan_label, inline=True)
+        embed.add_field(name="付款类型", value=payment_label, inline=True)
+        if amount_label is not None:
+            embed.add_field(name="金额", value=amount_label, inline=True)
+        embed.set_footer(text="AXIS Membership Payment")
+        async with self._member_panel_lock:
+            await channel.send(
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False,
+                    roles=False,
+                    users=True,
+                    replied_user=False,
+                ),
+            )
+            await self._ensure_member_panel(force_repost=True)
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Re-pin the persistent Member Control panel below any public channel message."""
+        if (
+            message.guild is None
+            or message.guild.id != self.guild_id
+            or message.channel.id != self.member_channel_id
+        ):
+            return
+        if any(embed.footer.text == "AXIS Member Control v1" for embed in message.embeds):
+            return
+        try:
+            await self._ensure_member_panel_is_last()
+        except Exception as exc:
+            logger.warning("event=member_panel_repin_failed error_type=%s", type(exc).__name__)
+
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         if before.guild.id != self.guild_id or self.bot.user is None:
@@ -320,12 +379,6 @@ class ManagerControlCog(commands.Cog):
             color=0x86F7A8,
         )
         mentor_embed.set_footer(text="AXIS Mentor Control v1")
-        member_embed = discord.Embed(
-            title="AXIS Member Control",
-            description="搜索并选择服务器成员，然后查看会员信息、赠送会员或移除会员。",
-            color=0x86F7A8,
-        )
-        member_embed.set_footer(text="AXIS Member Control v1")
         await self._ensure_panel(
             channel_id=self.mentor_channel_id,
             config_field="mentor_panel_message_id",
@@ -333,13 +386,44 @@ class ManagerControlCog(commands.Cog):
             embed=mentor_embed,
             view=MentorControlView(self),
         )
+        async with self._member_panel_lock:
+            await self._ensure_member_panel()
+        await self._ensure_member_panel_is_last()
+
+    async def _ensure_member_panel(self, *, force_repost: bool = False) -> None:
+        member_embed = discord.Embed(
+            title="AXIS Member Control",
+            description="搜索并选择服务器成员，然后查看会员信息、赠送会员或移除会员。",
+            color=0x86F7A8,
+        )
+        member_embed.set_footer(text="AXIS Member Control v1")
         await self._ensure_panel(
             channel_id=self.member_channel_id,
             config_field="member_panel_message_id",
             marker="AXIS Member Control v1",
             embed=member_embed,
             view=MemberControlView(self),
+            force_repost=force_repost,
         )
+
+    async def _ensure_member_panel_is_last(self) -> None:
+        async with self._member_panel_lock:
+            database = self.membership_service.database
+            async with database.session() as session:
+                config = await session.get(GuildConfig, self.guild_id)
+                saved_message_id = config.member_panel_message_id if config is not None else None
+            channel = self.bot.get_channel(self.member_channel_id)
+            if channel is None:
+                channel = await self.bot.fetch_channel(self.member_channel_id)
+            history = getattr(channel, "history", None)
+            if history is None:
+                return
+            latest = None
+            async for candidate in history(limit=1):
+                latest = candidate
+            if latest is not None and latest.id == saved_message_id:
+                return
+            await self._ensure_member_panel(force_repost=True)
 
     async def _ensure_panel(
         self,
@@ -349,6 +433,7 @@ class ManagerControlCog(commands.Cog):
         marker: str,
         embed: discord.Embed,
         view: discord.ui.View,
+        force_repost: bool = False,
     ) -> None:
         database = self.membership_service.database
         async with database.session() as session:
@@ -375,7 +460,17 @@ class ManagerControlCog(commands.Cog):
                 if any(embed.footer.text == marker for embed in candidate.embeds):
                     message = candidate
                     break
-        if message is None:
+        if force_repost:
+            replacement = await send(embed=embed, view=view)
+            if message is not None and message.id != replacement.id:
+                try:
+                    await message.delete()
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    with suppress(discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        await replacement.delete()
+                    raise
+            message = replacement
+        elif message is None:
             message = await send(embed=embed, view=view)
         else:
             await message.edit(embed=embed, view=view)
@@ -386,3 +481,64 @@ class ManagerControlCog(commands.Cog):
             if config is not None and getattr(config, config_field) != message.id:
                 setattr(config, config_field, message.id)
                 await session.commit()
+
+
+def _payment_notice(
+    event: dict[str, Any],
+    result: StripeWebhookApplication,
+) -> tuple[int, str, str, str | None] | None:
+    if result.duplicate or result.discord_user_id is None:
+        return None
+    event_type = str(event.get("type") or "")
+    data = event.get("data")
+    obj = data.get("object") if isinstance(data, dict) else None
+    if not isinstance(obj, dict):
+        return None
+    if event_type == "checkout.session.completed":
+        if str(obj.get("payment_status") or "") not in {"paid", "no_payment_required"}:
+            return None
+        amount = _minor_amount(obj.get("amount_total"))
+        if amount == 0:
+            return None
+        metadata = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
+        plan_type = str(metadata.get("membership_type") or "")
+        payment_label = "首次购买"
+    elif event_type == "invoice.paid":
+        if str(obj.get("billing_reason") or "") == "subscription_create":
+            return None
+        amount = _minor_amount(obj.get("amount_paid"))
+        if amount == 0:
+            return None
+        plan_type = "MONTHLY"
+        payment_label = "自动续费"
+    else:
+        return None
+    plan_label = {
+        "DAY_PASS": "Day Pass · 1 个美国交易日",
+        "MONTHLY": "月度会员",
+    }.get(plan_type, "AXIS 会员")
+    return (
+        result.discord_user_id,
+        plan_label,
+        payment_label,
+        _format_payment_amount(amount, obj.get("currency")),
+    )
+
+
+def _minor_amount(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _format_payment_amount(amount: int | None, currency: Any) -> str | None:
+    if amount is None:
+        return None
+    code = str(currency or "usd").upper()
+    value = Decimal(amount) / Decimal(100)
+    prefix = "$" if code == "USD" else ""
+    return f"{prefix}{value:.2f} {code}"
