@@ -1,6 +1,6 @@
 # Signal Review 管理员审核
 
-LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・signal-review` 发布一张 Manager 专用
+LLM 生成 `trade_drafts` 后，AXIS BOT 会在 `✅・信号审核` 发布一张 Manager 专用
 审核卡片。卡片是幂等的：Bot 重启时会复用数据库中的 Discord Message ID；如果
 发送成功但数据库回写中断，Bot 会根据 Embed Footer 中的 Draft UUID 找回已有消息，
 不会重复发卡。

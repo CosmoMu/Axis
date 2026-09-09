@@ -2,7 +2,7 @@
 
 ## Owner-only 权限
 
-`🚨・system-alerts` 与 `🧪・card-testing` 位于 `⚙️・MANAGER`，但普通 Manager 明确
+`🚨・系统警报` 与 `🧪・卡片测试` 位于 `⚙️・管理后台`，但普通 Manager 明确
 DENY VIEW。Blueprint 使用 `DISCORD_OWNER_USER_ID` 对单个 Owner 建立 overwrite，不创建
 额外 Staff Role。
 
@@ -23,7 +23,7 @@ DENY VIEW。Blueprint 使用 `DISCORD_OWNER_USER_ID` 对单个 Owner 建立 over
 
 ## Card Testing
 
-Owner 只能在 `🧪・card-testing` 使用：
+Owner 只能在 `🧪・卡片测试` 使用：
 
 ```text
 /test-signal-card
@@ -39,7 +39,7 @@ Owner 只能在 `🧪・card-testing` 使用：
 这些命令直接构建内存 `PublicTradeCard` / `PublicAnalysisCard` Preview DTO，不调用正式
 Trade、Analysis、Publication 或 Results service，不向会员频道发送，也不写数据库。
 `/test-results-review` 使用内存 TEST DTO 预览 Draft、Manager buttons 和 Final Card；它的
-Publish Now 仅返回测试回执，不会发送到 `📊・results`。
+Publish Now 仅返回测试回执，不会发送到 `📊・官方战绩`。
 
 ## System Alerts
 

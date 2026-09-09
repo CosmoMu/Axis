@@ -138,7 +138,7 @@ class StockAnalystCog(commands.Cog):
         if authorization == "TEST_CHANNEL_REQUIRED":
             await interaction.response.send_message(
                 "AXIS STOCK ANALYST · TEST MODE\n\n"
-                "Stock Analyst 当前仅可在 🧪・card-testing 使用。",
+                "Stock Analyst 当前仅可在 🧪・卡片测试 使用。",
                 ephemeral=True,
             )
             return
@@ -150,7 +150,7 @@ class StockAnalystCog(commands.Cog):
             return
         if authorization == "MEMBER_LOUNGE_REQUIRED":
             await interaction.response.send_message(
-                "请在 🛋️・member-lounge 使用 `/stock ticker:SPY`。",
+                "请在 🛋️・会员交流 使用 `/stock ticker:SPY`。",
                 ephemeral=True,
             )
             return

@@ -7,7 +7,7 @@
 
 First join → Newcomer → restricted onboarding → Apply → Manager APPROVE / REJECT / FLAG.
 
-Newcomer sees only `👋・welcome`, `📊・results`, and `🏆・member-wins`; all are read-only. The Role has
+Newcomer sees only `👋・欢迎`, `📊・官方战绩`, and `🏆・会员分享`; all are read-only. The Role has
 explicit DENY overwrites for subscriptions, lobby, Member, Manager, Owner and AXIS LAB channels so
 inherited `@everyone` access cannot bypass isolation.
 
@@ -22,7 +22,7 @@ the Manager review card and its `批准` / `拒绝` / `标记` actions are also 
 APPROVE permanently records approval, reviewer and time. If permanent Trial history is absent, the
 same idempotent workflow creates a $0 Free Trial at approval time, removes Newcomer and adds Member.
 After Member-role reconciliation succeeds, AXIS BOT mentions and welcomes the approved user once in
-both `💬・lobby` and `🛋️・member-lounge`. Each destination stores its Discord message ID separately;
+both `💬・公共交流` and `🛋️・会员交流`. Each destination stores its Discord message ID separately;
 restart reconciliation retries only a missing destination and never intentionally duplicates a
 completed welcome. Lobby uses a friendly community greeting; Member Lounge uses the restrained,
 premium AXIS member greeting shared by paid and gifted Member activations.
@@ -44,7 +44,7 @@ rejected/flagged-without-later-approval users rejoin as Newcomer.
 
 ## Security lock
 
-`🛂・join-review` is visible only to Owner, Manager and AXIS BOT. APPROVE / REJECT / FLAG are
+`🛂・入群审核` is visible only to Owner, Manager and AXIS BOT. APPROVE / REJECT / FLAG are
 idempotent; rejection is not an automatic ban. Checkout services verify permanent approval even if
 the user possesses an old URL/component.
 

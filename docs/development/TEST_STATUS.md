@@ -1,6 +1,6 @@
 # AXIS Test Status
 
-**Date:** 2026-09-05
+**Date:** 2026-09-09
 
 ## Summary
 
@@ -13,6 +13,9 @@
 - Analysis chart-source schema width / migration: PASS
 - Database verifier: PASS
 - Discord runtime verifier: PASS
+- Discord Blueprint v6 中文命名与 `📣・人工喊单`：PASS — Guild `1543309921066684567`，
+  `REUSE=33 / CREATE=0 / UPDATE=0 / BLOCK=0`；Member / Manager 可见可发言，公开用户与
+  Newcomer 不可见。
 - Analysis Fusion verifier: PASS
 - Analysis Pilot-style 日 K Prediction Chart：PASS — 真实 Daily OHLC、HLX 25 / 90
   High-Low EMA、Mentor-first 关键位、白色单一预测路径、缺失 OHLC 时拒绝合成蜡烛
@@ -28,7 +31,7 @@
 - Swing V2 post-deploy runtime: PASS — Bot running、runtime hash match、Discord verifier PASS、
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
 - GEX Explorer V7 Member Lounge: LIVE / AUTOMATED + RUNTIME PASS — 严格 `gex TICKER` parser、
-  Member/Manager/Owner access、exact Guild/channel gate、真实回复 listener、Owner card-testing
+  Member/Manager/Owner access、exact Guild/channel gate、真实回复 listener、Owner 卡片测试
   维护入口、Massive 数据、Moomoo shadow、cache/single-flight/limits/audit 均通过；deployed
   runtime 为 `MEMBER_LOUNGE`，Discord verifier PASS。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
@@ -53,7 +56,7 @@
   1800×1600 纵向 PNG 已视觉复核，显示连续 19 行 Strike、5 expiry、TOTAL、SPOT、正/负
   GEX robust heatmap 与缺失 `—`；Moomoo shadow 78/78 overlap，未选择正式输出。
 - GEX V7 Discord Live smoke: PASS — 新 runtime 已安装并运行；HOOD 真实 Massive → shared
-  classifier → 1800×1600 PNG → `🧪・card-testing` 消息 `1545703467908206655` 成功。
+  classifier → 1800×1600 PNG → `🧪・卡片测试` 消息 `1545703467908206655` 成功。
 - AXIS Stock Analyst Member Lounge: LIVE / AUTOMATED + RUNTIME PASS — Cosmos v0.1 parity、
   Massive 8-ticker read-only、deterministic card/chart、Member/Manager/Owner permissions、30 秒
   user cooldown、60 秒 ticker cooldown、Manager/Owner bypass、cache/single-flight/provider limit、
@@ -200,8 +203,8 @@ Analysis:
 GEX Explorer V7 Member Lounge:
 
 - `gex TICKER` 严格文本入口与 `/gex`、Ticker normalization、SPX 独立映射、普通聊天 no-trigger。
-- Member/Manager/Owner + member-lounge authorization、wrong-channel / Newcomer denial；Owner
-  card-testing 维护入口保留。
+- Member/Manager/Owner + 会员交流 authorization、wrong-channel / Newcomer denial；Owner
+  卡片测试维护入口保留。
 - 10 valid expirations、0DTE / Near-Term、empty/incomplete/partial skip、minimum coverage fail-close。
 - Option Volume × Gamma、独立 OI × Gamma、IV fallback、Net GEX、五级 Regime、Gamma Flip、
   Gamma Node、single Magnet、shared major/minor support/resistance 与 acceleration classifier。
@@ -266,9 +269,9 @@ Feature flags:
 Discord:
 
 - discord_runtime=PASS
-- GEX Member Lounge runtime 已部署并通过 verifier；上线没有创建、删除、重命名或移动 Discord 资源；现有 member-lounge
+- GEX Member Lounge runtime 已部署并通过 verifier；上线没有创建、删除、重命名或移动 Discord 资源；现有会员交流
   权限继续由 Blueprint 与 runtime verifier 管理。
-- `⬛・GENERAL` position 0、`👋・welcome` position 0；runtime verifier 确认它是第一个公共入口，
+- `⬛・公共区域` position 0、`👋・欢迎` position 0；runtime verifier 确认它是第一个公共入口，
   会员 Category 对 `@everyone` 隐藏。
 - Welcome 持久卡片为纯中文审批制文案并显示 3 个美国股票市场交易日完整会员体验、无需信用卡、
   不会自动续费、中文风险与安全提示，唯一按钮为 `申请加入 AXIS`。
@@ -279,7 +282,7 @@ Discord:
 - GENERAL guides=idempotent
 - non-admin visible AXIS commands=`/gex`, `/stock`；其余 12 个 `test-*` commands 保持
   Administrator default permission + Owner runtime gate。GEX 与 Stock smoke card 均已在
-  card-testing 发送成功。
+  卡片测试发送成功。
 
 Analysis Fusion:
 
@@ -362,7 +365,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 
 - Policy / budget / opening guard / risk ladder / publication idempotency / adapter safety automated tests: PASS。
 - Safety gate: PASS；mode=`DRY_RUN`，broker writes=`DISABLED`。
-- Discord runtime: PASS；`💹・moomoo-trading` 仅 Owner 与 Bot 可见。
+- Discord runtime: PASS；`💹・交易控制` 仅 Owner 与 Bot 可见。
 - Database revision=`20260904_0031`；新增执行表全部为空。
 - OpenD connectivity: BLOCKED — `127.0.0.1:11111` 未监听；未伪造账户、订单、成交或持仓验证。
 - 因外部 E2E 未完成，feature、DRY_RUN accepted gate、REAL environment 与 LIVE write gate 均未启用。

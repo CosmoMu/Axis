@@ -165,13 +165,13 @@ class GexExplorerCog(commands.Cog):
             return
         if authorization == "TEST_CHANNEL_REQUIRED":
             await interaction.response.send_message(
-                "测试模式：请只在 🧪・card-testing 使用 `/gex TICKER`。",
+                "测试模式：请只在 🧪・卡片测试 使用 `/gex TICKER`。",
                 ephemeral=True,
             )
             return
         if authorization == "MEMBER_LOUNGE_REQUIRED":
             await interaction.response.send_message(
-                "请在 🛋️・member-lounge 使用 `gex TICKER` 或 `/gex TICKER`。",
+                "请在 🛋️・会员交流 使用 `gex TICKER` 或 `/gex TICKER`。",
                 ephemeral=True,
             )
             return

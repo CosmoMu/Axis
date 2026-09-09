@@ -159,7 +159,7 @@ class AnalysisPipelineCog(commands.Cog):
                 self.bot,
                 service="Analysis Processing",
                 error_type="ANALYSIS_PROCESSING_FAILED",
-                affected="analysis-input → analysis-review",
+                affected="观点输入 → 观点审核",
             )
         except Exception as exc:
             driver_error = getattr(exc, "orig", None)
@@ -179,7 +179,7 @@ class AnalysisPipelineCog(commands.Cog):
                 severity="ERROR",
                 service="Analysis Processing",
                 error_type="ANALYSIS_PROCESSING_FAILED",
-                affected="analysis-input → analysis-review",
+                affected="观点输入 → 观点审核",
                 detail=type(exc).__name__,
             )
             return

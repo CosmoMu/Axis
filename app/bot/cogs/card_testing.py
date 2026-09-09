@@ -229,7 +229,7 @@ class CardTestingCog(commands.Cog):
         )
         if not allowed:
             await interaction.response.send_message(
-                "该测试命令仅限 Owner 在 card-testing 使用。",
+                "该测试命令仅限 Owner 在卡片测试频道使用。",
                 ephemeral=True,
             )
         return allowed

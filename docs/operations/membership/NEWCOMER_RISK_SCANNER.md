@@ -20,7 +20,7 @@ space normalization and simple substitutions such as AXlS, AXIS_SUPPORT and V4LE
 
 ## Execution and deduplication
 
-Scanning runs on join, application submission, join-review rendering and hourly reconciliation.
+Scanning runs on join, application submission, `入群审核` rendering and hourly reconciliation.
 `newcomer_risk_flags` has one row per Guild/User/risk code and updates timestamps/counts. High risk
 also flows through existing `system_alerts` fingerprint deduplication; repeated scans update the
 same condition rather than sending endless messages.
@@ -32,5 +32,5 @@ configuration when appropriate; the next scan resolves conditions that no longer
 `RISK_FLAG_RESOLVED`. Never remove a genuine Trial history warning merely to issue another Trial.
 
 The pinned AXIS System Status card shows only aggregate `NEWCOMER SECURITY` metrics. HEALTHY means
-no unresolved HIGH flags; ATTENTION means specific users must be reviewed in system-alerts or
-join-review.
+no unresolved HIGH flags; ATTENTION means specific users must be reviewed in `系统警报` or
+`入群审核`.

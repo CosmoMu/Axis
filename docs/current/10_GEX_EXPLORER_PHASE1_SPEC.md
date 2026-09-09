@@ -10,11 +10,11 @@ Swing, LEAPS, Personal Moomoo Execution, or AXIS LAB.
 
 ## Access and safety boundary
 
-- Members use the exact text form `gex TICKER` in `🛋️・member-lounge`, for example `gex SPY`.
+- Members use the exact text form `gex TICKER` in `🛋️・会员交流`, for example `gex SPY`.
   `/gex ticker:TICKER` is also accepted there. Other ordinary messages do nothing.
 - Access requires Member, Manager, Guild Owner, or configured AXIS Owner identity in the configured
   Guild and exact Member Lounge channel. Channel permissions remain an additional isolation layer.
-- Owner may continue using `/gex` in `🧪・card-testing` for maintenance validation.
+- Owner may continue using `/gex` in `🧪・卡片测试` for maintenance validation.
 - `GEX_EXPLORER_ENABLED` is the kill switch. The Owner sent the exact launch approval
   `APPROVE GEX LOUNGE LAUNCH` on 2026-09-05; production mode is `MEMBER_LOUNGE`.
 - GEX is strictly read-only. It never writes broker orders or mutates Signal, Trade, Result,

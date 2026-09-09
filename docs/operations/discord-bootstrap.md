@@ -8,7 +8,7 @@
 - `.env` 中 `APPLY_CHANGES=false`、`DRY_RUN=true` 时不允许写入。
 - dry-run 报告写入本地 `var/discord/dry-run.json`；`var/` 不进入 Git。
 - 脚本不删除任何资源，默认不自动改名，也不自动移动保存 ID 所指向的频道。
-- 唯一的顺序 reconciliation 是把已登记的 `⬛・GENERAL` 与 `👋・welcome` 置于第一个公共
+- 唯一的顺序 reconciliation 是把已登记的 `⬛・公共区域` 与 `👋・欢迎` 置于第一个公共
   位置；不重排其他 AXIS Channel，也不直接编辑任何未登记资源。
 - `--allow-axis-renames` 只能重命名 `discord_ids.json` 已登记的 AXIS Role、Category 与 Channel；
   未提供该参数时，名称差异仍会触发 `BLOCK`。
@@ -56,13 +56,15 @@ DRY_RUN=false
 完成后立即把 `.env` 恢复为 `APPLY_CHANGES=false`、`DRY_RUN=true`，并再次运行 dry-run。
 重复运行不应出现 `CREATE`；非项目资源不得出现在 `UPDATE` 或 `BLOCK` 的目标中。
 
-当前蓝图为 4 个 Category、22 个 Channel。`📋・results-review` 只对 Manager、Owner 与
-AXIS BOT 可见；Manager 可以使用 Bot interaction，但不能发送普通消息。`🚨・system-alerts` 与
-`🧪・card-testing` 只对 Owner 与 AXIS BOT 可见；Owner 权限通过
+当前蓝图为 4 个 Category、25 个 Channel。`📣・人工喊单` 只对 Member、Manager、Owner 与
+AXIS BOT 可见，其中 Member 与 Manager 可以发送普通消息；该频道不挂载任何产品功能。
+`📋・战绩审核` 只对 Manager、Owner 与
+AXIS BOT 可见；Manager 可以使用 Bot interaction，但不能发送普通消息。`🚨・系统警报` 与
+`🧪・卡片测试` 只对 Owner 与 AXIS BOT 可见；Owner 权限通过
 `DISCORD_OWNER_USER_ID` 的 user-specific overwrite 实现，Manager 明确 DENY VIEW。
 AXIS LAB 仍为 deferred，Bootstrap 不会因本轮功能改动它的现有权限。
-新用户入口必须验证 `⬛・GENERAL position=0`、`👋・welcome position=0`，同时
-`🟢・MEMBERS` 对 `@everyone` 不可见。
+新用户入口必须验证 `⬛・公共区域 position=0`、`👋・欢迎 position=0`，同时
+`🟢・会员专区` 对 `@everyone` 不可见。
 
 ## 品牌命名更新
 

@@ -21,7 +21,7 @@ Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path �
 - 所有明确数值严格 Mentor First。导师给出的 Support、Resistance、Key Zone、Breakout、
   Target 与 Invalidation 不得被 AXIS 推导值替换；AXIS 只补缺失角色，并可在导师点位之间生成
   不带新价格标签的结构回踩形状。
-- `analysis-review` 在 Mentor 下拉菜单之后固定显示关键点位下拉菜单。Manager 可逐项选择既有
+- `观点审核` 在 Mentor 下拉菜单之后固定显示关键点位下拉菜单。Manager 可逐项选择既有
   点位并单独编辑类型、价格、区间上限和简短说明，也可新增或删除点位。经 Manager 编辑的点位
   记为 `MENTOR_INPUT`，保存后立即用同一份最终点位重绘图片。
 - Review 与 Public Card 使用简短中文：标题、单句摘要、最多三句条件式核心逻辑、关键点位、
@@ -33,7 +33,7 @@ Analysis、Stock Analyst、关键点位、指标、Scenario、Prediction Path �
 - `AXIS Market Intelligence` 是 AXIS 自有分析层，不依赖其他本地仓库运行。
 - `AXIS Stock Analyst` 提供只读日 K、EMA / RSI / MACD、结构位、成交分布代理、板块相对
   强度和 Scenario，当前只在单 Ticker Analysis 中补 Mentor 缺失字段。
-- `AXIS GEX Explorer` 不属于 Analysis Fusion；其 Member Lounge 查询入口、Owner card-testing
+- `AXIS GEX Explorer` 不属于 Analysis Fusion；其会员交流查询入口、Owner 卡片测试
   维护入口、Provider、缓存、热力图和安全门以 `10_GEX_EXPLORER_PHASE1_SPEC.md` 为准。
 - Stock Analyst 当前行情适配器只读 Massive Daily OHLCV；失败时保留 LLM 对输入的忠实整理。
 - 输入图片只作为内部证据与点位/方向提取来源，绝不直接转发到 Review 或会员频道。若输入

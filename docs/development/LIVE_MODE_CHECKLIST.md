@@ -26,9 +26,9 @@ Core Bot 和 Analysis 已在目标 Guild 运行；Stripe Live 基础设施为 PA
 - [x] Revision 20260831_0026 schema、rollback 和 offline SQL dry-run 已准备。
 - [x] 现有 Production users baseline 工具要求 dry-run 和精确 Guild ID；不会授予 Trial。
 - [x] Newcomer 权限矩阵与真实 Discord runtime verifier 已实现。
-- [x] Application、join-review、APPROVE / REJECT / FLAG、3 U.S. Trading Day automatic Trial 已实现。
+- [x] Application、入群审核、APPROVE / REJECT / FLAG、3 U.S. Trading Day automatic Trial 已实现。
 - [x] Trial lifetime unique、permanent Approval、Role failure state 和 reconciliation 已实现。
-- [x] Risk Scanner、persistent dedup、system-alerts 和 NEWCOMER SECURITY health 已实现。
+- [x] Risk Scanner、persistent dedup、系统警报和 NEWCOMER SECURITY health 已实现。
 - [ ] 一个真实 first-join 账户完成 Join → Apply → Approve → Trial。
 - [ ] 一个真实 Trial 完成 Expiry → normal `@everyone` → Rejoin，无第二次 Trial。
 - [ ] Never-approved / Rejected rejoin 和 Desktop / Mobile 实际权限完成验收。

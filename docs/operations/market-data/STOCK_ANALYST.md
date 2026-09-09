@@ -4,7 +4,7 @@
 
 **Command:** `/stock ticker:TICKER`
 
-**Access:** Member / Manager / Owner in `🛋️・member-lounge`; Owner maintenance in `🧪・card-testing`
+**Access:** Member / Manager / Owner in `🛋️・会员交流`; Owner maintenance in `🧪・卡片测试`
 
 **Strategy version:** `COSMOS_STOCK_ANALYST_V0_1`
 
@@ -15,8 +15,8 @@ normalizes the symbol, loads market data, runs deterministic analysis once, and 
 PNG from the same structured result. A plain ticker message never triggers it.
 
 The Member Lounge path is fail-closed. It requires the exact configured Guild, exact
-`🛋️・member-lounge` channel, and Member / Manager / Owner access. Newcomer and `@everyone` are
-blocked. Owner retains the card-testing maintenance path; all other channels are rejected.
+`🛋️・会员交流` channel, and Member / Manager / Owner access. Newcomer and `@everyone` are
+blocked. Owner retains the `卡片测试` maintenance path; all other channels are rejected.
 
 The command never creates or changes Signal, Trade, Result, Mentor, public Analysis, Tracking,
 Membership or broker state. It never invokes Moomoo or the Owner Personal Execution Layer.

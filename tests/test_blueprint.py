@@ -38,7 +38,7 @@ def empty_guild() -> GuildState:
 def test_blueprint_has_exact_mvp_shape() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
 
-    assert blueprint.version == 4
+    assert blueprint.version == 6
     assert blueprint.server_name == "AXIS"
     assert [role.name for role in blueprint.roles] == [
         "AXIS BOT",
@@ -48,39 +48,40 @@ def test_blueprint_has_exact_mvp_shape() -> None:
     ]
     assert blueprint.role_order == ("bot", "manager", "member", "newcomer", "everyone")
     assert [category.name for category in blueprint.categories] == [
-        "⬛・GENERAL",
-        "🟢・MEMBERS",
-        "⚙️・MANAGER",
+        "⬛・公共区域",
+        "🟢・会员专区",
+        "⚙️・管理后台",
         "🧪・AXIS LAB",
     ]
     assert [channel.name for category in blueprint.categories for channel in category.channels] == [
-        "👋・welcome",
-        "💳・subscriptions",
-        "📊・results",
-        "💬・lobby",
-        "🏆・member-wins",
-        "⚡・short-term",
-        "〽️・swing",
-        "♾️・leaps",
-        "🛋️・member-lounge",
-        "📥・signal-input",
-        "✅・signal-review",
-        "💭・analysis-input",
-        "📝・analysis-review",
-        "🧭・mentor-control",
-        "👤・member-control",
-        "📋・results-review",
-        "🛂・join-review",
-        "🤫・在这交流",
-        "🚨・system-alerts",
-        "🧪・card-testing",
-        "💹・moomoo-trading",
-        "🟢・lab-signals",
-        "🧬・mentor-status",
-        "🗂️・lab-history",
+        "👋・欢迎",
+        "💳・会员订阅",
+        "📊・官方战绩",
+        "💬・公共交流",
+        "🏆・会员分享",
+        "⚡・短线",
+        "〽️・波段",
+        "♾️・长期",
+        "📣・人工喊单",
+        "🛋️・会员交流",
+        "📥・信号输入",
+        "✅・信号审核",
+        "💭・观点输入",
+        "📝・观点审核",
+        "🧭・导师管理",
+        "👤・会员管理",
+        "📋・战绩审核",
+        "🛂・入群审核",
+        "🤫・管理交流",
+        "🚨・系统警报",
+        "🧪・卡片测试",
+        "💹・交易控制",
+        "🟢・模型信号",
+        "🧬・导师状态",
+        "🗂️・历史订单",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 24
+    assert blueprint.channel_count == 25
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
     assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
     assert blueprint.categories[0].channels[0].key == "welcome"
@@ -93,7 +94,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 3
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 24
+    assert sum(action.resource_type == "channel" for action in creates) == 25
     assert not plan.blockers
 
 
@@ -134,11 +135,11 @@ def test_welcome_first_plan_never_targets_unregistered_resources() -> None:
         empty_guild(),
         categories=(
             CategoryState(999, "Other Project", 0),
-            CategoryState(401, "⬛・GENERAL", 5),
+            CategoryState(401, "⬛・公共区域", 5),
         ),
         channels=(
             ChannelState(998, "other-channel", "text", 999, 0, "Other", {}),
-            ChannelState(501, "👋・welcome", "text", 401, 5, welcome_spec.topic, {}),
+            ChannelState(501, "👋・欢迎", "text", 401, 5, welcome_spec.topic, {}),
         ),
     )
     saved_ids = {
@@ -166,6 +167,7 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
 
     member_wins = desired_channel_permissions(channels["member_wins"])
     lobby = desired_channel_permissions(channels["lobby"])
+    manual_alerts = desired_channel_permissions(channels["manual_alerts"])
     manager_lounge = desired_channel_permissions(channels["manager_lounge"])
     card_testing = desired_channel_permissions(channels["card_testing"])
     system_alerts = desired_channel_permissions(channels["system_alerts"])
@@ -175,6 +177,13 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     assert member_wins["manager"]["manage_messages"] is True
     assert member_wins["bot"]["pin_messages"] is True
     assert lobby["manager"]["manage_messages"] is True
+    assert manual_alerts["everyone"]["view_channel"] is False
+    assert manual_alerts["newcomer"]["view_channel"] is False
+    assert manual_alerts["member"]["view_channel"] is True
+    assert manual_alerts["member"]["send_messages"] is True
+    assert manual_alerts["manager"]["view_channel"] is True
+    assert manual_alerts["manager"]["send_messages"] is True
+    assert "bot" not in manual_alerts
     assert manager_lounge["manager"]["view_channel"] is True
     assert manager_lounge["manager"]["send_messages"] is True
     assert manager_lounge["manager"]["attach_files"] is True

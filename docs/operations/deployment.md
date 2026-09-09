@@ -25,7 +25,7 @@ Daily Results Review、Free Trial onboarding 与 Swing V2 部署后还应确认�
 `20260903_0029`、
 `RESULTS_REVIEW_ENABLED=true`、Guild Config 已保存 `results_review_channel_id`，并按
 `docs/operations/daily-results-review.md` 验证第一个正式交易日。测试 UI 只能通过
-`/test-results-review` 在 `🧪・card-testing` 运行。
+`/test-results-review` 在 `🧪・卡片测试` 运行。
 
 启用 Core Moomoo 总结时，另外安装 OpenD 登录 LaunchAgent：
 

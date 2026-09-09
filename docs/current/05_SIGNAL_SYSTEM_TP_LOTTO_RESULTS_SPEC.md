@@ -77,7 +77,7 @@ lifecycle and highest-return Results rule.
 - Short-Term 候选包含当天到期以及收盘时仍为 ACTIVE / OVERNIGHT_ACTIVE 的订单；只有全生命周期
   最高收益严格超过该订单此前已发布的最佳 Results 才进入 Review。当天 CLOSED Swing / LEAPS
   仍默认 Included；Loss Trade 不自动隐藏。
-- `📋・results-review` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、PREVIEW
+- `📋・战绩审核` 仅 Manager、Owner 与 AXIS BOT 可见。操作为 MANAGE TRADES、PREVIEW
   与 PUBLISH NOW；不显示 EDIT CARD。
 - Exclude / Re-Include 只改变当天公开快照，保存 actor、time、reason 与 before/after Audit，
   永不删除 Trade、Event、Tracking、Mentor Dataset 或内部历史。
@@ -93,7 +93,7 @@ lifecycle and highest-return Results rule.
 
 - `2026-08-31` 起真实输入默认为 PRODUCTION，并永久保存。
 - 之后禁止第二次全量 Reset、重新编号或清除 Production History。
-- Fake Signal、Fake Result、Synthetic Event 和 Preview 只允许在 `🧪・card-testing` 的 TEST
+- Fake Signal、Fake Result、Synthetic Event 和 Preview 只允许在 `🧪・卡片测试` 的 TEST
   Environment 中运行，不得污染 Production 数据。
 
 ## Explicit exclusions

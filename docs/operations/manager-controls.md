@@ -2,7 +2,7 @@
 
 ## Mentor Control
 
-`🧭・mentor-control` 的长期面板包含：
+`🧭・导师管理` 的长期面板包含：
 
 - `选择 Mentor`：查看 Active / Historical Trade。
 - `新增 Mentor`：填写 Name、Short Code 和可选 Aliases。
@@ -23,7 +23,7 @@
 
 ## Member Control
 
-`👤・member-control` 的长期面板包含：
+`👤・会员管理` 的长期面板包含：
 
 - Discord 原生 `User Select`：可按服务器成员用户名或显示名搜索，不需要输入 User ID。
 
@@ -63,5 +63,5 @@ exit_value = sum(exit price * sold units)
 final_return = (exit_value - entry_cost) / entry_cost
 ```
 
-结果自动发到 `📊・results`。Footer 使用 Public Trade ID 作为恢复 marker，数据库保存
+结果自动发到 `📊・官方战绩`。Footer 使用 Public Trade ID 作为恢复 marker，数据库保存
 Result Message ID；Bot 重启或数据库短暂回写失败不会发布第二张结果卡。

@@ -1,4 +1,4 @@
-version: 4
+version: 6
 # AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
 brand:
   server_name: "AXIS"
@@ -37,13 +37,13 @@ role_order:
 
 categories:
   - key: start
-    name: "⬛・GENERAL"
+    name: "⬛・公共区域"
     position: 0
     channels:
       - key: welcome
-        name: "👋・welcome"
+        name: "👋・欢迎"
         type: text
-        topic: "AXIS. Signals without the noise."
+        topic: "AXIS 欢迎入口。点击申请加入 AXIS 后提交入群申请。"
         everyone_view: true
         everyone_send: false
         newcomer_view: true
@@ -52,18 +52,18 @@ categories:
         manager_send: false
         bot_send: true
       - key: subscriptions
-        name: "💳・subscriptions"
+        name: "💳・会员订阅"
         type: text
-        topic: "Approved users can view Day Pass, Monthly Membership, and account management."
+        topic: "查看单日通行证、月度会员与会员账户管理。"
         everyone_view: true
         everyone_send: false
         member_send: false
         manager_send: false
         bot_send: true
       - key: official_results
-        name: "📊・results"
+        name: "📊・官方战绩"
         type: text
-        topic: "System-tracked completed trades and official AXIS performance records."
+        topic: "AXIS 系统追踪的已完成订单与官方战绩。"
         everyone_view: true
         everyone_send: false
         newcomer_view: true
@@ -72,9 +72,9 @@ categories:
         manager_send: false
         bot_send: true
       - key: lobby
-        name: "💬・lobby"
+        name: "💬・公共交流"
         type: text
-        topic: "Open community discussion for markets, AXIS, and general questions."
+        topic: "公开市场交流、AXIS 讨论与常见问题。"
         everyone_view: true
         everyone_send: true
         member_send: true
@@ -82,9 +82,9 @@ categories:
         manager_manage_messages: true
         bot_send: true
       - key: member_wins
-        name: "🏆・member-wins"
+        name: "🏆・会员分享"
         type: text
-        topic: "Member-submitted trades; excluded from official AXIS performance statistics."
+        topic: "会员自主分享；不计入 AXIS 官方战绩统计。"
         everyone_view: true
         everyone_send: true
         everyone_attach: true
@@ -99,12 +99,12 @@ categories:
         bot_pin_messages: true
 
   - key: members
-    name: "🟢・MEMBERS"
+    name: "🟢・会员专区"
     position: 1
     default_visibility: member
     channels:
       - key: short_term_alerts
-        name: "⚡・short-term"
+        name: "⚡・短线"
         type: text
         topic: "短线交易信号。仅 Bot 发布。"
         everyone_view: false
@@ -115,7 +115,7 @@ categories:
         bot_send: true
         bot_pin_messages: true
       - key: swing_alerts
-        name: "〽️・swing"
+        name: "〽️・波段"
         type: text
         topic: "波段交易信号。仅 Bot 发布。"
         everyone_view: false
@@ -125,7 +125,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: leaps_alerts
-        name: "♾️・leaps"
+        name: "♾️・长期"
         type: text
         topic: "长期和 LEAPS 交易信号。仅 Bot 发布。"
         everyone_view: false
@@ -134,8 +134,19 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
+      - key: manual_alerts
+        name: "📣・人工喊单"
+        type: text
+        topic: "会员与管理员人工发布交易观察。"
+        everyone_view: false
+        member_view: true
+        member_send: true
+        manager_view: true
+        manager_send: true
+        bot_inherit: true
+        bot_send: true
       - key: member_chat
-        name: "🛋️・member-lounge"
+        name: "🛋️・会员交流"
         type: text
         topic: "会员专属交流。"
         everyone_view: false
@@ -147,12 +158,12 @@ categories:
         bot_send: true
 
   - key: manager
-    name: "⚙️・MANAGER"
+    name: "⚙️・管理后台"
     position: 2
     default_visibility: manager
     channels:
       - key: signal_input
-        name: "📥・signal-input"
+        name: "📥・信号输入"
         type: text
         topic: "管理员提交原始文字、截图和交易更新。"
         everyone_view: false
@@ -162,7 +173,7 @@ categories:
         manager_attach: true
         bot_send: true
       - key: card_review
-        name: "✅・signal-review"
+        name: "✅・信号审核"
         type: text
         topic: "LLM 草稿、Mentor 选择、编辑、预览和确认发布。"
         everyone_view: false
@@ -172,7 +183,7 @@ categories:
         manager_attach: true
         bot_send: true
       - key: analysis_input
-        name: "💭・analysis-input"
+        name: "💭・观点输入"
         type: text
         topic: "Mentor 市场观点的文字与图片输入。Analysis 功能在 Gate A 前保持关闭。"
         everyone_view: false
@@ -182,7 +193,7 @@ categories:
         manager_attach: true
         bot_send: true
       - key: analysis_review
-        name: "📝・analysis-review"
+        name: "📝・观点审核"
         type: text
         topic: "Analysis 草稿审核、归档与发布。Analysis 功能在 Gate A 前保持关闭。"
         everyone_view: false
@@ -192,7 +203,7 @@ categories:
         manager_attach: true
         bot_send: true
       - key: mentor_control
-        name: "🧭・mentor-control"
+        name: "🧭・导师管理"
         type: text
         topic: "动态 Mentor Registry 和每位 Mentor 的订单状态。"
         everyone_view: false
@@ -201,7 +212,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: member_control
-        name: "👤・member-control"
+        name: "👤・会员管理"
         type: text
         topic: "会员赠送、延期、到期取消和立即移除。"
         everyone_view: false
@@ -210,7 +221,7 @@ categories:
         manager_send: false
         bot_send: true
       - key: results_review
-        name: "📋・results-review"
+        name: "📋・战绩审核"
         type: text
         topic: "Daily Results Draft、Include / Exclude、Preview 与正式发布控制。"
         everyone_view: false
@@ -220,9 +231,9 @@ categories:
         manager_interact: true
         bot_send: true
       - key: join_review
-        name: "🛂・join-review"
+        name: "🛂・入群审核"
         type: text
-        topic: "AXIS Newcomer access applications, security context, and Manager decisions."
+        topic: "新成员入群申请、安全信息与管理员审核。"
         everyone_view: false
         member_view: false
         newcomer_view: false
@@ -234,7 +245,7 @@ categories:
         owner_interact: true
         bot_send: true
       - key: manager_lounge
-        name: "🤫・在这交流"
+        name: "🤫・管理交流"
         type: text
         topic: "AXIS Manager 私人交流频道。"
         everyone_view: false
@@ -245,7 +256,7 @@ categories:
         manager_manage_messages: true
         bot_send: true
       - key: system_alerts
-        name: "🚨・system-alerts"
+        name: "🚨・系统警报"
         type: text
         topic: "AXIS 生产系统 ERROR、WARNING 与 RECOVERY；正常运行时保持安静。"
         everyone_view: false
@@ -258,7 +269,7 @@ categories:
         owner_manage_messages: true
         bot_send: true
       - key: card_testing
-        name: "🧪・card-testing"
+        name: "🧪・卡片测试"
         type: text
         topic: "AXIS Owner 测试卡片专用频道；测试不得写入正式交易或会员频道。"
         everyone_view: false
@@ -282,9 +293,9 @@ categories:
     feature_flag: FEATURE_LAB_ENABLED
     channels:
       - key: moomoo_trading
-        name: "💹・moomoo-trading"
+        name: "💹・交易控制"
         type: text
-        topic: "AXIS Owner-only personal Moomoo execution control, reconciliation, and audit."
+        topic: "仅 Owner 使用的个人交易控制、对账与审计。"
         everyone_view: false
         everyone_send: false
         member_view: false
@@ -300,7 +311,7 @@ categories:
         owner_manage_messages: true
         bot_send: true
       - key: lab_signals
-        name: "🟢・lab-signals"
+        name: "🟢・模型信号"
         type: text
         topic: "Model A/B 和 Moomoo 后续生成的私人模型信号。"
         everyone_view: false
@@ -308,7 +319,7 @@ categories:
         manager_view: false
         bot_send: true
       - key: mentor_status
-        name: "🧬・mentor-status"
+        name: "🧬・导师状态"
         type: text
         topic: "未来 Mentor 模型状态预留。当前功能禁用。"
         everyone_view: false
@@ -316,7 +327,7 @@ categories:
         manager_view: false
         bot_send: true
       - key: lab_history
-        name: "🗂️・lab-history"
+        name: "🗂️・历史订单"
         type: text
         topic: "模型历史订单、未触发信号和每日收盘总结。"
         everyone_view: false

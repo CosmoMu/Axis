@@ -12,7 +12,7 @@ Signal System。当前不新增功能；只执行下面固定 Priority 的真实
 
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
-`🧪・card-testing`。
+`🧪・卡片测试`。
 
 ## Current Gate — Stock Analyst Post-Launch Monitoring
 
@@ -103,7 +103,7 @@ Work:
 - 核对 Discord Entry / TP、Daily Results 和数据库完整历史，并确认任何回撤都不发送 SL、
   到期也不向 Short-Term 频道发卡。
 - 重启 Bot，确认 tracking 恢复且 event / publication 不重复。
-- 在存在 Eligible stopped / active / closed trade 时，验证收盘后 `📋・results-review` Draft、默认
+- 在存在 Eligible stopped / active / closed trade 时，验证收盘后 `📋・战绩审核` Draft、默认
   Include、Manager Review 与 `16:15 ET` 单次公开发布；保留数据库与 Discord 证据。
 
 Exit criteria:

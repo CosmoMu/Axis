@@ -22,7 +22,7 @@ must never be inferred from creation date or current status.
 
 ## Entry and review
 
-Swing entry still starts in `signal-input`. The parser extracts Ticker, Expiry, Strike, Call/Put,
+Swing entry still starts in `信号输入`. The parser extracts Ticker, Expiry, Strike, Call/Put,
 Entry Price, Category, and the optional LOTTO display flag. The Manager review is intentionally
 minimal:
 
@@ -35,7 +35,7 @@ minimal:
 Simple Swing requires no Mentor, linked Mentor trade, position field, ADD stage, SL, Runner,
 prediction chart, Fibonacci level, or trade-plan field. Its public entry uses the same compact
 visual language as Short-Term but receives an independent `SW-XXXX` public ID and publishes only
-to `〽️・swing`.
+to `〽️・波段`.
 
 Changing a new draft from Short-Term to Swing creates a Simple Swing draft. Changing it to LEAPS
 uses the existing Mentor-driven flow. A Legacy Swing update must remain on the Legacy flow.
@@ -66,7 +66,7 @@ unavailable, outlier, or not-found quotes cannot trigger milestones or overwrite
 
 ## Manual close
 
-A close request must enter through `signal-input`, become a review draft, and require Manager
+A close request must enter through `信号输入`, become a review draft, and require Manager
 publish. Supported forms include:
 
 ```text

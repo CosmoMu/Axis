@@ -10,8 +10,8 @@ separate entitlement decision.
 
 The Discord blueprint fails closed for `Newcomer`. The Role has explicit channel overwrites:
 
-- ALLOW View Channel + Read Message History: `👋・welcome`, `📊・results`,
-  `🏆・member-wins`.
+- ALLOW View Channel + Read Message History: `👋・欢迎`, `📊・官方战绩`,
+  `🏆・会员分享`.
 - DENY View Channel: subscriptions, lobby, every Member/Manager/Owner/LAB channel and every other
   registered channel.
 - DENY Send Messages and Attach Files everywhere, including results and member-wins.

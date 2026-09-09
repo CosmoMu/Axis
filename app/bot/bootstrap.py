@@ -382,17 +382,18 @@ async def _create_or_reuse_channels(
                 if (channel.topic or "") != spec.topic:
                     await channel.edit(topic=spec.topic, reason="AXIS Bootstrap：同步频道主题")
             else:
-                overwrites = {
-                    subjects[subject]: discord.PermissionOverwrite(**values)
-                    for subject, values in desired_channel_permissions(spec).items()
-                }
+                # Create inside the already-reconciled category first so the channel
+                # inherits the fail-closed visibility boundary. Discord can reject a
+                # create request that includes the complete overwrite matrix even
+                # when the same overwrites are accepted individually afterwards.
                 channel = await guild.create_text_channel(
                     spec.name,
                     category=category,
                     topic=spec.topic,
-                    overwrites=overwrites,
                     reason="AXIS Bootstrap：创建缺失频道",
                 )
+                for subject, values in desired_channel_permissions(spec).items():
+                    await _merge_permissions(channel, subjects[subject], values)
             result[spec.key] = channel
     return result
 

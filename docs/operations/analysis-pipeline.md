@@ -6,7 +6,7 @@ Analysis 与 Signal 是两个独立 Domain。`source_messages.source_kind` 只�
 ## 数据流
 
 ```text
-analysis-input
+观点输入
   -> immutable SourceMessage / checksum attachments
   -> ANALYSIS_PARSE
   -> Normalized Mentor View
@@ -15,12 +15,12 @@ analysis-input
   -> AnalysisDraft
   -> Final Fused Preview / source-aware Manager review
   -> archive-only OR immutable Final Analysis + Public Snapshot
-  -> member-lounge (no thread)
+  -> 会员交流 (no thread)
 ```
 
 新 Source 永远创建新的 `analysis_id`。即使 Mentor 和 symbol 相同，也不会更新旧 Analysis。
 
-`analysis-input` 支持直接文字/图片，也支持 Discord Forward。Forward 的 message snapshot
+`观点输入` 支持直接文字/图片，也支持 Discord Forward。Forward 的 message snapshot
 正文与附件会合并为本次不可变 Raw Source；转发人仍必须是 Owner 或 Manager。Discord 图片
 发生 `.webp` 文件名与 PNG MIME 不一致时，以真实图片签名归一化，非真实图片仍拒绝。
 
@@ -53,7 +53,7 @@ Analysis 与 Public Card Snapshot。点位、指标分别标记 `MENTOR_INPUT` /
 - Review 主卡第一行直接显示 Mentor 下拉菜单，第二行显示可逐项编辑/新增/删除的关键点位下拉
   菜单；第三行是编辑文字、预览、重新生成文本、重新生成图片；第四行是仅归档、归档并发布、
   删除。点位表单一个输入框只填写一个字段，保存后立即按最终点位重绘。发布后的主卡保留在
-  `analysis-review` 并移除操作组件。
+  `观点审核` 并移除操作组件。
 - 操作产生的 ephemeral 成功提示 4 秒后删除，错误提示 12 秒后删除；编辑与文本重写的
   ephemeral 选择菜单 180 秒后删除。
 - 必须选择 Active Mentor 才能归档。
@@ -77,7 +77,7 @@ Discord 发送失败时，Mentor Analysis 和 Public Snapshot 已安全归档，
 
 ## Feature Gate
 
-Owner 已对 `analysis-input` 的 OpenAI 数据出口作出独立明确授权，当前本机为：
+Owner 已对 `观点输入` 的 OpenAI 数据出口作出独立明确授权，当前本机为：
 
 ```text
 FEATURE_ANALYSIS_ENABLED=true

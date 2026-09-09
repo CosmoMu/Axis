@@ -10,7 +10,7 @@ Free Trial is three XNYS trading days from approval; weekends and U.S. market ho
 count. Free Trial, Day Pass and explicit trading-day extensions use `TradingCalendarService`; their
 last valid session expires at 23:59:59 America/New_York.
 
-`👋・welcome` is the first public AXIS entry. Joining starts the application flow; Manager approval
+`👋・欢迎` is the first public AXIS entry. Joining starts the application flow; Manager approval
 creates the Trial automatically after the required risk acknowledgement. Full onboarding operations
 are documented in `membership/FREE_TRIAL_ONBOARDING.md`.
 

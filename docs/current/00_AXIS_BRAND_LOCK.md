@@ -28,7 +28,8 @@ axis
 
 环境变量、Schema、代码类名可使用 `AXIS` / `Axis` / `axis` 作为大小写变体。
 
-Discord Category / Channel 使用当前 Blueprint 中的 Emoji + English 命名。
+Discord Channel 使用当前 Blueprint 中的 Emoji + 中文命名；普通 Category 使用 Emoji + 中文，
+正式模块品牌 `AXIS LAB` 保持英文名称。
 
 Logo 资产：
 

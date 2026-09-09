@@ -1,6 +1,6 @@
 # AXIS GEX Explorer Operations
 
-**Current mode:** `MEMBER_LOUNGE` / Member + Manager + Owner / `🛋️・member-lounge`
+**Current mode:** `MEMBER_LOUNGE` / Member + Manager + Owner / `🛋️・会员交流`
 
 ## Runtime flow
 
@@ -10,7 +10,7 @@ loads Massive spot, selected option expirations, and the latest real five-minute
 runs the shared V7 classifier, renders one Chinese Discord card plus a 1800×1600 PNG, and records
 the existing GEX AuditLog events. Only the strict `gex TICKER` message shape triggers; a plain
 ticker or normal lounge conversation does not. Owner approved the launch on 2026-09-05 and the
-production runtime is now `MEMBER_LOUNGE`; Owner `/gex` remains available in card-testing.
+production runtime is now `MEMBER_LOUNGE`; Owner `/gex` remains available in `卡片测试`.
 
 The code-ready Member Lounge anti-spam rules are separate from provider protection: ordinary members may make one
 request every 30 seconds, and the same normalized ticker may be requested once per Guild every 60

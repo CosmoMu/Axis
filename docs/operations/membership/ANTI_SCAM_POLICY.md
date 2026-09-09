@@ -9,4 +9,4 @@ server-side, so a copied URL or old component cannot bypass the gate.
 
 Managers should FLAG uncertain applications for review. REJECT does not automatically ban. Use a
 separate Discord kick/ban only for confirmed malicious behavior, impersonation, scam or spam.
-Report suspected impersonation in `🚨・system-alerts`; the Manager remains the final decision maker.
+Report suspected impersonation in `🚨・系统警报`; the Manager remains the final decision maker.

@@ -101,10 +101,10 @@ control panels
 实现：
 
 ```text
-📥・signal-input
+📥・信号输入
 OpenAI SIGNAL_PARSE
 trade draft
-✅・signal-review
+✅・信号审核
 Mentor selection
 trade matching
 edit / preview / publish
@@ -130,11 +130,11 @@ gpt-5.6-terra
 实现：
 
 ```text
-🧭・mentor-control
-👤・member-control
+🧭・导师管理
+👤・会员管理
 Member role sync
 Gift / extend / expire / revoke
-📊・results
+📊・官方战绩
 weighted trade performance
 audit logs
 scheduled jobs
@@ -167,16 +167,16 @@ secret scan
 只在 Gate A PASS 后开始：
 
 ```text
-💭・analysis-input
+💭・观点输入
 ANALYSIS_PARSE
 structured analysis
-📝・analysis-review
+📝・观点审核
 Mentor selection
 edit
 rewrite
 archive only
 archive + publish
-🛋️・member-lounge card
+🛋️・会员交流 card
 Analysis database
 ```
 

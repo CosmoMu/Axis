@@ -109,6 +109,7 @@ async def verify() -> list[str]:
         lobby = channel("lobby")
         member_wins = channel("member_wins")
         member_lounge = channel("member_chat")
+        manual_alerts = channel("manual_alerts")
         short_term = channel("short_term_alerts")
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
@@ -198,6 +199,36 @@ async def verify() -> list[str]:
         _check(member_wins.permissions_for(member).send_messages, "member_wins_send", failures)
         _check(member_wins.permissions_for(member).attach_files, "member_wins_attach", failures)
         _check(member_lounge.permissions_for(member).view_channel, "member_lounge_view", failures)
+        _check(
+            not manual_alerts.permissions_for(everyone).view_channel,
+            "everyone_manual_alerts_view",
+            failures,
+        )
+        _check(
+            not manual_alerts.permissions_for(newcomer).view_channel,
+            "newcomer_manual_alerts_view",
+            failures,
+        )
+        _check(
+            manual_alerts.permissions_for(member).view_channel,
+            "member_manual_alerts_view",
+            failures,
+        )
+        _check(
+            manual_alerts.permissions_for(member).send_messages,
+            "member_manual_alerts_send",
+            failures,
+        )
+        _check(
+            manual_alerts.permissions_for(manager).view_channel,
+            "manager_manual_alerts_view",
+            failures,
+        )
+        _check(
+            manual_alerts.permissions_for(manager).send_messages,
+            "manager_manual_alerts_send",
+            failures,
+        )
         _check(
             member_lounge.permissions_for(member).use_application_commands,
             "member_lounge_member_interact",
@@ -370,7 +401,7 @@ async def verify() -> list[str]:
             lobby = channel("lobby")
             _check(
                 lobby.topic
-                == "Open community discussion for markets, AXIS, and general questions.",
+                == "公开市场交流、AXIS 讨论与常见问题。",
                 "lobby_topic_mismatch",
                 failures,
             )

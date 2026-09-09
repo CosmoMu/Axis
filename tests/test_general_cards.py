@@ -75,7 +75,7 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
     assert "⚡ 短线" in welcome
     assert "〽️ 波段" in welcome
     assert "♾️ 长期" in welcome
-    assert "🛋️ 会员交流区" in welcome
+    assert "🛋️ 会员交流" in welcome
     assert "请独立判断并自行承担风险" in welcome
     assert "AXIS 工作人员绝不会主动私信" in welcome
     for forbidden_english in (
@@ -102,7 +102,7 @@ def test_general_cards_are_minimal_single_membership_and_correctly_scoped() -> N
         assert forbidden not in subscription
     assert "System-tracked" in results
     assert "Past performance" in results
-    assert "Open community discussion" in lobby
+    assert "公开市场交流" in lobby
     assert "not included" in wins
     assert "thumbnail" not in welcome
     assert "footer" not in welcome
@@ -189,14 +189,14 @@ def test_approval_welcomes_mention_the_member_in_both_destinations() -> None:
     )
 
     assert "<@123>" in lobby
-    assert "Lobby" in lobby
+    assert "公共交流区" in lobby
     assert "<@123>" in member_lounge
-    assert "Member Lounge" in member_lounge
+    assert "AXIS 会员交流区" in member_lounge
     assert "保持独立判断" in member_lounge
     assert "尊重风险，尊重市场" in member_lounge
-    assert "⚡ Short-Term · <#201>" in member_lounge
-    assert "〽️ Swing · <#202>" in member_lounge
-    assert "♾️ LEAPS · <#203>" in member_lounge
+    assert "⚡ 短线 · <#201>" in member_lounge
+    assert "〽️ 波段 · <#202>" in member_lounge
+    assert "♾️ 长期 · <#203>" in member_lounge
     assert "`/gex ticker:SPY`" in member_lounge
     assert "`/stock ticker:SPY`" in member_lounge
     assert "Gamma 支撑、压力与加速区" in member_lounge

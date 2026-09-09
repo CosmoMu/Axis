@@ -12,14 +12,14 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 保存 Snowflake ID 后优先按 ID 复用；只对 AXIS-owned 资源执行受控更新。
 - Persistent View、Review Card 和 Manager 控制面板重启恢复。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
-- Owner-only `💹・moomoo-trading`、持久 control card 与明确 persona permission isolation。
+- Owner-only `💹・交易控制`、持久 control card 与明确 persona permission isolation。
 
 ## GEX Explorer — Member Lounge Live
 
-- `🛋️・member-lounge` 严格文本触发 `gex TICKER`，同时支持 `/gex ticker:TICKER`；普通 Ticker
+- `🛋️・会员交流` 严格文本触发 `gex TICKER`，同时支持 `/gex ticker:TICKER`；普通 Ticker
   与其他聊天不触发。
 - Member / Manager / Owner + exact Guild / channel 双重 runtime gate；Owner 保留
-  `🧪・card-testing` Slash Command 维护入口。
+  `🧪・卡片测试` Slash Command 维护入口。
 - Massive GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
   Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
 - Moomoo OpenD 5 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
@@ -62,7 +62,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   linked close、kill switches、private events、daily summary 和 System Alert recovery。
 - DRY_RUN 全决策路径写审计 decision，但不会创建 broker order、fill 或 fake position。
 - GENERAL Guide 依据数据库 Message ID 幂等同步。
-- Manager-only `📋・results-review`、每日 Review View 与公开 Results 幂等恢复。
+- Manager-only `📋・战绩审核`、每日 Review View 与公开 Results 幂等恢复。
 - macOS LaunchAgent、Dockerfile 与 Compose 基础部署。
 
 ## Database
@@ -133,7 +133,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 - 新 Swing 自动标记为 `SIMPLE_TRACKED_SWING`；旧 Swing 永久标记为 `LEGACY_SWING`。
 - Mentor-free、Position-free；不包含 ADD、SL、Runner、Momentum、Prediction Chart、Fib 或交易计划。
-- signal-input → minimal review → publish；Category、完整合约、Entry Price 与 LOTTO 可审核。
+- 信号输入 → minimal review → publish；Category、完整合约、Entry Price 与 LOTTO 可审核。
 - 独立 `SW-XXXX`，公开 Entry 使用 Short-Term 同类紧凑布局且不泄露内部 publication/event ID。
 - 直接复用当前 Short-Term `ShortTermTrackingPolicy.tp_levels`；没有 Swing TP 数组副本。每笔订单
   冻结 `tracking_policy_version` 与 `price_source`，每个固定 TP 幂等发布一次。
@@ -161,7 +161,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
 - 单合约 stale / unavailable / outlier / not-found 数据状态不会再升级为 Massive 服务整体 ERROR；
   订单保存连续错误次数与精确错误码，有效报价自动恢复。认证、限流和请求/响应故障继续进入
-  system-alerts。
+  系统警报。
 - entry_price、current_price、high/low watermark 与 policy version。
 - 新订单固定 TP1–TP41：10% / 20%，然后从 50% 起每 25 个百分点提示一次直至 1000%；
   `tp_levels_hit` 保证每一级只发送一次。
@@ -219,10 +219,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
   `welcome`、`results`、`member-wins`，其余频道对 Newcomer 显式 DENY。
 - Welcome 与后续申请流程使用纯中文，唯一 onboarding CTA 是 `申请加入 AXIS`，并明确说明
   欢迎页本身不代表已加入；来源与兴趣选择、推荐人弹窗、风险确认、社区安全协议、提交结果和
-  Manager join-review 均使用中文展示，内部状态码保持不变。
+  Manager 入群审核均使用中文展示，内部状态码保持不变。
 - Application 保存 discovery source、optional referrer、multi-select interests、Risk / Community
   agreements 和永久 PENDING / FLAGGED / APPROVED / REJECTED 审计。
-- `🛂・join-review` 只允许 Owner / Manager / AXIS BOT；APPROVE / REJECT / FLAG 幂等。
+- `🛂・入群审核` 只允许 Owner / Manager / AXIS BOT；APPROVE / REJECT / FLAG 幂等。
 - Approval 与 Entitlement 分离并永久存在；Approved rejoin 不再申请、不再得到 Trial，按当前
   Entitlement 成为 Member 或普通 `@everyone` visitor。
 - Approval 完成且 Member Role 同步成功后，Bot 在 Lobby 与 Member Lounge 分别 @mention 欢迎；
@@ -232,7 +232,7 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - `NewcomerRiskScanner` 覆盖 VERY_NEW_ACCOUNT、NEW_ACCOUNT、PREVIOUS_REJECTION、
   PREVIOUS_FLAG、TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION；protected
   identity 由 YAML 配置，风险只用于 Flag / Alert / Review，不自动 Kick / Ban / Reject。
-- 风险记录按 user + risk code 持久去重，High-risk 接入 system-alerts；`NEWCOMER SECURITY`
+- 风险记录按 user + risk code 持久去重，High-risk 接入系统警报；`NEWCOMER SECURITY`
   aggregate health、5 分钟 Role reconciliation 与 1 小时 risk scan 已实现。
 - Checkout 后端同时要求永久 Approval 和已完成 Role sync，旧按钮或 URL 不能绕过 Newcomer gate。
 
@@ -283,13 +283,13 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Key Level、Indicator、why-now 和 conflict provenance。
 - 2–3 个内部 Scenario；公开只显示通过 confidence / advantage gate 的 Top Scenario。
 - Stock Analyst provider injection、有限历史模式和安全 fallback。
-- Analysis 不调用 GEX；独立 GEX V7 连接 Member Lounge 按需查询与 Owner card-testing 维护入口，
+- Analysis 不调用 GEX；独立 GEX V7 连接会员交流按需查询与 Owner 卡片测试维护入口，
   不连接任何交易接口。
 
 ## AXIS Stock Analyst — Member Lounge Live
 
-- Member / Manager / Owner 可在 `🛋️・member-lounge` 使用 `/stock ticker:TICKER`；Owner 保留
-  `🧪・card-testing` 维护入口。Newcomer、`@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
+- Member / Manager / Owner 可在 `🛋️・会员交流` 使用 `/stock ticker:TICKER`；Owner 保留
+  `🧪・卡片测试` 维护入口。Newcomer、`@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
 - 从 Cosmos Market Stock Analyst v0.1 移植同一确定性策略并复用 Analysis Fusion 的共享
   `AxisStockAnalystService`，避免两套分析逻辑产生冲突。
 - Massive adjusted Daily OHLCV、latest/current price、market/source timestamp 和 freshness；550
@@ -353,7 +353,7 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - 只清除开发测试数据和 Discord Test Message，保留 Mentor、Guild Config、资源 ID、权限、
   Channel / Role 与 Persistent Message identity。
 - `2026-08-31` 起真实数据永久保存，禁止第二次全量 Reset 或重新编号；所有 Synthetic Test
-  只允许在 `🧪・card-testing` 使用内存 DTO。
+  只允许在 `🧪・卡片测试` 使用内存 DTO。
 
 ## Testing / Operations
 

@@ -69,35 +69,42 @@ Member
 
 # 4. Discord Category / Channel
 
-所有 Category / Channel 使用 **Emoji + English**。
+所有 Channel 使用 **Emoji + 中文**；普通 Category 使用 Emoji + 中文，正式模块品牌
+`AXIS LAB` 保持英文名称。
 
 ```text
-⬛・GENERAL
-├─ 👋・welcome
-├─ 💳・subscriptions
-├─ 📊・results
-├─ 💬・lobby
-└─ 🏆・member-wins
+⬛・公共区域
+├─ 👋・欢迎
+├─ 💳・会员订阅
+├─ 📊・官方战绩
+├─ 💬・公共交流
+└─ 🏆・会员分享
 
-🟢・MEMBERS
-├─ ⚡・short-term
-├─ 〽️・swing
-├─ ♾️・leaps
-└─ 🛋️・member-lounge
+🟢・会员专区
+├─ ⚡・短线
+├─ 〽️・波段
+├─ ♾️・长期
+├─ 📣・人工喊单
+└─ 🛋️・会员交流
 
-⚙️・MANAGER
-├─ 📥・signal-input
-├─ ✅・signal-review
-├─ 💭・analysis-input
-├─ 📝・analysis-review
-├─ 🧭・mentor-control
-├─ 👤・member-control
-└─ 🤫・quiet-profits
+⚙️・管理后台
+├─ 📥・信号输入
+├─ ✅・信号审核
+├─ 💭・观点输入
+├─ 📝・观点审核
+├─ 🧭・导师管理
+├─ 👤・会员管理
+├─ 📋・战绩审核
+├─ 🛂・入群审核
+├─ 🤫・管理交流
+├─ 🚨・系统警报
+└─ 🧪・卡片测试
 
 🧪・AXIS LAB
-├─ 🟢・lab-signals
-├─ 🧬・mentor-status
-└─ 🗂️・lab-history
+├─ 💹・交易控制
+├─ 🟢・模型信号
+├─ 🧬・导师状态
+└─ 🗂️・历史订单
 ```
 
 `AXIS LAB` 功能现在不开发，只创建私人频道并保持 Owner-only。
@@ -106,27 +113,29 @@ Member
 
 # 5. Channel Permissions
 
-## GENERAL
+## 公共区域
 
-- `welcome`：所有人只读，Bot 发布。
-- `subscriptions`：所有人只读，Bot 发布收费链接 / 管理订阅入口。
-- `results`：所有人只读，Bot 发布官方战绩。
-- `lobby`：所有人可聊天。
-- `member-wins`：所有人可查看、发言和上传战绩截图；Manager 可管理。该频道内容不进入 AXIS
+- `欢迎`：所有人只读，Bot 发布。
+- `会员订阅`：所有人只读，Bot 发布收费链接 / 管理订阅入口。
+- `官方战绩`：所有人只读，Bot 发布官方战绩。
+- `公共交流`：所有人可聊天。
+- `会员分享`：所有人可查看、发言和上传战绩截图；Manager 可管理。该频道内容不进入 AXIS
   官方 Results。
 
-## MEMBERS
+## 会员专区
 
 只有 `Member`、`Manager`、Owner、Bot 可见。
 
-- `short-term / swing / leaps`：会员只读，Bot 发布。
-- `member-lounge`：Member 可正常聊天；Analysis Card 也发到这里。
+- `短线 / 波段 / 长期`：会员只读，Bot 发布。
+- `人工喊单`：仅 Member、Manager、Owner 与 Bot 可见；Member 与 Manager 可直接发言，不挂载
+  Bot 指令、控制面板、自动解析或数据库流程。
+- `会员交流`：Member 可正常聊天；Analysis Card 也发到这里。
 
-## MANAGER
+## 管理后台
 
 只有 `Manager`、Owner、Bot 可见。
 
-`🤫・quiet-profits` 是 Manager 私人交流频道，Manager 可以发言和上传附件。
+`🤫・管理交流` 是 Manager 私人交流频道，Manager 可以发言和上传附件。
 
 ## AXIS LAB
 
@@ -137,9 +146,9 @@ Member
 # 6. Signal 分类
 
 ```text
-SHORT_TERM -> ST-0001 -> ⚡・short-term
-SWING      -> SW-0001 -> 〽️・swing
-LEAPS      -> LP-0001 -> ♾️・leaps
+SHORT_TERM -> ST-0001 -> ⚡・短线
+SWING      -> SW-0001 -> 〽️・波段
+LEAPS      -> LP-0001 -> ♾️・长期
 ```
 
 LLM 可建议分类，但 Manager 可以修改。
@@ -435,7 +444,7 @@ Bot 重启后仍必须可用。
 
 # 11. Signal Input Pipeline
 
-`📥・signal-input` 支持：
+`📥・信号输入` 支持：
 
 - text
 - PNG/JPG/JPEG/WEBP
@@ -457,7 +466,7 @@ Raw Manager Message
 -> JSON Schema validation
 -> create Trade Draft
 -> suggest possible existing Trade match
--> post internal review card to ✅・signal-review
+-> post internal review card to ✅・信号审核
 -> wait for Manager action
 ```
 
@@ -591,7 +600,7 @@ created_at
 updated_at
 ```
 
-`🧭・mentor-control` 中放长期控制面板：
+`🧭・导师管理` 中放长期控制面板：
 
 ```text
 [ 选择 Mentor ]
@@ -612,7 +621,7 @@ Mentor 改动只影响内部数据，不修改 Public Card。
 
 只有一种 Membership / `Member` Role。
 
-`👤・member-control`：
+`👤・会员管理`：
 
 ```text
 [ Searchable User Select ]
@@ -647,7 +656,7 @@ lifecycle 能力继续保留，但不作为 Member Control 顶层按钮。
 
 # 16. Results
 
-全部清仓的订单进入 `📊・results`。
+全部清仓的订单进入 `📊・官方战绩`。
 
 收益按仓位事件加权计算，不允许用最后价格简单替代整笔结果。
 
@@ -675,7 +684,7 @@ Tracking、Mentor Dataset 或内部 Historical Performance。
 
 # 16A. Daily Post-Close Category Summaries
 
-`〽️・swing`、`♾️・leaps` 每个美股交易日 `16:15 ET` 各发布一条总结：
+`〽️・波段`、`♾️・长期` 每个美股交易日 `16:15 ET` 各发布一条总结：
 
 ```text
 Active 收盘总结
@@ -697,9 +706,9 @@ Active Summary 只允许通过 Massive Options Daily Aggregate 获取该交易�
 每日发布以 `guild + category + session_date` 唯一，Discord marker 与数据库状态共同防止
 重启或重试时重复发送。周末、假日以及无法确认交易日时不发布。
 
-`⚡・short-term` 不发布 Daily Summary。当天已停止或关闭的 Short-Term / Swing / LEAPS
-进入 `📋・results-review` 的唯一 Daily Results Draft；Manager 可 Include / Exclude、编辑公开
-展示、预览或提前发布。最终结果默认 `16:15 ET` 幂等发布到 `📊・results`，正式
+`⚡・短线` 不发布 Daily Summary。当天已停止或关闭的 Short-Term / Swing / LEAPS
+进入 `📋・战绩审核` 的唯一 Daily Results Draft；Manager 可 Include / Exclude、编辑公开
+展示、预览或提前发布。最终结果默认 `16:15 ET` 幂等发布到 `📊・官方战绩`，正式
 `final_snapshot` 不可变保存。公开排除不影响 Swing / LEAPS Category Summary。
 
 此功能属于 AXIS Core 运维，不启用 AXIS LAB、Model A / B 或自动交易。
@@ -712,7 +721,7 @@ Active Summary 只允许通过 Massive Options Daily Aggregate 获取该交易�
 Daily Results、Daily Summary 与 Historical Performance 全部属于永久 Production Data。
 Soft Open 不是 TEST / LIVE_TEST / PAPER。此日期后的数据不得 wipe all、truncate all、重新编号
 或执行第二次 Soft Open Reset；所有 Fake Card、Synthetic Event 与 Preview 只能在
-`🧪・card-testing` 的 TEST Environment 中运行，且不得写入 Production Domain。
+`🧪・卡片测试` 的 TEST Environment 中运行，且不得写入 Production Domain。
 
 ---
 
@@ -909,11 +918,11 @@ Short-Term 是 Signal Core 的独立交易路径：
 - Live Mode 前必须完成 Test E2E、公开 HTTPS Webhook、续费/失败/取消 E2E 和人工隐私检查。
 
 New Member onboarding 的最终覆盖规则见 `07_NEW_MEMBER_FREE_TRIAL_ONBOARDING_SPEC.md`；
-`👋・welcome` 必须是第一个公共 AXIS Category 的第一个可见频道。
+`👋・欢迎` 必须是第一个公共 AXIS Category 的第一个可见频道。
 
 ## Owner-only Operations
 
-`system-alerts` 与 `card-testing` 只允许 Owner + AXIS BOT。Preview 不能创建正式 Trade、
+`系统警报` 与 `卡片测试` 只允许 Owner + AXIS BOT。Preview 不能创建正式 Trade、
 Analysis、Results 或 Active Order 数据。
 
 ---

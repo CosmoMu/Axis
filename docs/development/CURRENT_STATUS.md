@@ -1,6 +1,6 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-09
 
 **Current stage:** GEX + Stock Analyst MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
@@ -16,6 +16,11 @@
 - DEFERRED — 明确不在当前开发范围。
 
 ## Executive summary
+
+Discord 的 4 个 Category 与 25 个 AXIS Channel 已按 Blueprint v6 完成中文显示名同步；正式
+模块品牌 `AXIS LAB` 保持英文。`📣・人工喊单` 已在 `🟢・会员专区` 上线，仅 Member、Manager、
+Owner 与 Bot 可见，其中 Member 与 Manager 可直接发言；不挂载指令、自动解析或数据库功能。
+最终 Bootstrap dry-run 为 `REUSE=33 / CREATE=0 / UPDATE=0 / BLOCK=0`。
 
 Core Gate A 和 Analysis Gate B 已通过。Pre-Soft-Open backup、测试数据清理、公开编号复位与
 Discord 消息清理已完成；`2026-08-31` 起真实输入是永久 Production Data。Daily Results Review
@@ -51,7 +56,7 @@ Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道
 `gex SPY`；当前 runtime 为 `MEMBER_LOUNGE`，进入真实会员请求与移动端体验监测阶段。
 
 AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
-analysis engine，并已在 `🛋️・member-lounge` 上线 `/stock ticker:TICKER`。Member、Manager、
+analysis engine，并已在 `🛋️・会员交流` 上线 `/stock ticker:TICKER`。Member、Manager、
 Owner 可使用；Newcomer、`@everyone` 与其他频道均 fail-closed。Massive 为正式只读数据源，卡片与真实
 OHLCV 图共用同一个结构化结果；无 LLM、无 Moomoo、无 Signal/Trade/Result/Membership 副作用。
 Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权限、图卡一致与回归已通过。
@@ -62,7 +67,7 @@ Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权�
 Implemented:
 
 - `/stock ticker:TICKER`；支持大小写和 `$` 前缀，Member / Manager / Owner + exact Guild +
-  `🛋️・member-lounge`；Owner 保留 `🧪・card-testing` 维护入口，没有普通消息触发器。
+  `🛋️・会员交流`；Owner 保留 `🧪・卡片测试` 维护入口，没有普通消息触发器。
 - Cosmos Stock Analyst v0.1 原始策略：Daily OHLCV、HLX 25/90、confirmed ZCZL 3/6/13、
   MACD 12/26/9、RSI14、20/50/60 日结构、20 日 OHLCV flow proxy、80 日/24-bin/70%
   POC/Value Area、原始 level clustering、bias 与三情景权重。
@@ -102,8 +107,8 @@ Implemented:
 
 - Member Lounge 支持严格 `gex TICKER` 文本命令及 `/gex ticker:TICKER`；普通 Ticker 和其他聊天
   不触发。输入兼容大小写与 `$` 前缀。
-- Member / Manager / Owner + exact Guild / `🛋️・member-lounge` runtime gate；Newcomer 与
-  `@everyone` 不可用。Owner 保留 `🧪・card-testing` Slash Command 维护入口。
+- Member / Manager / Owner + exact Guild / `🛋️・会员交流` runtime gate；Newcomer 与
+  `@everyone` 不可用。Owner 保留 `🧪・卡片测试` Slash Command 维护入口。
 - Massive 只读期权表面、现价和真实 5 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
   即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
   和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
@@ -153,10 +158,10 @@ Production status: **GEX Explorer = MEMBER LOUNGE LIVE.** 普通会员每人 30 
 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。8 fresh requests/minute guild
 provider 保护、60 秒 cache 与 single-flight 继续启用。Owner 于 2026-09-05 明确发送
 `APPROVE GEX LOUNGE LAUNCH`；runtime 已切换为 `MEMBER_LOUNGE`，Owner 仍可在
-`🧪・card-testing` 维护验证。
+`🧪・卡片测试` 维护验证。
 
 Current V7 runtime evidence: AXIS BOT 已部署并处于 running；Discord runtime PASS；HOOD V7
-真实 Massive 测试卡已发送至 `🧪・card-testing`（Message `1545703467908206655`）。网站精确
+真实 Massive 测试卡已发送至 `🧪・卡片测试`（Message `1545703467908206655`）。网站精确
 构建已保存为 Sites Version 6；现有公开网站尚未在本轮被替换，等待单独发布指令。
 
 Member Lounge launch evidence (2026-09-05): deployed runtime reports
@@ -168,7 +173,7 @@ running；Discord runtime verifier PASS。真实会员并发、交易时段 fres
 
 Implemented:
 
-- `💹・moomoo-trading` Owner + Bot only；Manager、Member、Newcomer 与 `@everyone` 显式不可见。
+- `💹・交易控制` Owner + Bot only；Manager、Member、Newcomer 与 `@everyone` 显式不可见。
 - 复用 TradeDraft / TradePublication / Trade；在 member card 发送前执行个人 entry 决策，LIVE 时要求
   broker ACK 优先，但个人执行失败不阻止公共信号。
 - Owner-only source + publisher eligibility、production boundary、Short-Term / Swing ENTRY、Swing Close、
@@ -210,7 +215,7 @@ Production status: `DEPLOYMENT_STAGE=SOFT_OPEN`。生产数据起点为
 
 Implemented: Guild 锁定、幂等 Bootstrap、Role / Category / Channel / Permission reconciliation、
 AXIS Category / Channel 顺序 reconciliation、持久化 View、控制面板 Message ID 恢复、
-Owner-only 测试与告警频道。`👋・welcome` 是第一个公共 AXIS Category 的第一个频道；未取得
+Owner-only 测试与告警频道。`👋・欢迎` 是第一个公共 AXIS Category 的第一个频道；未取得
 Member Role 的用户看不到会员区。
 
 Remaining: 生产故障演练与长期运行观测。
@@ -222,7 +227,7 @@ Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最�
 
 ## Signal Pipeline — COMPLETE
 
-Implemented: signal-input 文字、图片、多图和转发输入；Structured Output；S-00001 编号；
+Implemented: 信号输入频道的文字、图片、多图和转发输入；Structured Output；S-00001 编号；
 Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication；新建
 ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
 已识别价格。行情失败时保留手工审核，不影响草稿生成。Legacy Swing / LEAPS 编辑使用分区向导：
@@ -244,7 +249,7 @@ Tracker 独立于 Short-Term 命名域，但直接读取 Short-Term 当前固定
 hardcode；每笔订单冻结 policy version 与 price source。支持跨日 High / Low Watermark、幂等 TP、
 Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
-Manager 可在 `signal-input` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
+Manager 可在 `信号输入` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
 追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
 return 与明确标注的平仓收益，Results 仍只使用从 Entry 到 Close/Expiry 的 lifetime verified
 highest return。Active View 把 Simple 与 Legacy Swing 合并在同一张「当前 Swing 订单」卡，统一
@@ -295,7 +300,7 @@ Implemented:
 - Massive MarketTrackingService 与可替换的 market-data provider 边界。
 - 单合约 `MASSIVE_QUOTE_STALE`、`MASSIVE_PRICE_UNAVAILABLE`、`LAST_TRADE_OUTLIER` 和
   `OPTION_CONTRACT_NOT_FOUND` 作为可恢复数据质量状态写入订单，不再误报 Massive 服务整体
-  ERROR；下一次有效报价自动清零。认证、限流、网络/响应故障仍触发 system-alerts，并显示精确
+  ERROR；下一次有效报价自动清零。认证、限流、网络/响应故障仍触发系统警报，并显示精确
   provider error code。
 - 新发布订单使用 ST_TRACKING_V4 固定 TP1–TP41：10% / 20%，然后从 50% 起每 25 个百分点
   提示一次，直至 1000%；每一级只触发一次。
@@ -364,15 +369,15 @@ Production status: 已部署。
 Implemented: 永久 Approval 与当前 Entitlement 分离；首次加入使用 `Newcomer` Role，仅允许只读
 welcome/results/member-wins；其他频道显式 DENY，不能通过继承 `@everyone` 绕过。Welcome 唯一
 CTA 为 `申请加入 AXIS`；Welcome 卡片为纯中文并重点说明看到欢迎页不等于已加入，必须点击按钮
-提交申请。来源与兴趣选择、推荐人弹窗、风险确认、社区安全协议、提交结果以及 join-review
+提交申请。来源与兴趣选择、推荐人弹窗、风险确认、社区安全协议、提交结果以及入群审核
 卡片和操作按钮均已中文化；数据库状态码与审核幂等逻辑保持不变。
 
 Application 保存 source、optional referrer、multi-select interests、两项 agreement、PENDING /
-FLAGGED / APPROVED / REJECTED、reviewer/time/note。`🛂・join-review` 提供幂等 APPROVE / REJECT /
+FLAGGED / APPROVED / REJECTED、reviewer/time/note。`🛂・入群审核` 提供幂等 APPROVE / REJECT /
 FLAG。APPROVE 自动创建 3 U.S. Trading Day $0 Trial、移除 Newcomer、添加 Member；无用户 Claim、
 无卡、无 Stripe、无续费。
 
-Member Role 同步成功后，AXIS BOT 会分别在 `💬・lobby` 与 `🛋️・member-lounge` 真实 @mention
+Member Role 同步成功后，AXIS BOT 会分别在 `💬・公共交流` 与 `🛋️・会员交流` 真实 @mention
 并欢迎新会员。两个频道各自持久化消息 ID；重启 reconciliation 只补发缺失的一边。生产环境已
 完成首位获批用户的双频道发送与 Discord mention 验证。Member Lounge 使用独立的 premium
 文案；Day Pass、Monthly、Gift 与手动开通导致 Member Role 首次激活时也会发送，续费和重复
@@ -387,7 +392,7 @@ Rejected rejoin 保持 Newcomer。
 
 NewcomerRiskScanner 已实现 VERY_NEW_ACCOUNT、NEW_ACCOUNT、PREVIOUS_REJECTION、PREVIOUS_FLAG、
 TRIAL_ALREADY_USED、REJOIN_WITHOUT_APPROVAL、POSSIBLE_IMPERSONATION，使用配置化 protected names、
-持久去重 flag、system-alerts fingerprint 去重和 NEWCOMER SECURITY aggregate health。Scanner
+持久去重 flag、系统警报 fingerprint 去重和 NEWCOMER SECURITY aggregate health。Scanner
 只辅助 Review，不自动 Ban / Kick / Reject。
 
 Production safety: migrations `20260831_0026` / `20260902_0028` / `20260903_0029` 与 pre-gate user baseline/cutover
@@ -475,7 +480,7 @@ Production status: 已部署。
 
 ## Analysis Pipeline — COMPLETE
 
-Implemented: analysis-input、A-00001 编号、Mentor 下拉、关键点位逐项下拉编辑/新增/删除、
+Implemented: 观点输入、A-00001 编号、Mentor 下拉、关键点位逐项下拉编辑/新增/删除、
 简短中文编辑与重写、归档、发布、删除、Raw / Normalized / Public Snapshot 与模型 Trace。
 
 Remaining: 用真实 Mentor 内容继续做质量与移动端 UX 复核。
@@ -529,7 +534,7 @@ Remaining: 在第一个有 Eligible Trade 的正式交易日完成 Manager Deskt
 Tests: Draft 幂等、Active 排除、三类别格式、LOTTO、Exclude 不删除历史、Re-Include、Display
 Edit、Correct Result Audit、Preview、Publish Now / Scheduled 去重、Early Close 与不可变快照。
 
-Production status: 已部署；`📋・results-review` ID 已写入 Guild Config，scheduled job 正常，
+Production status: 已部署；`📋・战绩审核` ID 已写入 Guild Config，scheduled job 正常，
 Soft Open Reset 后尚无首日 Eligible Production Trade。
 
 ## Card Testing — COMPLETE
@@ -541,7 +546,7 @@ Remaining: 新卡片类型出现时补 preview。
 Tests: 权限、命令同步和无数据库副作用。
 
 Production status: Owner-only 频道已部署；`/test-results-review` 已同步到目标 Guild，所有
-Preview 使用内存 TEST DTO，不写 Production 数据或发布到 `📊・results`。
+Preview 使用内存 TEST DTO，不写 Production 数据或发布到 `📊・官方战绩`。
 
 ## System Alerts — PARTIAL
 

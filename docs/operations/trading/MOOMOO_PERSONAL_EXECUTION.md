@@ -37,7 +37,7 @@ The verifier performs read-only account, position, order, and fill queries. It e
 OpenD is unavailable, account selection is ambiguous, or the runtime is not in DRY_RUN. It makes no
 broker write.
 
-Then use `💹・moomoo-trading`:
+Then use `💹・交易控制`:
 
 1. Confirm card displays `DRY_RUN · SIMULATE` and the broker is connected.
 2. Enable Manual Sync and verify option positions; non-option instruments must be ignored.

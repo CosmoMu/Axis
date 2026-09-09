@@ -6,7 +6,7 @@
 Trade Event、Tracking、Results、Summary 和历史从本日开始永久保存；禁止 Reset、重新编号或用
 Fake 数据污染 Production 频道。
 
-Synthetic Signal、Fake Card 和事件模拟只允许在 `🧪・card-testing`，并保持 TEST DTO / no
+Synthetic Signal、Fake Card 和事件模拟只允许在 `🧪・卡片测试`，并保持 TEST DTO / no
 production writes。Massive Live E2E 尚未具备条件时，不临时修改 Short-Term policy。
 
 当前基线：200 tests PASS；Ruff / compileall PASS；Discord runtime PASS；Database revision
@@ -102,7 +102,7 @@ Massive Live 可用时验证：
 - [ ] High / Low Watermark 正确。
 - [ ] Protection、Tracking Stop、Overnight 和历史正确。
 
-Massive Live 不可用时：只运行既有自动化和 `/test-short-*` card-testing preview；不修改 TP、
+Massive Live 不可用时：只运行既有自动化和 `/test-short-*` 卡片测试 preview；不修改 TP、
 Protection、Momentum、Overnight 或 price-source policy，不在 Production 频道模拟 milestone。
 
 ## Market Close / Results
@@ -119,9 +119,9 @@ Protection、Momentum、Overnight 或 price-source policy，不在 Production �
 
 ## Category Daily Summary
 
-- [ ] `〽️・swing` 发布今日关闭 + 当前 Active。
-- [ ] `♾️・leaps` 发布今日关闭 + 当前 Active。
-- [ ] `⚡・short-term` 不发布 Daily Summary。
+- [ ] `〽️・波段` 发布今日关闭 + 当前 Active。
+- [ ] `♾️・长期` 发布今日关闭 + 当前 Active。
+- [ ] `⚡・短线` 不发布 Daily Summary。
 - [ ] Results Exclude 不影响 Swing / LEAPS Summary 或内部历史。
 
 ## Historical Persistence / Public Privacy

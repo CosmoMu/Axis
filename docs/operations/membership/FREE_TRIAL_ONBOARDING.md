@@ -13,7 +13,7 @@
 2. The Chinese Welcome page emphasizes that viewing it is not the same as joining AXIS and exposes
    only `申请加入 AXIS`; the user must click it and submit an application to continue.
 3. The user completes the Chinese application, risk confirmation and community safety agreement.
-4. Manager approves in `🛂・join-review`.
+4. Manager approves in `🛂・入群审核`.
 5. AXIS rechecks permanent Trial history inside the approval workflow.
 6. AXIS creates `FREE_TRIAL` with a three-session trading window, persists `first_trading_day`,
    `last_trading_day` and the final-session expiry, removes Newcomer and adds Member. There is no

@@ -29,7 +29,7 @@
    Active View、EOD 与 Results 的最终规则。
 10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
     Gate、对账、风险和控制面板的最新规则。
-11. 10_GEX_EXPLORER_PHASE1_SPEC.md — Member Lounge `gex TICKER`、Owner card-testing `/gex`、
+11. 10_GEX_EXPLORER_PHASE1_SPEC.md — 会员交流 `gex TICKER`、Owner 卡片测试 `/gex`、
     Massive 正式 option surface / 现价 / 5 分钟 K 线、V7 shared intraday classifier、专业
     Strike × Expiration Ladder、Moomoo 后台影子比较、中文复合图及安全门。
 12. README_FOR_CODEX.md — 本入口和文档使用规则。
@@ -69,10 +69,10 @@
 - GEX Explorer V7 已在 Member Lounge 正式上线。Member / Manager / Owner 可发送
   严格格式 `gex SPY`（或使用 `/gex ticker:SPY`）生成中文盘中结构卡；其他普通消息不触发。
   普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。Owner 已于
-  2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・card-testing`
+  2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・卡片测试`
   使用 `/gex`。正式数据来自 Massive；Moomoo 只做后台比较。
 - AXIS Stock Analyst 已在 Member Lounge 正式上线。Member / Manager / Owner 仅可在
-  `🛋️・member-lounge` 使用 `/stock ticker:SPY`；Owner 保留 card-testing 维护入口。普通会员
+  `🛋️・会员交流` 使用 `/stock ticker:SPY`；Owner 保留卡片测试维护入口。普通会员
   每人 30 秒、同 ticker 全频道 60 秒冷却，Manager / Owner 无这两项冷却。功能使用 Massive
   Daily OHLCV，严格只读，不触发 Signal、Trade、Membership 或 broker execution。
 
@@ -89,7 +89,7 @@
 - Mentor、Newcomer、Application、Member、Free Trial、Day Pass、Monthly 与 Stripe
 - Analysis Fusion、Stock Analyst、Prediction Chart 与 Analysis Archive
 - Results、Card Testing、System Alerts、Backup / Restore 与生产监控
-- GEX Explorer V7 与 Stock Analyst Member Lounge 只读查询、Owner card-testing 维护入口
+- GEX Explorer V7 与 Stock Analyst 会员交流只读查询、Owner 卡片测试维护入口
 
 当前明确不做：
 
@@ -101,13 +101,13 @@
 - 未经新规格确认的频道或产品架构扩张
 
 AXIS LAB 频道可以保留，FEATURE_LAB_ENABLED 与 FEATURE_MODEL_AB_ENABLED 必须保持 false。
-`💹・moomoo-trading` 是这条 Deferred 边界中的明确 Owner-only 例外，不代表启动 Model A/B。
+`💹・交易控制` 是这条 Deferred 边界中的明确 Owner-only 例外，不代表启动 Model A/B。
 只有 Owner 明确说 START AXIS LAB 后，才允许重新评估该模块。
 
 ## LLM 与数据出口
 
 Signal 和 Analysis 当前均通过 workload router 选择模型；模型名不得硬编码在 Parser Service。
-Owner 已授权 signal-input 和 analysis-input 的文字及图片发送到 OpenAI API 进行结构化解析。
+Owner 已授权信号输入和观点输入频道的文字及图片发送到 OpenAI API 进行结构化解析。
 
 每次 LLM 调用必须记录 provider、model、workload、prompt_version、schema_version、
 latency_ms 和成功/失败状态。公开 DTO 不得泄露 Mentor、Source、Parser、Prompt、模型或内部

@@ -15,7 +15,7 @@ deferred.
 
 - The layer trades only the Owner's explicitly selected Moomoo account.
 - It never reads, links, or trades a member account and never exposes controls to Manager or Member.
-- `💹・moomoo-trading` is visible only to Owner and AXIS BOT.
+- `💹・交易控制` is visible only to Owner and AXIS BOT.
 - It reuses TradeDraft, TradePublication, Trade, Discord, database, and System Alert architecture.
 - Public signal delivery remains independent: personal execution failure alerts Owner but does not
   block or alter the member card.

@@ -33,7 +33,7 @@
   再结束对应 Entitlement。
 - `MembershipAccessService` 汇总全部 Entitlement 决定访问，Discord Member Role 只是投影。
 - Day Pass、Monthly、Gift 或手动开通使用户从无 Member Role 转为有 Member Role 时，AXIS BOT
-  在 `🛋️・member-lounge` 发送一次带真实 @mention 的高级会员欢迎语。续费及重复 Role sync
+  在 `🛋️・会员交流` 发送一次带真实 @mention 的高级会员欢迎语。续费及重复 Role sync
   不改变 Role，因此不重复欢迎。
 
 ## Live gate

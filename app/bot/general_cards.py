@@ -50,7 +50,7 @@ def welcome_embed(
     )
     embed.add_field(
         name="会员权限",
-        value="⚡ 短线\n〽️ 波段\n♾️ 长期\n🛋️ 会员交流区",
+        value="⚡ 短线\n〽️ 波段\n♾️ 长期\n🛋️ 会员交流",
         inline=False,
     )
     embed.add_field(
@@ -109,7 +109,7 @@ def subscription_embed(
     )
     embed.add_field(
         name="ACCESS INCLUDES",
-        value=("Short-Term · Swing · LEAPS\nMarket Analysis · Active Positions · Member Lounge"),
+        value=("短线 · 波段 · 长期\n市场分析 · 当前持仓 · 会员交流"),
         inline=False,
     )
     embed.add_field(
@@ -169,8 +169,8 @@ def results_guide_embed() -> discord.Embed:
 def lobby_guide_embed() -> discord.Embed:
     """Preview-only DTO. Lobby itself intentionally receives no automatic message."""
     return discord.Embed(
-        title="AXIS LOBBY",
-        description="Open community discussion for markets, AXIS, and general questions.",
+        title="AXIS 公共交流",
+        description="公开市场交流、AXIS 讨论与常见问题。",
         color=QUIET_BLACK,
     )
 

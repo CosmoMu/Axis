@@ -200,7 +200,8 @@ def load_blueprint(path: Path) -> Blueprint:
             permission_values = {
                 str(key): bool(value)
                 for key, value in channel.items()
-                if key.endswith(
+                if key == "bot_inherit"
+                or key.endswith(
                     (
                         "_view",
                         "_send",
@@ -323,6 +324,11 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
         ),
         "bot": (True, channel.permissions.get("bot_send", True)),
     }
+    if channel.permissions.get("bot_inherit", False):
+        # A pure human-posting channel can inherit the Bot's already-reconciled
+        # category and guild capabilities. This avoids attempting to edit the
+        # Discord-managed integration Role at channel scope.
+        defaults.pop("bot")
     for subject, (can_view, can_send) in defaults.items():
         values: dict[str, bool] = {
             "view_channel": can_view,
@@ -907,7 +913,7 @@ def build_plan(
                 )
 
     if blueprint.channel_count != 24:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 24 个。")
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 25 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

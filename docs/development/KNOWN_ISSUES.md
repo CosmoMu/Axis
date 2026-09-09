@@ -43,7 +43,7 @@ security firm 和唯一 US securities account；不能猜测账户。
 
 ## P0 — Newcomer Gate 真实用户生命周期 E2E 待验收
 
-Newcomer Role、Discord overwrite、中文 Application、join-review、审批后自动 Trial、终身唯一约束、
+Newcomer Role、Discord overwrite、中文 Application、入群审核、审批后自动 Trial、终身唯一约束、
 Risk Scanner 与 Role reconciliation 已完成自动化和 production-safe rollout 工具。仍需使用真实
 Discord 新账户完成 Join → Apply → Approve → Trial → Expiry → Rejoin 的时钟验收；在此之前不能把
 Newcomer Gate 标记为 Live Complete。

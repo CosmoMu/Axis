@@ -2,8 +2,8 @@
 
 ## Scope
 
-`📋・results-review` 是 Daily Performance Publication Control，不是 Trade Delete Tool。
-它只决定当天哪些已停止/关闭订单显示在 `📊・results`；真实 Trade、Event、Tracking、Mentor
+`📋・战绩审核` 是 Daily Performance Publication Control，不是 Trade Delete Tool。
+它只决定当天哪些已停止/关闭订单显示在 `📊・官方战绩`；真实 Trade、Event、Tracking、Mentor
 Dataset、内部 Performance 与 Swing / LEAPS Daily Summary 永远不因 Exclude 被删除或改写。
 Simple Tracked Swing 的 lifetime High、Close Reference 和 Daily Snapshot 同样不可被 Exclude 改写。
 
@@ -48,7 +48,7 @@ Short-Term Results 对 `is_lotto=true` 的订单在合约后显示 `(LOTTO)`。
 - Edit Display：只改标题、日期、Section 顺序、Trade Display Text 或 Footer，不改 Trade。
 - Correct Result：Market Data Error / Wrong Quote 的独立流程，保存 original、corrected、reason、
   actor 与 time。
-- Preview：只向当前 Manager / Owner 返回 ephemeral Final Card，不发送 `📊・results`。
+- Preview：只向当前 Manager / Owner 返回 ephemeral Final Card，不发送 `📊・官方战绩`。
 - Publish Now：立即锁定 Final Snapshot 并发布。普通 Include / Exclude 随后锁定。
 - Public Correction：发布后的独立 Audit Workflow；原始 Final Snapshot 保持不可变。
 
@@ -57,7 +57,7 @@ Exclusion reasons：`DUPLICATE_SIGNAL`、`DATA_QUALITY_ISSUE`、`BAD_QUOTE`、
 
 ## Test Environment
 
-只在 `🧪・card-testing` 运行：
+只在 `🧪・卡片测试` 运行：
 
 ```text
 /test-results-review

@@ -34,7 +34,7 @@ class DraftWorkerCog(commands.Cog):
                 severity="ERROR",
                 service="Signal Processing",
                 error_type="SIGNAL_PROCESSING_FAILED",
-                affected="signal-input → signal-review",
+                affected="信号输入 → 信号审核",
                 detail=type(exc).__name__,
             )
             return
@@ -42,7 +42,7 @@ class DraftWorkerCog(commands.Cog):
             self.bot,
             service="Signal Processing",
             error_type="SIGNAL_PROCESSING_FAILED",
-            affected="signal-input → signal-review",
+            affected="信号输入 → 信号审核",
         )
         if result is None or result.disposition is DraftGenerationDisposition.EXISTING:
             return

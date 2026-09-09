@@ -7,9 +7,9 @@ through the original Mentor-driven workflow.
 
 ## Entry lifecycle
 
-1. A Manager sends a new option idea to `signal-input`.
+1. A Manager sends a new option idea to `信号输入`.
 2. The parser resolves the contract and tags a new Swing as `SIMPLE_TRACKED_SWING`.
-3. `signal-review` shows contract, entry price, category, LOTTO, Edit, Publish, and Delete.
+3. `信号审核` shows contract, entry price, category, LOTTO, Edit, Publish, and Delete.
 4. Publish creates the SW trade/event/publication, sends the compact entry card, and registers the
    independent Swing tracker.
 5. The tracker stores the exact verified option ticker and starts from the published entry price.
@@ -64,7 +64,7 @@ is always `(highest_price / entry_price - 1) * 100`, not the latest quote or tod
 
 ## Send and review CLOSE
 
-Use `signal-input`:
+Use `信号输入`:
 
 ```text
 close SW-0001
@@ -127,7 +127,7 @@ a Discord-only issue.
 ## Contract expiry
 
 Expiry internally changes the tracker to `EXPIRED`, closes the trade, freezes the existing High,
-and makes the order eligible for that day's Results. No expiry card is sent to `〽️・swing`.
+and makes the order eligible for that day's Results. No expiry card is sent to `〽️・波段`.
 Expiry is independent of Short-Term lifecycle code despite the shared milestone source.
 
 ## Legacy Swing
@@ -153,7 +153,7 @@ and affected TP events. Do not lower a previously verified High without explicit
 4. Verify option ticker, expiry, frozen policy version, source, and `last_data_error`.
 5. Compare `last_quote_at` with the current market session and provider health.
 6. Inspect unpublished `swing_tracking_events` before retrying publication.
-7. Check `system-alerts` for provider ERROR/RECOVERY; order-level stale/not-found states are
+7. Check `系统警报` for provider ERROR/RECOVERY; order-level stale/not-found states are
    recoverable data-quality issues and should not create alert storms.
 8. Restart only after preserving logs and read-only evidence. Registration and event publication
    are idempotent, but confirm no separate bot instance is running.

@@ -11,9 +11,9 @@
 
 ```text
 🧪・AXIS LAB
-├─ 🟢・lab-signals
-├─ 🧬・mentor-status
-└─ 🗂️・lab-history
+├─ 🟢・模型信号
+├─ 🧬・导师状态
+└─ 🗂️・历史订单
 ```
 
 仅 Owner + Bot 可见。
@@ -62,7 +62,7 @@ Shadow Predictions
 
 # 3. Mentor Status
 
-`🧬・mentor-status` 选择 Mentor 后显示：
+`🧬・导师状态` 选择 Mentor 后显示：
 
 ```text
 VINCENT · Mentor Status
@@ -174,7 +174,7 @@ Model Version 必须绑定 Snapshot ID。
 
 ```text
 Market Data
-   ├─ Champion -> can publish 🟢・lab-signals
+   ├─ Champion -> can publish 🟢・模型信号
    └─ Challenger -> database only, no Discord signal
 ```
 

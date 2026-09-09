@@ -1,6 +1,6 @@
 # LLM 结构化草稿
 
-这一阶段把 `signal-input` 收到的文字和图片解析为 `trade_drafts`，但不会自动审核、
+这一阶段把 `信号输入` 收到的文字和图片解析为 `trade_drafts`，但不会自动审核、
 发布会员卡片或分配 Mentor。
 
 ## 配置
@@ -49,7 +49,7 @@ Secret 不得写入源码、文档、日志、测试快照或 Git。更换 Key �
 
 1. 在 `.env` 直接填入有效 `OPENAI_API_KEY`，不要经由聊天或 shell 命令传递。
 2. 重新运行 `scripts/install_axis_bot_service.py`。
-3. 在 `signal-input` 发送一条测试文字，可选附加 PNG/JPEG/WEBP。
+3. 在 `信号输入` 发送一条测试文字，可选附加 PNG/JPEG/WEBP。
 4. 确认 Bot 先回复“已接收”，随后回复草稿编号。
 5. 确认数据库中的来源状态为 `PARSED`，草稿状态为 `PENDING_REVIEW`。
 6. 重启 Bot，确认同一条来源没有第二条草稿。

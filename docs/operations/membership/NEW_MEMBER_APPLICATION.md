@@ -14,18 +14,18 @@ agreement, submission-status and Manager review copy is Chinese. The application
 5. explicit `我已阅读并同意` for the community safety agreement.
 
 Submission creates one `PENDING` `access_applications` row and posts a Chinese card in
-`🛂・join-review`. A database partial unique index prevents concurrent PENDING/FLAGGED duplicates.
+`🛂・入群审核`. A database partial unique index prevents concurrent PENDING/FLAGGED duplicates.
 
 ## Manager review
 
 - `批准` (`APPROVE` internally): persists permanent approval, automatically creates the one-time Trial when eligible,
   removes Newcomer, reconciles Member, then mentions and welcomes the approved user in both
-  `💬・lobby` and `🛋️・member-lounge`.
+  `💬・公共交流` and `🛋️・会员交流`.
 - `拒绝` (`REJECT` internally): sets REJECTED and keeps Newcomer. It does not kick or ban.
 - `标记` (`FLAG` internally): sets FLAGGED and keeps Newcomer; Manager can later approve or reject
   the same record.
 
-Only Owner, Manager and AXIS BOT can see join-review. All actions are idempotent and audited with
+Only Owner, Manager and AXIS BOT can see `入群审核`. All actions are idempotent and audited with
 reviewer and timestamp. A rejected user may submit a later application; an open or approved user
 cannot create a duplicate.
 
