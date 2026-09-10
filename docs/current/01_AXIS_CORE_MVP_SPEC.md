@@ -878,6 +878,8 @@ Short-Term 是 Signal Core 的独立交易路径：
 - `SHORT_TERM` 可以由结构化 Signal 自动建议，Manager 仍可在 Review 修正 Category。
 - Review 使用精简表单，只保留 Ticker、Expiry、Strike、Call/Put 与 Entry Price。
 - Short-Term 不选择 Mentor、不关联 Mentor Trade、不使用八分之一仓位字段。
+- Review 另有可与 LOTTO 独立叠加的 ER display flag；ER 只用于 Short-Term 公开标记与归档，
+  不改变 Massive 追踪、TP、到期或 Results 计算。
 - 发布编号使用 `ST-XXXX`，并创建独立 `short_term_tracking` 生命周期。
 - 行情 Provider 当前为 Massive，Provider 边界不得写进 Review、Trade 或 Public DTO。
 - 每笔 Tracking 固定保存 `price_source` 与 `tracking_policy_version`，同一订单不得混用来源。

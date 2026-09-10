@@ -675,6 +675,7 @@ class MarketTrackingService:
                         else None
                     ),
                     is_lotto=trade.is_lotto,
+                    is_er=trade.is_er,
                 ),
             )
 

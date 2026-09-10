@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-EXPECTED_REVISION = "20260904_0031"
+EXPECTED_REVISION = "20260910_0032"
 
 COUNTED_TABLES = (
     "input_code_counters",

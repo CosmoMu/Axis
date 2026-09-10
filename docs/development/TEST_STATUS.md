@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 338 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 341 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -137,6 +137,8 @@ Short-Term:
 - 验证任意回撤与隔夜跳空均不触发 SL / 保本 / trailing stop；合约到期只在后台幂等结束
   Tracking 并进入 Results / Audit，不向 Short-Term 频道发卡。
 - LOTTO 默认 false、三类 Review toggle、编辑/Category/发布持久化与 public display。
+- Short-Term ER 默认 false、明确 `ER` 输入预选、独立 Review toggle、ER + LOTTO 组合显示、
+  Draft / Trade 持久化、TP 卡与 Daily Results 传递；ER 不改变追踪或收益逻辑。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
 - 极简 Daily Results 使用从入场到到期/停止追踪期间的 lifetime high；覆盖历史高点高于当日
@@ -162,7 +164,7 @@ Daily Results Review:
 - 实际 Market Close + delay 与 Early Close；Public Publish 时间固定为可配置 `16:15 ET`。
 - 一个 Trading Date 一个 Draft；默认包含当天停止及仍在追踪的全部 Short-Term 和已关闭的
   Swing / LEAPS。
-- Short-Term、Swing、LEAPS 展示规则与 LOTTO。
+- Short-Term、Swing、LEAPS 展示规则与 LOTTO；Short-Term ER / ER + LOTTO 标签。
 - Exclude with Reason / Re-Include 不删除 Trade 或 Event history。
 - Display Edit 不修改 Trade；Correct Result、Public Correction 与 actor/before/after Audit。
 - Preview、Publish Now、Scheduled Publish 去重、restart-safe claim 与不可变 Final Snapshot。
@@ -232,27 +234,27 @@ Operations / Security:
 
 Database:
 
-- revision=20260904_0031
-- source_messages=88
-- trade_drafts=87
-- trades=67
-- trade_events=66
-- trade_publications=66
-- analysis_drafts=1
+- revision=20260910_0032
+- source_messages=113
+- trade_drafts=111
+- trades=88
+- trade_events=87
+- trade_publications=87
+- analysis_drafts=2
 - mentor_analyses=1
 - analysis_publications=1
-- market_quote_snapshots=13
-- daily_results_reviews=5
-- daily_results_items=103
-- membership_entitlements=8
-- membership_trials=3
-- newcomer_profiles=8
-- access_applications=3
-- newcomer_risk_flags=3
+- market_quote_snapshots=40
+- daily_results_reviews=7
+- daily_results_items=126
+- membership_entitlements=19
+- membership_trials=12
+- newcomer_profiles=18
+- access_applications=12
+- newcomer_risk_flags=16
 - membership_prices=6
 - payment_events=0
-- system_alerts=4
-- swing_tracking=8 / swing_tracking_events=12 / swing_daily_snapshots=8
+- system_alerts=6
+- swing_tracking=14 / swing_tracking_events=50 / swing_daily_snapshots=45
 - personal execution settings / positions / orders / fills / events / snapshots / summaries 均为 0；
   DRY_RUN 没有创建假成交或假持仓。
 
@@ -363,7 +365,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 314 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 341 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 

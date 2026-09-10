@@ -1,4 +1,4 @@
-# AXIS Signal System — TP / LOTTO / Results Current Specification
+# AXIS Signal System — TP / ER / LOTTO / Results Current Specification
 
 **Effective:** 2026-09-01
 
@@ -44,6 +44,17 @@ lifecycle and highest-return Results rule.
 - Public cards, Active Position views, Daily Results, and Swing/LEAPS Daily Summaries append
   `(LOTTO)` to the contract when enabled.
 
+## Short-Term ER flag
+
+- `is_er` is a second persisted display flag on Draft and Trade. It defaults to false and is
+  independent from `is_lotto`.
+- Short-Term Review exposes an `ER · YES/NO` toggle. An explicit standalone `ER` token in Signal
+  Input preselects it; the Manager remains able to correct it before publication.
+- ER is Short-Term only and display-only. It must not change category, Mentor, position, Massive
+  tracking, fixed TP, Momentum TP, expiry handling, risk, or Results calculations.
+- Short-Term Entry, TP/Momentum cards and Daily Results append `(ER)` when enabled. When both flags
+  are enabled, the single contract suffix is `(ER · LOTTO)`.
+
 ## Active Position views
 
 - Short-Term cards have no button and no Active View response.
@@ -63,8 +74,8 @@ lifecycle and highest-return Results rule.
   values are suppressed; a new order with no prior published result remains eligible.
 - Short-Term result lines contain the order ID, ticker, expiry, option code, and return, for example
   `✅ ST-0001 · MU 08/31 970C +52.94%`; `✅` means profit, `❌` loss, and `➖` flat or unavailable.
-  LOTTO orders append `(LOTTO)` after the option contract. Lines are sorted by the numeric part of
-  the order ID in ascending order.
+  LOTTO orders append `(LOTTO)` and ER orders append `(ER)` after the option contract; combined
+  orders use `(ER · LOTTO)`. Lines are sorted by the numeric part of the order ID in ascending order.
 - Review and public Results use the same `✅` / `❌` / `➖` status markers for every category.
   Within each category, a horizontal heading separates `今日进场` from `此前进场`; entry-day
   classification uses the Results timezone and each group remains sorted by numeric order ID.

@@ -47,5 +47,5 @@ DAILY_SUMMARY_TIME_ET=16:15
 launchctl print gui/$(id -u)/com.axis.bot
 ```
 
-正常数据库 revision 为 `20260903_0029`。`market_quote_snapshots` 与
+正常数据库 revision 为 `20260910_0032`。`market_quote_snapshots` 与
 `daily_summary_publications` 在第一个真实交易日、且存在相关 Trade 后才会出现行数。

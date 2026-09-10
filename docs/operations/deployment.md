@@ -21,8 +21,8 @@ check → 授权后的 feature enable → live acceptance。
 该脚本验证四种用户身份加 Bot 的权限、四条 GENERAL Guide Message（Lobby 为 topic-only）
 与 12 个 Owner-only 测试命令，不发送消息或修改服务器。
 
-Daily Results Review、Free Trial onboarding 与 Swing V2 部署后还应确认数据库 revision
-`20260903_0029`、
+Daily Results Review、Free Trial onboarding、Swing V2 与 Short-Term ER 部署后还应确认数据库
+revision `20260910_0032`、
 `RESULTS_REVIEW_ENABLED=true`、Guild Config 已保存 `results_review_channel_id`，并按
 `docs/operations/daily-results-review.md` 验证第一个正式交易日。测试 UI 只能通过
 `/test-results-review` 在 `🧪・卡片测试` 运行。

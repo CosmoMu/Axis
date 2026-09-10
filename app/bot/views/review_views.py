@@ -1276,7 +1276,7 @@ class ReviewDraftView(discord.ui.View):
             elif draft.expiry_candidates:
                 self.add_item(ExpirySelect(controller, draft, allow_shortcuts=False))
             button_row = 3 if close else 2
-            buttons = (
+            buttons = [
                 ("EDIT", discord.ButtonStyle.primary, "edit", button_row, self.edit),
                 (
                     f"LOTTO · {'YES' if draft.is_lotto else 'NO'}",
@@ -1291,7 +1291,22 @@ class ReviewDraftView(discord.ui.View):
                 ),
                 ("PUBLISH", discord.ButtonStyle.success, "approve", button_row, self.approve),
                 ("DELETE", discord.ButtonStyle.danger, "delete", button_row, self.delete),
-            )
+            ]
+            if category == "SHORT_TERM":
+                buttons.insert(
+                    2,
+                    (
+                        f"ER · {'YES' if draft.is_er else 'NO'}",
+                        (
+                            discord.ButtonStyle.success
+                            if draft.is_er
+                            else discord.ButtonStyle.secondary
+                        ),
+                        "er",
+                        3,
+                        self.toggle_er,
+                    ),
+                )
             for label, style, action, row, callback in buttons:
                 button = discord.ui.Button(
                     label=label,
@@ -1425,6 +1440,24 @@ class ReviewDraftView(discord.ui.View):
             await send_temporary_ephemeral(
                 interaction,
                 f"LOTTO 已设为 {'YES' if updated.is_lotto else 'NO'}。",
+                delete_after=SUCCESS_DELETE_AFTER,
+            )
+        except Exception as exc:
+            await self.controller.handle_error(interaction, exc)
+
+    async def toggle_er(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            updated = await self.controller.service.toggle_er(
+                self.draft.id,
+                expected_version=self.draft.version,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            await self.controller.refresh(updated)
+            await send_temporary_ephemeral(
+                interaction,
+                f"ER 已设为 {'YES' if updated.is_er else 'NO'}。",
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:

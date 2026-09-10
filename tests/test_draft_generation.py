@@ -173,6 +173,32 @@ async def test_generation_is_idempotent_and_short_term_has_no_position(tmp_path:
         await database.dispose()
 
 
+@pytest.mark.asyncio
+async def test_explicit_er_marker_is_saved_on_short_term_draft(tmp_path: Path) -> None:
+    raw = "SPY 700C ER entry"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1002,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(expected_attachment_count=0, expected_raw_text=raw),
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.selected_category == "SHORT_TERM"
+        assert draft.is_er is True
+    finally:
+        await database.dispose()
+
+
 class FastSignalCatalog:
     async def list_option_contracts(
         self,

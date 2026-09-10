@@ -224,6 +224,12 @@ def test_short_term_event_id_is_not_member_visible() -> None:
     assert "AXIS Short-Term Event" not in rendered
 
 
+def test_short_term_event_combines_er_and_lotto_labels() -> None:
+    card = replace(_short_term_tracking_card("TP"), is_er=True, is_lotto=True)
+    rendered = str(build_short_term_tracking_embed(card).to_dict())
+    assert "(ER · LOTTO)" in rendered
+
+
 def test_short_term_event_dedupe_ignores_footer_but_not_content() -> None:
     card = _short_term_tracking_card("TP")
     expected = build_short_term_tracking_embed(card, public_ref="STE-NEW")

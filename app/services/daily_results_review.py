@@ -113,13 +113,29 @@ def _result_emoji(value: Decimal | None) -> str:
 
 def _contract(payload: dict[str, object]) -> str:
     side = "C" if payload["option_side"] == "CALL" else "P"
-    lotto = " (LOTTO)" if payload.get("is_lotto") else ""
-    return f"{payload['ticker']} {_number(payload['strike'])}{side}{lotto}"
+    labels = [
+        label
+        for label, enabled in (
+            ("ER", payload.get("is_er")),
+            ("LOTTO", payload.get("is_lotto")),
+        )
+        if enabled
+    ]
+    flags = f" ({' · '.join(labels)})" if labels else ""
+    return f"{payload['ticker']} {_number(payload['strike'])}{side}{flags}"
 
 
 def _short_term_result_contract(payload: dict[str, object]) -> str:
     side = "C" if payload["option_side"] == "CALL" else "P"
-    lotto = "(LOTTO)" if payload.get("is_lotto") else ""
+    labels = [
+        label
+        for label, enabled in (
+            ("ER", payload.get("is_er")),
+            ("LOTTO", payload.get("is_lotto")),
+        )
+        if enabled
+    ]
+    flags = f"({' · '.join(labels)})" if labels else ""
     expiry_value = payload.get("expiry")
     expiry = ""
     if expiry_value:
@@ -133,7 +149,7 @@ def _short_term_result_contract(payload: dict[str, object]) -> str:
             str(payload["ticker"]),
             expiry,
             f"{_number(payload['strike'])}{side}",
-            lotto,
+            flags,
         )
         if part
     )
@@ -898,6 +914,7 @@ class DailyResultsReviewService:
             "strike": str(trade.strike),
             "option_side": trade.option_side,
             "is_lotto": trade.is_lotto,
+            "is_er": trade.is_er,
             "opened_at": entry_timestamp.isoformat() if entry_timestamp is not None else None,
         }
 

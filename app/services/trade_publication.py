@@ -223,6 +223,7 @@ class TradePublicationService:
                 raise PublicationValidationError("GUILD_CONFIG_NOT_FOUND")
             trade = await self._resolve_trade(session, config, draft, publication)
             trade.is_lotto = draft.is_lotto
+            trade.is_er = draft.is_er
             pending_for_trade = await session.scalar(
                 select(TradePublication.id).where(
                     TradePublication.trade_id == trade.id,
@@ -731,6 +732,7 @@ class TradePublicationService:
             tp1=draft.tp1,
             tp2=draft.tp2,
             is_lotto=draft.is_lotto,
+            is_er=draft.is_er,
         )
         session.add(trade)
         await session.flush()
@@ -806,6 +808,7 @@ class TradePublicationService:
                 option_side=trade.option_side,
                 entry_price=entry_price,
                 is_lotto=trade.is_lotto,
+                is_er=trade.is_er,
             )
         if (
             trade.category == TradeCategory.SWING.value
@@ -880,6 +883,7 @@ class TradePublicationService:
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
             is_lotto=trade.is_lotto,
+            is_er=trade.is_er if trade.category == TradeCategory.SHORT_TERM.value else False,
         )
 
     @staticmethod

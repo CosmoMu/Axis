@@ -117,7 +117,7 @@ Exit criteria:
 
 Work:
 
-- 在 Desktop 和 Mobile 检查 simplified review、LOTTO、发布、TP、protection、停止追踪与
+- 在 Desktop 和 Mobile 检查 simplified review、ER + LOTTO、发布、TP、protection、停止追踪与
   Daily Results；确认 Short-Term 没有 Active Button 或 Daily Summary。
 - 检查 Swing / LEAPS「查看当前持仓订单」和 Daily Summary。
 - 确认 Short-Term 不出现 Mentor 或 Swing / LEAPS Mentor Trade Flow。

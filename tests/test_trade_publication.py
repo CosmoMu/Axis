@@ -618,6 +618,7 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
                 entry_low=Decimal("1.20"),
                 entry_high=Decimal("1.20"),
                 is_lotto=True,
+                is_er=True,
                 position_delta_eighths=None,
                 position_after_eighths=None,
                 parse_payload={},
@@ -640,7 +641,7 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
         for forbidden in ("Mentor", "SL", "TP", "仓位", "Market", "Bid", "Ask"):
             assert forbidden not in public_text
         assert "MY RISK IS NOT YOUR RISK" in public_text
-        assert "(LOTTO)" in public_text
+        assert "(ER · LOTTO)" in public_text
         assert claim.public_ref not in public_text
         assert public_embed.footer.text == "AXIS"
         assert "01/15/27" in public_text
@@ -681,6 +682,7 @@ async def test_short_term_publishes_without_mentor_and_registers_independent_tra
         assert saved_trade is not None
         assert saved_trade.option_contract_code == "O:NVDA270115C00500000"
         assert saved_trade.is_lotto is True
+        assert saved_trade.is_er is True
         assert saved_trade.mentor_id is None
         assert saved_trade.position_eighths == 0
         assert saved_trade.state == TradeState.ACTIVE.value

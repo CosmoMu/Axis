@@ -583,6 +583,7 @@ async def test_short_term_review_is_minimal_and_requires_no_mentor_or_position()
         assert [item.label for item in buttons] == [
             "EDIT",
             "LOTTO · NO",
+            "ER · NO",
             "PUBLISH",
             "DELETE",
         ]
@@ -839,6 +840,58 @@ async def test_lotto_toggle_is_persisted_versioned_and_preserved_across_category
                 )
             )
         assert actions == ["TRADE_DRAFT_LOTTO_TOGGLED", "TRADE_DRAFT_LOTTO_TOGGLED"]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_short_term_er_and_lotto_flags_are_independent_and_combined_in_preview() -> None:
+    database, draft, _mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        short = await service.select_category(
+            draft.id,
+            category="SHORT_TERM",
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=730,
+        )
+        er = await service.toggle_er(
+            draft.id,
+            expected_version=short.version,
+            actor_user_id=501,
+            interaction_id=731,
+        )
+        assert er.is_er is True
+        assert er.is_lotto is False
+
+        both = await service.toggle_lotto(
+            draft.id,
+            expected_version=er.version,
+            actor_user_id=501,
+            interaction_id=732,
+        )
+        assert both.is_er is True
+        assert both.is_lotto is True
+        rendered = str(build_review_embed(both).to_dict())
+        assert "(ER · LOTTO)" in rendered
+
+        view = ReviewDraftView(SimpleNamespace(), both, mentor_choices=[], trade_choices=[])
+        labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
+        assert "ER · YES" in labels
+        assert "LOTTO · YES" in labels
+
+        async with database.session() as session:
+            actions = list(
+                await session.scalars(
+                    select(AuditLog.action_type).where(
+                        AuditLog.action_type.in_(
+                            ("TRADE_DRAFT_ER_TOGGLED", "TRADE_DRAFT_LOTTO_TOGGLED")
+                        )
+                    )
+                )
+            )
+        assert actions == ["TRADE_DRAFT_ER_TOGGLED", "TRADE_DRAFT_LOTTO_TOGGLED"]
     finally:
         await database.dispose()
 

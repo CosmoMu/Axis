@@ -319,6 +319,7 @@ def _deserialize_results(payload: dict[str, Any]) -> DailyResultsCard:
                 exit_label=(str(item["exit_label"]) if item.get("exit_label") else None),
                 exit_return_pct=_optional_decimal(item.get("exit_return_pct")),
                 is_lotto=bool(item.get("is_lotto", False)),
+                is_er=bool(item.get("is_er", False)),
             )
             for item in payload.get(key, [])
         )
@@ -532,6 +533,7 @@ class DailySummaryService:
                 highest_return_pct=tracking.highest_return_pct,
                 lowest_return_pct=daily_low_return,
                 is_lotto=trade.is_lotto,
+                is_er=trade.is_er,
             )
             short_term_rows.append(row)
 
@@ -796,6 +798,7 @@ class DailySummaryService:
                             maximum_drawdown_pct=row.lowest_return_pct,
                             displayed_result_pct=row.highest_return_pct,
                             is_lotto=row.is_lotto,
+                            is_er=row.is_er,
                         )
                     )
                 short_results = tuple(short_result_rows)

@@ -16,7 +16,7 @@ RESULTS_FINAL_PUBLISH_TIME=16:15
 RESULTS_TIMEZONE=America/New_York
 ```
 
-数据库必须在 revision `20260903_0029`，Guild Config 必须保存
+数据库必须在 revision `20260910_0032`，Guild Config 必须保存
 `results_review_channel_id=1543767142745243731`。Secret 只从 `.env` / Secret Store 读取。
 
 ## Daily Flow
@@ -87,7 +87,7 @@ member channels 测试 Fake Result。
 launchctl print gui/$(id -u)/com.axis.bot
 ```
 
-正常输出：revision `20260903_0029`、`RESULTS_REVIEW_ENABLED:true`、Discord runtime PASS、
+正常输出：revision `20260910_0032`、`RESULTS_REVIEW_ENABLED:true`、Discord runtime PASS、
 owner test commands `12`。没有 Eligible Trade 时 review/item count 为 0 是正常状态。
 
 第一个正式交易日验收时记录：actual close、draft time、Review Message ID、Item include state、

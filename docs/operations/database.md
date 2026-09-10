@@ -42,10 +42,11 @@ DATABASE_URL=postgresql+asyncpg://axis_user:<password>@localhost:5432/axis
 
 ## Schema
 
-当前 revision `20260903_0029`。0019–0022 增加 LOTTO、Short-Term policy/history、expiry trace
+当前 revision `20260910_0032`。0019–0022 增加 LOTTO、Short-Term policy/history、expiry trace
 与 Daily Results Review；0023–0028 增加 Stripe 环境隔离、永久 Approval / Newcomer Gate 和会员
 欢迎状态；0029 增加明确的 Swing `tracking_mode` 与独立 Simple Swing tracking/event/snapshot
-表，并将迁移前 Swing 回填为 `LEGACY_SWING`：
+表，并将迁移前 Swing 回填为 `LEGACY_SWING`；0030–0031 增加 Owner-only Personal Moomoo
+Execution 与 Analysis chart source 扩展；0032 在 Draft / Trade 增加独立 Short-Term ER 标记：
 
 ```text
 guild_config

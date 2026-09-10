@@ -147,7 +147,7 @@ and affected TP events. Do not lower a previously verified High without explicit
 
 ## Diagnose tracking failure
 
-1. Confirm the bot process is running and database revision is `20260903_0029`.
+1. Confirm the bot process is running and database revision is `20260910_0032`.
 2. Run `.venv/bin/python scripts/verify_database.py` without printing connection details.
 3. Verify the trade is `SIMPLE_TRACKED_SWING`, active, and has exactly one tracker.
 4. Verify option ticker, expiry, frozen policy version, source, and `last_data_error`.

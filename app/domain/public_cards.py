@@ -38,6 +38,7 @@ class PublicTradeCard:
     fib_0618: Decimal | None = None
     public_thesis: str | None = None
     is_lotto: bool = False
+    is_er: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +73,7 @@ class ShortTermEntryCard:
     option_side: str
     entry_price: Decimal
     is_lotto: bool = False
+    is_er: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +90,7 @@ class ShortTermTrackingCard:
     return_pct: Decimal
     highest_return_pct: Decimal | None = None
     is_lotto: bool = False
+    is_er: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +155,7 @@ class ShortTermDailyRow:
     highest_return_pct: Decimal
     lowest_return_pct: Decimal
     is_lotto: bool = False
+    is_er: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +175,7 @@ class DailyResultRow:
     exit_label: str | None = None
     exit_return_pct: Decimal | None = None
     is_lotto: bool = False
+    is_er: bool = False
 
 
 @dataclass(frozen=True, slots=True)

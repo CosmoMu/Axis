@@ -9,7 +9,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Soft Open Reset: COMPLETE / PRODUCTION DATA STARTS 2026-08-31
 - Daily Results Review / Exclude Workflow: COMPLETE / LIVE
 - Newcomer Approval / Security Gate: CODE COMPLETE / LIVE E2E PENDING
-- Short-Term TP1–TP41 / Expiry-only Tracking / LOTTO: CODE COMPLETE / LIVE E2E PENDING
+- Short-Term TP1–TP41 / Expiry-only Tracking / ER + LOTTO: CODE COMPLETE / LIVE E2E PENDING
 - Simple Tracked Swing: CODE COMPLETE / DB MIGRATED / LIVE E2E PENDING
 - Legacy Swing: COMPATIBILITY MODE / 4 ACTIVE AT MIGRATION
 - Stripe Payment: LIVE ENABLED / FIRST REAL PAYMENT E2E PENDING

@@ -86,6 +86,7 @@ async def review_database() -> Database:
             position_eighths=0,
             max_position_eighths=0,
             is_lotto=True,
+            is_er=True,
             opened_at=ENDED_AT - timedelta(hours=1),
         )
         short_active = Trade(
@@ -308,7 +309,7 @@ async def test_prepare_review_includes_active_and_today_stopped_short_term() -> 
         short_active = next(item for item in first.items if item.public_trade_id == "ST-0002")
         assert short_active.display_result_pct == Decimal("19.0000")
         rendered = str(first.snapshot)
-        assert "✅ ST-0001 · NVDA 08/28 200C (LOTTO) +130%" in rendered
+        assert "✅ ST-0001 · NVDA 08/28 200C (ER · LOTTO) +130%" in rendered
         assert "✅ ST-0002 · QQQ 08/28 714C +19%" in rendered
         assert "TP1 +42% · TP2 +60% · 最高收益 +70%" in rendered
         assert "❌ LP-0001 · RGTI 35C" in rendered

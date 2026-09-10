@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-09
+**Updated:** 2026-09-10
 
 **Current stage:** GEX + Stock Analyst MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 
-**Database revision:** 20260904_0031
+**Database revision:** 20260910_0032
 
 **AXIS LAB:** DEFERRED
 
@@ -320,6 +320,9 @@ Implemented:
 - Overnight Tracking；到期后在后台幂等结束追踪并进入 Results / Audit，不向 Short-Term
   频道发送到期卡。
 - LOTTO display flag，适用于 SHORT_TERM / SWING / LEAPS 且不改变业务逻辑。
+- Short-Term 独立 ER display flag：Review 使用 `ER · YES/NO`，可与 LOTTO 同时开启；明确
+  `ER` 输入会预选。Entry、TP / Momentum 与 Daily Results 统一显示 `(ER)` 或
+  `(ER · LOTTO)`，不改变 Massive、TP、到期和收益计算。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
   每日 Active Summary 使用 Massive 当日 Options Daily OHLC 正式收盘价计算收益。
 - Results：当天到期与收盘时仍在追踪的 Short-Term 先进入候选集；盘中 Massive 报价继续按
@@ -333,7 +336,7 @@ Implemented:
 Remaining: 完成真实 Massive quote、TP、reversal/expiry、Discord 事件、重启恢复和
 Daily Results E2E。
 
-Tests: simplified review、LOTTO、MarketTrackingService、TP idempotency、watermark、momentum
+Tests: simplified review、ER + LOTTO、MarketTrackingService、TP idempotency、watermark、momentum
 reversal、expiry-only、overnight、expiry stop、restart recovery、无 Short-Term Daily
 Summary、Swing/LEAPS Summary 和极简 Results 均有自动化覆盖。
 

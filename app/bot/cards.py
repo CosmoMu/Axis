@@ -124,6 +124,11 @@ def _position(value: int | None) -> str:
     return f"{fractions.get(value, f'{value}/8')} 仓位"
 
 
+def _contract_flags(*, is_lotto: bool, is_er: bool = False) -> str:
+    labels = [label for label, enabled in (("ER", is_er), ("LOTTO", is_lotto)) if enabled]
+    return f" ({' · '.join(labels)})" if labels else ""
+
+
 def _contract(draft: ReviewDraft | PublicTradeCard) -> str:
     category = (
         draft.selected_category or draft.category_suggestion
@@ -133,8 +138,11 @@ def _contract(draft: ReviewDraft | PublicTradeCard) -> str:
     expiry = _expiry_display(draft.expiry, category) if draft.expiry else "—"
     side = {"CALL": "C", "PUT": "P"}.get(draft.option_side or "", "?")
     strike = _number(draft.strike)
-    lotto = " (LOTTO)" if draft.is_lotto else ""
-    return f"{draft.ticker or '—'} · {expiry} · {strike}{side}{lotto}"
+    flags = _contract_flags(
+        is_lotto=draft.is_lotto,
+        is_er=bool(getattr(draft, "is_er", False)) and category == "SHORT_TERM",
+    )
+    return f"{draft.ticker or '—'} · {expiry} · {strike}{side}{flags}"
 
 
 def _short_term_contract(
@@ -142,8 +150,11 @@ def _short_term_contract(
 ) -> str:
     expiry = _expiry_display(card.expiry, "SHORT_TERM")
     side = {"CALL": "C", "PUT": "P"}.get(card.option_side, "?")
-    lotto = " (LOTTO)" if card.is_lotto else ""
-    return f"{card.ticker} · {expiry} · {_number(card.strike)}{side}{lotto}"
+    flags = _contract_flags(
+        is_lotto=card.is_lotto,
+        is_er=bool(getattr(card, "is_er", False)),
+    )
+    return f"{card.ticker} · {expiry} · {_number(card.strike)}{side}{flags}"
 
 
 def _expiry_display(expiry: date, category: str | None) -> str:
@@ -778,10 +789,13 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
     ):
         lines: list[str] = []
         for row in sorted(rows, key=lambda item: _public_trade_sort_key(item.public_trade_id)):
-            lotto = " (LOTTO)" if row.is_lotto else ""
+            flags = _contract_flags(
+                is_lotto=row.is_lotto,
+                is_er=row.is_er and label == "SHORT-TERM",
+            )
             contract = (
                 f"{row.ticker} {_number(row.strike)}"
-                f"{'C' if row.option_side == 'CALL' else 'P'}{lotto}"
+                f"{'C' if row.option_side == 'CALL' else 'P'}{flags}"
             )
             if label == "SHORT-TERM":
                 expiry = row.expiry.strftime("%m/%d") if row.expiry is not None else ""
@@ -789,7 +803,7 @@ def build_daily_results_embed(card: DailyResultsCard) -> discord.Embed:
                     f"{_result_status_emoji(row.displayed_result_pct)} "
                     f"{row.public_trade_id} · {row.ticker} "
                     f"{expiry + ' ' if expiry else ''}{_number(row.strike)}"
-                    f"{'C' if row.option_side == 'CALL' else 'P'}{lotto} "
+                    f"{'C' if row.option_side == 'CALL' else 'P'}{flags} "
                     f"{_percent(row.displayed_result_pct)}"
                 )
             else:

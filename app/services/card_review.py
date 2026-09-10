@@ -149,6 +149,7 @@ class ReviewDraft:
     fib_0618: Decimal | None
     public_thesis: str | None
     is_lotto: bool
+    is_er: bool = False
     swing_mode: str | None = None
     personal_follow_override: bool | None = None
 
@@ -344,6 +345,7 @@ def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
         fib_0618=draft.fib_0618,
         public_thesis=draft.public_thesis,
         is_lotto=draft.is_lotto,
+        is_er=draft.is_er,
     )
 
 
@@ -421,6 +423,7 @@ def _audit_payload(draft: TradeDraft) -> dict[str, object]:
         "plan_fib_0618": draft.parse_payload.get("plan_fib_0618"),
         "public_thesis": draft.parse_payload.get("public_thesis"),
         "is_lotto": draft.is_lotto,
+        "is_er": draft.is_er,
     }
 
 
@@ -694,6 +697,7 @@ class CardReviewService:
             before = _audit_payload(draft)
             draft.matched_trade_id = trade.id
             draft.is_lotto = trade.is_lotto
+            draft.is_er = trade.is_er
             if simple_swing:
                 draft.selected_category = "SWING"
                 draft.category_suggestion = "SWING"
@@ -741,6 +745,40 @@ class CardReviewService:
                 actor_user_id,
                 interaction_id,
                 "TRADE_DRAFT_LOTTO_TOGGLED",
+                before,
+            )
+            await session.commit()
+            return await self._snapshot(session, draft)
+
+    async def toggle_er(
+        self,
+        draft_id: uuid.UUID,
+        *,
+        expected_version: int,
+        actor_user_id: int,
+        interaction_id: int,
+    ) -> ReviewDraft:
+        async with self.database.session() as session:
+            draft = await session.scalar(
+                select(TradeDraft).where(TradeDraft.id == draft_id).with_for_update()
+            )
+            if draft is None:
+                raise ReviewError("DRAFT_NOT_FOUND")
+            if draft.status not in REGISTERED_REVIEW_STATUSES:
+                raise ReviewValidationError("DRAFT_NOT_EDITABLE")
+            self._assert_version(draft, expected_version)
+            category = draft.selected_category or draft.category_suggestion
+            if category != "SHORT_TERM":
+                raise ReviewValidationError("ER_SHORT_TERM_ONLY")
+            before = _audit_payload(draft)
+            draft.is_er = not draft.is_er
+            self._mark_edited(draft, actor_user_id)
+            await self._add_audit(
+                session,
+                draft,
+                actor_user_id,
+                interaction_id,
+                "TRADE_DRAFT_ER_TOGGLED",
                 before,
             )
             await session.commit()
@@ -1683,6 +1721,7 @@ class CardReviewService:
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
             is_lotto=draft.is_lotto,
+            is_er=draft.is_er,
             swing_mode=(
                 str(draft.parse_payload.get("_swing_mode"))
                 if draft.parse_payload.get("_swing_mode")
