@@ -716,9 +716,14 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 )
             )
         else:
+            position_text = (
+                ""
+                if summary.category == "LEAPS"
+                else f" · 当前持仓 {_position(trade.position_eighths)}"
+            )
             active_lines.append(
                 f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-                f"{close_result} · 当前持仓 {_position(trade.position_eighths)}"
+                f"{close_result}{position_text}"
                 + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
             )
     if len(summary.active) > 12:

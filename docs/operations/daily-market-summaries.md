@@ -14,6 +14,9 @@ Daily Summary；已停止追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。D
 `docs/operations/daily-results-review.md`。Active 收益只使用 Massive 对应期权合约在该交易日的
 正式 Daily OHLC `close`，不使用盘后实时价、Bid、Ask、Mid 或最后 snapshot。
 
+LEAPS 的活动订单行不显示仓位比例，只显示正式收盘收益、收盘价与最近成本；数据库中的真实
+仓位数据仍保留，且不改变订单、审核或追踪逻辑。
+
 ## Required Runtime
 
 ```text

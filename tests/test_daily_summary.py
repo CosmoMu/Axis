@@ -20,7 +20,12 @@ from app.db.models import (
 )
 from app.db.session import Database
 from app.domain.enums import OptionSide, PublicationStatus, TradeCategory, TradeState
-from app.domain.public_cards import DailyResultRow, DailyResultsCard
+from app.domain.public_cards import (
+    DailyActiveTrade,
+    DailyCategorySummary,
+    DailyResultRow,
+    DailyResultsCard,
+)
 from app.integrations.moomoo_market_data import (
     OptionQuote,
     OptionQuoteRequest,
@@ -433,3 +438,30 @@ def test_daily_results_are_extreme_simple_and_include_lotto() -> None:
     assert "Past performance does not guarantee future results." in rendered
     for forbidden in ("Tracking End", "Maximum Drawdown", "胜率", "总计"):
         assert forbidden not in rendered
+
+
+def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
+    summary = DailyCategorySummary(
+        category=TradeCategory.LEAPS.value,
+        session_date=SESSION_DATE,
+        active=(
+            DailyActiveTrade(
+                public_trade_id="LP-0001",
+                ticker="ACHR",
+                expiry=date(2027, 1, 15),
+                strike=Decimal("7"),
+                option_side=OptionSide.CALL.value,
+                position_eighths=4,
+                avg_cost=Decimal("2.115"),
+                reference_price=Decimal("2.50"),
+                unrealized_pnl_pct=Decimal("18.20"),
+                quote_time=datetime(2026, 8, 28, 20, 5, tzinfo=UTC),
+            ),
+        ),
+        closed=(),
+    )
+
+    rendered = str(build_daily_summary_embeds(summary)[0].to_dict())
+
+    assert "收盘 +18.20% · 收盘价 $2.5 · 最近成本 $2.115" in rendered
+    assert "当前持仓 1/2 仓位" not in rendered

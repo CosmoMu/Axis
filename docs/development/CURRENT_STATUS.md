@@ -282,6 +282,9 @@ Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭�
 
 ## LEAPS Pipeline — COMPLETE
 
+LEAPS 每日汇总的活动订单不再展示仓位比例；收盘收益、正式收盘价与最近成本继续保留，底层
+仓位数据和订单逻辑不变。
+
 Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界；
 ENTRY 使用同一套真实日 K 结构图和中文计划卡；Review 持仓选择为 optional，并在审核批准和
 Publication 层使用一致的默认/保留规则。

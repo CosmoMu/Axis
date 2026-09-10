@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 341 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 342 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -140,7 +140,8 @@ Short-Term:
 - Short-Term ER 默认 false、明确 `ER` 输入预选、独立 Review toggle、ER + LOTTO 组合显示、
   Draft / Trade 持久化、TP 卡与 Daily Results 传递；ER 不改变追踪或收益逻辑。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
-- Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价。
+- Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价；
+  LEAPS 活动订单行隐藏仓位比例，同时保留收盘收益、收盘价与最近成本。
 - 极简 Daily Results 使用从入场到到期/停止追踪期间的 lifetime high；覆盖历史高点高于当日
   High 的跨日场景、ST 订单号升序、Ticker、到期日、合约代码和幂等。
 - Short-Term Results New-High Suppression：相同订单只有 lifetime high 严格超过此前已发布最佳
@@ -365,7 +366,7 @@ Discord Live E2E 只保留真实固定 TP 与 Momentum TP；到期只验收内�
 ## Warnings
 
 - discord.py 间接依赖 audioop，Python 3.13 将移除该模块。
-- discord.ui modal 的 label API 有 deprecation warning；当前不影响 341 项测试结果。
+- discord.ui modal 的 label API 有 deprecation warning；当前不影响 342 项测试结果。
 
 ## Owner Personal Moomoo DRY_RUN evidence（2026-09-04）
 
