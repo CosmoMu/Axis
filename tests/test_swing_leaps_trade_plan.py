@@ -87,7 +87,12 @@ def test_entry_public_card_uses_new_chinese_plan_format(category: str) -> None:
     assert "止盈目标" in rendered
     assert "Add Zone" in rendered
     assert "Fib 0.618" in rendered
-    assert "ENTRY TRIGGERED · 1/8 仓位" in rendered
+    if category == "LEAPS":
+        assert "ENTRY TRIGGERED" in rendered
+        assert "ENTRY TRIGGERED ·" not in rendered
+        assert "仓位" not in rendered
+    else:
+        assert "ENTRY TRIGGERED · 1/8 仓位" in rendered
     assert payload["footer"]["text"] == f"AXIS · {category}"
     assert "AXIS · P-0041" not in rendered
     assert "P-F0ECED1A6B6E" not in rendered

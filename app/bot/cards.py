@@ -573,7 +573,11 @@ def _build_swing_leaps_entry_embed(
         embed.add_field(name="Fib 0.618", value=_money(card.fib_0618), inline=True)
     embed.add_field(
         name="状态",
-        value=f"ENTRY TRIGGERED · {_position(card.position_after_eighths)}",
+        value=(
+            "ENTRY TRIGGERED"
+            if card.category == "LEAPS"
+            else f"ENTRY TRIGGERED · {_position(card.position_after_eighths)}"
+        ),
         inline=False,
     )
     if card.public_thesis:
