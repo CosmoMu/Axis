@@ -323,6 +323,21 @@ async def test_review_view_starts_with_category_select_and_embed_is_compact() ->
         ]
         assert isinstance(values_modal.children[-1].component, discord.ui.Select)
 
+        leaps_modal = TradeValuesEditModal(
+            SimpleNamespace(),
+            replace(
+                snapshot,
+                selected_category="LEAPS",
+                position_delta_eighths=None,
+                position_after_eighths=None,
+            ),
+        )
+        leaps_position = leaps_modal.children[-1].component
+        assert isinstance(leaps_position, discord.ui.Select)
+        assert leaps_position.required is False
+        assert leaps_position.min_values == 0
+        assert "可选" in leaps_position.placeholder
+
         structure_modal = StockStructureEditModal(SimpleNamespace(), snapshot)
         assert [item.text for item in structure_modal.children] == [
             "当前股价",
@@ -866,7 +881,47 @@ async def test_category_switch_rebuilds_short_term_and_mentor_review_requirement
             actor_user_id=501,
             interaction_id=712,
         )
-        assert publication_missing_fields(leaps) == ("mentor", "position_after_eighths")
+        assert publication_missing_fields(leaps) == ("mentor",)
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_leaps_position_is_optional_and_defaults_to_one_eighth_on_approval() -> None:
+    database, draft, mentor = await review_database()
+    service = CardReviewService(database)
+    try:
+        edited = await service.edit(
+            draft.id,
+            values=replace(
+                complete_edit(),
+                selected_category="LEAPS",
+                position_delta_eighths=None,
+                position_after_eighths=None,
+            ),
+            expected_version=1,
+            actor_user_id=501,
+            interaction_id=720,
+        )
+        mentored = await service.select_mentor(
+            draft.id,
+            mentor_id=mentor.id,
+            expected_version=edited.version,
+            actor_user_id=501,
+            interaction_id=721,
+        )
+        assert publication_missing_fields(mentored) == ()
+        assert public_preview_payload(mentored).position_after_eighths == 1
+
+        approved = await service.approve(
+            draft.id,
+            expected_version=mentored.version,
+            actor_user_id=501,
+            interaction_id=722,
+        )
+        assert approved.status == DraftStatus.READY.value
+        assert approved.position_delta_eighths == 1
+        assert approved.position_after_eighths == 1
     finally:
         await database.dispose()
 

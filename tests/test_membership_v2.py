@@ -100,7 +100,7 @@ def test_trading_calendar_handles_close_weekend_and_formal_holiday() -> None:
 @pytest.mark.asyncio
 async def test_free_trial_requires_versioned_ack_and_is_lifetime_once() -> None:
     database, acknowledgements, access = await services()
-    claimed_at = datetime(2026, 9, 4, 14, tzinfo=UTC)
+    claimed_at = datetime.now(UTC)
     try:
         with pytest.raises(MembershipAccessError, match="RISK_ACKNOWLEDGEMENT_REQUIRED"):
             await access.claim_free_trial(GUILD_ID, USER_ID, interaction_id=1, now=claimed_at)

@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import func, select
@@ -63,6 +64,34 @@ class CurrentPriceProvider:
             )
             for request in requests
         )
+
+
+def test_publication_position_fallback_is_leaps_only() -> None:
+    leaps = SimpleNamespace(category="LEAPS", position_eighths=4)
+    swing = SimpleNamespace(category="SWING", position_eighths=4)
+    entry = SimpleNamespace(
+        position_after_eighths=None,
+        intent="NEW_TRADE",
+        action="ENTRY",
+        action_stage="NONE",
+    )
+    update = SimpleNamespace(
+        position_after_eighths=None,
+        intent="UPDATE_TRADE",
+        action="UPDATE",
+        action_stage="NONE",
+    )
+    close = SimpleNamespace(
+        position_after_eighths=None,
+        intent="UPDATE_TRADE",
+        action="CLOSE",
+        action_stage="NONE",
+    )
+
+    assert TradePublicationService._resolved_position_after(leaps, entry) == 1
+    assert TradePublicationService._resolved_position_after(leaps, update) == 4
+    assert TradePublicationService._resolved_position_after(leaps, close) == 0
+    assert TradePublicationService._resolved_position_after(swing, update) is None
 
 
 async def publication_database() -> tuple[Database, TradeDraft]:

@@ -232,7 +232,8 @@ Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DT
 ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
 已识别价格。行情失败时保留手工审核，不影响草稿生成。Legacy Swing / LEAPS 编辑使用分区向导：
 订单类型、Call / Put、仓位等固定值使用下拉菜单，每个输入框只填写一个数据，发布阻塞项使用
-中文逐项显示。
+中文逐项显示。LEAPS 的操作后持仓下拉已改为 optional；新入场留空默认 1/8，更新已有订单留空
+保留当前持仓，关闭类操作仍自动归零。
 
 Remaining: 持续真实使用观察，不需要架构重做。
 
@@ -282,7 +283,8 @@ Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭�
 ## LEAPS Pipeline — COMPLETE
 
 Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界；
-ENTRY 使用同一套真实日 K 结构图和中文计划卡。
+ENTRY 使用同一套真实日 K 结构图和中文计划卡；Review 持仓选择为 optional，并在审核批准和
+Publication 层使用一致的默认/保留规则。
 
 Remaining: 完成真实 LEAPS Desktop / Mobile ENTRY UX；后续统一 ADD / TP / RUNNER / CLOSE。
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import AuditLog, Mentor, SourceMessage, Trade, TradeDraft
 from app.db.session import Database
-from app.domain.enums import DraftStatus, TradeState
+from app.domain.enums import ActionStage, DraftStatus, TradeAction, TradeCategory, TradeState
 from app.domain.public_cards import PublicTradeCard
 from app.services.option_contracts import (
     ContractValidationStatus,
@@ -265,7 +265,7 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             missing.append("contract")
         if draft.entry_low is None and draft.entry_high is None and draft.action_price is None:
             missing.append("entry_price")
-        if draft.position_after_eighths is None:
+        if draft.position_after_eighths is None and category != TradeCategory.LEAPS.value:
             missing.append("position_after_eighths")
     elif draft.intent == "UPDATE_TRADE":
         matched = (
@@ -297,7 +297,7 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
             )
         ):
             missing.append("update_content")
-        if draft.position_after_eighths is None:
+        if draft.position_after_eighths is None and category != TradeCategory.LEAPS.value:
             missing.append("position_after_eighths")
     return tuple(missing)
 
@@ -305,9 +305,18 @@ def publication_missing_fields(draft: TradeDraft | ReviewDraft) -> tuple[str, ..
 def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
     """Copy only explicitly public fields into the member-card boundary."""
 
+    category = draft.selected_category or draft.category_suggestion or "SHORT_TERM"
+    position_after = draft.position_after_eighths
+    if (
+        position_after is None
+        and category == TradeCategory.LEAPS.value
+        and draft.intent == "NEW_TRADE"
+        and draft.action == TradeAction.ENTRY.value
+    ):
+        position_after = 1
     return PublicTradeCard(
         public_trade_id=None,
-        category=draft.selected_category or draft.category_suggestion or "SHORT_TERM",
+        category=category,
         action=draft.action,
         action_stage=draft.action_stage,
         ticker=draft.ticker,
@@ -322,7 +331,7 @@ def public_preview_payload(draft: ReviewDraft) -> PublicTradeCard:
         tp1=draft.tp1,
         tp2=draft.tp2,
         position_delta_eighths=draft.position_delta_eighths,
-        position_after_eighths=draft.position_after_eighths or 0,
+        position_after_eighths=position_after or 0,
         pnl_pct=draft.current_pnl_pct,
         current_stock=draft.current_stock,
         starter=draft.starter,
@@ -1103,6 +1112,7 @@ class CardReviewService:
             self._assert_version(draft, expected_version)
             if validated is not None:
                 self._apply_resolution_to_draft(draft, validated)
+            await self._apply_optional_leaps_position(session, draft)
             missing = publication_missing_fields(draft)
             if missing:
                 raise ReviewValidationError("DRAFT_INCOMPLETE", missing)
@@ -1514,6 +1524,49 @@ class CardReviewService:
         for value in (values.strike, values.entry_price):
             if not value.is_finite() or value <= 0:
                 raise ReviewValidationError("PRICE_INVALID")
+
+    @staticmethod
+    async def _apply_optional_leaps_position(
+        session: AsyncSession,
+        draft: TradeDraft,
+    ) -> None:
+        category = draft.selected_category or draft.category_suggestion
+        if category != TradeCategory.LEAPS.value or draft.position_after_eighths is not None:
+            return
+        if draft.intent == "NEW_TRADE" and draft.action == TradeAction.ENTRY.value:
+            draft.position_delta_eighths = 1
+            draft.position_after_eighths = 1
+            return
+        if draft.intent != "UPDATE_TRADE" or draft.matched_trade_id is None:
+            return
+        trade = await session.get(Trade, draft.matched_trade_id)
+        if trade is None or trade.category != TradeCategory.LEAPS.value:
+            return
+        if draft.action in {
+            TradeAction.SL.value,
+            TradeAction.CLOSE.value,
+            TradeAction.CANCEL.value,
+        }:
+            draft.position_after_eighths = 0
+            return
+        if draft.action == TradeAction.ADD.value and draft.action_stage in {
+            ActionStage.FIRST.value,
+            ActionStage.SECOND.value,
+            ActionStage.THIRD.value,
+            ActionStage.FOURTH.value,
+        }:
+            suggested = {
+                ActionStage.FIRST.value: 2,
+                ActionStage.SECOND.value: 4,
+                ActionStage.THIRD.value: 6,
+                ActionStage.FOURTH.value: 8,
+            }[draft.action_stage]
+            draft.position_after_eighths = max(trade.position_eighths, suggested)
+            draft.position_delta_eighths = (
+                draft.position_after_eighths - trade.position_eighths
+            )
+            return
+        draft.position_after_eighths = trade.position_eighths
 
     @staticmethod
     async def _validate_position_transition(session: AsyncSession, draft: TradeDraft) -> None:

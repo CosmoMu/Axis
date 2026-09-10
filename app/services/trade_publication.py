@@ -374,7 +374,11 @@ class TradePublicationService:
                 and trade.tracking_mode == SIMPLE_TRACKED_SWING
             )
             before_position = trade.position_eighths
-            after_position = 0 if tracked else draft.position_after_eighths
+            after_position = (
+                0
+                if tracked
+                else self._resolved_position_after(trade, draft)
+            )
             if after_position is None:
                 raise PublicationValidationError("POSITION_AFTER_REQUIRED")
             position_delta = after_position - before_position
@@ -843,6 +847,9 @@ class TradePublicationService:
                 entry_price=tracking.entry_price,
                 is_lotto=trade.is_lotto,
             )
+        position_after = TradePublicationService._resolved_position_after(trade, draft)
+        if position_after is None:
+            raise PublicationValidationError("POSITION_AFTER_REQUIRED")
         return PublicTradeCard(
             public_trade_id=trade.public_trade_id,
             category=trade.category,
@@ -860,7 +867,7 @@ class TradePublicationService:
             tp1=draft.tp1,
             tp2=draft.tp2,
             position_delta_eighths=draft.position_delta_eighths,
-            position_after_eighths=draft.position_after_eighths or 0,
+            position_after_eighths=position_after,
             pnl_pct=draft.current_pnl_pct,
             current_stock=_plan_decimal(draft.parse_payload, "plan_current_stock"),
             starter=_plan_decimal(draft.parse_payload, "plan_starter"),
@@ -884,6 +891,31 @@ class TradePublicationService:
         if draft.entry_low is not None and draft.entry_high is not None:
             return (draft.entry_low + draft.entry_high) / 2
         return draft.entry_low if draft.entry_low is not None else draft.entry_high
+
+    @staticmethod
+    def _resolved_position_after(trade: Trade, draft: TradeDraft) -> int | None:
+        if draft.position_after_eighths is not None:
+            return draft.position_after_eighths
+        if trade.category != TradeCategory.LEAPS.value:
+            return None
+        if draft.intent == "NEW_TRADE" and draft.action == TradeAction.ENTRY.value:
+            return 1
+        if draft.action in {
+            TradeAction.SL.value,
+            TradeAction.CLOSE.value,
+            TradeAction.CANCEL.value,
+        }:
+            return 0
+        if draft.action == TradeAction.ADD.value:
+            suggested = {
+                ActionStage.FIRST.value: 2,
+                ActionStage.SECOND.value: 4,
+                ActionStage.THIRD.value: 6,
+                ActionStage.FOURTH.value: 8,
+            }.get(draft.action_stage or "")
+            if suggested is not None:
+                return max(trade.position_eighths, suggested)
+        return trade.position_eighths
 
     @staticmethod
     def _average_cost_after(

@@ -606,11 +606,18 @@ class TradeValuesEditModal(discord.ui.Modal):
                 description="可选",
                 max_length=24,
             )
+        self.position_optional = (
+            draft.selected_category or draft.category_suggestion
+        ) == TradeCategory.LEAPS.value
         self.position = discord.ui.Select(
-            placeholder="选择操作后的总持仓",
-            min_values=1,
+            placeholder=(
+                "选择操作后的总持仓（可选）"
+                if self.position_optional
+                else "选择操作后的总持仓"
+            ),
+            min_values=0 if self.position_optional else 1,
             max_values=1,
-            required=True,
+            required=not self.position_optional,
             options=_position_options(draft.position_after_eighths),
         )
         for item in (
@@ -620,7 +627,11 @@ class TradeValuesEditModal(discord.ui.Modal):
             risk_label,
             discord.ui.Label(
                 text="操作后总持仓",
-                description="选择完成本次操作后的仓位，不是本次增减量",
+                description=(
+                    "可选；留空时新长期订单默认 1/8，更新订单保留当前持仓"
+                    if self.position_optional
+                    else "选择完成本次操作后的仓位，不是本次增减量"
+                ),
                 component=self.position,
             ),
         ):
@@ -630,7 +641,13 @@ class TradeValuesEditModal(discord.ui.Modal):
         if not await self.controller.authorize(interaction):
             return
         try:
-            position_after = int(str(self.position.values[0]))
+            position_after = (
+                int(str(self.position.values[0]))
+                if self.position.values
+                else self.draft.position_after_eighths
+            )
+            if position_after is None and not self.position_optional:
+                raise ReviewValidationError("POSITION_AFTER_REQUIRED")
             if self.is_entry:
                 entry_low = _optional_decimal(self.primary.value)
                 if entry_low is None:
@@ -642,7 +659,9 @@ class TradeValuesEditModal(discord.ui.Modal):
                     action_price=None,
                     avg_cost=_optional_decimal(self.average.value),
                     sl=_optional_decimal(self.risk.value),
-                    position_delta_eighths=position_after,
+                    position_delta_eighths=(
+                        position_after if position_after is not None else None
+                    ),
                     position_after_eighths=position_after,
                 )
             else:
@@ -666,7 +685,11 @@ class TradeValuesEditModal(discord.ui.Modal):
             await self.controller.refresh(updated)
             await send_temporary_ephemeral(
                 interaction,
-                "价格和操作后总持仓已保存。",
+                (
+                    "价格已保存；长期持仓未选择时将使用默认或保留当前持仓。"
+                    if self.position_optional
+                    else "价格和操作后总持仓已保存。"
+                ),
                 delete_after=SUCCESS_DELETE_AFTER,
             )
         except Exception as exc:
