@@ -17,7 +17,7 @@ Daily Summary；已停止追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。D
 Swing 与 LEAPS 的活动订单行统一显示订单/合约、历史最高 TP 收益、当日正式收盘收益与
 收盘价、最近成本；不显示仓位比例。数据库中的真实仓位数据仍保留，且不改变订单、审核或
 追踪逻辑。Swing 的最高 TP 来自自动追踪或已审核的手动 TP Event；LEAPS 不显示“最高 TP”，
-改为显示入场以来的过程最高收益率。Massive 使用真实期权 Aggregate High：入场日及成本变更
+改为显示入场以来的“最高收益”。Massive 使用真实期权 Aggregate High：入场日及成本变更
 日读取分钟 K，排除入场前行情；其他交易日读取 Daily High。计算时按每个时间点生效的最近
 成本，并用历史正式收盘快照与审核事件作为可审计的降级数据。
 

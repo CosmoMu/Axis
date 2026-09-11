@@ -545,7 +545,7 @@ def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
 
     rendered = str(build_daily_summary_embeds(summary)[0].to_dict())
 
-    assert "过程最高 +62.50%" in rendered
+    assert "最高收益 +62.50%" in rendered
     assert "最高 TP" not in rendered
     assert "当前收盘 +18.20% · 收盘价 $2.5" in rendered
     assert "成本 $2.115" in rendered

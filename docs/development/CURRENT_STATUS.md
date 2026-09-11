@@ -286,7 +286,7 @@ Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭�
 ## LEAPS Pipeline — COMPLETE
 
 LEAPS 每日汇总支持 `PAGE n / total` 分页且不再截断；活动订单不展示仓位比例，也不显示
-“最高 TP”，改为显示入场以来的过程最高收益率、正式收盘收益/收盘价与最近事件成本。过程
+“最高 TP”，改为显示入场以来的“最高收益”、正式收盘收益/收盘价与最近事件成本。该收益
 最高优先使用 Massive 真实 Aggregate High；入场日和成本变化日使用分钟 K 排除入场前价格，
 其他日期使用 Daily High，并保留历史收盘快照与审核事件作为降级依据。底层仓位数据和订单
 逻辑不变。

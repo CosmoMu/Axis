@@ -142,7 +142,7 @@ Short-Term:
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价；
   支持 `PAGE n / total` 分页且不截断订单。Swing 活动订单显示历史最高 TP；LEAPS 改为显示
-  入场以来的过程最高收益率；Massive 真实 High 正规化、入场/成本边界和历史快照降级均有覆盖。
+  入场以来的“最高收益”；Massive 真实 High 正规化、入场/成本边界和历史快照降级均有覆盖。
   两者均显示当日收盘收益/收盘价与成本并隐藏仓位比例。
 - 极简 Daily Results 使用从入场到到期/停止追踪期间的 lifetime high；覆盖历史高点高于当日
   High 的跨日场景、ST 订单号升序、Ticker、到期日、合约代码和幂等。
