@@ -150,7 +150,7 @@ def _trade_result_details(
 
 def _observed_lifetime_return(
     events: list[TradeEvent],
-    snapshots: list[MarketQuoteSnapshot],
+    observations: list[tuple[Decimal, datetime]],
     *,
     initial_cost: Decimal | None,
     current_return: Decimal | None,
@@ -164,8 +164,8 @@ def _observed_lifetime_return(
     if fallback_cost is not None and fallback_cost > 0:
         candidates.append(Decimal("0"))
 
-    for snapshot in snapshots:
-        quote_time = snapshot.quote_time
+    for price, observed_at in observations:
+        quote_time = observed_at
         if quote_time.tzinfo is None:
             quote_time = quote_time.replace(tzinfo=UTC)
         cost = fallback_cost
@@ -177,7 +177,7 @@ def _observed_lifetime_return(
                 break
             cost = event.avg_cost_after
         if cost is not None and cost > 0:
-            candidates.append(((snapshot.last_price - cost) / cost) * Decimal("100"))
+            candidates.append(((price - cost) / cost) * Decimal("100"))
     return max(candidates) if candidates else None
 
 
@@ -551,6 +551,36 @@ class DailySummaryService:
         quote_snapshots_by_trade: dict[uuid.UUID, list[MarketQuoteSnapshot]] = {}
         for snapshot in historical_quote_snapshots:
             quote_snapshots_by_trade.setdefault(snapshot.trade_id, []).append(snapshot)
+        lifetime_highs_by_trade: dict[str, tuple[Any, ...]] = {}
+        fetch_lifetime_highs = getattr(self.market_data, "fetch_lifetime_highs", None)
+        if callable(fetch_lifetime_highs):
+            leaps_trades = [
+                trade for trade in active_trades if trade.category == TradeCategory.LEAPS.value
+            ]
+            leaps_ids = {str(trade.id) for trade in leaps_trades}
+            leaps_requests = tuple(request for request in requests if request.key in leaps_ids)
+            boundaries_by_key: dict[str, tuple[datetime, ...]] = {}
+            for trade in leaps_trades:
+                trade_events = events_by_trade.get(trade.id, [])
+                entry_event = next(
+                    (event for event in trade_events if event.action == "ENTRY"),
+                    None,
+                )
+                started_at = entry_event.created_at if entry_event is not None else trade.created_at
+                cost_changes = tuple(
+                    event.created_at
+                    for event in trade_events
+                    if event.avg_cost_after is not None and event.created_at != started_at
+                )
+                boundaries_by_key[str(trade.id)] = (started_at, *cost_changes)
+            try:
+                lifetime_highs_by_trade = await fetch_lifetime_highs(
+                    leaps_requests,
+                    boundaries_by_key=boundaries_by_key,
+                    through_date=session_date,
+                )
+            except MarketDataError as exc:
+                raise DailySummaryError(exc.code) from exc
 
         short_term_rows: list[ShortTermDailyRow] = []
         daily_snapshots_by_tracking = {
@@ -661,7 +691,16 @@ class DailySummaryService:
                             if swing_tracking is not None
                             else _observed_lifetime_return(
                                 trade_events,
-                                quote_snapshots_by_trade.get(trade.id, []),
+                                [
+                                    (snapshot.last_price, snapshot.quote_time)
+                                    for snapshot in quote_snapshots_by_trade.get(trade.id, [])
+                                ]
+                                + [
+                                    (observation.price, observation.observed_at)
+                                    for observation in lifetime_highs_by_trade.get(
+                                        str(trade.id), ()
+                                    )
+                                ],
                                 initial_cost=entry_midpoint or trade.avg_cost,
                                 current_return=pnl,
                             )

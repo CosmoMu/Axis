@@ -45,3 +45,21 @@ def test_massive_daily_bar_rejects_malformed_payload() -> None:
             SESSION_DATE,
             {"results": None},
         )
+
+
+def test_massive_high_bars_preserve_real_prices_and_times() -> None:
+    observations = MassiveClosingPriceClient._normalize_highs(
+        "trade-1",
+        {
+            "results": [
+                {"h": 2.25, "t": TIMESTAMP_MS},
+                {"h": 0, "t": TIMESTAMP_MS + 60_000},
+                {"c": 9.99, "t": TIMESTAMP_MS + 120_000},
+            ]
+        },
+    )
+
+    assert len(observations) == 1
+    assert observations[0].key == "trade-1"
+    assert observations[0].price == Decimal("2.25")
+    assert observations[0].observed_at == datetime.fromtimestamp(TIMESTAMP_MS / 1000, tz=UTC)
