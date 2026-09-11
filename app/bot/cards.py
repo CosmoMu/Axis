@@ -626,9 +626,7 @@ def build_active_orders_embed(category: str, trades: list[ActivePublicTrade]) ->
             if trade.highest_tp_level and trade.highest_tp_return_pct is not None:
                 highest_tp += f" · {_percent(trade.highest_tp_return_pct)}"
             value = (
-                f"{contract}\n成本 {_money(trade.avg_cost)}"
-                f"\n最高 TP {highest_tp}"
-                f"\n当前 {current}"
+                f"{contract}\n成本 {_money(trade.avg_cost)}\n最高 TP {highest_tp}\n当前 {current}"
             )
         if category == "SWING" and trade.avg_cost is not None:
             value += f"\n最近持仓成本 {_money(trade.avg_cost)}"
@@ -664,12 +662,25 @@ def _daily_contract(item: DailyActiveTrade | DailyClosedTrade, category: str) ->
     return f"{item.ticker} · {expiry} · {_number(item.strike)}{side}{lotto}"
 
 
+def _daily_summary_chunks(lines: list[str], *, max_rows: int = 5) -> list[str]:
+    chunks: list[str] = []
+    current: list[str] = []
+    for line in lines:
+        candidate = "\n\n".join((*current, line))
+        if current and (len(current) >= max_rows or len(candidate) > 1024):
+            chunks.append("\n\n".join(current))
+            current = []
+        current.append(line[:1024])
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
+
+
 def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Embed]:
     category = summary.category.replace("_", "-")
     date_label = summary.session_date.strftime("%Y/%m/%d")
-    embed = discord.Embed(title=f"{category} · DAILY SUMMARY", color=ACCENT_GREEN)
     closed_lines: list[str] = []
-    for trade in summary.closed[:12]:
+    for trade in summary.closed:
         details = _closed_result_text(
             tp_returns=trade.tp_returns,
             highest=trade.highest_return_pct,
@@ -680,21 +691,14 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
         closed_lines.append(
             f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n{details}"
         )
-    if len(summary.closed) > 12:
-        closed_lines.append(f"另有 {len(summary.closed) - 12} 个今日已完成订单。")
-    embed.add_field(
-        name="今日关闭",
-        value=("\n\n".join(closed_lines) or "今日没有已完成订单。")[:1024],
-        inline=False,
-    )
 
     active_lines: list[str] = []
-    for trade in summary.active[:12]:
+    for trade in summary.active:
         close_result = (
-            "收盘行情暂不可用"
+            "当前收盘行情暂不可用"
             if trade.unrealized_pnl_pct is None
             else (
-                f"收盘 {trade.unrealized_pnl_pct:+.2f}%"
+                f"当前收盘 {trade.unrealized_pnl_pct:+.2f}%"
                 + (
                     f" · 收盘价 {_money(trade.reference_price)}"
                     if trade.reference_price is not None
@@ -702,39 +706,33 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 )
             )
         )
-        if trade.tracking_mode == "SIMPLE_TRACKED_SWING":
-            active_lines.append(
-                f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-                f"{close_result}"
-                + (f" · 成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
-                + f"\n最高 TP {_percent(trade.highest_tp_return_pct)}"
-                + (
-                    f"\n追踪最高 {_money(trade.highest_price)} · "
-                    f"{_percent(trade.highest_return_pct)}"
-                    if trade.highest_price is not None
-                    else ""
-                )
-            )
-        else:
-            position_text = (
-                ""
-                if summary.category == "LEAPS"
-                else f" · 当前持仓 {_position(trade.position_eighths)}"
-            )
-            active_lines.append(
-                f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-                f"{close_result}{position_text}"
-                + (f" · 最近成本 {_money(trade.avg_cost)}" if trade.avg_cost is not None else "")
-            )
-    if len(summary.active) > 12:
-        active_lines.append(f"另有 {len(summary.active) - 12} 个订单，请使用「查看当前持仓订单」。")
-    embed.add_field(
-        name="当前持仓",
-        value=("\n\n".join(active_lines) or "当前没有进行中的订单。")[:1024],
-        inline=False,
-    )
-    embed.set_footer(text=f"AXIS · {date_label} ET · 正式收盘价")
-    return [_public(embed)]
+        active_lines.append(
+            f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
+            f"最高 TP {_percent(trade.highest_tp_return_pct)}\n"
+            f"{close_result}\n"
+            f"成本 {_money(trade.avg_cost)}"
+        )
+
+    closed_chunks = _daily_summary_chunks(closed_lines)
+    active_chunks = _daily_summary_chunks(active_lines)
+    page_count = max(len(closed_chunks), len(active_chunks), 1)
+    embeds: list[discord.Embed] = []
+    for index in range(page_count):
+        embed = discord.Embed(
+            title=f"{category} · DAILY SUMMARY · PAGE {index + 1} / {page_count}",
+            color=ACCENT_GREEN,
+        )
+        if index < len(closed_chunks):
+            embed.add_field(name="今日关闭", value=closed_chunks[index], inline=False)
+        elif index == 0:
+            embed.add_field(name="今日关闭", value="今日没有已完成订单。", inline=False)
+        if index < len(active_chunks):
+            embed.add_field(name="当前持仓", value=active_chunks[index], inline=False)
+        elif index == 0:
+            embed.add_field(name="当前持仓", value="当前没有进行中的订单。", inline=False)
+        embed.set_footer(text=f"AXIS · {date_label} ET · 正式收盘价")
+        embeds.append(_public(embed))
+    return embeds
 
 
 def _closed_result_text(
@@ -1046,9 +1044,9 @@ def build_analysis_review_embed(
     if payload.get("risks"):
         embed.add_field(
             name="主要风险",
-            value="\n".join(
-                f"• {public_analysis_text(item)}" for item in payload["risks"][:2]
-            )[:1024],
+            value="\n".join(f"• {public_analysis_text(item)}" for item in payload["risks"][:2])[
+                :1024
+            ],
             inline=False,
         )
     if draft.warnings or draft.chart_render_error:

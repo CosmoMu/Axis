@@ -232,17 +232,11 @@ def _deserialize_summary(payload: dict[str, Any]) -> DailyCategorySummary:
                     else None
                 ),
                 is_lotto=bool(item.get("is_lotto", False)),
-                tracking_mode=(
-                    str(item["tracking_mode"]) if item.get("tracking_mode") else None
-                ),
+                tracking_mode=(str(item["tracking_mode"]) if item.get("tracking_mode") else None),
                 highest_tp_level=(
-                    str(item["highest_tp_level"])
-                    if item.get("highest_tp_level")
-                    else None
+                    str(item["highest_tp_level"]) if item.get("highest_tp_level") else None
                 ),
-                highest_tp_return_pct=_optional_decimal(
-                    item.get("highest_tp_return_pct")
-                ),
+                highest_tp_return_pct=_optional_decimal(item.get("highest_tp_return_pct")),
                 highest_price=_optional_decimal(item.get("highest_price")),
                 highest_return_pct=_optional_decimal(item.get("highest_return_pct")),
             )
@@ -424,16 +418,16 @@ class DailySummaryService:
                     .order_by(Trade.category, Trade.public_trade_id)
                 )
             )
-            closed_ids = [trade.id for trade in closed_trades]
+            event_trade_ids = [trade.id for trade in (*active_trades, *closed_trades)]
             events = (
                 list(
                     await session.scalars(
                         select(TradeEvent)
-                        .where(TradeEvent.trade_id.in_(closed_ids))
+                        .where(TradeEvent.trade_id.in_(event_trade_ids))
                         .order_by(TradeEvent.trade_id, TradeEvent.created_at, TradeEvent.id)
                     )
                 )
-                if closed_ids
+                if event_trade_ids
                 else []
             )
             tracking_rows = (
@@ -550,9 +544,36 @@ class DailySummaryService:
                 )
                 pnl = None
                 swing_tracking = swing_tracking_by_trade.get(trade.id)
-                cost = swing_tracking.entry_price if swing_tracking is not None else trade.avg_cost
+                trade_events = events_by_trade.get(trade.id, [])
+                latest_event_cost = next(
+                    (
+                        event.avg_cost_after
+                        for event in reversed(trade_events)
+                        if event.avg_cost_after is not None
+                    ),
+                    None,
+                )
+                entry_midpoint = (
+                    (trade.entry_low + trade.entry_high) / 2
+                    if trade.entry_low is not None and trade.entry_high is not None
+                    else trade.entry_low or trade.entry_high
+                )
+                cost = (
+                    swing_tracking.entry_price
+                    if swing_tracking is not None
+                    else latest_event_cost or trade.avg_cost or entry_midpoint
+                )
                 if reference is not None and cost is not None and cost > 0:
                     pnl = ((reference - cost) / cost) * Decimal("100")
+                legacy_tp_event = max(
+                    (
+                        event
+                        for event in trade_events
+                        if re.fullmatch(r"TP\d+", event.action) and event.pnl_pct is not None
+                    ),
+                    key=lambda item: item.pnl_pct or Decimal("0"),
+                    default=None,
+                )
                 active_rows.append(
                     DailyActiveTrade(
                         public_trade_id=trade.public_trade_id,
@@ -570,11 +591,15 @@ class DailySummaryService:
                         highest_tp_level=(
                             swing_tracking.highest_tp_level
                             if swing_tracking is not None
+                            else legacy_tp_event.action
+                            if legacy_tp_event is not None
                             else None
                         ),
                         highest_tp_return_pct=(
                             self._swing_tp_return_pct(swing_tracking)
                             if swing_tracking is not None
+                            else legacy_tp_event.pnl_pct
+                            if legacy_tp_event is not None
                             else None
                         ),
                         highest_price=(
@@ -730,9 +755,7 @@ class DailySummaryService:
                     continue
                 quote = quotes.get(str(trade.id))
                 closing_price = (
-                    quote.last_price
-                    if quote is not None and quote.price_type == "CLOSE"
-                    else None
+                    quote.last_price if quote is not None and quote.price_type == "CLOSE" else None
                 )
                 closing_return = (
                     ShortTermTrackingPolicy.return_pct(current.entry_price, closing_price)

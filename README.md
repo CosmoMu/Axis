@@ -18,7 +18,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - GEX Explorer: V7 MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 - AXIS Stock Analyst: MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 332 passed；Ruff / compileall PASS
+- Latest automated regression: 344 passed；Ruff / compileall PASS
 
 ## 文档入口
 

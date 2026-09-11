@@ -241,9 +241,7 @@ async def test_realtime_last_price_never_substitutes_official_close() -> None:
             active = publication.snapshot_json["active"]
             assert active[0]["reference_price"] is None
             assert active[0]["unrealized_pnl_pct"] is None
-            assert await session.scalar(
-                select(func.count()).select_from(MarketQuoteSnapshot)
-            ) == 0
+            assert await session.scalar(select(func.count()).select_from(MarketQuoteSnapshot)) == 0
     finally:
         await database.dispose()
 
@@ -338,13 +336,81 @@ async def test_simple_swing_eod_summary_is_active_and_keeps_lifetime_high() -> N
             claims.append(claim)
             await service.finalize(claim.publication_id, message_id)
         swing_summary = next(
-            claim.summary
-            for claim in claims
-            if claim.summary.category == TradeCategory.SWING.value
+            claim.summary for claim in claims if claim.summary.category == TradeCategory.SWING.value
         )
         rendered = str(build_daily_summary_embeds(swing_summary)[0].to_dict())
         assert "最高 TP +100.00%" in rendered
         assert "最高 TP TP5" not in rendered
+        assert "当前收盘 +50.00% · 收盘价 $1.5" in rendered
+        assert "成本 $1" in rendered
+        assert "追踪最高" not in rendered
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_leaps_summary_uses_latest_cost_and_manual_highest_tp() -> None:
+    database = await seeded_database()
+    try:
+        async with database.session() as session:
+            mentor = await session.scalar(select(Mentor))
+            assert mentor is not None
+            trade = Trade(
+                guild_id=GUILD_ID,
+                public_trade_id="LP-0001",
+                category=TradeCategory.LEAPS.value,
+                mentor_id=mentor.id,
+                ticker="ACHR",
+                expiry=date(2027, 1, 15),
+                strike=Decimal("7"),
+                option_side=OptionSide.CALL.value,
+                state=TradeState.ACTIVE.value,
+                position_eighths=1,
+                max_position_eighths=1,
+            )
+            session.add(trade)
+            await session.flush()
+            session.add_all(
+                [
+                    TradeEvent(
+                        trade_id=trade.id,
+                        action="ENTRY",
+                        action_stage="NONE",
+                        price=Decimal("1.20"),
+                        position_delta_eighths=1,
+                        position_after_eighths=1,
+                        avg_cost_after=Decimal("1.20"),
+                        approved_by=999,
+                    ),
+                    TradeEvent(
+                        trade_id=trade.id,
+                        action="TP1",
+                        action_stage="NONE",
+                        price=Decimal("1.80"),
+                        position_delta_eighths=0,
+                        position_after_eighths=1,
+                        avg_cost_after=Decimal("1.10"),
+                        pnl_pct=Decimal("50"),
+                        approved_by=999,
+                    ),
+                ]
+            )
+            await session.commit()
+
+        service = DailySummaryService(database, FakeMarketData())
+        assert await service.prepare_session(GUILD_ID, SESSION_DATE) is True
+        async with database.session() as session:
+            publication = await session.scalar(
+                select(DailySummaryPublication).where(
+                    DailySummaryPublication.category == TradeCategory.LEAPS.value
+                )
+            )
+        assert publication is not None
+        active = publication.snapshot_json["active"]
+        assert len(active) == 1
+        assert Decimal(active[0]["avg_cost"]) == Decimal("1.10")
+        assert active[0]["highest_tp_level"] == "TP1"
+        assert Decimal(active[0]["highest_tp_return_pct"]) == Decimal("50")
     finally:
         await database.dispose()
 
@@ -455,6 +521,8 @@ def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
                 avg_cost=Decimal("2.115"),
                 reference_price=Decimal("2.50"),
                 unrealized_pnl_pct=Decimal("18.20"),
+                highest_tp_level="TP1",
+                highest_tp_return_pct=Decimal("50"),
                 quote_time=datetime(2026, 8, 28, 20, 5, tzinfo=UTC),
             ),
         ),
@@ -463,5 +531,44 @@ def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
 
     rendered = str(build_daily_summary_embeds(summary)[0].to_dict())
 
-    assert "收盘 +18.20% · 收盘价 $2.5 · 最近成本 $2.115" in rendered
+    assert "最高 TP +50.00%" in rendered
+    assert "当前收盘 +18.20% · 收盘价 $2.5" in rendered
+    assert "成本 $2.115" in rendered
     assert "当前持仓 1/2 仓位" not in rendered
+
+
+def test_daily_summary_paginates_without_dropping_active_orders() -> None:
+    summary = DailyCategorySummary(
+        category=TradeCategory.SWING.value,
+        session_date=SESSION_DATE,
+        active=tuple(
+            DailyActiveTrade(
+                public_trade_id=f"SW-{index:04d}",
+                ticker="SPY",
+                expiry=date(2026, 9, 18),
+                strike=Decimal(770 + index),
+                option_side=OptionSide.CALL.value,
+                position_eighths=1,
+                avg_cost=Decimal("2.50"),
+                reference_price=Decimal("3.00"),
+                unrealized_pnl_pct=Decimal("20"),
+                highest_tp_level="TP1",
+                highest_tp_return_pct=Decimal("20"),
+                quote_time=datetime(2026, 8, 28, 20, 5, tzinfo=UTC),
+            )
+            for index in range(1, 14)
+        ),
+        closed=(),
+    )
+
+    embeds = build_daily_summary_embeds(summary)
+    rendered = "\n".join(str(embed.to_dict()) for embed in embeds)
+
+    assert len(embeds) == 3
+    assert embeds[0].title == "SWING · DAILY SUMMARY · PAGE 1 / 3"
+    assert embeds[1].title == "SWING · DAILY SUMMARY · PAGE 2 / 3"
+    assert embeds[2].title == "SWING · DAILY SUMMARY · PAGE 3 / 3"
+    for index in range(1, 14):
+        assert f"SW-{index:04d}" in rendered
+    assert "另有" not in rendered
+    assert all(len(field.value) <= 1024 for embed in embeds for field in embed.fields)

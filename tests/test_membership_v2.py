@@ -254,7 +254,8 @@ async def test_expired_member_extension_activates_immediately_and_multiple_acces
         )
         assert extension.first_trading_day.isoformat() == "2026-09-08"
         assert extension.last_trading_day.isoformat() == "2026-09-10"
-        assert extension.is_active
+        assert extension.status == EntitlementStatus.ACTIVE.value
+        assert extension.ends_at is not None and extension.ends_at > saturday
 
         await access.grant(
             GUILD_ID,

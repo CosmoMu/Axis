@@ -250,6 +250,9 @@ Tracker 独立于 Short-Term 命名域，但直接读取 Short-Term 当前固定
 hardcode；每笔订单冻结 policy version 与 price source。支持跨日 High / Low Watermark、幂等 TP、
 Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
+Swing Daily Summary 已支持 `PAGE n / total` 分页且不再截断活动订单；每笔活动订单统一显示
+历史最高 TP 的具体收益率、Massive 当日正式收盘价/收益与成本，不显示仓位。
+
 Manager 可在 `信号输入` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
 追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
 return 与明确标注的平仓收益，Results 仍只使用从 Entry 到 Close/Expiry 的 lifetime verified
@@ -282,8 +285,9 @@ Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭�
 
 ## LEAPS Pipeline — COMPLETE
 
-LEAPS 每日汇总的活动订单不再展示仓位比例；收盘收益、正式收盘价与最近成本继续保留，底层
-仓位数据和订单逻辑不变。
+LEAPS 每日汇总支持 `PAGE n / total` 分页且不再截断；活动订单不展示仓位比例，统一显示手工
+Signal TP Event 的历史最高 TP 收益、正式收盘收益/收盘价与最近事件成本。底层仓位数据和订单
+逻辑不变。
 
 Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界；
 ENTRY 使用同一套真实日 K 结构图和中文计划卡；Review 持仓选择为 optional，并在审核批准和
