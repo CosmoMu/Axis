@@ -148,6 +148,39 @@ def _trade_result_details(
     )
 
 
+def _observed_lifetime_return(
+    events: list[TradeEvent],
+    snapshots: list[MarketQuoteSnapshot],
+    *,
+    initial_cost: Decimal | None,
+    current_return: Decimal | None,
+) -> Decimal | None:
+    candidates = [event.pnl_pct for event in events if event.pnl_pct is not None]
+    if current_return is not None:
+        candidates.append(current_return)
+
+    cost_events = [event for event in events if event.avg_cost_after is not None]
+    fallback_cost = cost_events[0].avg_cost_after if cost_events else initial_cost
+    if fallback_cost is not None and fallback_cost > 0:
+        candidates.append(Decimal("0"))
+
+    for snapshot in snapshots:
+        quote_time = snapshot.quote_time
+        if quote_time.tzinfo is None:
+            quote_time = quote_time.replace(tzinfo=UTC)
+        cost = fallback_cost
+        for event in cost_events:
+            created_at = event.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
+            if created_at > quote_time:
+                break
+            cost = event.avg_cost_after
+        if cost is not None and cost > 0:
+            candidates.append(((snapshot.last_price - cost) / cost) * Decimal("100"))
+    return max(candidates) if candidates else None
+
+
 def _serialize_summary(summary: DailyCategorySummary) -> dict[str, Any]:
     def clean(value: object) -> object:
         if isinstance(value, (date, datetime)):
@@ -430,6 +463,21 @@ class DailySummaryService:
                 if event_trade_ids
                 else []
             )
+            historical_quote_snapshots = (
+                list(
+                    await session.scalars(
+                        select(MarketQuoteSnapshot)
+                        .where(MarketQuoteSnapshot.trade_id.in_(event_trade_ids))
+                        .order_by(
+                            MarketQuoteSnapshot.trade_id,
+                            MarketQuoteSnapshot.quote_time,
+                            MarketQuoteSnapshot.id,
+                        )
+                    )
+                )
+                if event_trade_ids
+                else []
+            )
             tracking_rows = (
                 await session.execute(
                     select(ShortTermTracking, Trade)
@@ -500,6 +548,9 @@ class DailySummaryService:
         events_by_trade: dict[uuid.UUID, list[TradeEvent]] = {}
         for event in events:
             events_by_trade.setdefault(event.trade_id, []).append(event)
+        quote_snapshots_by_trade: dict[uuid.UUID, list[MarketQuoteSnapshot]] = {}
+        for snapshot in historical_quote_snapshots:
+            quote_snapshots_by_trade.setdefault(snapshot.trade_id, []).append(snapshot)
 
         short_term_rows: list[ShortTermDailyRow] = []
         daily_snapshots_by_tracking = {
@@ -592,14 +643,14 @@ class DailySummaryService:
                             swing_tracking.highest_tp_level
                             if swing_tracking is not None
                             else legacy_tp_event.action
-                            if legacy_tp_event is not None
+                            if category == TradeCategory.SWING.value and legacy_tp_event is not None
                             else None
                         ),
                         highest_tp_return_pct=(
                             self._swing_tp_return_pct(swing_tracking)
                             if swing_tracking is not None
                             else legacy_tp_event.pnl_pct
-                            if legacy_tp_event is not None
+                            if category == TradeCategory.SWING.value and legacy_tp_event is not None
                             else None
                         ),
                         highest_price=(
@@ -608,6 +659,13 @@ class DailySummaryService:
                         highest_return_pct=(
                             swing_tracking.highest_return_pct
                             if swing_tracking is not None
+                            else _observed_lifetime_return(
+                                trade_events,
+                                quote_snapshots_by_trade.get(trade.id, []),
+                                initial_cost=entry_midpoint or trade.avg_cost,
+                                current_return=pnl,
+                            )
+                            if category == TradeCategory.LEAPS.value
                             else None
                         ),
                     )

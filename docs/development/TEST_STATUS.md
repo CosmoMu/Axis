@@ -141,8 +141,8 @@ Short-Term:
   Draft / Trade 持久化、TP 卡与 Daily Results 传递；ER 不改变追踪或收益逻辑。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
 - Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价；
-  支持 `PAGE n / total` 分页且不截断订单。活动订单统一显示历史最高 TP、当日收盘收益/收盘价
-  与成本，并隐藏仓位比例；LEAPS 最高 TP 与最近成本读取已审核 Trade Event。
+  支持 `PAGE n / total` 分页且不截断订单。Swing 活动订单显示历史最高 TP；LEAPS 改为显示
+  入场以来系统已记录的过程最高收益率。两者均显示当日收盘收益/收盘价与成本并隐藏仓位比例。
 - 极简 Daily Results 使用从入场到到期/停止追踪期间的 lifetime high；覆盖历史高点高于当日
   High 的跨日场景、ST 订单号升序、Ticker、到期日、合约代码和幂等。
 - Short-Term Results New-High Suppression：相同订单只有 lifetime high 严格超过此前已发布最佳

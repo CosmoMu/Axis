@@ -16,8 +16,9 @@ Daily Summary；已停止追踪的 Short-Term 只进入 `AXIS DAILY RESULTS`。D
 
 Swing 与 LEAPS 的活动订单行统一显示订单/合约、历史最高 TP 收益、当日正式收盘收益与
 收盘价、最近成本；不显示仓位比例。数据库中的真实仓位数据仍保留，且不改变订单、审核或
-追踪逻辑。Legacy Swing / LEAPS 的最高 TP 来自已审核的手动 TP Event，Simple Tracked Swing
-的最高 TP 来自自动追踪记录。
+追踪逻辑。Swing 的最高 TP 来自自动追踪或已审核的手动 TP Event；LEAPS 不显示“最高 TP”，
+改为显示入场以来系统已记录的过程最高收益率，综合历史正式收盘快照、审核事件收益及本次
+正式收盘，并按各时间点生效的最近成本计算。
 
 Daily Summary 使用分页 Embed，每页最多五笔今日关闭订单和五笔活动订单，标题明确显示
 `PAGE n / total`。订单过多时继续生成下一页，不截断、不显示“另有 N 个”。

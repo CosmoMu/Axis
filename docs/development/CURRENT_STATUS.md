@@ -285,9 +285,9 @@ Production status: 四笔 Active Legacy Swing 继续旧引擎直到自然关闭�
 
 ## LEAPS Pipeline — COMPLETE
 
-LEAPS 每日汇总支持 `PAGE n / total` 分页且不再截断；活动订单不展示仓位比例，统一显示手工
-Signal TP Event 的历史最高 TP 收益、正式收盘收益/收盘价与最近事件成本。底层仓位数据和订单
-逻辑不变。
+LEAPS 每日汇总支持 `PAGE n / total` 分页且不再截断；活动订单不展示仓位比例，也不显示
+“最高 TP”，改为显示入场以来系统已记录的过程最高收益率、正式收盘收益/收盘价与最近事件
+成本。过程最高综合历史正式收盘快照、审核事件收益及当日收盘。底层仓位数据和订单逻辑不变。
 
 Implemented: 独立 LP 编号、与 Swing 一致的审核、事件、Active View 和公开发布边界；
 ENTRY 使用同一套真实日 K 结构图和中文计划卡；Review 持仓选择为 optional，并在审核批准和

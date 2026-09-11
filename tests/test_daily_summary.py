@@ -349,7 +349,7 @@ async def test_simple_swing_eod_summary_is_active_and_keeps_lifetime_high() -> N
 
 
 @pytest.mark.asyncio
-async def test_leaps_summary_uses_latest_cost_and_manual_highest_tp() -> None:
+async def test_leaps_summary_uses_lifetime_observed_return_instead_of_manual_tp() -> None:
     database = await seeded_database()
     try:
         async with database.session() as session:
@@ -381,6 +381,7 @@ async def test_leaps_summary_uses_latest_cost_and_manual_highest_tp() -> None:
                         position_after_eighths=1,
                         avg_cost_after=Decimal("1.20"),
                         approved_by=999,
+                        created_at=datetime(2026, 8, 24, 15, 0, tzinfo=UTC),
                     ),
                     TradeEvent(
                         trade_id=trade.id,
@@ -392,6 +393,17 @@ async def test_leaps_summary_uses_latest_cost_and_manual_highest_tp() -> None:
                         avg_cost_after=Decimal("1.10"),
                         pnl_pct=Decimal("50"),
                         approved_by=999,
+                        created_at=datetime(2026, 8, 25, 15, 0, tzinfo=UTC),
+                    ),
+                    MarketQuoteSnapshot(
+                        guild_id=GUILD_ID,
+                        trade_id=trade.id,
+                        session_date=date(2026, 8, 27),
+                        provider="MASSIVE",
+                        instrument_code="O:ACHR270115C00007000",
+                        last_price=Decimal("2.20"),
+                        market_state="CLOSED",
+                        quote_time=datetime(2026, 8, 27, 20, 5, tzinfo=UTC),
                     ),
                 ]
             )
@@ -409,8 +421,9 @@ async def test_leaps_summary_uses_latest_cost_and_manual_highest_tp() -> None:
         active = publication.snapshot_json["active"]
         assert len(active) == 1
         assert Decimal(active[0]["avg_cost"]) == Decimal("1.10")
-        assert active[0]["highest_tp_level"] == "TP1"
-        assert Decimal(active[0]["highest_tp_return_pct"]) == Decimal("50")
+        assert active[0]["highest_tp_level"] is None
+        assert active[0]["highest_tp_return_pct"] is None
+        assert Decimal(active[0]["highest_return_pct"]) == Decimal("100")
     finally:
         await database.dispose()
 
@@ -523,6 +536,7 @@ def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
                 unrealized_pnl_pct=Decimal("18.20"),
                 highest_tp_level="TP1",
                 highest_tp_return_pct=Decimal("50"),
+                highest_return_pct=Decimal("62.5"),
                 quote_time=datetime(2026, 8, 28, 20, 5, tzinfo=UTC),
             ),
         ),
@@ -531,7 +545,8 @@ def test_leaps_daily_summary_hides_position_but_keeps_close_and_cost() -> None:
 
     rendered = str(build_daily_summary_embeds(summary)[0].to_dict())
 
-    assert "最高 TP +50.00%" in rendered
+    assert "过程最高 +62.50%" in rendered
+    assert "最高 TP" not in rendered
     assert "当前收盘 +18.20% · 收盘价 $2.5" in rendered
     assert "成本 $2.115" in rendered
     assert "当前持仓 1/2 仓位" not in rendered

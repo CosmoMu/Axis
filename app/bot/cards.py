@@ -706,9 +706,13 @@ def build_daily_summary_embeds(summary: DailyCategorySummary) -> list[discord.Em
                 )
             )
         )
+        highest_label = "过程最高" if summary.category == "LEAPS" else "最高 TP"
+        highest_return = (
+            trade.highest_return_pct if summary.category == "LEAPS" else trade.highest_tp_return_pct
+        )
         active_lines.append(
             f"**{trade.public_trade_id}** · {_daily_contract(trade, summary.category)}\n"
-            f"最高 TP {_percent(trade.highest_tp_return_pct)}\n"
+            f"{highest_label} {_percent(highest_return)}\n"
             f"{close_result}\n"
             f"成本 {_money(trade.avg_cost)}"
         )
