@@ -308,9 +308,7 @@ async def verify() -> list[str]:
                 item
                 for item in recent_member_messages
                 if item.author.id == bot_member.id
-                and any(
-                    embed.footer.text == "AXIS Member Control v1" for embed in item.embeds
-                )
+                and any(embed.footer.text == "AXIS Member Control v1" for embed in item.embeds)
             ]
             _check(len(member_panels) == 1, "member_control_panel_not_unique", failures)
             _check(
@@ -419,8 +417,7 @@ async def verify() -> list[str]:
                     _check(matching[0].pinned, f"{channel_key}_guide_not_pinned", failures)
             lobby = channel("lobby")
             _check(
-                lobby.topic
-                == "公开市场交流、AXIS 讨论与常见问题。",
+                lobby.topic == "公开市场交流、AXIS 讨论与常见问题。",
                 "lobby_topic_mismatch",
                 failures,
             )
@@ -489,6 +486,8 @@ async def verify() -> list[str]:
                 expected_commands.add("gex")
             if settings.stock_analyst_enabled:
                 expected_commands.add("stock")
+            if settings.research_enabled:
+                expected_commands.add("research")
             _check(command_names >= expected_commands, "owner_test_commands_missing", failures)
             unrestricted_commands = {
                 item["name"]
@@ -515,6 +514,16 @@ async def verify() -> list[str]:
                 "owner_test_command_defaults_mismatch",
                 failures,
             )
+            if settings.research_enabled:
+                _check(
+                    all(
+                        item.get("default_member_permissions") == administrator_permission
+                        for item in commands
+                        if item["name"] == "research"
+                    ),
+                    "research_command_default_mismatch",
+                    failures,
+                )
             _check(
                 command_names.isdisjoint(REMOVED_COMMANDS),
                 "removed_short_term_commands_present",
@@ -541,7 +550,7 @@ def main() -> int:
     print("general_guides=idempotent")
     print("mentor_control=select,add")
     print("member_control=searchable_user_select,unique_panel,last_message")
-    print("command_visibility=members:gex,stock;owner:test-suite")
+    print("command_visibility=members:gex,stock;owner:test-suite,research")
     return 0
 
 

@@ -203,6 +203,10 @@ class Settings:
     gex_explorer_enabled: bool = False
     gex_explorer_mode: str = "TEST"
     gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
+    research_enabled: bool = False
+    research_mode: str = "TEST"
+    research_policy_path: Path = Path("config/research_engine.yaml")
+    research_policy_version: str = "AXIS_RESEARCH_V1"
     production_data_start_date: date = date(2026, 8, 31)
     production_data_start_timezone: str = "America/New_York"
     deployment_stage: str = "SOFT_OPEN"
@@ -292,6 +296,7 @@ class Settings:
         )
         gex_policy_value = os.getenv("GEX_EXPLORER_POLICY", "config/gex_explorer.yaml")
         stock_analyst_policy_value = os.getenv("STOCK_ANALYST_POLICY", "config/stock_analyst.yaml")
+        research_policy_value = os.getenv("AXIS_RESEARCH_POLICY", "config/research_engine.yaml")
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
         legacy_openai_key = os.getenv("LLM_API_KEY", "").strip()
         default_model_override = os.getenv("LLM_DEFAULT_MODEL", "").strip()
@@ -354,6 +359,13 @@ class Settings:
             gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
             gex_explorer_mode=(os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"),
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
+            research_enabled=_parse_bool("AXIS_RESEARCH_ENABLED", False),
+            research_mode=(os.getenv("AXIS_RESEARCH_MODE", "TEST").strip().upper() or "TEST"),
+            research_policy_path=(root / research_policy_value).resolve(),
+            research_policy_version=(
+                os.getenv("AXIS_RESEARCH_POLICY_VERSION", "AXIS_RESEARCH_V1").strip()
+                or "AXIS_RESEARCH_V1"
+            ),
             production_data_start_date=_parse_date("PRODUCTION_DATA_START_DATE", "2026-08-31"),
             production_data_start_timezone=_parse_timezone(
                 "PRODUCTION_DATA_START_TIMEZONE", "America/New_York"
@@ -596,6 +608,26 @@ class Settings:
             raise ConfigurationError("启用 Stock Analyst 必须配置 MASSIVE_API_KEY。")
         if not self.stock_analyst_policy_path.is_file():
             raise ConfigurationError("STOCK_ANALYST_POLICY 文件不存在。")
+
+    def assert_research_safety(self) -> None:
+        if self.research_mode not in {"OFF", "TEST"}:
+            raise ConfigurationError(
+                "AXIS Research 当前只允许 OFF 或 TEST；Member Lounge 尚未获批。"
+            )
+        if not self.research_enabled:
+            return
+        if self.research_mode != "TEST":
+            raise ConfigurationError("启用 AXIS Research 时必须保持 TEST 模式。")
+        if self.discord_owner_user_id is None:
+            raise ConfigurationError("启用 AXIS Research 必须配置 DISCORD_OWNER_USER_ID。")
+        if not self.openai_api_key:
+            raise ConfigurationError("启用 AXIS Research 必须配置 OPENAI_API_KEY。")
+        if not self.massive_api_key:
+            raise ConfigurationError("启用 AXIS Research 必须配置 MASSIVE_API_KEY。")
+        if not self.stock_analyst_enabled or not self.gex_explorer_enabled:
+            raise ConfigurationError("AXIS Research 必须复用已启用的 Stock Analyst 与 GEX。")
+        if not self.research_policy_path.is_file():
+            raise ConfigurationError("AXIS_RESEARCH_POLICY 文件不存在。")
 
     def assert_personal_execution_safety(self) -> None:
         policy = self.personal_policy

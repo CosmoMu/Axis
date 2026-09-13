@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 
-EXPECTED_REVISION = "20260910_0032"
+EXPECTED_REVISION = "20260913_0033"
 
 COUNTED_TABLES = (
     "input_code_counters",
@@ -59,6 +59,10 @@ COUNTED_TABLES = (
     "personal_execution_events",
     "personal_account_snapshots",
     "personal_daily_summaries",
+    "research_runs",
+    "research_agent_outputs",
+    "research_outcomes",
+    "research_reflections",
 )
 SAFE_FEATURES = (
     "FEATURE_ANALYSIS_ENABLED",

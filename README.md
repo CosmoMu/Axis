@@ -17,8 +17,9 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Owner Personal Moomoo Execution: CODE COMPLETE / DRY_RUN EXTERNAL E2E BLOCKED / LIVE DISABLED
 - GEX Explorer: V7 MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
 - AXIS Stock Analyst: MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
+- AXIS Multi-Agent Research: TEST ONLY / OWNER + CARD-TESTING ONLY
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 345 passed；Ruff / compileall PASS
+- Latest automated regression: 360 passed；Ruff / compileall PASS
 
 ## 文档入口
 
@@ -33,6 +34,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - Owner Moomoo 运维：docs/operations/trading/MOOMOO_PERSONAL_EXECUTION.md
 - GEX Explorer 运维：docs/operations/market-data/GEX_EXPLORER.md
 - Stock Analyst 运维：docs/operations/market-data/STOCK_ANALYST.md
+- Multi-Agent Research 运维：docs/operations/market-data/AXIS_MULTI_AGENT_RESEARCH.md
 - Stripe Payment 运维：docs/operations/payments/README.md
 - Soft Open Reset 审计：docs/development/SOFT_OPEN_RESET_2026-08-30.md
 - 运维手册：docs/operations/

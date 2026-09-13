@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AXIS Research Synthesis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["market_structure", "gamma_context", "fundamental_context", "news_context", "sentiment_context", "bull_case", "bear_case", "primary_scenario", "alternate_scenario", "catalysts", "risks", "time_horizon"],
+  "properties": {
+    "market_structure": {"type": "string"},
+    "gamma_context": {"type": "string"},
+    "fundamental_context": {"type": "string"},
+    "news_context": {"type": "string"},
+    "sentiment_context": {"type": "string"},
+    "bull_case": {"type": "string"},
+    "bear_case": {"type": "string"},
+    "primary_scenario": {"type": "string"},
+    "alternate_scenario": {"type": "string"},
+    "catalysts": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "time_horizon": {"type": "string", "enum": ["INTRADAY", "SHORT TERM", "SWING", "LONG TERM", "MIXED"]}
+  }
+}

@@ -1,6 +1,6 @@
 # AXIS Implemented Features
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-13
 
 本清单记录代码仓库中已经存在的能力。是否完成真实上线验收以 CURRENT_STATUS.md 和
 LIVE_MODE_CHECKLIST.md 为准。
@@ -13,6 +13,27 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Persistent View、Review Card 和 Manager 控制面板重启恢复。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - Owner-only `💹・交易控制`、持久 control card 与明确 persona permission isolation。
+
+## AXIS Multi-Agent Research — Test Only
+
+- Owner + exact Guild + `🧪・卡片测试` 专用 `/research`，配置层只允许 `TEST`；Member Lounge
+  launch 未启用。
+- 复用现有 Stock Analyst 与 GEX 服务；Massive Fundamentals、News/Macro、optional Sentiment
+  通过独立只读 provider boundary 接入。
+- Technical / GEX / Fundamentals / News / Sentiment → frozen `ResearchPack` → Bull ∥ Bear →
+  Manager → three Risk perspectives → structured Synthesis。
+- 所有 7 次实时 agent 调用走既有 OpenAI Responses `ModelRouter` 与 strict JSON Schema；无 tools、
+  不存 Chain-of-Thought，外部文本视为不可信数据。
+- Technical mandatory + two optional components 的 minimum coverage gate；不足时 0 次 LLM，
+  `NEUTRAL` 为合法结果。
+- 由 coverage、agreement、scenario dominance、freshness、conflict、risk 计算确定性 Confidence；
+  spot、levels、targets、invalidation 只复用 provider 数字。
+- 300 秒 version-aware cache、single-flight、30 秒用户 cooldown、Guild fresh limit、并发/timeout、
+  partial failure、Audit 与 System Alert / Recovery。
+- migration `20260913_0033` 持久化 run、agent output、1/3/5 交易日 outcome 和 reflection；memory
+  只加载在新 `as_of` 前已完成解析的有限 lessons。
+- 严格只读，不创建 Signal、Trade、Results candidate，不修改 Membership/Stripe/Personal
+  Execution，不发 broker order。
 
 ## GEX Explorer — Member Lounge Live
 

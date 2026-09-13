@@ -121,6 +121,23 @@ def test_stock_analyst_mode_accepts_member_lounge_and_rejects_missing_owner() ->
         ).assert_stock_analyst_safety()
 
 
+def test_research_is_fail_closed_to_owner_test_mode() -> None:
+    base = settings(apply_changes=False, dry_run=True)
+    replace(base, research_mode="OFF").assert_research_safety()
+    with pytest.raises(ConfigurationError, match="Member Lounge"):
+        replace(base, research_mode="MEMBER_LOUNGE").assert_research_safety()
+    with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
+        replace(
+            base,
+            research_enabled=True,
+            research_mode="TEST",
+            massive_api_key="placeholder",
+            openai_api_key="placeholder",
+            stock_analyst_enabled=True,
+            gex_explorer_enabled=True,
+        ).assert_research_safety()
+
+
 def test_daily_summary_time_requires_valid_hhmm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISCORD_GUILD_ID", "1543309921066684567")
     monkeypatch.setenv("DAILY_SUMMARY_TIME_ET", "25:00")

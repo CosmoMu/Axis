@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-09-11
+**Date:** 2026-09-13
 
 ## Summary
 
-- Full pytest suite: PASS — 345 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 360 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -13,6 +13,15 @@
 - Analysis chart-source schema width / migration: PASS
 - Database verifier: PASS
 - Discord runtime verifier: PASS
+- AXIS Multi-Agent Research focused regression: PASS — functional SPY / QQQ / NVDA / TSLA /
+  AAPL fixtures、permission、frozen-pack debate、partial/minimum coverage、deterministic confidence、
+  numeric integrity、prompt injection、cache/single-flight/policy invalidation、1/3/5 outcome framework、
+  point-in-time memory 与 no Trade/TradeDraft side effects。
+- Research database/config verifier: PASS — `20260913_0033`、4 tables、8 routed workloads、
+  TEST-only、Stock/GEX reuse、Member Lounge false、broker execution false。
+- Research live Massive smoke: PARTIAL / PROVIDER LIMITED — SPY 曾恢复 Technical + News；GEX 和
+  optional providers 遇到 `MASSIVE_RATE_LIMITED`，coverage gate 返回 insufficient data、LLM calls=0。
+  当前不能把 live ticker E2E 标为通过，也没有用缓存或虚构数据绕过。
 - Discord Blueprint v6 中文命名与 `📣・人工喊单`：PASS — Guild `1543309921066684567`，
   `REUSE=33 / CREATE=0 / UPDATE=0 / BLOCK=0`；Member / Manager 可见可发言，公开用户与
   Newcomer 不可见。

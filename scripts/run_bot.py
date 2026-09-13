@@ -46,6 +46,21 @@ from app.integrations.openai_trade_parser import (  # noqa: E402
     load_trade_schema,
 )
 from app.integrations.stripe_gateway import StripeSdkGateway  # noqa: E402
+from app.market_intelligence.research_engine.agents import ResearchAgentRunner  # noqa: E402
+from app.market_intelligence.research_engine.memory import ResearchMemoryStore  # noqa: E402
+from app.market_intelligence.research_engine.outcomes import ResearchOutcomeService  # noqa: E402
+from app.market_intelligence.research_engine.policy import ResearchPolicy  # noqa: E402
+from app.market_intelligence.research_engine.providers import (  # noqa: E402
+    AxisGexResearchProvider,
+    AxisTechnicalResearchProvider,
+    MassiveFundamentalsProvider,
+    MassiveNewsMacroProvider,
+    MassiveSentimentProvider,
+)
+from app.market_intelligence.research_engine.providers.base import (  # noqa: E402
+    MassiveResearchHttpClient,
+)
+from app.market_intelligence.research_engine.service import ResearchService  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
 from app.market_intelligence.stock_analyst.market_data import (  # noqa: E402
     MassiveDailyBarProvider,
@@ -92,6 +107,7 @@ async def run() -> None:
     settings.assert_lab_disabled()
     settings.assert_gex_safety()
     settings.assert_stock_analyst_safety()
+    settings.assert_research_safety()
     settings.assert_personal_execution_safety()
     level_name = os.getenv("LOG_LEVEL", "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -198,6 +214,7 @@ async def run() -> None:
         )
         draft_generation_service = None
         analysis_service = None
+        router = None
         if settings.openai_api_key:
             router = ModelRouter.load(
                 settings.llm_routing_path,
@@ -311,6 +328,46 @@ async def run() -> None:
             else None
         )
         calendar = TradingCalendarService()
+        research_service = None
+        if settings.research_enabled:
+            if router is None or stock_analyst_service is None or gex_explorer_service is None:
+                raise ConfigurationError("AXIS Research dependencies are incomplete.")
+            research_policy = ResearchPolicy.load(
+                settings.research_policy_path,
+                version_override=settings.research_policy_version,
+            )
+            research_http = MassiveResearchHttpClient(
+                api_key=settings.massive_api_key,
+                base_url=settings.massive_base_url,
+                timeout_seconds=research_policy.provider_timeout_seconds,
+            )
+            research_outcomes = ResearchOutcomeService(
+                database,
+                stock_analyst_service.analyst.provider,
+                calendar,
+                benchmark_ticker=research_policy.benchmark_ticker,
+                horizons=research_policy.outcome_horizons,
+            )
+            research_service = ResearchService(
+                database,
+                policy=research_policy,
+                technical_provider=AxisTechnicalResearchProvider(stock_analyst_service),
+                gex_provider=AxisGexResearchProvider(gex_explorer_service),
+                fundamentals_provider=MassiveFundamentalsProvider(research_http),
+                news_provider=MassiveNewsMacroProvider(
+                    research_http,
+                    max_items=research_policy.max_news_items,
+                    max_source_text_chars=research_policy.max_source_text_chars,
+                ),
+                sentiment_provider=MassiveSentimentProvider(
+                    research_http, max_items=research_policy.max_news_items
+                ),
+                agents=ResearchAgentRunner(
+                    api_key=settings.require_openai_api_key(), router=router
+                ),
+                memory=ResearchMemoryStore(database),
+                outcomes=research_outcomes,
+            )
         acknowledgements = MembershipAcknowledgementService(database)
         access_service = MembershipAccessService(
             database,
@@ -436,6 +493,7 @@ async def run() -> None:
             personal_execution_service=personal_execution_service,
             gex_explorer_service=gex_explorer_service,
             stock_analyst_service=stock_analyst_service,
+            research_service=research_service,
         )
         async with bot:
             await bot.start(token, reconnect=True)

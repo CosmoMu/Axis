@@ -18,6 +18,7 @@ from app.bot.cogs.manager_control import ManagerControlCog
 from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.personal_execution import PersonalExecutionCog
+from app.bot.cogs.research import ResearchCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
 from app.bot.cogs.stock_analyst import StockAnalystCog
@@ -27,6 +28,7 @@ from app.bot.intents import axis_intents
 from app.config import ConfigurationError, Settings
 from app.domain.public_identity import PublicIdentityPolicy
 from app.integrations.stripe_gateway import StripeGateway
+from app.market_intelligence.research_engine.service import ResearchService
 from app.market_intelligence.trade_plan import SwingLeapsTradePlanService
 from app.services.analysis_pipeline import AnalysisPipelineService
 from app.services.card_review import CardReviewService
@@ -93,6 +95,7 @@ class AxisBot(commands.Bot):
         personal_execution_service: PersonalExecutionService | None,
         gex_explorer_service: GexExplorerService | None,
         stock_analyst_service: StockAnalystQueryService | None,
+        research_service: ResearchService | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -261,6 +264,18 @@ class AxisBot(commands.Bot):
             if stock_analyst_service is not None and settings.discord_owner_user_id is not None
             else None
         )
+        self._research_cog = (
+            ResearchCog(
+                self,
+                service=research_service,
+                guild_id=settings.discord_guild_id,
+                owner_user_id=settings.discord_owner_user_id,
+                card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                mode=settings.research_mode,
+            )
+            if research_service is not None and settings.discord_owner_user_id is not None
+            else None
+        )
         self._analysis_cog = (
             AnalysisPipelineCog(
                 self,
@@ -345,6 +360,8 @@ class AxisBot(commands.Bot):
             await self.add_cog(self._gex_explorer_cog)
         if self._stock_analyst_cog is not None:
             await self.add_cog(self._stock_analyst_cog)
+        if self._research_cog is not None:
+            await self.add_cog(self._research_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:

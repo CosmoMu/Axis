@@ -1,6 +1,6 @@
 # AXIS Next Steps
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-13
 
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
@@ -13,6 +13,15 @@ Signal System。当前不新增功能；只执行下面固定 Priority 的真实
 Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production Data；后续验证不得
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・卡片测试`。
+
+## Current Gate — Multi-Agent Research Test Validation
+
+- Phase 保持 `AXIS MULTI-AGENT RESEARCH = TEST ONLY`；只允许 Owner 在 `🧪・卡片测试` 使用。
+- 在 Massive request window/容量稳定时完成 SPY、QQQ、NVDA、TSLA、AAPL 的真实 cold/cache E2E，
+  记录 component coverage、7-call 上限、token、latency、card/details 和 alert recovery。
+- 不降低 Technical + two optional minimum coverage gate，不使用未来数据或虚构缺失值。
+- 只有 Owner 明确发送 `APPROVE RESEARCH LOUNGE LAUNCH` 后，才规划 Member Lounge gate；当前
+  配置和启动校验会拒绝任何非 TEST mode。
 
 ## Current Gate — Stock Analyst Post-Launch Monitoring
 

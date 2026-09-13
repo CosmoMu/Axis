@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AXIS Research Manager",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["strongest_bull_evidence", "strongest_bear_evidence", "conflicts", "data_gaps", "research_stance", "primary_scenario", "alternate_scenario"],
+  "properties": {
+    "strongest_bull_evidence": {"type": "array", "items": {"type": "string"}},
+    "strongest_bear_evidence": {"type": "array", "items": {"type": "string"}},
+    "conflicts": {"type": "array", "items": {"type": "string"}},
+    "data_gaps": {"type": "array", "items": {"type": "string"}},
+    "research_stance": {"type": "string", "enum": ["STRONGLY BULLISH", "BULLISH", "NEUTRAL", "BEARISH", "STRONGLY BEARISH"]},
+    "primary_scenario": {"type": "string"},
+    "alternate_scenario": {"type": "string"}
+  }
+}

@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-10
+**Updated:** 2026-09-13
 
-**Current stage:** GEX + Stock Analyst MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
+**Current stage:** MULTI-AGENT RESEARCH TEST ONLY / CORE PRODUCTION STABILIZATION
 
-**Database revision:** 20260910_0032
+**Database revision:** 20260913_0033
 
 **AXIS LAB:** DEFERRED
 
@@ -16,6 +16,13 @@
 - DEFERRED — 明确不在当前开发范围。
 
 ## Executive summary
+
+AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，严格
+复用现有 Stock Analyst、GEX、Massive、LLM Router、Database、Discord、Audit 与 System Alerts。
+当前 phase 固定为 `AXIS MULTI-AGENT RESEARCH = TEST ONLY`：仅 Owner、目标 Guild 与
+`🧪・卡片测试` 可运行 `/research`；Member Lounge 未发布，Signal、Trade、Results、Membership、
+Stripe 与 broker execution 均无副作用。migration `20260913_0033` 已部署；真实 Massive E2E
+当前遇到 provider rate limiting，minimum coverage gate 已验证会以 0 次 LLM fail-closed。
 
 Discord 的 4 个 Category 与 25 个 AXIS Channel 已按 Blueprint v6 完成中文显示名同步；正式
 模块品牌 `AXIS LAB` 保持英文。`📣・人工喊单` 已在 `🟢・会员专区` 上线，仅 Member、Manager、
@@ -47,6 +54,28 @@ Owner-only Personal Moomoo Execution 已吸收最终规格并复用现有 public
 database / system-alert architecture。代码、forward-only migration、Owner-only channel/control card、
 配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
 真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
+
+## AXIS Multi-Agent Research — TEST ONLY
+
+Implemented:
+
+- `/research ticker:TICKER` 的 Owner + exact Guild + `🧪・卡片测试` 三重 gate；启动配置只接受
+  `TEST`，Member / Manager / Newcomer / `@everyone` 均 fail-closed。
+- Technical、GEX、Fundamentals、News/Macro、Sentiment 并行收集后冻结为带 fingerprint 的
+  `ResearchPack`；Bull / Bear 共用同一数据包，随后由 Research Manager、三种 Risk perspective
+  和 Final Synthesis 生成结构化研究视图。
+- `/stock` 与 `/gex` 服务和结构化结果直接复用；Research 内没有第二套技术或 GEX 引擎。
+- 覆盖门、确定性 Confidence、数字来源保护、prompt-injection 防御、120 秒总 timeout、
+  300 秒 cache、single-flight、30 秒用户 cooldown、Guild provider limit 和部分失败降级。
+- `research_runs`、`research_agent_outputs`、`research_outcomes`、`research_reflections` 持久化；
+  1/3/5 交易日 underlying/benchmark/alpha/MFE/MAE 评估和 point-in-time-safe memory。
+- 单一可编辑 progress message、最终研究卡、Stock Chart 与 Owner-only ephemeral details；
+  Audit、System Alert / Recovery 与独立 kill switch。
+
+Production status: **TEST ONLY.** 360 项完整回归、Ruff、compileall、migration 与 DB verifier 已通过。
+真实 Massive 验证时 Technical/News 曾恢复，但 GEX/其他并发请求受到 `MASSIVE_RATE_LIMITED`；系统
+正确返回 insufficient-data 且不调用 LLM。不得降低覆盖门或上线 Member Lounge；等待 provider
+窗口/容量复核及 Owner 明确发送 `APPROVE RESEARCH LOUNGE LAUNCH`。
 
 GEX Explorer 已升级为 V7 Professional Ladder，并已在 Member Lounge 正式上线。Massive option surface / spot / 真实 5 分钟
 K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底部连续 Strike × Expiration Ladder

@@ -41,5 +41,62 @@ workloads:
     structured_output: llm_analysis_schema.json
     # Future option after MVP validation: gpt-5.6-sol
 
+  RESEARCH_BULL:
+    model: gpt-5.6-luna
+    reasoning: low
+    prompt_version: axis-research-bull-v1
+    schema_version: axis-research-case-v1
+    structured_output: llm_research_case_schema.json
+
+  RESEARCH_BEAR:
+    model: gpt-5.6-luna
+    reasoning: low
+    prompt_version: axis-research-bear-v1
+    schema_version: axis-research-case-v1
+    structured_output: llm_research_case_schema.json
+
+  RESEARCH_MANAGER:
+    model: gpt-5.6-terra
+    reasoning: high
+    prompt_version: axis-research-manager-v1
+    schema_version: axis-research-manager-v1
+    structured_output: llm_research_manager_schema.json
+
+  RESEARCH_RISK_AGGRESSIVE:
+    model: gpt-5.6-luna
+    reasoning: low
+    prompt_version: axis-research-risk-aggressive-v1
+    schema_version: axis-research-risk-v1
+    structured_output: llm_research_risk_schema.json
+
+  RESEARCH_RISK_NEUTRAL:
+    model: gpt-5.6-luna
+    reasoning: low
+    prompt_version: axis-research-risk-neutral-v1
+    schema_version: axis-research-risk-v1
+    structured_output: llm_research_risk_schema.json
+
+  RESEARCH_RISK_CONSERVATIVE:
+    model: gpt-5.6-luna
+    reasoning: low
+    prompt_version: axis-research-risk-conservative-v1
+    schema_version: axis-research-risk-v1
+    structured_output: llm_research_risk_schema.json
+
+  RESEARCH_SYNTHESIS:
+    model: gpt-5.6-terra
+    reasoning: high
+    prompt_version: axis-research-synthesis-v1
+    schema_version: axis-research-synthesis-v1
+    structured_output: llm_research_synthesis_schema.json
+
+  RESEARCH_REFLECTION:
+    model: gpt-5.6-terra
+    reasoning: medium
+    prompt_version: axis-research-reflection-v1
+    schema_version: axis-research-reflection-v1
+    structured_output: llm_research_reflection_schema.json
+
+# Research is an isolated read-only production module, not AXIS LAB.
 # LAB workloads are intentionally not configured for execution yet.
 # Re-evaluate model selection when AXIS LAB development begins.

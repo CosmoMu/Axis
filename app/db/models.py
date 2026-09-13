@@ -1644,6 +1644,139 @@ class AuditLog(UuidPrimaryKeyMixin, Base):
     )
 
 
+class ResearchRun(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "research_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('RUNNING','COMPLETED','PARTIAL','INSUFFICIENT_DATA','FAILED')",
+            name="research_run_status",
+        ),
+        Index("ix_research_runs_ticker_as_of", "guild_id", "ticker", "as_of"),
+        Index("ix_research_runs_cache", "guild_id", "cache_key", "completed_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    ticker: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    asset_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    research_stance: Mapped[str | None] = mapped_column(String(32))
+    research_confidence: Mapped[int | None] = mapped_column(SmallInteger)
+    coverage_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+    agreement_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+    scenario_dominance: Mapped[Decimal | None] = mapped_column(Numeric(6, 5))
+    primary_scenario_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    levels_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    risk_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    research_pack_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    final_view_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    stock_analyst_version: Mapped[str | None] = mapped_column(String(64))
+    gex_version: Mapped[str | None] = mapped_column(String(64))
+    created_by_discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    cache_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_calls: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    llm_calls: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(100))
+
+
+class ResearchAgentOutput(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "research_agent_outputs"
+    __table_args__ = (
+        UniqueConstraint("research_run_id", "agent_type", name="research_agent_per_run"),
+        Index("ix_research_agent_run", "research_run_id", "created_at"),
+    )
+
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="CASCADE"), index=True
+    )
+    agent_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    structured_output_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(100))
+    workload: Mapped[str | None] = mapped_column(String(48))
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str | None] = mapped_column(String(64))
+    source_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(100))
+    response_id: Mapped[str | None] = mapped_column(String(100))
+    input_pack_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class ResearchOutcome(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "research_outcomes"
+    __table_args__ = (
+        UniqueConstraint(
+            "research_run_id", "horizon_trading_days", name="research_outcome_horizon"
+        ),
+        CheckConstraint("horizon_trading_days > 0", name="research_outcome_horizon_positive"),
+        Index("ix_research_outcomes_due", "status", "target_session_date"),
+    )
+
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="CASCADE"), index=True
+    )
+    horizon_trading_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    benchmark_ticker: Mapped[str] = mapped_column(String(16), default="SPY", nullable=False)
+    target_session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)
+    raw_return: Mapped[Decimal | None] = mapped_column(Numeric(14, 8))
+    benchmark_return: Mapped[Decimal | None] = mapped_column(Numeric(14, 8))
+    alpha_return: Mapped[Decimal | None] = mapped_column(Numeric(14, 8))
+    max_favorable_excursion: Mapped[Decimal | None] = mapped_column(Numeric(14, 8))
+    max_adverse_excursion: Mapped[Decimal | None] = mapped_column(Numeric(14, 8))
+    primary_target_hit: Mapped[bool | None] = mapped_column(Boolean)
+    invalidation_hit: Mapped[bool | None] = mapped_column(Boolean)
+    resolution_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_type: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class ResearchReflection(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "research_reflections"
+    __table_args__ = (
+        UniqueConstraint("research_outcome_id", name="research_reflection_per_outcome"),
+        Index("ix_research_reflections_ticker_resolved", "ticker", "resolution_timestamp"),
+    )
+
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="CASCADE"), index=True
+    )
+    research_outcome_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_outcomes.id", ondelete="CASCADE"), index=True
+    )
+    ticker: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    horizon_trading_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    reflection_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str | None] = mapped_column(String(64))
+    resolution_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 class ScheduledJob(UuidPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "scheduled_jobs"
     __table_args__ = (
@@ -1672,9 +1805,7 @@ class ScheduledJob(UuidPrimaryKeyMixin, TimestampMixin, Base):
 class PersonalExecutionSetting(TimestampMixin, Base):
     __tablename__ = "personal_execution_settings"
     __table_args__ = (
-        CheckConstraint(
-            "execution_mode IN ('DRY_RUN','LIVE')", name="personal_execution_mode"
-        ),
+        CheckConstraint("execution_mode IN ('DRY_RUN','LIVE')", name="personal_execution_mode"),
         CheckConstraint(
             "broker_environment IN ('SIMULATE','REAL')",
             name="personal_broker_environment",
@@ -1703,9 +1834,7 @@ class PersonalExecutionSetting(TimestampMixin, Base):
     )
     account_ref: Mapped[str | None] = mapped_column(String(32))
     execution_mode: Mapped[str] = mapped_column(String(16), default="DRY_RUN", nullable=False)
-    broker_environment: Mapped[str] = mapped_column(
-        String(16), default="SIMULATE", nullable=False
-    )
+    broker_environment: Mapped[str] = mapped_column(String(16), default="SIMULATE", nullable=False)
     auto_follow_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     follow_scope: Mapped[str] = mapped_column(String(32), default="OWNER_ONLY", nullable=False)
     manual_position_sync_enabled: Mapped[bool] = mapped_column(
@@ -1738,9 +1867,7 @@ class PersonalExecutionSetting(TimestampMixin, Base):
     minimum_option_volume: Mapped[int | None] = mapped_column(Integer)
     minimum_open_interest: Mapped[int | None] = mapped_column(Integer)
     liquidity_guard_mode: Mapped[str] = mapped_column(String(16), default="BLOCK", nullable=False)
-    short_term_entry_ttl_minutes: Mapped[int] = mapped_column(
-        Integer, default=5, nullable=False
-    )
+    short_term_entry_ttl_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     swing_entry_ttl_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     market_open_guard_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     market_open_guard_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
@@ -1803,9 +1930,7 @@ class PersonalPosition(UuidPrimaryKeyMixin, TimestampMixin, Base):
     risk_epoch_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     tp50_executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tp100_executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    opening_guard_last_active: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    opening_guard_last_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_quote_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_broker_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     opened_at: Mapped[datetime] = mapped_column(

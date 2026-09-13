@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AXIS Research Risk",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["risk_level", "key_risks", "what_would_change_view", "risk_notes"],
+  "properties": {
+    "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "VERY HIGH"]},
+    "key_risks": {"type": "array", "items": {"type": "string"}},
+    "what_would_change_view": {"type": "array", "items": {"type": "string"}},
+    "risk_notes": {"type": "string"}
+  }
+}

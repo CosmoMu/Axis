@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AXIS Research Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["thesis", "supporting_evidence", "key_level_refs", "catalysts", "case_risks", "confidence_label"],
+  "properties": {
+    "thesis": {"type": "string"},
+    "supporting_evidence": {"type": "array", "items": {"type": "string"}},
+    "key_level_refs": {"type": "array", "items": {"type": "string"}},
+    "catalysts": {"type": "array", "items": {"type": "string"}},
+    "case_risks": {"type": "array", "items": {"type": "string"}},
+    "confidence_label": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]}
+  }
+}

@@ -1,8 +1,19 @@
 # AXIS Known Issues
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-13
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
+
+## P0 — Multi-Agent Research 真实 Massive E2E 受 provider rate limit 阻塞
+
+AXIS-native graph、strict schemas、permissions、cache/single-flight、数据库、outcome/memory 和
+自动化回归已通过；生产 migration 为 `20260913_0033`。真实 smoke 中 Massive 并发边界返回
+`MASSIVE_RATE_LIMITED`：一次 SPY 请求恢复了 Technical + News，但 GEX 与 Sentiment 不可用，
+没有满足 Technical + two optional coverage gate。系统按设计保存 insufficient-data view 并保持
+LLM calls=0，没有使用未来、陈旧或虚构数据。
+
+当前 Research 必须保持 TEST-only。需在 provider window/plan capacity 稳定后重跑五个 ticker、
+cache 与 Discord Desktop/Mobile；Member Lounge launch 需要未来单独 Owner approval。
 
 ## P0 — Stock Analyst Member Lounge 交易时段与移动端证据待积累
 

@@ -70,6 +70,12 @@ def _deploy_runtime() -> None:
         "gex_explorer.yaml",
         "stock_analyst.yaml",
         "newcomer_security.yaml",
+        "research_engine.yaml",
+        "llm_research_case_schema.json",
+        "llm_research_manager_schema.json",
+        "llm_research_risk_schema.json",
+        "llm_research_synthesis_schema.json",
+        "llm_research_reflection_schema.json",
     ):
         shutil.copy2(
             PROJECT_ROOT / "config" / filename,
