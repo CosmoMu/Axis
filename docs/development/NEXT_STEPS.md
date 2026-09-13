@@ -7,7 +7,7 @@
 
 ## Moomoo post-cutover monitoring
 
-- 下一个真实美股交易时段观察 `/stock`、`/gex`、Short-Term 与 Swing 的 source timestamp、
+- 下一个真实美股交易时段通过 `/research` 观察内部 Stock/GEX、Short-Term 与 Swing 的 source timestamp、
   cold latency、10/30s option-chain limiter、TP event 和 System Alert/Recovery。
 - SPX 暂时保持 `SPX_PROVIDER_UNSUPPORTED`；除非真实 OpenD entitlement/API 后续开始提供可靠
   index spot，否则不得用 SPY 或 option strike 代替。
@@ -22,19 +22,18 @@ Soft Open Reset 已完成。`2026-08-31` 起真实输入均为永久 Production 
 wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synthetic Preview 只走
 `🧪・卡片测试`。
 
-## Current Gate — Multi-Agent Research Test Validation
+## Current Gate — Multi-Agent Research Post-Launch Monitoring
 
-- Phase 保持 `AXIS MULTI-AGENT RESEARCH = TEST ONLY`；只允许 Owner 在 `🧪・卡片测试` 使用。
-- 在 Massive request window/容量稳定时完成 SPY、QQQ、NVDA、TSLA、AAPL 的真实 cold/cache E2E，
-  记录 component coverage、7-call 上限、token、latency、card/details 和 alert recovery。
+- `/research` 已在 Member Lounge 上线；独立 `/stock`、`/gex` 和 `gex TICKER` 已下架。
+- 在交易时段完成 SPY、QQQ、NVDA、TSLA、AAPL 的真实 cold/cache E2E，记录 Moomoo 五分项
+  coverage、7-call 上限、token、latency、共享卡片换页和 alert recovery。
 - 不降低 Technical + two optional minimum coverage gate，不使用未来数据或虚构缺失值。
-- 只有 Owner 明确发送 `APPROVE RESEARCH LOUNGE LAUNCH` 后，才规划 Member Lounge gate；当前
-  配置和启动校验会拒绝任何非 TEST mode。
+- 观察普通会员 30 秒个人冷却、同 ticker 60 秒冷却和非发起人按钮拒绝；异常时关闭独立 Research
+  kill switch，不重新开放旧的独立 Stock/GEX 指令。
 
-## Current Gate — Stock Analyst Post-Launch Monitoring
+## Internal Stock Analyst Validation
 
-- Owner 已于 2026-09-05 明确要求部署；runtime 已切换为
-  `STOCK_ANALYST_MODE=MEMBER_LOUNGE`，Discord verifier PASS。
+- 独立 `/stock` 已下架；只通过 `/research` 验证内部技术面引擎。
 - 用真实 Discord Desktop / Mobile 对 SPY、QQQ、NVDA、TSLA、AAPL、META、PLTR、AMD 做最终
   图卡可读性抽检，并在开盘时验证 live/stale 标记。
 - 观察普通会员 30 秒个人冷却、同 ticker 60 秒冷却、Manager / Owner bypass、20 fresh
@@ -42,10 +41,9 @@ wipe、truncate、重新编号或用 Production 频道生成 Fake 数据。Synth
 - 保持按需 Slash Command only；不增加普通文本触发、不自动扫描、不生成 Signal，也不连接
   Moomoo 或 broker execution。异常时切回 `TEST` 或关闭独立 kill switch。
 
-## Current Gate — GEX Explorer Post-Launch Monitoring
+## Internal GEX Explorer Validation
 
-- Owner 已于 2026-09-05 发送 `APPROVE GEX LOUNGE LAUNCH`；runtime 已部署为
-  `GEX_EXPLORER_MODE=MEMBER_LOUNGE`，Discord verifier PASS。
+- 独立 `/gex` 与 `gex TICKER` 已下架；只通过 `/research` 验证内部 GEX 引擎。
 - 继续观察 SPY / QQQ / NVDA / TSLA / AAPL、普通会员 30 秒个人冷却、同 ticker 60 秒冷却、
   管理员豁免、provider limit、stale/closed label 与失败/恢复卡片。
 - 当前 Massive entitlement 无法生成真实 SPX surface；不得映射 SPY，等待 Provider entitlement

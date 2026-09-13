@@ -21,8 +21,14 @@ os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
 from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
-from app.integrations.gex_intraday_data import MassiveGexIntradayProvider  # noqa: E402
-from app.integrations.gex_market_data import MassiveGexMarketDataProvider  # noqa: E402
+from app.integrations.gex_intraday_data import (  # noqa: E402
+    MassiveGexIntradayProvider,
+    MoomooGexIntradayProvider,
+)
+from app.integrations.gex_market_data import (  # noqa: E402
+    MassiveGexMarketDataProvider,
+    MoomooGexMarketDataProvider,
+)
 from app.integrations.model_router import ModelRouter  # noqa: E402
 from app.market_intelligence.research_engine.agents import ResearchAgentRunner  # noqa: E402
 from app.market_intelligence.research_engine.memory import ResearchMemoryStore  # noqa: E402
@@ -34,13 +40,20 @@ from app.market_intelligence.research_engine.providers import (  # noqa: E402
     MassiveFundamentalsProvider,
     MassiveNewsMacroProvider,
     MassiveSentimentProvider,
+    MoomooAnalystConsensusProvider,
+    MoomooFundamentalsProvider,
+    MoomooNewsMacroProvider,
+    MoomooResearchClient,
 )
 from app.market_intelligence.research_engine.providers.base import (  # noqa: E402
     MassiveResearchHttpClient,
 )
 from app.market_intelligence.research_engine.service import ResearchService  # noqa: E402
 from app.market_intelligence.stock_analyst import AxisStockAnalystService  # noqa: E402
-from app.market_intelligence.stock_analyst.market_data import MassiveDailyBarProvider  # noqa: E402
+from app.market_intelligence.stock_analyst.market_data import (  # noqa: E402
+    MassiveDailyBarProvider,
+    MoomooDailyBarProvider,
+)
 from app.services.gex_explorer import GexExplorerService, GexPolicy  # noqa: E402
 from app.services.stock_analyst import StockAnalystPolicy, StockAnalystQueryService  # noqa: E402
 from app.services.trading_calendar import TradingCalendarService  # noqa: E402
@@ -66,12 +79,20 @@ async def run(tickers: list[str]) -> list[dict[str, object]]:
     stock = StockAnalystQueryService(
         Database(settings.require_database_url()),
         AxisStockAnalystService(
-            provider=MassiveDailyBarProvider(
-                api_key=settings.massive_api_key,
-                base_url=settings.massive_base_url,
-                timeout_seconds=stock_policy.timeout_seconds,
-                lookback_days=stock_policy.daily_lookback_calendar_days,
-                concurrency=stock_policy.provider_concurrency,
+            provider=(
+                MoomooDailyBarProvider(
+                    settings.moomoo_host,
+                    settings.moomoo_port,
+                    lookback_days=stock_policy.daily_lookback_calendar_days,
+                )
+                if settings.stock_market_data_provider == "moomoo"
+                else MassiveDailyBarProvider(
+                    api_key=settings.massive_api_key,
+                    base_url=settings.massive_base_url,
+                    timeout_seconds=stock_policy.timeout_seconds,
+                    lookback_days=stock_policy.daily_lookback_calendar_days,
+                    concurrency=stock_policy.provider_concurrency,
+                )
             )
         ),
         stock_policy,
@@ -80,35 +101,68 @@ async def run(tickers: list[str]) -> list[dict[str, object]]:
     gex_policy = GexPolicy.load(settings.gex_explorer_policy_path)
     gex = GexExplorerService(
         database,
-        MassiveGexMarketDataProvider(
-            api_key=settings.massive_api_key,
-            base_url=settings.massive_base_url,
-            concurrency=gex_policy.provider_concurrency,
+        (
+            MoomooGexMarketDataProvider(host=settings.moomoo_host, port=settings.moomoo_port)
+            if settings.gex_market_data_provider == "moomoo"
+            else MassiveGexMarketDataProvider(
+                api_key=settings.massive_api_key,
+                base_url=settings.massive_base_url,
+                concurrency=gex_policy.provider_concurrency,
+            )
         ),
-        MassiveGexIntradayProvider(
-            api_key=settings.massive_api_key,
-            base_url=settings.massive_base_url,
-            interval_minutes=gex_policy.intraday_interval_minutes,
+        (
+            MoomooGexIntradayProvider(
+                host=settings.moomoo_host,
+                port=settings.moomoo_port,
+                interval_minutes=gex_policy.intraday_interval_minutes,
+            )
+            if settings.gex_intraday_provider == "moomoo"
+            else MassiveGexIntradayProvider(
+                api_key=settings.massive_api_key,
+                base_url=settings.massive_base_url,
+                interval_minutes=gex_policy.intraday_interval_minutes,
+            )
         ),
         gex_policy,
     )
-    http = MassiveResearchHttpClient(
-        api_key=settings.massive_api_key,
-        base_url=settings.massive_base_url,
-        timeout_seconds=policy.provider_timeout_seconds,
+    http = (
+        MassiveResearchHttpClient(
+            api_key=settings.massive_api_key,
+            base_url=settings.massive_base_url,
+            timeout_seconds=policy.provider_timeout_seconds,
+        )
+        if settings.research_aux_data_provider == "massive"
+        else None
+    )
+    moomoo = (
+        MoomooResearchClient(host=settings.moomoo_host, port=settings.moomoo_port)
+        if settings.research_aux_data_provider == "moomoo"
+        else None
     )
     service = ResearchService(
         database,
         policy=policy,
         technical_provider=AxisTechnicalResearchProvider(stock),
         gex_provider=AxisGexResearchProvider(gex),
-        fundamentals_provider=MassiveFundamentalsProvider(http),
-        news_provider=MassiveNewsMacroProvider(
-            http,
-            max_items=policy.max_news_items,
-            max_source_text_chars=policy.max_source_text_chars,
+        fundamentals_provider=(
+            MoomooFundamentalsProvider(moomoo)
+            if moomoo is not None
+            else MassiveFundamentalsProvider(http)
         ),
-        sentiment_provider=MassiveSentimentProvider(http, max_items=policy.max_news_items),
+        news_provider=(
+            MoomooNewsMacroProvider(moomoo, max_items=policy.max_news_items)
+            if moomoo is not None
+            else MassiveNewsMacroProvider(
+                http,
+                max_items=policy.max_news_items,
+                max_source_text_chars=policy.max_source_text_chars,
+            )
+        ),
+        sentiment_provider=(
+            MoomooAnalystConsensusProvider(moomoo)
+            if moomoo is not None
+            else MassiveSentimentProvider(http, max_items=policy.max_news_items)
+        ),
         agents=ResearchAgentRunner(
             api_key=settings.require_openai_api_key(),
             router=ModelRouter.load(settings.llm_routing_path),

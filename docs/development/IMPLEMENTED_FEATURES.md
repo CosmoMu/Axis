@@ -27,12 +27,15 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Short-Term/Swing/Publication/Resolver 使用 Moomoo canonical OCC adapter；post-close 使用
   Moomoo option snapshot，不以正股价格代替期权。
 
-## AXIS Multi-Agent Research — Test Only
+## AXIS Multi-Agent Research — Member Lounge Live
 
-- Owner + exact Guild + `🧪・卡片测试` 专用 `/research`，配置层只允许 `TEST`；Member Lounge
-  launch 未启用。
-- 复用现有 Stock Analyst 与 GEX 服务；Massive Fundamentals、News/Macro、optional Sentiment
-  通过独立只读 provider boundary 接入。
+- Member / Manager / Owner 可在 `🛋️・会员交流` 使用 `/research`；Owner 保留卡片测试维护入口。
+- 复用现有 Stock Analyst 与 GEX 服务；Moomoo F10、News Search、Analyst Consensus 提供其余三项
+  只读数据。Massive Research provider 保留为 dormant 显式回滚实现。
+- 默认总结页和所有人可见的单一共享卡片；六个详情按钮原地编辑同一消息，只有请求发起人、
+  Manager/管理员与 Owner 可切换。
+- 普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager/管理员/Owner 免除冷却。
+- 独立 `/stock`、`/gex` 与 `gex TICKER` 已从 Discord 下架，底层 Stock/GEX 引擎仍供 Research 复用。
 - Technical / GEX / Fundamentals / News / Sentiment → frozen `ResearchPack` → Bull ∥ Bear →
   Manager → three Risk perspectives → structured Synthesis。
 - 所有 7 次实时 agent 调用走既有 OpenAI Responses `ModelRouter` 与 strict JSON Schema；无 tools、
@@ -48,10 +51,10 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 严格只读，不创建 Signal、Trade、Results candidate，不修改 Membership/Stripe/Personal
   Execution，不发 broker order。
 
-## GEX Explorer — Member Lounge Live
+## GEX Explorer — Internal Research Engine / Command Retired
 
-- `🛋️・会员交流` 严格文本触发 `gex TICKER`，同时支持 `/gex ticker:TICKER`；普通 Ticker
-  与其他聊天不触发。
+- 历史 `gex TICKER` 与 `/gex` Discord 入口已下架；服务、结构化结果和图像 renderer 继续由
+  `/research` 的 GEX 分项直接复用。
 - Member / Manager / Owner + exact Guild / channel 双重 runtime gate；Owner 保留
   `🧪・卡片测试` Slash Command 维护入口。
 - Moomoo GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
@@ -328,10 +331,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - Analysis 不调用 GEX；独立 GEX V7 连接会员交流按需查询与 Owner 卡片测试维护入口，
   不连接任何交易接口。
 
-## AXIS Stock Analyst — Member Lounge Live
+## AXIS Stock Analyst — Internal Research Engine / Command Retired
 
-- Member / Manager / Owner 可在 `🛋️・会员交流` 使用 `/stock ticker:TICKER`；Owner 保留
-  `🧪・卡片测试` 维护入口。Newcomer、`@everyone` 和其他频道全部阻止，普通 ticker 消息不触发。
+- 历史 `/stock ticker:TICKER` Discord 入口已下架；同一 service、结构化结果和图像 renderer
+  继续由 `/research` 的技术面分项复用。
 - 从 Cosmos Market Stock Analyst v0.1 移植同一确定性策略并复用 Analysis Fusion 的共享
   `AxisStockAnalystService`，避免两套分析逻辑产生冲突。
 - Massive adjusted Daily OHLCV、latest/current price、market/source timestamp 和 freshness；550

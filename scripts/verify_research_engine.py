@@ -68,7 +68,9 @@ async def run() -> dict[str, object]:
         "llm_workloads": sorted(routes),
         "stock_reuse": settings.stock_analyst_enabled,
         "gex_reuse": settings.gex_explorer_enabled,
-        "member_lounge_launch": False,
+        "aux_data_provider": settings.research_aux_data_provider,
+        "member_lounge_launch": settings.research_mode == "MEMBER_LOUNGE",
+        "standalone_research_tools": settings.standalone_research_tools_enabled,
         "broker_execution": False,
     }
 

@@ -10,7 +10,11 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cogs.research import ResearchDetailView, research_authorization_error
+from app.bot.cogs.research import (
+    ResearchDetailView,
+    can_control_research_view,
+    research_authorization_error,
+)
 from app.bot.research_cards import build_research_embed, detail_embed, progress_text
 from app.db.base import Base
 from app.db.models import (
@@ -280,6 +284,60 @@ def test_permission_gate_is_owner_and_card_testing_only() -> None:
         )
 
 
+def test_member_lounge_gate_and_shared_card_controls() -> None:
+    base = {
+        "expected_guild_id": GUILD_ID,
+        "owner_user_id": OWNER_ID,
+        "card_testing_channel_id": 10,
+        "member_lounge_channel_id": 20,
+        "mode": "MEMBER_LOUNGE",
+    }
+    assert (
+        research_authorization_error(
+            guild_id=GUILD_ID,
+            channel_id=20,
+            user_id=2,
+            has_lounge_access=True,
+            **base,
+        )
+        is None
+    )
+    assert (
+        research_authorization_error(
+            guild_id=GUILD_ID,
+            channel_id=20,
+            user_id=2,
+            has_lounge_access=False,
+            **base,
+        )
+        == "PERMISSION_DENIED"
+    )
+    assert can_control_research_view(
+        user_id=2,
+        role_ids=(),
+        administrator=False,
+        requester_user_id=2,
+        owner_user_id=OWNER_ID,
+        manager_role_id=99,
+    )
+    assert can_control_research_view(
+        user_id=3,
+        role_ids=(99,),
+        administrator=False,
+        requester_user_id=2,
+        owner_user_id=OWNER_ID,
+        manager_role_id=99,
+    )
+    assert not can_control_research_view(
+        user_id=4,
+        role_ids=(),
+        administrator=False,
+        requester_user_id=2,
+        owner_user_id=OWNER_ID,
+        manager_role_id=99,
+    )
+
+
 def test_point_in_time_filter_excludes_future_provider_rows() -> None:
     as_of = datetime(2026, 9, 10, tzinfo=UTC)
     rows = [
@@ -360,8 +418,14 @@ async def test_research_discord_ui_is_chinese_and_never_exposes_raw_json() -> No
         enforce_rate_limits=False,
     )
 
-    view = ResearchDetailView(result, owner_user_id=OWNER_ID)
+    view = ResearchDetailView(
+        result,
+        requester_user_id=OWNER_ID,
+        owner_user_id=OWNER_ID,
+        manager_role_id=99,
+    )
     assert [item.label for item in view.children] == [
+        "总结",
         "技术面",
         "期权结构",
         "基本面",
@@ -469,6 +533,25 @@ async def test_cache_single_flight_and_policy_invalidation() -> None:
         enforce_rate_limits=False,
     )
     assert all(provider.calls == 2 for provider in providers)
+    await db.dispose()
+
+
+@pytest.mark.asyncio
+async def test_member_and_same_ticker_cooldowns_remain_enforced() -> None:
+    db = await database()
+    service, _, _ = make_service(db)
+    await service.query(guild_id=GUILD_ID, actor_user_id=2, ticker="MSTR")
+    with pytest.raises(Exception, match="RESEARCH_USER_COOLDOWN"):
+        await service.query(guild_id=GUILD_ID, actor_user_id=2, ticker="NVDA")
+    with pytest.raises(Exception, match="RESEARCH_TICKER_COOLDOWN"):
+        await service.query(guild_id=GUILD_ID, actor_user_id=3, ticker="MSTR")
+    cached = await service.query(
+        guild_id=GUILD_ID,
+        actor_user_id=OWNER_ID,
+        ticker="MSTR",
+        bypass_cooldowns=True,
+    )
+    assert cached.cache_hit
     await db.dispose()
 
 

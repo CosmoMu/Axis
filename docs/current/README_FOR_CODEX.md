@@ -68,16 +68,12 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer V7 已在 Member Lounge 正式上线。Market data 已于 2026-09-13 切换为 Moomoo
-  Production primary；Massive adapter 仅保留作显式回滚。Member / Manager / Owner 可发送
-  严格格式 `gex SPY`（或使用 `/gex ticker:SPY`）生成中文盘中结构卡；其他普通消息不触发。
-  普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。Owner 已于
-  2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・卡片测试`
-  使用 `/gex`。
-- AXIS Stock Analyst 已在 Member Lounge 正式上线，Moomoo Daily OHLCV 为正式源。Member / Manager / Owner 仅可在
-  `🛋️・会员交流` 使用 `/stock ticker:SPY`；Owner 保留卡片测试维护入口。普通会员
-  每人 30 秒、同 ticker 全频道 60 秒冷却，Manager / Owner 无这两项冷却。功能使用 Massive
-  Daily OHLCV，严格只读，不触发 Signal、Trade、Membership 或 broker execution。
+- AXIS Multi-Agent Research 已在 Member Lounge 上线 `/research ticker:TICKER`。技术面和 GEX
+  复用原引擎；基本面、新闻和分析师共识使用 Moomoo。默认展示总结，所有详情按钮只原地切换
+  同一条 public card；仅发起人和 Manager/管理员/Owner 可操作。普通会员每人 30 秒、同 ticker
+  全频道 60 秒冷却，管理员免除冷却。
+- 独立 `/stock`、`/gex` 和 `gex TICKER` 已下架；底层 Stock Analyst 与 GEX Explorer 仍保持只读，
+  仅作为 `/research` 内部数据模块，不触发 Signal、Trade、Membership 或 broker execution。
 
 最新事实、已知问题、测试结果和下一步分别记录在 docs/development/。状态文档可以描述部署
 事实，但不得取代本目录的产品规格。

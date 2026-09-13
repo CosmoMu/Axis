@@ -55,6 +55,13 @@ STATUS_LABELS = {
 ERROR_LABELS = {
     "MASSIVE_RESEARCH_PROVIDER_FAILED": "市场数据服务暂时不可用",
     "MASSIVE_RATE_LIMITED": "市场数据请求频率受限",
+    "MASSIVE_ENTITLEMENT_REQUIRED": "当前数据套餐未开通此项内容",
+    "MOOMOO_SDK_UNAVAILABLE": "Moomoo 数据组件暂时不可用",
+    "MOOMOO_RESEARCH_PERMISSION_MISSING": "Moomoo 当前权限不包含此项数据",
+    "MOOMOO_RESEARCH_FUNDAMENTALS_FAILED": "Moomoo 基本面数据暂时不可用",
+    "MOOMOO_RESEARCH_SNAPSHOT_FAILED": "Moomoo 行情快照暂时不可用",
+    "MOOMOO_RESEARCH_NEWS_FAILED": "Moomoo 新闻数据暂时不可用",
+    "MOOMOO_RESEARCH_CONSENSUS_FAILED": "Moomoo 分析师共识暂时不可用",
     "RESEARCH_TECHNICAL_FAILURE": "技术面数据获取失败",
     "RESEARCH_GEX_FAILURE": "期权结构数据获取失败",
     "RESEARCH_FUNDAMENTALS_FAILURE": "基本面数据获取失败",
@@ -182,7 +189,7 @@ def build_research_embed(result: ResearchRunResult) -> discord.Embed:
     view = result.view
     if view.insufficient_data:
         embed = discord.Embed(
-            title=f"AXIS 多智能体研究 · 测试 · {view.ticker}",
+            title=f"AXIS 多智能体研究 · {view.ticker}",
             description="**数据覆盖不足，暂不生成研究倾向**",
             color=RED,
         )
@@ -202,8 +209,8 @@ def build_research_embed(result: ResearchRunResult) -> discord.Embed:
         else YELLOW
     )
     embed = discord.Embed(
-        title=f"AXIS 多智能体研究 · 测试 · {view.ticker}",
-        description="**仅限所有者 · 卡片测试频道 · 只读研究**",
+        title=f"AXIS 多智能体研究 · {view.ticker}",
+        description="**会员专属多智能体市场研究**",
         color=stance_color,
     )
     embed.add_field(name="研究倾向", value=_label(view.research_stance), inline=True)
@@ -264,7 +271,7 @@ def progress_text(ticker: str, statuses: dict[str, str]) -> str:
         "FAILED": "✕",
     }
     rows = [f"{label:<10} {icons.get(statuses.get(key, 'PENDING'), '…')}" for key, label in labels]
-    return "AXIS 多智能体研究 · 测试\n\n" + ticker + "\n\n```\n" + "\n".join(rows) + "\n```"
+    return "AXIS 多智能体研究\n\n" + ticker + "\n\n```\n" + "\n".join(rows) + "\n```"
 
 
 def _technical_embed(result: ResearchRunResult) -> discord.Embed:
@@ -457,7 +464,26 @@ def _news_embed(result: ResearchRunResult) -> discord.Embed:
         return embed
     assert component is not None
     embed.add_field(name="新闻综述", value=_clip(result.view.news_context, 700), inline=False)
-    embed.add_field(name="市场情绪", value=_clip(result.view.sentiment_context, 450), inline=False)
+    consensus = result.pack.component("sentiment")
+    if consensus is not None and consensus.available:
+        consensus_data = consensus.data
+        embed.add_field(
+            name="分析师共识",
+            value=(
+                f"评级 {_label(consensus_data.get('rating'))} · "
+                f"样本 {int(consensus_data.get('sample_size') or 0)}\n"
+                f"买入 {_compact_number(consensus_data.get('buy'))}% · "
+                f"持有 {_compact_number(consensus_data.get('hold'))}% · "
+                f"卖出 {_compact_number(consensus_data.get('sell'))}%\n"
+                f"目标区间 {_money(consensus_data.get('target_low'))} / "
+                f"{_money(consensus_data.get('target_average'))} / "
+                f"{_money(consensus_data.get('target_high'))}"
+            ),
+            inline=False,
+        )
+    embed.add_field(
+        name="观点解读", value=_clip(result.view.sentiment_context, 450), inline=False
+    )
     items = component.data.get("items")
     if isinstance(items, list):
         for index, item in enumerate(items[:4], start=1):

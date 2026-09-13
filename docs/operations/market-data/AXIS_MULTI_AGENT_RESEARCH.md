@@ -1,23 +1,24 @@
 # AXIS Multi-Agent Research
 
-**Phase:** `AXIS MULTI-AGENT RESEARCH = TEST ONLY`
+**Phase:** `AXIS MULTI-AGENT RESEARCH = MEMBER LOUNGE LIVE`
 
 **Policy:** `AXIS_RESEARCH_V1`
 
 ## Scope and safety boundary
 
-`/research ticker:TICKER` is a read-only market-research workflow. Phase 1 is restricted at both
-Discord and runtime layers to the configured Owner, exact AXIS Guild, and `🧪・卡片测试` channel.
+`/research ticker:TICKER` is a read-only market-research workflow. It is restricted to Member,
+Manager and Owner in the exact AXIS Guild and `🛋️・会员交流`; Owner may also use `🧪・卡片测试`.
 It must not create a Signal, Trade, Results candidate, Membership change, Stripe action, Personal
-Execution change, or broker order. Member Lounge launch remains disabled until the Owner sends the
-exact future approval `APPROVE RESEARCH LOUNGE LAUNCH`.
+Execution change, or broker order.
 
 Kill switch and mode:
 
 - `AXIS_RESEARCH_ENABLED`
-- `AXIS_RESEARCH_MODE=TEST`
+- `AXIS_RESEARCH_MODE=MEMBER_LOUNGE`
+- `RESEARCH_AUX_DATA_PROVIDER=moomoo`
+- `STANDALONE_RESEARCH_TOOLS_ENABLED=false`
 - `AXIS_RESEARCH_POLICY=config/research_engine.yaml`
-- any enabled mode other than `TEST` fails startup closed
+- enabled mode accepts only `TEST` or `MEMBER_LOUNGE`; any other value fails startup closed
 
 Rollback is operational: set `AXIS_RESEARCH_ENABLED=false`, deploy/restart, and confirm `/research`
 is absent. The forward-only database tables may remain; rollback does not delete research history.
@@ -34,8 +35,8 @@ is vendored or imported. Attribution is recorded in `docs/third_party/TRADINGAGE
 ```text
 one canonical as_of
         ↓
-parallel provider collection
-Stock Analyst + GEX + Fundamentals + News/Macro + Sentiment
+bounded provider collection
+Stock Analyst + GEX + Fundamentals + News/Macro + Analyst Consensus
         ↓
 immutable, fingerprinted ResearchPack
         ↓
@@ -45,14 +46,16 @@ structured AXIS synthesis
         ↓
 deterministic coverage + confidence + provider-owned numeric levels
         ↓
-AxisResearchView + stock chart + owner-only detail controls
+AxisResearchView + one public shared card with controlled in-place page switches
 ```
 
 The Technical component calls the existing `StockAnalystQueryService`; its levels and stock chart
 are reused unchanged. The GEX component calls the existing `GexExplorerService`; its structured
 levels and heatmap are reused unchanged. Research contains no duplicate technical or GEX engine.
-Massive remains the formal provider boundary. Existing GEX Moomoo intraday shadow behavior remains
-read-only and is not selected as Research truth; Research has no broker/execution integration.
+Moomoo is the production source for all five components: existing Stock/GEX engines plus F10
+financial statements, News Search and Analyst Consensus. Massive auxiliary provider code remains
+dormant for explicit rollback only. Research has no broker/execution integration. The standalone
+`/stock`, `/gex` and `gex TICKER` interfaces are disabled without disabling their internal engines.
 
 ## Provider and point-in-time rules
 
@@ -109,13 +112,17 @@ Technical/GEX fields, never from prose generation. No chain-of-thought is reques
 - maximum LLM calls: 7; maximum debate rounds: 1
 - cache: 300 seconds; key includes ticker, as-of bucket, policy, Stock/GEX versions, and providers
 - same-key requests: single-flight
-- ordinary configured user cooldown: 30 seconds
+- ordinary member user cooldown: 30 seconds
+- same ticker cooldown across the Guild: 60 seconds
+- Manager/administrator/Owner bypass both member cooldowns
 - fresh Guild limit: 6/minute; concurrent runs: 2
 - provider request timeout: 15 seconds
 - one original Discord progress message is edited through stages and replaced by the final card
 
-Owner-only ephemeral detail buttons expose Technical, GEX, Fundamentals, News, Bull vs Bear, and
-Risk structured evidence. Provider/LLM failures are classified, audited, deduplicated in System
+The first page is the summary. The same public Discord message is edited in place when its buttons
+switch to Technical, GEX, Fundamentals, News, Bull vs Bear, or Risk evidence. Only the original
+requester and Manager/administrator/Owner can operate those buttons; everyone may read the current
+page. Provider/LLM failures are classified, audited, deduplicated in System
 Alerts, and followed by Recovery when healthy again. Partial failure may continue only while the
 minimum coverage gate remains satisfied.
 
@@ -141,12 +148,12 @@ packs: at most three same-ticker and two cross-ticker lessons, always cut off at
 ```
 
 The E2E script outputs only status, coverage, confidence, component error codes, latency, call count,
-and token counts. Massive throttling is a valid insufficient-data result and must never be bypassed
-with invented or stale evidence. If repeated throttling occurs, wait for provider recovery or turn
-off the isolated Research kill switch; do not weaken the coverage gate.
+and token counts. Moomoo unavailable/permission responses are valid insufficient-data results and
+must never be bypassed with invented or stale evidence. If repeated failures occur, turn off the
+isolated Research kill switch; do not weaken the coverage gate.
 
-## Future Member Lounge launch
+## Post-launch validation
 
-Not part of Phase 1. Before a future launch, revalidate live Massive capacity, cold/cache latency,
-Discord desktop/mobile detail UX, member rate limits, alert recovery, cost, and all strict
-no-side-effect assertions. The code intentionally rejects `MEMBER_LOUNGE` mode today.
+Revalidate live Moomoo capacity, cold/cache latency, Discord desktop/mobile shared-card UX, member
+rate limits, alert recovery, cost, and all strict no-side-effect assertions. If production behavior
+regresses, set `AXIS_RESEARCH_MODE=TEST` or disable the Research kill switch and restart.

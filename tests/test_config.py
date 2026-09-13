@@ -156,11 +156,12 @@ def test_moomoo_stock_and_gex_do_not_require_massive_key() -> None:
     configured.assert_gex_safety()
 
 
-def test_research_is_fail_closed_to_owner_test_mode() -> None:
+def test_research_modes_and_moomoo_auxiliary_provider_are_fail_closed() -> None:
     base = settings(apply_changes=False, dry_run=True)
     replace(base, research_mode="OFF").assert_research_safety()
-    with pytest.raises(ConfigurationError, match="Member Lounge"):
-        replace(base, research_mode="MEMBER_LOUNGE").assert_research_safety()
+    replace(base, research_mode="MEMBER_LOUNGE").assert_research_safety()
+    with pytest.raises(ConfigurationError, match="RESEARCH_AUX_DATA_PROVIDER"):
+        replace(base, research_aux_data_provider="unknown").assert_research_safety()
     with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
         replace(
             base,

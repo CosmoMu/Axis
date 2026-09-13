@@ -21,6 +21,7 @@ class ResearchPolicy:
     max_debate_rounds: int
     cache_seconds: int
     user_cooldown_seconds: int
+    ticker_cooldown_seconds: int
     guild_fresh_limit_per_minute: int
     max_concurrent_runs: int
     as_of_bucket_seconds: int
@@ -52,6 +53,7 @@ class ResearchPolicy:
                 max_debate_rounds=int(runtime["max_debate_rounds"]),
                 cache_seconds=int(runtime["cache_seconds"]),
                 user_cooldown_seconds=int(runtime["user_cooldown_seconds"]),
+                ticker_cooldown_seconds=int(runtime["ticker_cooldown_seconds"]),
                 guild_fresh_limit_per_minute=int(runtime["guild_fresh_limit_per_minute"]),
                 max_concurrent_runs=int(runtime["max_concurrent_runs"]),
                 as_of_bucket_seconds=int(runtime["as_of_bucket_seconds"]),
@@ -83,6 +85,7 @@ class ResearchPolicy:
             self.max_debate_rounds,
             self.cache_seconds,
             self.user_cooldown_seconds,
+            self.ticker_cooldown_seconds,
             self.guild_fresh_limit_per_minute,
             self.max_concurrent_runs,
             self.as_of_bucket_seconds,

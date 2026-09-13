@@ -6,6 +6,7 @@ runtime:
   max_debate_rounds: 1
   cache_seconds: 300
   user_cooldown_seconds: 30
+  ticker_cooldown_seconds: 60
   guild_fresh_limit_per_minute: 6
   max_concurrent_runs: 2
   as_of_bucket_seconds: 300

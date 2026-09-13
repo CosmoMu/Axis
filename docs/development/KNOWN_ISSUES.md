@@ -23,18 +23,14 @@ service；其 serverless `/api/gex` 当前仍直接调用 Massive。托管 Worke
 
 这里只记录当前真实问题和未完成验收。有意 deferred 的 AXIS LAB 不作为缺陷。
 
-## P0 — Multi-Agent Research 真实 Massive E2E 受 provider rate limit 阻塞
+## P1 — Multi-Agent Research 交易时段与移动端证据待积累
 
-AXIS-native graph、strict schemas、permissions、cache/single-flight、数据库、outcome/memory 和
-自动化回归已通过；生产 migration 为 `20260913_0033`。真实 smoke 中 Massive 并发边界返回
-`MASSIVE_RATE_LIMITED`：一次 SPY 请求恢复了 Technical + News，但 GEX 与 Sentiment 不可用，
-没有满足 Technical + two optional coverage gate。系统按设计保存 insufficient-data view 并保持
-LLM calls=0，没有使用未来、陈旧或虚构数据。
+旧 Massive Research 辅助路径的 entitlement/rate-limit 问题已通过迁移至 Moomoo F10、News Search
+和 Analyst Consensus 解决；MSTR 三项真实 read-only smoke 均为 AVAILABLE。Research 已在 Member
+Lounge 上线，独立 Stock/GEX 指令已下架。仍需在真实交易时段积累五分项 freshness、完整 LLM
+latency、移动端共享卡片换页和真实会员并发证据；分项不可用时继续 fail-closed，不降低覆盖门。
 
-当前 Research 必须保持 TEST-only。需在 provider window/plan capacity 稳定后重跑五个 ticker、
-cache 与 Discord Desktop/Mobile；Member Lounge launch 需要未来单独 Owner approval。
-
-## P0 — Stock Analyst Member Lounge 交易时段与移动端证据待积累
+## P1 — Research 内部 Stock Analyst 交易时段证据待积累
 
 Cosmos v0.1 parity、Moomoo 8-ticker read-only、card/chart、cache/single-flight/limits、权限与自动化
 均已通过；Guild `/stock`、真实 SPY 图、Member/Manager/Owner lounge gate、30/60 秒 cooldown、
@@ -46,7 +42,7 @@ AXIS 没有伪造这些组件：RVOL 保持 unavailable，Volume 明确标为 20
 POC/VA 是 Daily OHLCV high-low 分箱代理。闭市验收已完成；交易时段 live/stale UX 仍待后续
 受控验证。Phase 1 没有 LLM rewrite，因此 `STOCK_ANALYST_LLM_FAILURE` 只是保留错误类型。
 
-## P0 — GEX Explorer SPX underlying snapshot 不受支持
+## P1 — Research 内部 GEX 的 SPX underlying snapshot 不受支持
 
 V7 Moomoo option-chain aggregation、card、heatmap、cache、single-flight、limits、audit 与 alerts
 已实现；严格 `gex TICKER`、Member/Manager/Owner role gate 和 exact channel gate 已通过自动化。

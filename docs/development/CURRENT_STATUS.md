@@ -26,15 +26,16 @@ bid/ask/last/volume/OI/IV/delta/gamma/update timestamp 与 OPRA best bid/ask；�
 Massive provider code保留为显式回滚 adapter，不自动 fallback，四项 provider 为 Moomoo 时允许
 `MASSIVE_API_KEY` 为空。SPX option chain/snapshot 可读但指数现货 snapshot 不受支持，因此单独
 fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 的真实 Bot 启动、
-SPY/NVDA Stock + GEX Discord 卡片上传、365 项完整回归与部署后 runtime hash 均已通过。
+SPY/NVDA Stock + GEX Discord 卡片上传、367 项完整回归与部署后 runtime hash 均已通过。
 Personal Moomoo LIVE writes 仍禁用。
 
-AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，严格
-复用现有 Stock Analyst、GEX、Massive、LLM Router、Database、Discord、Audit 与 System Alerts。
-当前 phase 固定为 `AXIS MULTI-AGENT RESEARCH = TEST ONLY`：仅 Owner、目标 Guild 与
-`🧪・卡片测试` 可运行 `/research`；Member Lounge 未发布，Signal、Trade、Results、Membership、
-Stripe 与 broker execution 均无副作用。migration `20260913_0033` 已部署；真实 Massive E2E
-当前遇到 provider rate limiting，minimum coverage gate 已验证会以 0 次 LLM fail-closed。
+AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，并在
+`🛋️・会员交流` 上线 `/research`。技术面与 GEX 继续复用现有引擎；基本面、新闻和分析师共识已由
+旧 Massive Research 路径迁移至真实 Moomoo F10、News Search 与 Analyst Consensus。MSTR 三项
+辅助数据真实验收均为 AVAILABLE，旧 Massive 路径的 403/429 与重复新闻请求不再影响生产研究。
+最终结果为一条所有人可见的共享卡片，默认显示总结；发起人及 Manager/管理员可在原消息切换
+分项，其他人不能操作按钮。独立 `/stock`、`/gex` 及 `gex TICKER` 入口已下架，但两个引擎仍作为
+Research 内部依赖保留。Signal、Trade、Results、Membership、Stripe 与 broker execution 均无副作用。
 
 Discord 的 4 个 Category 与 25 个 AXIS Channel 已按 Blueprint v6 完成中文显示名同步；正式
 模块品牌 `AXIS LAB` 保持英文。`📣・人工喊单` 已在 `🟢・会员专区` 上线，仅 Member、Manager、
@@ -68,29 +69,31 @@ database / system-alert architecture。代码、forward-only migration、Owner-o
 已验证，但个人执行的真实账户 fill-list 只读检查仍返回 `MOOMOO_FILL_LIST_FAILED`；真实账户对账与
 SIMULATE E2E 仍是该独立模块的发布阻塞项，不阻塞市场数据迁移。
 
-## AXIS Multi-Agent Research — TEST ONLY
+## AXIS Multi-Agent Research — MEMBER LOUNGE LIVE
 
 Implemented:
 
-- `/research ticker:TICKER` 的 Owner + exact Guild + `🧪・卡片测试` 三重 gate；启动配置只接受
-  `TEST`，Member / Manager / Newcomer / `@everyone` 均 fail-closed。
-- Technical、GEX、Fundamentals、News/Macro、Sentiment 并行收集后冻结为带 fingerprint 的
+- `/research ticker:TICKER` 的 exact Guild + `🛋️・会员交流` + Member/Manager/Owner gate；Owner
+  仍可在 `🧪・卡片测试` 维护验证，Newcomer 与 `@everyone` fail-closed。
+- Technical、GEX、Fundamentals、News/Macro、Analyst Consensus 收集后冻结为带 fingerprint 的
   `ResearchPack`；Bull / Bear 共用同一数据包，随后由 Research Manager、三种 Risk perspective
   和 Final Synthesis 生成结构化研究视图。
 - `/stock` 与 `/gex` 服务和结构化结果直接复用；Research 内没有第二套技术或 GEX 引擎。
 - 覆盖门、确定性 Confidence、数字来源保护、prompt-injection 防御、120 秒总 timeout、
-  300 秒 cache、single-flight、30 秒用户 cooldown、Guild provider limit 和部分失败降级。
+  300 秒 cache、single-flight、会员 30 秒用户 cooldown、同 ticker 60 秒 cooldown、Guild provider
+  limit 和部分失败降级；Manager/管理员/Owner 免除两项会员冷却。
 - `research_runs`、`research_agent_outputs`、`research_outcomes`、`research_reflections` 持久化；
   1/3/5 交易日 underlying/benchmark/alpha/MFE/MAE 评估和 point-in-time-safe memory。
-- 单一可编辑 progress message、最终研究卡、Stock Chart 与 Owner-only ephemeral details；
-  Audit、System Alert / Recovery 与独立 kill switch。
+- 单一可编辑 progress message、默认总结页与一条 public shared card；按钮原地切换技术面、GEX、
+  基本面、新闻、Bull/Bear 和风险页，仅发起人及 Manager/管理员/Owner 可操作。
+- Moomoo F10/News/Analyst Consensus 是生产辅助源；Massive provider code dormant，供显式回滚。
 
-Production status: **TEST ONLY.** 365 项完整回归、Ruff、compileall、migration 与 DB verifier 已通过。
-真实 Massive 验证时 Technical/News 曾恢复，但 GEX/其他并发请求受到 `MASSIVE_RATE_LIMITED`；系统
-正确返回 insufficient-data 且不调用 LLM。不得降低覆盖门或上线 Member Lounge；等待 provider
-窗口/容量复核及 Owner 明确发送 `APPROVE RESEARCH LOUNGE LAUNCH`。
+Production status: **MEMBER LOUNGE LIVE.** MSTR 真实 OpenD 辅助源验证为 3/3 AVAILABLE；367 项
+完整回归、Ruff 与 compileall 通过。若任何分项真实不可用，仍按原界面显示数据覆盖不足，绝不
+伪造数据或降低 coverage gate。
 
-GEX Explorer 已升级为 V7 Professional Ladder，并已在 Member Lounge 正式上线。Moomoo option surface / spot / 真实 5 分钟
+GEX Explorer 已升级为 V7 Professional Ladder；独立 Member Lounge 指令现已下架，底层引擎由
+`/research` 继续复用。Moomoo option surface / spot / 真实 5 分钟
 K 线现为正式源。主图和底部连续 Strike × Expiration Ladder
 共用一套可配置 Intraday Importance Score、Gamma Node、主要/次要支撑压力、单一 Gamma Magnet、
 Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
@@ -98,13 +101,12 @@ Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道
 `gex SPY`；当前 runtime 为 `MEMBER_LOUNGE`，进入真实会员请求与移动端体验监测阶段。
 
 AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
-analysis engine，并已在 `🛋️・会员交流` 上线 `/stock ticker:TICKER`。Member、Manager、
-Owner 可使用；Newcomer、`@everyone` 与其他频道均 fail-closed。Moomoo 为正式只读数据源，卡片与真实
+analysis engine；独立 `/stock` 指令现已下架，底层引擎由 `/research` 继续复用。Moomoo 为正式只读数据源，卡片与真实
 OHLCV 图共用同一个结构化结果；无 LLM、无 Moomoo、无 Signal/Trade/Result/Membership 副作用。
 Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权限、图卡一致与回归已通过。
 普通会员每人 30 秒、同一 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。
 
-## AXIS Stock Analyst — MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
+## AXIS Stock Analyst — INTERNAL RESEARCH ENGINE / COMMAND RETIRED
 
 Implemented:
 
@@ -135,15 +137,16 @@ Live read-only evidence:
   列表已确认包含 `/stock`。真实 SPY 1900×1160 PNG 已视觉复核，symbol、Daily K、比例、结构位与
   同源预测路径可读；不存在的 Massive symbol 已确认归类为 `AXIS_STOCK_SYMBOL_NOT_FOUND`。
 
-Production status: **STOCK ANALYST = MEMBER LOUNGE LIVE.** 当前只开放按需 `/stock`；普通文字
+Production status: **STANDALONE COMMAND RETIRED.** 历史 `/stock` 功能仍保留为 `/research` 的内部
+技术面引擎，不再向会员暴露独立入口。原有普通文字
 触发、自动扫描、自动信号与 broker execution 均未启用。普通非管理员可见的 AXIS Slash Commands
-严格为 `/gex` 与 `/stock`；Owner-only `test-*` 命令继续由 Discord 默认权限及 runtime 双重保护。
+当前会员入口严格为 `/research`；Owner-only `test-*` 命令继续由 Discord 默认权限及 runtime 双重保护。
 
 Member Lounge launch evidence (2026-09-05): deployed runtime reports
 `STOCK_ANALYST_ENABLED=true / STOCK_ANALYST_MODE=MEMBER_LOUNGE`；30/60 秒 policy 已加载；
 AXIS BOT running；Discord runtime and command-visibility verifier PASS。
 
-## GEX Explorer — MEMBER LOUNGE LIVE / POST-LAUNCH MONITORING
+## GEX Explorer — INTERNAL RESEARCH ENGINE / COMMAND RETIRED
 
 Implemented:
 
@@ -195,7 +198,7 @@ Live evidence:
 - SPX 未映射为 SPY；当前 Massive entitlement 无法提供可用 SPX spot/options surface，明确返回
   `GEX_SPX_UNSUPPORTED`。这是 Provider blocker，不使用代理标的伪造。
 
-Production status: **GEX Explorer = MEMBER LOUNGE LIVE.** 普通会员每人 30 秒、同一
+Production status: **STANDALONE COMMAND RETIRED / INTERNAL ENGINE LIVE.** 历史独立入口普通会员每人 30 秒、同一
 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。8 fresh requests/minute guild
 provider 保护、60 秒 cache 与 single-flight 继续启用。Owner 于 2026-09-05 明确发送
 `APPROVE GEX LOUNGE LAUNCH`；runtime 已切换为 `MEMBER_LOUNGE`，Owner 仍可在

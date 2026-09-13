@@ -482,9 +482,9 @@ async def verify() -> list[str]:
             commands = await client.http.get_guild_commands(application_id, guild.id)
             command_names = {item["name"] for item in commands}
             expected_commands = set(TEST_COMMANDS)
-            if settings.gex_explorer_enabled:
+            if settings.gex_explorer_enabled and settings.standalone_research_tools_enabled:
                 expected_commands.add("gex")
-            if settings.stock_analyst_enabled:
+            if settings.stock_analyst_enabled and settings.standalone_research_tools_enabled:
                 expected_commands.add("stock")
             if settings.research_enabled:
                 expected_commands.add("research")
@@ -495,10 +495,12 @@ async def verify() -> list[str]:
                 if item.get("default_member_permissions") in {None, ""}
             }
             expected_member_commands = set()
-            if settings.gex_explorer_enabled:
+            if settings.gex_explorer_enabled and settings.standalone_research_tools_enabled:
                 expected_member_commands.add("gex")
-            if settings.stock_analyst_enabled:
+            if settings.stock_analyst_enabled and settings.standalone_research_tools_enabled:
                 expected_member_commands.add("stock")
+            if settings.research_enabled and settings.research_mode == "MEMBER_LOUNGE":
+                expected_member_commands.add("research")
             _check(
                 unrestricted_commands == expected_member_commands,
                 "non_owner_visible_commands_mismatch",
@@ -514,7 +516,7 @@ async def verify() -> list[str]:
                 "owner_test_command_defaults_mismatch",
                 failures,
             )
-            if settings.research_enabled:
+            if settings.research_enabled and settings.research_mode == "TEST":
                 _check(
                     all(
                         item.get("default_member_permissions") == administrator_permission
@@ -550,7 +552,7 @@ def main() -> int:
     print("general_guides=idempotent")
     print("mentor_control=select,add")
     print("member_control=searchable_user_select,unique_panel,last_message")
-    print("command_visibility=members:gex,stock;owner:test-suite,research")
+    print("command_visibility=members:research;owner:test-suite,research")
     return 0
 
 

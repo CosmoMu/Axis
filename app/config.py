@@ -209,6 +209,8 @@ class Settings:
     gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
     research_enabled: bool = False
     research_mode: str = "TEST"
+    research_aux_data_provider: str = "moomoo"
+    standalone_research_tools_enabled: bool = False
     research_policy_path: Path = Path("config/research_engine.yaml")
     research_policy_version: str = "AXIS_RESEARCH_V1"
     production_data_start_date: date = date(2026, 8, 31)
@@ -381,6 +383,13 @@ class Settings:
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
             research_enabled=_parse_bool("AXIS_RESEARCH_ENABLED", False),
             research_mode=(os.getenv("AXIS_RESEARCH_MODE", "TEST").strip().upper() or "TEST"),
+            research_aux_data_provider=(
+                os.getenv("RESEARCH_AUX_DATA_PROVIDER", "moomoo").strip().lower()
+                or "moomoo"
+            ),
+            standalone_research_tools_enabled=_parse_bool(
+                "STANDALONE_RESEARCH_TOOLS_ENABLED", False
+            ),
             research_policy_path=(root / research_policy_value).resolve(),
             research_policy_version=(
                 os.getenv("AXIS_RESEARCH_POLICY_VERSION", "AXIS_RESEARCH_V1").strip()
@@ -642,19 +651,19 @@ class Settings:
                 raise ConfigurationError(f"{name} 仅允许 massive 或 moomoo。")
 
     def assert_research_safety(self) -> None:
-        if self.research_mode not in {"OFF", "TEST"}:
-            raise ConfigurationError(
-                "AXIS Research 当前只允许 OFF 或 TEST；Member Lounge 尚未获批。"
-            )
+        if self.research_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
+            raise ConfigurationError("AXIS_RESEARCH_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
+        if self.research_aux_data_provider not in {"massive", "moomoo"}:
+            raise ConfigurationError("RESEARCH_AUX_DATA_PROVIDER 仅允许 massive 或 moomoo。")
         if not self.research_enabled:
             return
-        if self.research_mode != "TEST":
-            raise ConfigurationError("启用 AXIS Research 时必须保持 TEST 模式。")
+        if self.research_mode == "OFF":
+            raise ConfigurationError("启用 AXIS Research 时 mode 不能为 OFF。")
         if self.discord_owner_user_id is None:
             raise ConfigurationError("启用 AXIS Research 必须配置 DISCORD_OWNER_USER_ID。")
         if not self.openai_api_key:
             raise ConfigurationError("启用 AXIS Research 必须配置 OPENAI_API_KEY。")
-        if not self.massive_api_key:
+        if self.research_aux_data_provider == "massive" and not self.massive_api_key:
             raise ConfigurationError("启用 AXIS Research 必须配置 MASSIVE_API_KEY。")
         if not self.stock_analyst_enabled or not self.gex_explorer_enabled:
             raise ConfigurationError("AXIS Research 必须复用已启用的 Stock Analyst 与 GEX。")

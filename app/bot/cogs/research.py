@@ -1,9 +1,10 @@
-"""Owner-only Discord surface for AXIS Multi-Agent Research test mode."""
+"""Discord command and shared-page controls for AXIS Multi-Agent Research."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from io import BytesIO
 
 import discord
@@ -30,32 +31,110 @@ def research_authorization_error(
     owner_user_id: int,
     card_testing_channel_id: int,
     mode: str,
+    member_lounge_channel_id: int | None = None,
+    has_lounge_access: bool = False,
 ) -> str | None:
-    if guild_id != expected_guild_id or user_id != owner_user_id:
+    if guild_id != expected_guild_id:
         return "PERMISSION_DENIED"
-    if mode != "TEST":
-        return "RESEARCH_DISABLED"
-    if channel_id != card_testing_channel_id:
-        return "TEST_CHANNEL_REQUIRED"
-    return None
+    if mode == "TEST":
+        if user_id != owner_user_id:
+            return "PERMISSION_DENIED"
+        return None if channel_id == card_testing_channel_id else "TEST_CHANNEL_REQUIRED"
+    if mode == "MEMBER_LOUNGE":
+        if user_id == owner_user_id and channel_id == card_testing_channel_id:
+            return None
+        if channel_id != member_lounge_channel_id:
+            return "MEMBER_LOUNGE_REQUIRED"
+        return None if has_lounge_access else "PERMISSION_DENIED"
+    return "RESEARCH_DISABLED"
+
+
+def has_research_lounge_access(
+    *,
+    user_id: int,
+    role_ids: Iterable[int],
+    guild_owner_id: int,
+    configured_owner_id: int,
+    member_role_id: int,
+    manager_role_id: int,
+) -> bool:
+    if user_id in {guild_owner_id, configured_owner_id}:
+        return True
+    return bool({member_role_id, manager_role_id}.intersection(role_ids))
+
+
+def has_research_cooldown_bypass(
+    *,
+    user_id: int,
+    role_ids: Iterable[int],
+    guild_owner_id: int,
+    configured_owner_id: int,
+    manager_role_id: int,
+) -> bool:
+    return user_id in {guild_owner_id, configured_owner_id} or manager_role_id in set(role_ids)
+
+
+def can_control_research_view(
+    *,
+    user_id: int,
+    role_ids: Iterable[int],
+    administrator: bool,
+    requester_user_id: int,
+    owner_user_id: int,
+    manager_role_id: int,
+) -> bool:
+    return (
+        user_id in {requester_user_id, owner_user_id}
+        or administrator
+        or manager_role_id in set(role_ids)
+    )
 
 
 class ResearchDetailView(discord.ui.View):
-    def __init__(self, result: ResearchRunResult, *, owner_user_id: int) -> None:
+    def __init__(
+        self,
+        result: ResearchRunResult,
+        *,
+        requester_user_id: int,
+        owner_user_id: int,
+        manager_role_id: int,
+    ) -> None:
         super().__init__(timeout=900)
         self.result = result
+        self.requester_user_id = requester_user_id
         self.owner_user_id = owner_user_id
+        self.manager_role_id = manager_role_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.owner_user_id:
+        role_ids = tuple(role.id for role in getattr(interaction.user, "roles", ()))
+        permissions = getattr(interaction.user, "guild_permissions", None)
+        if can_control_research_view(
+            user_id=interaction.user.id,
+            role_ids=role_ids,
+            administrator=bool(getattr(permissions, "administrator", False)),
+            requester_user_id=self.requester_user_id,
+            owner_user_id=self.owner_user_id,
+            manager_role_id=self.manager_role_id,
+        ):
             return True
-        await interaction.response.send_message("当前没有查看研究详情的权限。", ephemeral=True)
+        await interaction.response.send_message(
+            "只有研究发起人或管理员可以切换这张卡片。", ephemeral=True
+        )
         return False
 
     async def _show(self, interaction: discord.Interaction, section: str) -> None:
         file: discord.File | None = None
         ticker = self.result.view.ticker.lower()
-        if section == "technical" and self.result.stock_chart_png is not None:
+        if (
+            section == "summary"
+            and not self.result.view.insufficient_data
+            and self.result.stock_chart_png is not None
+        ):
+            file = discord.File(
+                BytesIO(self.result.stock_chart_png),
+                filename=f"axis-research-{ticker}.png",
+            )
+        elif section == "technical" and self.result.stock_chart_png is not None:
             file = discord.File(
                 BytesIO(self.result.stock_chart_png),
                 filename=f"axis-research-technical-{ticker}.png",
@@ -65,11 +144,37 @@ class ResearchDetailView(discord.ui.View):
                 BytesIO(self.result.gex_chart_png),
                 filename=f"axis-research-gex-{ticker}.png",
             )
-        embed = detail_embed(self.result, section)
-        if file is not None:
-            await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        active_labels = {
+            "summary": "总结",
+            "technical": "技术面",
+            "gex": "期权结构",
+            "fundamentals": "基本面",
+            "news": "新闻动态",
+            "bull_bear": "多空观点",
+            "risk": "风险评估",
+        }
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                item.style = (
+                    discord.ButtonStyle.primary
+                    if item.label == active_labels[section]
+                    else discord.ButtonStyle.secondary
+                )
+        embed = (
+            build_research_embed(self.result)
+            if section == "summary"
+            else detail_embed(self.result, section)
+        )
+        await interaction.response.edit_message(
+            content=None,
+            embed=embed,
+            attachments=[file] if file is not None else [],
+            view=self,
+        )
+
+    @discord.ui.button(label="总结", style=discord.ButtonStyle.primary, row=0)
+    async def summary(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await self._show(interaction, "summary")
 
     @discord.ui.button(label="技术面", style=discord.ButtonStyle.secondary, row=0)
     async def technical(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -120,6 +225,9 @@ class ResearchCog(commands.Cog):
         guild_id: int,
         owner_user_id: int,
         card_testing_channel_id: int,
+        member_lounge_channel_id: int,
+        member_role_id: int,
+        manager_role_id: int,
         mode: str,
     ) -> None:
         self.bot = bot
@@ -127,6 +235,9 @@ class ResearchCog(commands.Cog):
         self.guild_id = guild_id
         self.owner_user_id = owner_user_id
         self.card_testing_channel_id = card_testing_channel_id
+        self.member_lounge_channel_id = member_lounge_channel_id
+        self.member_role_id = member_role_id
+        self.manager_role_id = manager_role_id
         self.mode = mode
         if service.outcomes is not None:
             self.outcome_loop.start()
@@ -134,11 +245,13 @@ class ResearchCog(commands.Cog):
     def cog_unload(self) -> None:
         self.outcome_loop.cancel()
 
-    @app_commands.command(name="research", description="运行 AXIS 多智能体市场研究（测试模式）")
+    @app_commands.command(name="research", description="运行 AXIS 多智能体市场研究")
     @app_commands.describe(ticker="股票或 ETF 代码，例如 SPY、NVDA、TSLA")
-    @app_commands.default_permissions(administrator=True)
     @app_commands.guild_only()
     async def research(self, interaction: discord.Interaction, ticker: str) -> None:
+        member = interaction.user if isinstance(interaction.user, discord.Member) else None
+        guild_owner_id = interaction.guild.owner_id if interaction.guild is not None else 0
+        role_ids = tuple(role.id for role in member.roles) if member is not None else ()
         authorization = research_authorization_error(
             guild_id=interaction.guild_id,
             channel_id=interaction.channel_id,
@@ -147,6 +260,18 @@ class ResearchCog(commands.Cog):
             owner_user_id=self.owner_user_id,
             card_testing_channel_id=self.card_testing_channel_id,
             mode=self.mode,
+            member_lounge_channel_id=self.member_lounge_channel_id,
+            has_lounge_access=(
+                member is not None
+                and has_research_lounge_access(
+                    user_id=member.id,
+                    role_ids=role_ids,
+                    guild_owner_id=guild_owner_id,
+                    configured_owner_id=self.owner_user_id,
+                    member_role_id=self.member_role_id,
+                    manager_role_id=self.manager_role_id,
+                )
+            ),
         )
         if authorization == "PERMISSION_DENIED":
             await interaction.response.send_message(
@@ -159,6 +284,11 @@ class ResearchCog(commands.Cog):
                 "Multi-Agent Research is currently available only in:\n\n"
                 "🧪・卡片测试",
                 ephemeral=True,
+            )
+            return
+        if authorization == "MEMBER_LOUNGE_REQUIRED":
+            await interaction.response.send_message(
+                "请在 🛋️・会员交流 使用 `/research ticker:SPY`。", ephemeral=True
             )
             return
         if authorization:
@@ -175,9 +305,16 @@ class ResearchCog(commands.Cog):
                 ticker=symbol,
                 interaction_id=interaction.id,
                 progress=reporter.update,
+                bypass_cooldowns=has_research_cooldown_bypass(
+                    user_id=interaction.user.id,
+                    role_ids=role_ids,
+                    guild_owner_id=guild_owner_id,
+                    configured_owner_id=self.owner_user_id,
+                    manager_role_id=self.manager_role_id,
+                ),
             )
             attachments = []
-            if result.stock_chart_png is not None:
+            if not result.view.insufficient_data and result.stock_chart_png is not None:
                 attachments.append(
                     discord.File(
                         BytesIO(result.stock_chart_png),
@@ -188,7 +325,12 @@ class ResearchCog(commands.Cog):
                 content=None,
                 embed=build_research_embed(result),
                 attachments=attachments,
-                view=ResearchDetailView(result, owner_user_id=self.owner_user_id),
+                view=ResearchDetailView(
+                    result,
+                    requester_user_id=interaction.user.id,
+                    owner_user_id=self.owner_user_id,
+                    manager_role_id=self.manager_role_id,
+                ),
             )
             await self._sync_result_alerts(result)
         except ResearchError as exc:
@@ -226,6 +368,7 @@ class ResearchCog(commands.Cog):
         return {
             "RESEARCH_TICKER_INVALID": "未识别该 Ticker，请检查后重试。",
             "RESEARCH_USER_COOLDOWN": "每位使用者每 30 秒可发起一次研究。",
+            "RESEARCH_TICKER_COOLDOWN": "该股票刚刚查询过；同一股票每 60 秒可更新一次。",
             "RESEARCH_GUILD_RATE_LIMIT": "当前研究请求较多，请稍后重试。",
             "RESEARCH_TIMEOUT": "研究运行超时，已安全停止。",
             "RESEARCH_MIN_COVERAGE_FAILURE": "数据覆盖不足，未生成研究倾向。",
@@ -240,7 +383,7 @@ class ResearchCog(commands.Cog):
                 severity="ERROR",
                 service="AXIS Multi-Agent Research",
                 error_type=error_type,
-                affected=f"RESEARCH {ticker} · test",
+                affected=f"RESEARCH {ticker}",
                 detail=detail or error_type,
             )
 
@@ -250,7 +393,7 @@ class ResearchCog(commands.Cog):
             await alerts.report_recovery(  # type: ignore[attr-defined]
                 service="AXIS Multi-Agent Research",
                 error_type=error_type,
-                affected=f"RESEARCH {ticker} · test",
+                affected=f"RESEARCH {ticker}",
             )
 
     async def _sync_result_alerts(self, result: ResearchRunResult) -> None:

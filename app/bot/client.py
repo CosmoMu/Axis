@@ -246,7 +246,11 @@ class AxisBot(commands.Bot):
                 manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.gex_explorer_mode,
             )
-            if gex_explorer_service is not None and settings.discord_owner_user_id is not None
+            if (
+                settings.standalone_research_tools_enabled
+                and gex_explorer_service is not None
+                and settings.discord_owner_user_id is not None
+            )
             else None
         )
         self._stock_analyst_cog = (
@@ -261,7 +265,11 @@ class AxisBot(commands.Bot):
                 manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.stock_analyst_mode,
             )
-            if stock_analyst_service is not None and settings.discord_owner_user_id is not None
+            if (
+                settings.standalone_research_tools_enabled
+                and stock_analyst_service is not None
+                and settings.discord_owner_user_id is not None
+            )
             else None
         )
         self._research_cog = (
@@ -271,6 +279,9 @@ class AxisBot(commands.Bot):
                 guild_id=settings.discord_guild_id,
                 owner_user_id=settings.discord_owner_user_id,
                 card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                member_lounge_channel_id=_required_snowflake(channels, "member_chat"),
+                member_role_id=_required_snowflake(roles, "member"),
+                manager_role_id=_required_snowflake(roles, "manager"),
                 mode=settings.research_mode,
             )
             if research_service is not None and settings.discord_owner_user_id is not None

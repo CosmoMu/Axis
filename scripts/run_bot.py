@@ -63,6 +63,10 @@ from app.market_intelligence.research_engine.providers import (  # noqa: E402
     MassiveFundamentalsProvider,
     MassiveNewsMacroProvider,
     MassiveSentimentProvider,
+    MoomooAnalystConsensusProvider,
+    MoomooFundamentalsProvider,
+    MoomooNewsMacroProvider,
+    MoomooResearchClient,
 )
 from app.market_intelligence.research_engine.providers.base import (  # noqa: E402
     MassiveResearchHttpClient,
@@ -130,7 +134,8 @@ async def run() -> None:
             "moomoo_enabled=%s daily_summary_enabled=%s "
             "stock_analyst_enabled=%s stock_analyst_mode=%s "
             "stock_provider=%s gex_provider=%s gex_intraday_provider=%s "
-            "option_tracking_provider=%s"
+            "option_tracking_provider=%s research_enabled=%s research_mode=%s "
+            "research_aux_provider=%s standalone_research_tools=%s"
         ),
         settings.discord_guild_id,
         settings.analysis_enabled,
@@ -142,6 +147,10 @@ async def run() -> None:
         settings.gex_market_data_provider,
         settings.gex_intraday_provider,
         settings.option_tracking_provider,
+        settings.research_enabled,
+        settings.research_mode,
+        settings.research_aux_data_provider,
+        settings.standalone_research_tools_enabled,
     )
     token = settings.require_token()
     database = Database(settings.require_database_url())
@@ -385,10 +394,19 @@ async def run() -> None:
                 settings.research_policy_path,
                 version_override=settings.research_policy_version,
             )
-            research_http = MassiveResearchHttpClient(
-                api_key=settings.massive_api_key,
-                base_url=settings.massive_base_url,
-                timeout_seconds=research_policy.provider_timeout_seconds,
+            research_http = (
+                MassiveResearchHttpClient(
+                    api_key=settings.massive_api_key,
+                    base_url=settings.massive_base_url,
+                    timeout_seconds=research_policy.provider_timeout_seconds,
+                )
+                if settings.research_aux_data_provider == "massive"
+                else None
+            )
+            research_moomoo = (
+                MoomooResearchClient(host=settings.moomoo_host, port=settings.moomoo_port)
+                if settings.research_aux_data_provider == "moomoo"
+                else None
             )
             research_outcomes = ResearchOutcomeService(
                 database,
@@ -402,14 +420,29 @@ async def run() -> None:
                 policy=research_policy,
                 technical_provider=AxisTechnicalResearchProvider(stock_analyst_service),
                 gex_provider=AxisGexResearchProvider(gex_explorer_service),
-                fundamentals_provider=MassiveFundamentalsProvider(research_http),
-                news_provider=MassiveNewsMacroProvider(
-                    research_http,
-                    max_items=research_policy.max_news_items,
-                    max_source_text_chars=research_policy.max_source_text_chars,
+                fundamentals_provider=(
+                    MoomooFundamentalsProvider(research_moomoo)
+                    if research_moomoo is not None
+                    else MassiveFundamentalsProvider(research_http)
                 ),
-                sentiment_provider=MassiveSentimentProvider(
-                    research_http, max_items=research_policy.max_news_items
+                news_provider=(
+                    MoomooNewsMacroProvider(
+                        research_moomoo,
+                        max_items=research_policy.max_news_items,
+                    )
+                    if research_moomoo is not None
+                    else MassiveNewsMacroProvider(
+                        research_http,
+                        max_items=research_policy.max_news_items,
+                        max_source_text_chars=research_policy.max_source_text_chars,
+                    )
+                ),
+                sentiment_provider=(
+                    MoomooAnalystConsensusProvider(research_moomoo)
+                    if research_moomoo is not None
+                    else MassiveSentimentProvider(
+                        research_http, max_items=research_policy.max_news_items
+                    )
                 ),
                 agents=ResearchAgentRunner(
                     api_key=settings.require_openai_api_key(), router=router

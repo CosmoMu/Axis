@@ -121,6 +121,7 @@ class ResearchService:
         self._cache: dict[str, _CacheEntry] = {}
         self._inflight: dict[str, asyncio.Task[ResearchRunResult]] = {}
         self._last_user_request: dict[tuple[int, int], float] = {}
+        self._last_ticker_request: dict[tuple[int, str], float] = {}
         self._guild_fresh_requests: defaultdict[int, deque[float]] = defaultdict(deque)
         self._lock = asyncio.Lock()
         self._semaphore = asyncio.Semaphore(policy.max_concurrent_runs)
@@ -160,6 +161,7 @@ class ResearchService:
         as_of: datetime | None = None,
         progress: ProgressCallback | None = None,
         enforce_rate_limits: bool = True,
+        bypass_cooldowns: bool = False,
     ) -> ResearchRunResult:
         try:
             symbol = normalize_stock_ticker(ticker)
@@ -181,7 +183,7 @@ class ResearchService:
         task: asyncio.Task[ResearchRunResult] | None = None
         cached: ResearchRunResult | None = None
         async with self._lock:
-            if enforce_rate_limits:
+            if enforce_rate_limits and not bypass_cooldowns:
                 user_key = (guild_id, actor_user_id)
                 previous = self._last_user_request.get(user_key)
                 if previous is not None and now - previous < self.policy.user_cooldown_seconds:
@@ -189,7 +191,18 @@ class ResearchService:
                         guild_id, actor_user_id, symbol, interaction_id, "USER_COOLDOWN"
                     )
                     raise ResearchError("RESEARCH_USER_COOLDOWN")
+                ticker_key = (guild_id, symbol)
+                previous_ticker = self._last_ticker_request.get(ticker_key)
+                if (
+                    previous_ticker is not None
+                    and now - previous_ticker < self.policy.ticker_cooldown_seconds
+                ):
+                    await self._rate_limited(
+                        guild_id, actor_user_id, symbol, interaction_id, "TICKER_COOLDOWN"
+                    )
+                    raise ResearchError("RESEARCH_TICKER_COOLDOWN")
                 self._last_user_request[user_key] = now
+                self._last_ticker_request[ticker_key] = now
             cache_entry = self._cache.get(key)
             if (
                 cache_entry is not None
@@ -463,10 +476,10 @@ class ResearchService:
         as_of: datetime,
         progress: ProgressCallback | None,
     ) -> tuple[CollectedComponent, ...]:
-        specs: tuple[tuple[str, Awaitable[Any], str], ...] = (
+        specs: tuple[tuple[str, Callable[[], Awaitable[Any]], str], ...] = (
             (
                 "technical",
-                self.technical_provider.fetch(
+                lambda: self.technical_provider.fetch(
                     guild_id=guild_id,
                     actor_user_id=actor_user_id,
                     ticker=ticker,
@@ -476,7 +489,7 @@ class ResearchService:
             ),
             (
                 "gex",
-                self.gex_provider.fetch(
+                lambda: self.gex_provider.fetch(
                     guild_id=guild_id,
                     actor_user_id=actor_user_id,
                     ticker=ticker,
@@ -486,17 +499,17 @@ class ResearchService:
             ),
             (
                 "fundamentals",
-                self.fundamentals_provider.fetch(ticker, as_of=as_of),
+                lambda: self.fundamentals_provider.fetch(ticker, as_of=as_of),
                 "RESEARCH_FUNDAMENTALS_FAILURE",
             ),
             (
                 "news_macro",
-                self.news_provider.fetch(ticker, as_of=as_of),
+                lambda: self.news_provider.fetch(ticker, as_of=as_of),
                 "RESEARCH_NEWS_FAILURE",
             ),
             (
                 "sentiment",
-                self.sentiment_provider.fetch(ticker, as_of=as_of),
+                lambda: self.sentiment_provider.fetch(ticker, as_of=as_of),
                 "RESEARCH_SENTIMENT_FAILURE",
             ),
         )
@@ -520,7 +533,10 @@ class ResearchService:
                     await progress(name, "FAILED")
                 return CollectedComponent(_unavailable(name, as_of, code))
 
-        return tuple(await asyncio.gather(*(collect(*item) for item in specs)))
+        collected = []
+        for name, factory, fallback in specs:
+            collected.append(await collect(name, factory(), fallback))
+        return tuple(collected)
 
     async def _reason(
         self, pack: ResearchPack, progress: ProgressCallback | None
