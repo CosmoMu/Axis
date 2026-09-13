@@ -18,10 +18,10 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - GEX Explorer: INTERNAL RESEARCH ENGINE / STANDALONE COMMAND RETIRED
 - AXIS Stock Analyst: INTERNAL RESEARCH ENGINE / STANDALONE COMMAND RETIRED
 - AXIS Multi-Agent Research: MEMBER LOUNGE LIVE / PUBLIC SHARED CARD
-- SPY 0DTE Desk: TEST / MOOMOO CAPABILITY PASS / MEMBER SCHEDULER DISABLED
+- SPY 0DTE Desk: MEMBER / FORMAL 5-MINUTE CARDS / MOOMOO ONLY
 - Production Market Data: MOOMOO / MASSIVE ADAPTER DORMANT FOR ROLLBACK
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 374 passed；Ruff / compileall PASS
+- Latest automated regression: 376 passed；Ruff / compileall PASS
 
 ## 文档入口
 

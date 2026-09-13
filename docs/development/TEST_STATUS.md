@@ -4,18 +4,20 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 374 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 376 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - SPY 0DTE Desk TEST gate: PASS — real OpenD returned SPY spot `$764.29`, 78 complete five-minute
   bars and 390 exact-date contracts for 2026-09-11; 2026-09-14 also returned 310 contracts. Sampled
   Gamma、IV、OI、Volume、Bid/Ask and timestamps all passed without Massive or proxy data.
-- SPY Discord TEST: channel ID `1548831345143189504` was renamed in place to `📍・spy-0dte` and its
-  topic updated; no channel was created, deleted, or moved. Final dry-run is
-  `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`; runtime verifier PASS. A fresh passing Moomoo card
-  was sent to `🧪・卡片测试` as message `1548836281252061236`.
-- SPY member scheduler: DISABLED pending exact launch approval and a fresh real-session provider
-  gate.
+- SPY member card: PASS — the formal Chinese embed and GEX image are generated from one frozen
+  Moomoo snapshot. On the weekend, acceptance uses the latest completed session and visibly marks
+  the result as `历史收盘测试快照`; it is not the capability diagnostic card. The formal card was
+  sent directly to `📍・spy-0dte` as message `1548842888815968256` using 297 exact-date contracts.
+- SPY member scheduler: ENABLED — one new card per valid five-minute slot, 09:35 ET through actual
+  close, with holiday/half-day calendar handling, in-memory plus Discord-history slot idempotency
+  and no backfill. Final Blueprint dry-run is `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`, and the
+  runtime permission verifier passes for Bot send/embed/attach while Member/Manager remain read-only.
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS

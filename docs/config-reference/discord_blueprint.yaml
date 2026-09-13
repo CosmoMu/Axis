@@ -139,6 +139,9 @@ categories:
         type: text
         topic: "SPY 0DTE 市场结构评分。仅 Bot 发布；不构成交易信号。"
         everyone_view: false
+        everyone_send: true
+        everyone_attach: true
+        everyone_embed: true
         member_view: true
         member_send: false
         manager_view: true

@@ -1,6 +1,6 @@
 version: SPY_0DTE_V2
 enabled: true
-mode: TEST
+mode: MEMBER
 
 start_time_et: "09:35"
 end_time_et: "16:00"

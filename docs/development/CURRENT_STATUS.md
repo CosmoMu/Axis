@@ -657,15 +657,16 @@ Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系
 
 未开始：Model A / Model B、Generate / Shadow / Champion / Challenger、模型扫描、账户读取、
 自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
-## SPY 0DTE Desk — TEST / MOOMOO CAPABILITY PASS
+## SPY 0DTE Desk — MEMBER / FIVE-MINUTE FORMAL CARD LIVE
 
-- 已实现 Moomoo-only SPY 0DTE 能力探针、Owner-only `/test-spy-0dte`、中文诊断卡、
-  deterministic PNG、-100 至 +100 的纯计算评分策略与默认禁用的会员 Scheduler 边界。
+- 已实现 Moomoo-only SPY 0DTE 正式会员卡、中文结构摘要、同源 GEX PNG、-100 至 +100 的
+  纯计算评分与 70/30 展示平滑。
 - 标的、现价、5 分钟 K 线、期权链和合约根全部统一为真实 `US.SPY` / `US.SPY...`；不再混用
   SPX 或 SPXW 语义。
 - 2026-09-13 真实 OpenD 验证：SPY 现价可用；2026-09-11 返回 78 根完整 5 分钟 K 线和
   390 张同日到期期权；2026-09-14 返回 310 张期权。抽样 Gamma、IV、OI、Volume、Bid/Ask、
   更新时间全部可用。
-- 能力门禁通过，仍保持 TEST；缺失关键字段时继续严格失败关闭且不使用 Massive fallback。
-- `📍・SPY-0DTE` 频道可以创建，但会员广播保持禁用；只有收到精确批准
-  `APPROVE SPY 0DTE MEMBER LAUNCH` 且真实盘中门禁通过后才能启用。
+- 能力门禁通过；缺失关键字段时继续严格失败关闭且不使用 Massive fallback。
+- `📍・spy-0dte` 在美国交易日 09:35 ET 起每五分钟发布一张新卡，直到实际收盘；按交易日和
+  时间槽幂等，不补发错过的时间槽，并通过 `TradingCalendarService` 处理节假日与半日市。
+- 非交易时段人工验收使用最新已完成交易日，并明确标注为历史收盘测试快照。

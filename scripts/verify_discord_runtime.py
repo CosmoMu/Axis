@@ -260,6 +260,11 @@ async def verify() -> list[str]:
             "manager_spy_0dte_send",
             failures,
         )
+        spy_bot_permissions = spy_0dte.permissions_for(bot_member)
+        _check(spy_bot_permissions.view_channel, "bot_spy_0dte_view", failures)
+        _check(spy_bot_permissions.send_messages, "bot_spy_0dte_send", failures)
+        _check(spy_bot_permissions.embed_links, "bot_spy_0dte_embed", failures)
+        _check(spy_bot_permissions.attach_files, "bot_spy_0dte_attach", failures)
         _check(
             short_term.permissions_for(bot_member).pin_messages,
             "bot_short_term_pin",

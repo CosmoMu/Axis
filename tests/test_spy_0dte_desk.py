@@ -3,14 +3,18 @@ from pathlib import Path
 
 from app.bot.spy_0dte_cards import build_spy_capability_embed
 from app.services.spy_0dte_desk import (
+    ET,
+    MoomooSpy0dteProvider,
     Spy0dtePolicy,
     SpyCapabilityReport,
     SpyScoreInputs,
     calculate_score,
     latest_completed_session,
+    publishing_slot,
     render_capability_image,
     structure_label,
 )
+from app.services.trading_calendar import TradingCalendarService
 
 
 def policy() -> Spy0dtePolicy:
@@ -39,10 +43,10 @@ def report(*, ready: bool = False) -> SpyCapabilityReport:
     )
 
 
-def test_policy_is_test_only_and_scheduler_contract_is_five_minutes() -> None:
+def test_policy_is_member_mode_and_scheduler_contract_is_five_minutes() -> None:
     value = policy()
     assert value.enabled is True
-    assert value.mode == "TEST"
+    assert value.mode == "MEMBER"
     assert value.refresh_minutes == 5
     assert sum(value.weights.values()) == 1
 
@@ -84,3 +88,28 @@ def test_diagnostic_image_is_png_and_large_enough_for_discord() -> None:
 def test_weekend_probe_uses_latest_completed_session() -> None:
     assert latest_completed_session(datetime(2026, 9, 13, 12, tzinfo=UTC)) == date(2026, 9, 11)
     assert latest_completed_session(datetime(2026, 9, 14, 21, tzinfo=UTC)) == date(2026, 9, 14)
+
+
+def test_scheduler_uses_five_minute_session_slots_without_weekend_or_close() -> None:
+    calendar = TradingCalendarService()
+    assert publishing_slot(datetime(2026, 9, 14, 9, 35, tzinfo=ET), policy(), calendar) == (
+        date(2026, 9, 14),
+        9,
+        35,
+    )
+    assert publishing_slot(datetime(2026, 9, 14, 9, 36, tzinfo=ET), policy(), calendar) is None
+    assert publishing_slot(datetime(2026, 9, 14, 16, 0, tzinfo=ET), policy(), calendar) is None
+    assert publishing_slot(datetime(2026, 9, 13, 10, 0, tzinfo=ET), policy(), calendar) is None
+
+
+def test_key_levels_prefer_nearby_price_structure_over_far_gex_level() -> None:
+    from app.market_intelligence.gex_explorer.models import GexIntradayBar
+
+    bars = (
+        GexIntradayBar(datetime(2026, 9, 11, 15, 55, tzinfo=ET), 765, 765.2, 764.4, 764.7, 1),
+        GexIntradayBar(datetime(2026, 9, 11, 16, 0, tzinfo=ET), 764.7, 764.8, 764.0, 764.29, 1),
+    )
+    levels = MoomooSpy0dteProvider._key_levels(
+        (724.0,), bars, 764.29, 765.1, 764.8, below=True
+    )
+    assert levels == (764.0,)

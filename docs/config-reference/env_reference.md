@@ -128,9 +128,10 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 
 SPY 0DTE Desk uses only local Moomoo OpenD:
 
-- `SPY_0DTE_ENABLED=true|false` — enables the Owner TEST surface.
-- `SPY_0DTE_MODE=TEST|MEMBER` — only `TEST` is currently approved.
-- `SPY_0DTE_SCHEDULER_ENABLED=false` — remains false until exact Owner launch approval.
+- `SPY_0DTE_ENABLED=true|false` — enables the SPY 0DTE module.
+- `SPY_0DTE_MODE=TEST|MEMBER` — production member publication uses `MEMBER`.
+- `SPY_0DTE_SCHEDULER_ENABLED=true|false` — production is enabled; publishes valid five-minute
+  slots from 09:35 ET through the actual U.S. session close.
 - `SPY_0DTE_POLICY=config/spy_0dte_desk.yaml` — versioned scoring/schedule policy.
 - There is no Massive or proxy-instrument fallback variable for this module.
 

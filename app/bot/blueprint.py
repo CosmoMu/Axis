@@ -206,6 +206,7 @@ def load_blueprint(path: Path) -> Blueprint:
                         "_view",
                         "_send",
                         "_attach",
+                        "_embed",
                         "_interact",
                         "_manage_messages",
                         "_pin_messages",
@@ -340,6 +341,9 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
             values["attach_files"] = channel.permissions[attach_key]
         elif subject == "bot" or not can_send:
             values["attach_files"] = subject == "bot" and can_send
+        embed_key = f"{subject}_embed"
+        if embed_key in channel.permissions:
+            values["embed_links"] = channel.permissions[embed_key]
         interact_key = f"{subject}_interact"
         if interact_key in channel.permissions:
             values["use_application_commands"] = channel.permissions[interact_key]
@@ -350,7 +354,7 @@ def desired_channel_permissions(channel: ChannelSpec) -> dict[str, dict[str, boo
         if pin_messages_key in channel.permissions:
             values["pin_messages"] = channel.permissions[pin_messages_key]
         if subject == "bot":
-            values["embed_links"] = can_send
+            values.setdefault("embed_links", can_send)
             values["manage_messages"] = can_send
             # Existing channels can deny manage_channels through @everyone.
             # Restore the Bot's guild-level capability explicitly so Bootstrap

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import discord
 
-from app.services.spy_0dte_desk import SpyCapabilityReport
+from app.services.spy_0dte_desk import Spy0dteSnapshot, SpyCapabilityReport
 
 ET = ZoneInfo("America/New_York")
 
@@ -76,3 +76,103 @@ def build_spy_capability_embed(report: SpyCapabilityReport) -> discord.Embed:
 
 def _option_fields_ready(report: SpyCapabilityReport) -> bool:
     return all((report.gamma, report.implied_volatility, report.open_interest, report.volume))
+
+
+def build_spy_snapshot_embed(snapshot: Spy0dteSnapshot) -> discord.Embed:
+    score = f"{snapshot.display_score:+d}"
+    color = (
+        0x86F7A8
+        if snapshot.display_score > 19
+        else 0xE56B73
+        if snapshot.display_score < -19
+        else 0xD9DDD8
+    )
+    state = "历史收盘测试快照" if snapshot.stale else "实时数据正常"
+    embed = discord.Embed(
+        title="AXIS · SPY 0DTE",
+        description=(
+            f"**SPY ${snapshot.spot:,.2f}**\n"
+            f"**日内结构评分 {score} · {snapshot.structure_label}**\n"
+            "`-100 ───────── 0 ───────── +100`"
+        ),
+        color=color,
+    )
+    embed.add_field(
+        name="Gamma 结构",
+        value=(
+            f"环境：{snapshot.gamma_regime}\n"
+            f"0DTE Net GEX：{_money(snapshot.net_gex)}\n"
+            f"Gamma Flip：{_price(snapshot.gamma_flip)}\n"
+            f"Gamma Magnet：{_price(snapshot.gamma_magnet)}"
+        ),
+        inline=True,
+    )
+    embed.add_field(
+        name="关键位置",
+        value=(
+            f"支撑：{_levels(snapshot.supports)}\n"
+            f"压力：{_levels(snapshot.resistances)}\n"
+            f"Call Wall：{_price(snapshot.call_wall)}\n"
+            f"Put Wall：{_price(snapshot.put_wall)}"
+        ),
+        inline=True,
+    )
+    embed.add_field(
+        name="价格结构",
+        value=(
+            f"VWAP：${snapshot.vwap:,.2f} · {_position(snapshot.spot, snapshot.vwap)}\n"
+            f"5分钟 9EMA：${snapshot.ema9_5m:,.2f} · {_position(snapshot.spot, snapshot.ema9_5m)}\n"
+            f"成交量：{snapshot.volume_ratio:.2f}× 最近20根均值"
+            if snapshot.volume_ratio is not None
+            else f"VWAP：${snapshot.vwap:,.2f}\n5分钟 9EMA：${snapshot.ema9_5m:,.2f}\n成交量：—"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="0DTE Gamma Flow",
+        value=(
+            f"成交量 Gamma：{snapshot.volume_gamma_bias}\n"
+            f"OI Gamma：{snapshot.oi_gamma_bias}\n"
+            f"动能：{snapshot.momentum}\n"
+            "预期波动："
+            f"{f'±${snapshot.expected_move:,.2f}' if snapshot.expected_move is not None else '—'}"
+        ),
+        inline=True,
+    )
+    embed.add_field(
+        name="数据状态",
+        value=(
+            f"{state}\n"
+            f"交易日：{snapshot.session_date:%Y-%m-%d}\n"
+            f"合约：{snapshot.option_contract_count} 张\n"
+            f"更新：{snapshot.spot_timestamp.astimezone(ET):%H:%M} ET"
+        ),
+        inline=True,
+    )
+    embed.set_image(url="attachment://axis-spy-0dte.png")
+    embed.set_footer(
+        text="仅用于市场分析与教育。不构成投资建议、交易建议或买卖信号。MY RISK IS NOT YOUR RISK."
+    )
+    return embed
+
+
+def _money(value: float) -> str:
+    sign = "+" if value >= 0 else "-"
+    amount = abs(value)
+    if amount >= 1_000_000_000:
+        return f"{sign}${amount / 1_000_000_000:.2f}B"
+    if amount >= 1_000_000:
+        return f"{sign}${amount / 1_000_000:.1f}M"
+    return f"{sign}${amount:,.0f}"
+
+
+def _price(value: float | None) -> str:
+    return "—" if value is None else f"${value:,.2f}"
+
+
+def _levels(values: tuple[float, ...]) -> str:
+    return " / ".join(f"${value:,.2f}" for value in values) if values else "—"
+
+
+def _position(spot: float, reference: float) -> str:
+    return "上方" if spot > reference else "下方" if spot < reference else "重合"

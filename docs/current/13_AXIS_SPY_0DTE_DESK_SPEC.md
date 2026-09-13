@@ -1,7 +1,7 @@
 # AXIS SPY 0DTE Desk — Current Source of Truth
 
 Version: SPY_0DTE_V2
-Status: TEST / MEMBER SCHEDULER DISABLED
+Status: MEMBER / FIVE-MINUTE SCHEDULER ENABLED
 
 This module is a read-only SPY same-day market-structure desk. It is not a trade signal and must
 never produce option recommendations, entry, target, stop, BUY/SELL, or CALL/PUT setup language.
@@ -14,13 +14,15 @@ never produce option recommendations, entry, target, stop, BUY/SELL, or CALL/PUT
 - Spot and five-minute candles must be the real SPY ETF. Index, strike-derived, cached, or
   fabricated proxies are forbidden.
 
-## Runtime gate
+## Runtime and publication
 
-- Initial command: `/test-spy-0dte`.
-- Owner only, `🧪・卡片测试` only.
 - Public member channel: `📍・spy-0dte`; members can view but cannot send.
-- The scheduler remains disabled until the Owner sends the exact approval
-  `APPROVE SPY 0DTE MEMBER LAUNCH`.
+- During a valid U.S. equity session, the Bot publishes one new formal card every five minutes,
+  starting at 09:35 ET and ending at the actual session close.
+- Publication is session/slot idempotent, does not backfill missed slots, and respects holidays and
+  half days through `TradingCalendarService`.
+- The formal Discord embed and its GEX image use the same frozen Moomoo snapshot. The first view is
+  the market-structure summary, not a capability-test card.
 - Any missing SPY spot, five-minute candles, exact-date chain, Greeks, freshness, or minimum coverage
   causes fail-closed behavior. A normal score card must not be published.
 
