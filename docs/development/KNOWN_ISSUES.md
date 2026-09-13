@@ -167,3 +167,9 @@ Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warni
 - 除已授权但仍处于 DRY_RUN gate 的 Owner-only Personal Moomoo Execution 外，任何会员交易、模型
   扫描或其他自动下单。
 - 图片生成模型；当前 Prediction Chart 使用确定性 renderer。
+## P0 — SPXW 0DTE 正常评分被 Moomoo SPX 指数行情能力阻止
+
+2026-09-13 实测确认，Moomoo OpenD 能通过 `US..SPX` owner lookup 返回真实 `US.SPXW...`
+期权链及 Gamma/IV/OI/Volume/Bid/Ask/时间戳，但 SPX 指数 snapshot 和历史 5 分钟 K 线均返回
+“暂不支持美股指数”。SPXW 不是独立现货代码。模块保持 TEST、正常评分失败关闭、会员 Scheduler
+禁用；禁止使用 SPY 或推算数据绕过。

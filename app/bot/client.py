@@ -21,6 +21,7 @@ from app.bot.cogs.personal_execution import PersonalExecutionCog
 from app.bot.cogs.research import ResearchCog
 from app.bot.cogs.short_term_tracking import ShortTermTrackingCog
 from app.bot.cogs.signal_input import SignalInputCog
+from app.bot.cogs.spxw_0dte import Spxw0dteCog
 from app.bot.cogs.stock_analyst import StockAnalystCog
 from app.bot.cogs.swing_tracking import SwingTrackingCog
 from app.bot.cogs.system_alerts import SystemAlertsCog
@@ -49,6 +50,7 @@ from app.services.official_results import OfficialResultsService
 from app.services.personal_execution import PersonalExecutionService
 from app.services.short_term_tracking import MarketTrackingService
 from app.services.signal_input import SignalInputService
+from app.services.spxw_0dte_desk import MoomooSpxw0dteProvider, Spxw0dtePolicy
 from app.services.stock_analyst import StockAnalystQueryService
 from app.services.swing_tracking import SwingTrackingService
 from app.services.system_alerts import SystemAlertService
@@ -96,6 +98,8 @@ class AxisBot(commands.Bot):
         gex_explorer_service: GexExplorerService | None,
         stock_analyst_service: StockAnalystQueryService | None,
         research_service: ResearchService | None,
+        spxw_0dte_provider: MoomooSpxw0dteProvider | None,
+        spxw_0dte_policy: Spxw0dtePolicy | None,
     ) -> None:
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -287,6 +291,25 @@ class AxisBot(commands.Bot):
             if research_service is not None and settings.discord_owner_user_id is not None
             else None
         )
+        self._spxw_0dte_cog = (
+            Spxw0dteCog(
+                self,
+                provider=spxw_0dte_provider,
+                policy=spxw_0dte_policy,
+                guild_id=settings.discord_guild_id,
+                owner_user_id=settings.discord_owner_user_id,
+                card_testing_channel_id=_required_snowflake(channels, "card_testing"),
+                member_channel_id=_required_snowflake(channels, "spxw_0dte"),
+                scheduler_enabled=settings.spxw_0dte_scheduler_enabled,
+            )
+            if (
+                settings.spxw_0dte_enabled
+                and spxw_0dte_provider is not None
+                and spxw_0dte_policy is not None
+                and settings.discord_owner_user_id is not None
+            )
+            else None
+        )
         self._analysis_cog = (
             AnalysisPipelineCog(
                 self,
@@ -373,6 +396,8 @@ class AxisBot(commands.Bot):
             await self.add_cog(self._stock_analyst_cog)
         if self._research_cog is not None:
             await self.add_cog(self._research_cog)
+        if self._spxw_0dte_cog is not None:
+            await self.add_cog(self._spxw_0dte_cog)
         if self._analysis_cog is not None:
             await self.add_cog(self._analysis_cog)
         if self._daily_summary_cog is not None:

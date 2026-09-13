@@ -784,7 +784,8 @@ def build_plan(
                 else [
                     channel
                     for channel in state.channels
-                    if channel.category_id == category_id and channel.name == channel_spec.name
+                    if channel.category_id == category_id
+                    and channel.name.casefold() == channel_spec.name.casefold()
                 ]
                 if category_id is not None
                 else []
@@ -812,7 +813,7 @@ def build_plan(
                 )
                 continue
             channel = matches[0]
-            if saved_channel and saved_channel.name != channel_spec.name:
+            if saved_channel and saved_channel.name.casefold() != channel_spec.name.casefold():
                 if allow_axis_renames:
                     actions.append(
                         PlanAction(
@@ -862,7 +863,7 @@ def build_plan(
                     )
                 )
                 continue
-            if channel.name == channel_spec.name:
+            if channel.name.casefold() == channel_spec.name.casefold():
                 actions.append(
                     PlanAction(
                         "REUSE",
@@ -912,8 +913,8 @@ def build_plan(
                     )
                 )
 
-    if blueprint.channel_count != 24:
-        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 25 个。")
+    if blueprint.channel_count != 26:
+        warnings.append(f"当前蓝图有 {blueprint.channel_count} 个频道；AXIS 当前规格预期 26 个。")
     if len(blueprint.categories) != 4:
         warnings.append(f"当前蓝图有 {len(blueprint.categories)} 个 Category；MVP 规格预期 4 个。")
     warnings.append("dry-run 不创建长期控制面板；面板将在数据库阶段用 Message ID 保证幂等。")

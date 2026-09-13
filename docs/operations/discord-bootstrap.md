@@ -56,7 +56,7 @@ DRY_RUN=false
 完成后立即把 `.env` 恢复为 `APPLY_CHANGES=false`、`DRY_RUN=true`，并再次运行 dry-run。
 重复运行不应出现 `CREATE`；非项目资源不得出现在 `UPDATE` 或 `BLOCK` 的目标中。
 
-当前蓝图为 4 个 Category、25 个 Channel。`📣・人工喊单` 只对 Member、Manager、Owner 与
+当前蓝图为 4 个 Category、26 个 Channel。`📣・人工喊单` 只对 Member、Manager、Owner 与
 AXIS BOT 可见，其中 Member 与 Manager 可以发送普通消息；该频道不挂载任何产品功能。
 `📋・战绩审核` 只对 Manager、Owner 与
 AXIS BOT 可见；Manager 可以使用 Bot interaction，但不能发送普通消息。`🚨・系统警报` 与

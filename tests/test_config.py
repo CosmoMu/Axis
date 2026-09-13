@@ -156,6 +156,26 @@ def test_moomoo_stock_and_gex_do_not_require_massive_key() -> None:
     configured.assert_gex_safety()
 
 
+def test_spxw_0dte_test_mode_requires_owner_and_disables_scheduler() -> None:
+    root = Path(__file__).parents[1]
+    base = settings(apply_changes=False, dry_run=True)
+    with pytest.raises(ConfigurationError, match="DISCORD_OWNER_USER_ID"):
+        replace(
+            base,
+            spxw_0dte_enabled=True,
+            spxw_0dte_policy_path=root / "config/spxw_0dte_desk.yaml",
+        ).assert_spxw_0dte_safety()
+    with pytest.raises(ConfigurationError, match="Scheduler disabled"):
+        replace(
+            base,
+            discord_owner_user_id=1,
+            spxw_0dte_enabled=True,
+            spxw_0dte_mode="TEST",
+            spxw_0dte_scheduler_enabled=True,
+            spxw_0dte_policy_path=root / "config/spxw_0dte_desk.yaml",
+        ).assert_spxw_0dte_safety()
+
+
 def test_research_modes_and_moomoo_auxiliary_provider_are_fail_closed() -> None:
     base = settings(apply_changes=False, dry_run=True)
     replace(base, research_mode="OFF").assert_research_safety()

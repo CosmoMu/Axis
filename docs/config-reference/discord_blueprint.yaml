@@ -134,6 +134,18 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
+      - key: spxw_0dte
+        name: "📍・spxw-0dte"
+        type: text
+        topic: "SPXW 0DTE 市场结构评分。仅 Bot 发布；不构成交易信号。"
+        everyone_view: false
+        member_view: true
+        member_send: false
+        manager_view: true
+        manager_send: false
+        bot_inherit: true
+        bot_send: true
+        bot_pin_messages: true
       - key: manual_alerts
         name: "📣・人工喊单"
         type: text

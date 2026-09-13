@@ -4,9 +4,18 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 368 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 374 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
+- SPXW 0DTE Desk TEST gate: PASS / NORMAL SCORE BLOCKED BY PROVIDER — exact-date Moomoo query
+  returned 488 real `US.SPXW...` contracts with Gamma、IV、OI、Volume、Bid/Ask and timestamps.
+  Moomoo rejected both `US..SPX` spot snapshot and SPX five-minute history as unsupported, so AXIS
+  correctly generated no score or levels and used no SPY/Massive/fabricated fallback.
+- SPXW Discord TEST: PASS — `📍・spxw-0dte` created as the only missing resource; final dry-run
+  `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`; runtime verifier PASS; exactly one diagnostic embed +
+  deterministic PNG sent to `🧪・卡片测试` as message `1548833200464470192`.
+- SPXW member scheduler: DISABLED pending exact launch approval and a passing real-session provider
+  gate.
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS

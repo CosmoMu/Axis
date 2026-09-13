@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的十二份文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的十三份规格文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -34,7 +34,9 @@
     Strike × Expiration Ladder、Moomoo 后台影子比较、中文复合图及安全门。
 12. 12_AXIS_MOOMOO_MARKET_DATA_SPEC.md — 覆盖旧 provider 说明：Moomoo Production primary、
     Massive dormant rollback、四项显式配置、empty-key startup 与 SPX fail-closed 边界。
-13. README_FOR_CODEX.md — 本入口和文档使用规则。
+13. 13_AXIS_SPXW_0DTE_DESK_SPEC.md — SPXW 0DTE TEST-only 模块、Moomoo 合约根过滤、
+    deterministic score、失败关闭与会员 Scheduler 上线门禁。
+14. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 

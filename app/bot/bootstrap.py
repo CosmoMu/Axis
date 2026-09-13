@@ -358,7 +358,11 @@ async def _create_or_reuse_channels(
             matches = (
                 [saved_channel]
                 if saved_channel
-                else [channel for channel in category.channels if channel.name == spec.name]
+                else [
+                    channel
+                    for channel in category.channels
+                    if channel.name.casefold() == spec.name.casefold()
+                ]
             )
             if len(matches) > 1:
                 raise ConfigurationError(f"频道 {spec.name} 有多个同名资源，拒绝写入。")
@@ -366,7 +370,7 @@ async def _create_or_reuse_channels(
                 channel = matches[0]
                 if not isinstance(channel, discord.TextChannel):
                     raise ConfigurationError(f"频道 {spec.name} 同名但类型不是 text，拒绝写入。")
-                if channel.name != spec.name:
+                if channel.name.casefold() != spec.name.casefold():
                     if not allow_axis_renames or saved_channel is None:
                         raise ConfigurationError(
                             f"保存的 Channel {spec.key} 已改名，未授权 AXIS 重命名。"

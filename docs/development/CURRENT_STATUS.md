@@ -26,7 +26,7 @@ bid/ask/last/volume/OI/IV/delta/gamma/update timestamp 与 OPRA best bid/ask；�
 Massive provider code保留为显式回滚 adapter，不自动 fallback，四项 provider 为 Moomoo 时允许
 `MASSIVE_API_KEY` 为空。SPX option chain/snapshot 可读但指数现货 snapshot 不受支持，因此单独
 fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 的真实 Bot 启动、
-SPY/NVDA Stock + GEX Discord 卡片上传、368 项完整回归与部署后 runtime hash 均已通过。
+SPY/NVDA Stock + GEX Discord 卡片上传、374 项完整回归与部署后 runtime hash 均已通过。
 Personal Moomoo LIVE writes 仍禁用。
 
 AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，并在
@@ -37,10 +37,10 @@ AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完�
 分项，其他人不能操作按钮。独立 `/stock`、`/gex` 及 `gex TICKER` 入口已下架，但两个引擎仍作为
 Research 内部依赖保留。Signal、Trade、Results、Membership、Stripe 与 broker execution 均无副作用。
 
-Discord 的 4 个 Category 与 25 个 AXIS Channel 已按 Blueprint v6 完成中文显示名同步；正式
+Discord 的 4 个 Category 与 26 个 AXIS Channel 已按 Blueprint v6 完成中文显示名同步；正式
 模块品牌 `AXIS LAB` 保持英文。`📣・人工喊单` 已在 `🟢・会员专区` 上线，仅 Member、Manager、
 Owner 与 Bot 可见，其中 Member 与 Manager 可直接发言；不挂载指令、自动解析或数据库功能。
-最终 Bootstrap dry-run 为 `REUSE=33 / CREATE=0 / UPDATE=0 / BLOCK=0`。
+新增 SPXW 频道后的最终 Bootstrap dry-run 为 `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`。
 
 Core Gate A 和 Analysis Gate B 已通过。Pre-Soft-Open backup、测试数据清理、公开编号复位与
 Discord 消息清理已完成；`2026-08-31` 起真实输入是永久 Production Data。Daily Results Review
@@ -90,7 +90,7 @@ Implemented:
 
 Production status: **MEMBER LOUNGE LIVE.** MSTR 真实 OpenD 辅助源验证为 3/3 AVAILABLE；所有
 Research 自然语言字段必须使用简体中文，英文 prose 会 fail-closed；来源文本中的合法数字已纳入
-provenance guard，未验证数字会省略整项数值论述，不再产生 `[未提供数值]`。368 项完整回归、
+provenance guard，未验证数字会省略整项数值论述，不再产生 `[未提供数值]`。374 项完整回归、
 Ruff 与 compileall 通过。若任何分项真实不可用，仍按原界面显示数据覆盖不足，绝不伪造数据或
 降低 coverage gate。
 
@@ -657,3 +657,14 @@ Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系
 
 未开始：Model A / Model B、Generate / Shadow / Champion / Challenger、模型扫描、账户读取、
 自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
+## SPXW 0DTE Desk — TEST / PROVIDER GATE BLOCKED
+
+- 已实现 Moomoo-only SPXW 0DTE 能力探针、Owner-only `/test-spxw-0dte`、中文诊断卡、
+  deterministic PNG、-100 至 +100 的纯计算评分策略与默认禁用的会员 Scheduler 边界。
+- Moomoo 的 `US..SPX` 仅作为官方期权链 owner lookup；所有合约强制过滤为真实
+  `US.SPXW...` 且到期日必须等于目标交易日，不接收普通 SPX 月度合约。
+- 2026-09-13 真实 OpenD 验证：2026-09-14 链返回 488 张 SPXW 合约，Gamma、IV、OI、Volume、
+  Bid/Ask、更新时间可用；SPX 指数 snapshot 和 5 分钟历史 K 线均返回“不支持美股指数”。
+- 当前严格失败关闭：不生成正常评分，不使用 SPY、行权价推算、假 K 线或 Massive fallback。
+- `📍・SPXW-0DTE` 频道可以创建，但会员广播保持禁用；只有收到精确批准
+  `APPROVE SPXW 0DTE MEMBER LAUNCH` 且真实盘中门禁通过后才能启用。
