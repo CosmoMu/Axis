@@ -10,7 +10,8 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import func, select
 
-from app.bot.cogs.research import research_authorization_error
+from app.bot.cogs.research import ResearchDetailView, research_authorization_error
+from app.bot.research_cards import build_research_embed, detail_embed, progress_text
 from app.db.base import Base
 from app.db.models import (
     GuildConfig,
@@ -349,6 +350,57 @@ async def test_functional_research_run_and_read_only_boundary(ticker: str) -> No
 
 
 @pytest.mark.asyncio
+async def test_research_discord_ui_is_chinese_and_never_exposes_raw_json() -> None:
+    db = await database()
+    service, _, _ = make_service(db)
+    result = await service.query(
+        guild_id=GUILD_ID,
+        actor_user_id=OWNER_ID,
+        ticker="NVDA",
+        enforce_rate_limits=False,
+    )
+
+    view = ResearchDetailView(result, owner_user_id=OWNER_ID)
+    assert [item.label for item in view.children] == [
+        "技术面",
+        "期权结构",
+        "基本面",
+        "新闻动态",
+        "多空观点",
+        "风险评估",
+    ]
+
+    main_embed = build_research_embed(result)
+    main = main_embed.to_dict()
+    assert "多智能体研究" in main["title"]
+    assert "研究倾向" in {field["name"] for field in main["fields"]}
+    assert len(main_embed) <= 6000
+    progress = progress_text("NVDA", {"technical": "DONE"})
+    assert "技术面" in progress
+    assert "Technical" not in progress
+
+    expected_titles = {
+        "technical": "技术面",
+        "gex": "期权结构",
+        "fundamentals": "基本面",
+        "news": "新闻动态",
+        "bull_bear": "多空观点",
+        "risk": "风险评估",
+    }
+    for section, title in expected_titles.items():
+        embed = detail_embed(result, section)
+        payload = embed.to_dict()
+        serialized = json.dumps(payload, ensure_ascii=False)
+        assert title in payload["title"]
+        assert "```json" not in serialized
+        assert '"component"' not in serialized
+        assert len(embed) <= 6000
+        assert all(len(field["value"]) <= 1024 for field in payload.get("fields", []))
+
+    await db.dispose()
+
+
+@pytest.mark.asyncio
 async def test_partial_failure_continues_and_minimum_failure_fails_closed() -> None:
     db = await database()
     partial, _, _ = make_service(db, unavailable={"sentiment"})
@@ -373,6 +425,12 @@ async def test_partial_failure_continues_and_minimum_failure_fails_closed() -> N
     assert failed_result.view.insufficient_data
     assert failed_result.view.research_stance is None
     assert failed_agents.calls == []
+    insufficient_card = json.dumps(
+        build_research_embed(failed_result).to_dict(), ensure_ascii=False
+    )
+    assert "数据覆盖不足" in insufficient_card
+    assert "RESEARCH_" not in insufficient_card
+    assert "MASSIVE_" not in insufficient_card
     await db.dispose()
 
 

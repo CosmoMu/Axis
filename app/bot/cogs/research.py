@@ -53,31 +53,45 @@ class ResearchDetailView(discord.ui.View):
         return False
 
     async def _show(self, interaction: discord.Interaction, section: str) -> None:
-        await interaction.response.send_message(
-            embed=detail_embed(self.result, section), ephemeral=True
-        )
+        file: discord.File | None = None
+        ticker = self.result.view.ticker.lower()
+        if section == "technical" and self.result.stock_chart_png is not None:
+            file = discord.File(
+                BytesIO(self.result.stock_chart_png),
+                filename=f"axis-research-technical-{ticker}.png",
+            )
+        elif section == "gex" and self.result.gex_chart_png is not None:
+            file = discord.File(
+                BytesIO(self.result.gex_chart_png),
+                filename=f"axis-research-gex-{ticker}.png",
+            )
+        embed = detail_embed(self.result, section)
+        if file is not None:
+            await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="TECHNICAL", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="技术面", style=discord.ButtonStyle.secondary, row=0)
     async def technical(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "technical")
 
-    @discord.ui.button(label="GEX", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="期权结构", style=discord.ButtonStyle.secondary, row=0)
     async def gex(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "gex")
 
-    @discord.ui.button(label="FUNDAMENTALS", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="基本面", style=discord.ButtonStyle.secondary, row=0)
     async def fundamentals(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "fundamentals")
 
-    @discord.ui.button(label="NEWS", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="新闻动态", style=discord.ButtonStyle.secondary, row=0)
     async def news(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "news")
 
-    @discord.ui.button(label="BULL vs BEAR", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="多空观点", style=discord.ButtonStyle.secondary, row=1)
     async def bull_bear(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "bull_bear")
 
-    @discord.ui.button(label="RISK", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="风险评估", style=discord.ButtonStyle.secondary, row=1)
     async def risk(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await self._show(interaction, "risk")
 
@@ -258,10 +272,6 @@ class ResearchCog(commands.Cog):
             else:
                 await self._report_recovery(code, result.view.ticker)
         if result.view.insufficient_data:
-            await self._report_failure(
-                "RESEARCH_MIN_COVERAGE_FAILURE", result.view.ticker
-            )
+            await self._report_failure("RESEARCH_MIN_COVERAGE_FAILURE", result.view.ticker)
         else:
-            await self._report_recovery(
-                "RESEARCH_MIN_COVERAGE_FAILURE", result.view.ticker
-            )
+            await self._report_recovery("RESEARCH_MIN_COVERAGE_FAILURE", result.view.ticker)
