@@ -657,14 +657,15 @@ Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系
 
 未开始：Model A / Model B、Generate / Shadow / Champion / Challenger、模型扫描、账户读取、
 自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
-## SPXW 0DTE Desk — TEST / PROVIDER GATE BLOCKED
+## SPY 0DTE Desk — TEST / MOOMOO CAPABILITY PASS
 
-- 已实现 Moomoo-only SPXW 0DTE 能力探针、Owner-only `/test-spxw-0dte`、中文诊断卡、
+- 已实现 Moomoo-only SPY 0DTE 能力探针、Owner-only `/test-spy-0dte`、中文诊断卡、
   deterministic PNG、-100 至 +100 的纯计算评分策略与默认禁用的会员 Scheduler 边界。
-- Moomoo 的 `US..SPX` 仅作为官方期权链 owner lookup；所有合约强制过滤为真实
-  `US.SPXW...` 且到期日必须等于目标交易日，不接收普通 SPX 月度合约。
-- 2026-09-13 真实 OpenD 验证：2026-09-14 链返回 488 张 SPXW 合约，Gamma、IV、OI、Volume、
-  Bid/Ask、更新时间可用；SPX 指数 snapshot 和 5 分钟历史 K 线均返回“不支持美股指数”。
-- 当前严格失败关闭：不生成正常评分，不使用 SPY、行权价推算、假 K 线或 Massive fallback。
-- `📍・SPXW-0DTE` 频道可以创建，但会员广播保持禁用；只有收到精确批准
-  `APPROVE SPXW 0DTE MEMBER LAUNCH` 且真实盘中门禁通过后才能启用。
+- 标的、现价、5 分钟 K 线、期权链和合约根全部统一为真实 `US.SPY` / `US.SPY...`；不再混用
+  SPX 或 SPXW 语义。
+- 2026-09-13 真实 OpenD 验证：SPY 现价可用；2026-09-11 返回 78 根完整 5 分钟 K 线和
+  390 张同日到期期权；2026-09-14 返回 310 张期权。抽样 Gamma、IV、OI、Volume、Bid/Ask、
+  更新时间全部可用。
+- 能力门禁通过，仍保持 TEST；缺失关键字段时继续严格失败关闭且不使用 Massive fallback。
+- `📍・SPY-0DTE` 频道可以创建，但会员广播保持禁用；只有收到精确批准
+  `APPROVE SPY 0DTE MEMBER LAUNCH` 且真实盘中门禁通过后才能启用。

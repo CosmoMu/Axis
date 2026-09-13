@@ -62,7 +62,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "⚡・短线",
         "〽️・波段",
         "♾️・长期",
-        "📍・spxw-0dte",
+        "📍・spy-0dte",
         "📣・人工喊单",
         "🛋️・会员交流",
         "📥・信号输入",

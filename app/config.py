@@ -207,10 +207,10 @@ class Settings:
     gex_explorer_enabled: bool = False
     gex_explorer_mode: str = "TEST"
     gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
-    spxw_0dte_enabled: bool = False
-    spxw_0dte_mode: str = "TEST"
-    spxw_0dte_scheduler_enabled: bool = False
-    spxw_0dte_policy_path: Path = Path("config/spxw_0dte_desk.yaml")
+    spy_0dte_enabled: bool = False
+    spy_0dte_mode: str = "TEST"
+    spy_0dte_scheduler_enabled: bool = False
+    spy_0dte_policy_path: Path = Path("config/spy_0dte_desk.yaml")
     research_enabled: bool = False
     research_mode: str = "TEST"
     research_aux_data_provider: str = "moomoo"
@@ -305,8 +305,8 @@ class Settings:
             "SHORT_TERM_TRACKING_CONFIG", "config/short_term_tracking.yaml"
         )
         gex_policy_value = os.getenv("GEX_EXPLORER_POLICY", "config/gex_explorer.yaml")
-        spxw_0dte_policy_value = os.getenv(
-            "SPXW_0DTE_POLICY", "config/spxw_0dte_desk.yaml"
+        spy_0dte_policy_value = os.getenv(
+            "SPY_0DTE_POLICY", "config/spy_0dte_desk.yaml"
         )
         stock_analyst_policy_value = os.getenv("STOCK_ANALYST_POLICY", "config/stock_analyst.yaml")
         research_policy_value = os.getenv("AXIS_RESEARCH_POLICY", "config/research_engine.yaml")
@@ -388,10 +388,10 @@ class Settings:
             gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
             gex_explorer_mode=(os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"),
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
-            spxw_0dte_enabled=_parse_bool("SPXW_0DTE_ENABLED", False),
-            spxw_0dte_mode=(os.getenv("SPXW_0DTE_MODE", "TEST").strip().upper() or "TEST"),
-            spxw_0dte_scheduler_enabled=_parse_bool("SPXW_0DTE_SCHEDULER_ENABLED", False),
-            spxw_0dte_policy_path=(root / spxw_0dte_policy_value).resolve(),
+            spy_0dte_enabled=_parse_bool("SPY_0DTE_ENABLED", False),
+            spy_0dte_mode=(os.getenv("SPY_0DTE_MODE", "TEST").strip().upper() or "TEST"),
+            spy_0dte_scheduler_enabled=_parse_bool("SPY_0DTE_SCHEDULER_ENABLED", False),
+            spy_0dte_policy_path=(root / spy_0dte_policy_value).resolve(),
             research_enabled=_parse_bool("AXIS_RESEARCH_ENABLED", False),
             research_mode=(os.getenv("AXIS_RESEARCH_MODE", "TEST").strip().upper() or "TEST"),
             research_aux_data_provider=(
@@ -636,19 +636,19 @@ class Settings:
             if not self.gex_explorer_policy_path.is_file():
                 raise ConfigurationError("GEX_EXPLORER_POLICY 文件不存在。")
 
-    def assert_spxw_0dte_safety(self) -> None:
-        if self.spxw_0dte_mode not in {"TEST", "MEMBER"}:
-            raise ConfigurationError("SPXW_0DTE_MODE 仅允许 TEST 或 MEMBER。")
-        if not self.spxw_0dte_enabled:
-            if self.spxw_0dte_scheduler_enabled:
-                raise ConfigurationError("SPXW 0DTE 未启用时不能启动 Scheduler。")
+    def assert_spy_0dte_safety(self) -> None:
+        if self.spy_0dte_mode not in {"TEST", "MEMBER"}:
+            raise ConfigurationError("SPY_0DTE_MODE 仅允许 TEST 或 MEMBER。")
+        if not self.spy_0dte_enabled:
+            if self.spy_0dte_scheduler_enabled:
+                raise ConfigurationError("SPY 0DTE 未启用时不能启动 Scheduler。")
             return
         if self.discord_owner_user_id is None:
-            raise ConfigurationError("启用 SPXW 0DTE 必须配置 DISCORD_OWNER_USER_ID。")
-        if not self.spxw_0dte_policy_path.is_file():
-            raise ConfigurationError("SPXW_0DTE_POLICY 文件不存在。")
-        if self.spxw_0dte_mode == "TEST" and self.spxw_0dte_scheduler_enabled:
-            raise ConfigurationError("TEST 模式必须保持 SPXW 0DTE Scheduler disabled。")
+            raise ConfigurationError("启用 SPY 0DTE 必须配置 DISCORD_OWNER_USER_ID。")
+        if not self.spy_0dte_policy_path.is_file():
+            raise ConfigurationError("SPY_0DTE_POLICY 文件不存在。")
+        if self.spy_0dte_mode == "TEST" and self.spy_0dte_scheduler_enabled:
+            raise ConfigurationError("TEST 模式必须保持 SPY 0DTE Scheduler disabled。")
 
     def assert_stock_analyst_safety(self) -> None:
         self._assert_market_data_providers()

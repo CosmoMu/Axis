@@ -7,14 +7,14 @@
 - Full pytest suite: PASS — 374 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
-- SPXW 0DTE Desk TEST gate: PASS / NORMAL SCORE BLOCKED BY PROVIDER — exact-date Moomoo query
-  returned 488 real `US.SPXW...` contracts with Gamma、IV、OI、Volume、Bid/Ask and timestamps.
-  Moomoo rejected both `US..SPX` spot snapshot and SPX five-minute history as unsupported, so AXIS
-  correctly generated no score or levels and used no SPY/Massive/fabricated fallback.
-- SPXW Discord TEST: PASS — `📍・spxw-0dte` created as the only missing resource; final dry-run
-  `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`; runtime verifier PASS; exactly one diagnostic embed +
-  deterministic PNG sent to `🧪・卡片测试` as message `1548833200464470192`.
-- SPXW member scheduler: DISABLED pending exact launch approval and a passing real-session provider
+- SPY 0DTE Desk TEST gate: PASS — real OpenD returned SPY spot `$764.29`, 78 complete five-minute
+  bars and 390 exact-date contracts for 2026-09-11; 2026-09-14 also returned 310 contracts. Sampled
+  Gamma、IV、OI、Volume、Bid/Ask and timestamps all passed without Massive or proxy data.
+- SPY Discord TEST: channel ID `1548831345143189504` was renamed in place to `📍・spy-0dte` and its
+  topic updated; no channel was created, deleted, or moved. Final dry-run is
+  `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`; runtime verifier PASS. A fresh passing Moomoo card
+  was sent to `🧪・卡片测试` as message `1548836281252061236`.
+- SPY member scheduler: DISABLED pending exact launch approval and a fresh real-session provider
   gate.
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS

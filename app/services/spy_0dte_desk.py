@@ -1,4 +1,4 @@
-"""AXIS SPXW 0DTE market-structure desk (Moomoo-only, fail closed)."""
+"""AXIS SPY 0DTE market-structure desk (Moomoo-only, fail closed)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import asyncio
 import math
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -14,18 +14,17 @@ from zoneinfo import ZoneInfo
 import yaml
 
 ET = ZoneInfo("America/New_York")
-SPX_CHAIN_OWNER = "US..SPX"
-SPXW_CODE_PREFIX = "US.SPXW"
+SPY_CODE = "US.SPY"
 
 
-class Spxw0dteError(RuntimeError):
+class Spy0dteError(RuntimeError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
 
 
 @dataclass(frozen=True, slots=True)
-class Spxw0dtePolicy:
+class Spy0dtePolicy:
     version: str
     enabled: bool
     mode: str
@@ -36,14 +35,14 @@ class Spxw0dtePolicy:
     weights: dict[str, float]
 
     @classmethod
-    def load(cls, path: Path) -> Spxw0dtePolicy:
+    def load(cls, path: Path) -> Spy0dtePolicy:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
-            raise Spxw0dteError("SPXW_0DTE_POLICY_INVALID")
+            raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
         score = payload.get("score")
         smoothing = payload.get("smoothing")
         if not isinstance(score, dict) or not isinstance(smoothing, dict):
-            raise Spxw0dteError("SPXW_0DTE_POLICY_INVALID")
+            raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
         policy = cls(
             version=str(payload.get("version") or ""),
             enabled=bool(payload.get("enabled", False)),
@@ -75,16 +74,16 @@ class Spxw0dtePolicy:
             or abs(sum(self.weights.values()) - 1.0) > 1e-9
             or not 0 < self.smoothing_current <= 1
         ):
-            raise Spxw0dteError("SPXW_0DTE_POLICY_INVALID")
+            raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
 
 
 @dataclass(frozen=True, slots=True)
-class SpxwCapabilityReport:
+class SpyCapabilityReport:
     checked_at: datetime
     chain_session: date
     opend_connected: bool
-    spxw_chain: bool
-    spxw_only: bool
+    spy_chain: bool
+    spy_only: bool
     contract_count: int
     gamma: bool
     implied_volatility: bool
@@ -92,8 +91,10 @@ class SpxwCapabilityReport:
     volume: bool
     bid_ask: bool
     timestamps: bool
-    spx_spot: bool
-    spx_5m: bool
+    spy_spot: bool
+    spy_5m: bool
+    spot: float | None
+    bar_count: int
     error_code: str | None
     provider: str = "moomoo"
 
@@ -102,22 +103,22 @@ class SpxwCapabilityReport:
         return all(
             (
                 self.opend_connected,
-                self.spxw_chain,
-                self.spxw_only,
+                self.spy_chain,
+                self.spy_only,
                 self.gamma,
                 self.implied_volatility,
                 self.open_interest,
                 self.volume,
                 self.bid_ask,
                 self.timestamps,
-                self.spx_spot,
-                self.spx_5m,
+                self.spy_spot,
+                self.spy_5m,
             )
         )
 
 
 @dataclass(frozen=True, slots=True)
-class SpxwScoreInputs:
+class SpyScoreInputs:
     gex: float
     price_structure: float
     vwap: float
@@ -128,7 +129,7 @@ class SpxwScoreInputs:
 
 
 @dataclass(frozen=True, slots=True)
-class SpxwScore:
+class SpyScore:
     raw_score: int
     display_score: int
     structure_label: str
@@ -151,11 +152,11 @@ def structure_label(score: int) -> str:
 
 
 def calculate_score(
-    inputs: SpxwScoreInputs,
-    policy: Spxw0dtePolicy,
+    inputs: SpyScoreInputs,
+    policy: Spy0dtePolicy,
     *,
     previous_display_score: int | None = None,
-) -> SpxwScore:
+) -> SpyScore:
     values = {
         name: max(-100.0, min(100.0, float(getattr(inputs, name)))) for name in policy.weights
     }
@@ -166,29 +167,24 @@ def calculate_score(
             raw * policy.smoothing_current + previous_display_score * (1 - policy.smoothing_current)
         )
     display = max(-100, min(100, display))
-    return SpxwScore(raw, display, structure_label(display))
+    return SpyScore(raw, display, structure_label(display))
 
 
-class MoomooSpxw0dteProvider:
-    """Read-only capability and data boundary for real SPXW contracts.
-
-    Moomoo exposes SPXW contracts through the ``US..SPX`` chain-owner code.
-    Every returned option is independently filtered by its real ``US.SPXW``
-    contract root and exact expiration date. No SPY proxy is permitted.
-    """
+class MoomooSpy0dteProvider:
+    """Read-only capability boundary for the real SPY ETF and SPY options."""
 
     def __init__(self, host: str, port: int) -> None:
         self.host = host
         self.port = port
 
-    async def probe(self, chain_session: date) -> SpxwCapabilityReport:
+    async def probe(self, chain_session: date) -> SpyCapabilityReport:
         return await asyncio.to_thread(self._probe_sync, chain_session)
 
-    def _probe_sync(self, chain_session: date) -> SpxwCapabilityReport:
+    def _probe_sync(self, chain_session: date) -> SpyCapabilityReport:
         try:
             from moomoo import RET_OK, AuType, KLType, OpenQuoteContext, SysConfig
         except Exception as exc:
-            raise Spxw0dteError("SPXW_0DTE_PROVIDER_UNSUPPORTED") from exc
+            raise Spy0dteError("SPY_0DTE_PROVIDER_UNSUPPORTED") from exc
 
         SysConfig.enable_console_log(False)
         context = None
@@ -198,7 +194,7 @@ class MoomooSpxw0dteProvider:
             context = OpenQuoteContext(host=self.host, port=self.port)
             connected = True
             ret, chain = context.get_option_chain(
-                SPX_CHAIN_OWNER,
+                SPY_CODE,
                 start=chain_session.isoformat(),
                 end=chain_session.isoformat(),
             )
@@ -207,7 +203,7 @@ class MoomooSpxw0dteProvider:
                 rows = [
                     row
                     for _, row in chain.iterrows()
-                    if str(row.get("code") or "").startswith(SPXW_CODE_PREFIX)
+                    if str(row.get("code") or "").startswith(SPY_CODE)
                     and str(row.get("strike_time") or "")[:10] == chain_session.isoformat()
                 ]
             codes = [str(row.get("code")) for row in rows]
@@ -219,15 +215,16 @@ class MoomooSpxw0dteProvider:
                 if snap_ret == RET_OK and hasattr(frame, "columns") and not frame.empty:
                     sample = frame
 
-            spot_ret, spot_frame = context.get_market_snapshot([SPX_CHAIN_OWNER])
+            spot_ret, spot_frame = context.get_market_snapshot([SPY_CODE])
             spot_ok = bool(
                 spot_ret == RET_OK
                 and hasattr(spot_frame, "empty")
                 and not spot_frame.empty
                 and float(spot_frame.iloc[0].get("last_price") or 0) > 0
             )
+            spot = float(spot_frame.iloc[0].get("last_price")) if spot_ok else None
             history_ret, history_frame, _ = context.request_history_kline(
-                SPX_CHAIN_OWNER,
+                SPY_CODE,
                 start=chain_session.isoformat(),
                 end=chain_session.isoformat(),
                 ktype=KLType.K_5M,
@@ -239,16 +236,17 @@ class MoomooSpxw0dteProvider:
                 and hasattr(history_frame, "empty")
                 and not history_frame.empty
             )
+            bar_count = len(history_frame) if bars_ok else 0
             columns = set(sample.columns) if sample is not None else set()
             has_values = lambda name: bool(  # noqa: E731
                 sample is not None and name in columns and sample[name].notna().any()
             )
-            report = SpxwCapabilityReport(
+            report = SpyCapabilityReport(
                 checked_at=checked_at,
                 chain_session=chain_session,
                 opend_connected=connected,
-                spxw_chain=bool(rows),
-                spxw_only=bool(rows) and len(rows) == len(codes),
+                spy_chain=bool(rows),
+                spy_only=bool(rows) and len(rows) == len(codes),
                 contract_count=len(rows),
                 gamma=has_values("option_gamma"),
                 implied_volatility=has_values("option_implied_volatility"),
@@ -256,28 +254,30 @@ class MoomooSpxw0dteProvider:
                 volume=has_values("volume"),
                 bid_ask=has_values("bid_price") and has_values("ask_price"),
                 timestamps=has_values("update_time"),
-                spx_spot=spot_ok,
-                spx_5m=bars_ok,
+                spy_spot=spot_ok,
+                spy_5m=bars_ok,
+                spot=spot,
+                bar_count=bar_count,
                 error_code=(
                     None
                     if spot_ok and bars_ok and rows
-                    else "SPXW_0DTE_PROVIDER_UNSUPPORTED"
+                    else "SPY_0DTE_PROVIDER_UNSUPPORTED"
                     if not spot_ok or not bars_ok
-                    else "SPXW_0DTE_CHAIN_UNAVAILABLE"
+                    else "SPY_0DTE_CHAIN_UNAVAILABLE"
                 ),
             )
             return report
-        except Spxw0dteError:
+        except Spy0dteError:
             raise
         except Exception as exc:
-            raise Spxw0dteError("SPXW_0DTE_PROVIDER_UNSUPPORTED") from exc
+            raise Spy0dteError("SPY_0DTE_PROVIDER_UNSUPPORTED") from exc
         finally:
             if context is not None:
                 with suppress(Exception):
                     context.close()
 
 
-def render_capability_image(report: SpxwCapabilityReport, policy: Spxw0dtePolicy) -> bytes:
+def render_capability_image(report: SpyCapabilityReport, policy: Spy0dtePolicy) -> bytes:
     """Render a deterministic TEST diagnostic image without fabricated market values."""
 
     from PIL import Image, ImageDraw, ImageFont
@@ -300,20 +300,20 @@ def render_capability_image(report: SpxwCapabilityReport, policy: Spxw0dtePolicy
 
     image = Image.new("RGB", (1800, 1200), "#050807")
     draw = ImageDraw.Draw(image)
-    draw.text((90, 70), "AXIS · SPXW 0DTE", fill="#F4F5F1", font=font(56, True))
+    draw.text((90, 70), "AXIS · SPY 0DTE", fill="#F4F5F1", font=font(56, True))
     draw.text((90, 145), "MOOMOO 实时能力门禁 · TEST", fill="#86F7A8", font=font(30, True))
     draw.line((90, 205, 1710, 205), fill="#24332E", width=2)
 
     checks = (
         ("OpenD 连接", report.opend_connected),
-        ("真实 SPXW 合约链", report.spxw_chain and report.spxw_only),
+        ("真实 SPY 合约链", report.spy_chain and report.spy_only),
         (
             "Gamma / IV / OI / Volume",
             all((report.gamma, report.implied_volatility, report.open_interest, report.volume)),
         ),
         ("Bid / Ask / 时间戳", report.bid_ask and report.timestamps),
-        ("SPX 指数现价", report.spx_spot),
-        ("SPX 5 分钟 K 线", report.spx_5m),
+        ("SPY 现价", report.spy_spot),
+        (f"SPY 5 分钟 K 线 · {report.bar_count} 根", report.spy_5m),
     )
     y = 270
     for label, passed in checks:
@@ -334,7 +334,7 @@ def render_capability_image(report: SpxwCapabilityReport, policy: Spxw0dtePolicy
         (90, 1045),
         (
             f"链日期 {report.chain_session:%Y-%m-%d} · "
-            f"SPXW 合约 {report.contract_count} · 策略 {policy.version}"
+            f"SPY 合约 {report.contract_count} · 策略 {policy.version}"
         ),
         fill="#A8B2AE",
         font=font(23),
@@ -350,10 +350,16 @@ def render_capability_image(report: SpxwCapabilityReport, policy: Spxw0dtePolicy
     return output.getvalue()
 
 
-def next_weekday(value: date) -> date:
-    candidate = value
+def latest_completed_session(now_et: datetime) -> date:
+    """Return the latest completed weekday session for deterministic TEST probes."""
+
+    local = now_et.astimezone(ET)
+    candidate = local.date()
+    if candidate.weekday() < 5 and local.timetz().replace(tzinfo=None) >= time(16, 0):
+        return candidate
+    candidate -= timedelta(days=1)
     while candidate.weekday() >= 5:
-        candidate += timedelta(days=1)
+        candidate -= timedelta(days=1)
     return candidate
 
 

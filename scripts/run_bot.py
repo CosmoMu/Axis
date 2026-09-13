@@ -103,9 +103,9 @@ from app.services.personal_execution import PersonalExecutionService  # noqa: E4
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
-from app.services.spxw_0dte_desk import (  # noqa: E402
-    MoomooSpxw0dteProvider,
-    Spxw0dtePolicy,
+from app.services.spy_0dte_desk import (  # noqa: E402
+    MoomooSpy0dteProvider,
+    Spy0dtePolicy,
 )
 from app.services.stock_analyst import (  # noqa: E402
     StockAnalystPolicy,
@@ -121,7 +121,7 @@ async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_lab_disabled()
     settings.assert_gex_safety()
-    settings.assert_spxw_0dte_safety()
+    settings.assert_spy_0dte_safety()
     settings.assert_stock_analyst_safety()
     settings.assert_research_safety()
     settings.assert_personal_execution_safety()
@@ -239,11 +239,11 @@ async def run() -> None:
                 gex_policy,
                 shadow_intraday_provider=None,
             )
-        spxw_0dte_provider = None
-        spxw_0dte_policy = None
-        if settings.spxw_0dte_enabled:
-            spxw_0dte_policy = Spxw0dtePolicy.load(settings.spxw_0dte_policy_path)
-            spxw_0dte_provider = MoomooSpxw0dteProvider(
+        spy_0dte_provider = None
+        spy_0dte_policy = None
+        if settings.spy_0dte_enabled:
+            spy_0dte_policy = Spy0dtePolicy.load(settings.spy_0dte_policy_path)
+            spy_0dte_provider = MoomooSpy0dteProvider(
                 settings.moomoo_host,
                 settings.moomoo_port,
             )
@@ -589,8 +589,8 @@ async def run() -> None:
             gex_explorer_service=gex_explorer_service,
             stock_analyst_service=stock_analyst_service,
             research_service=research_service,
-            spxw_0dte_provider=spxw_0dte_provider,
-            spxw_0dte_policy=spxw_0dte_policy,
+            spy_0dte_provider=spy_0dte_provider,
+            spy_0dte_policy=spy_0dte_policy,
         )
         async with bot:
             await bot.start(token, reconnect=True)

@@ -68,7 +68,7 @@ def _deploy_runtime() -> None:
         "short_term_tracking_v2.yaml",
         "short_term_tracking_v3.yaml",
         "gex_explorer.yaml",
-        "spxw_0dte_desk.yaml",
+        "spy_0dte_desk.yaml",
         "stock_analyst.yaml",
         "newcomer_security.yaml",
         "research_engine.yaml",

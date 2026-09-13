@@ -423,13 +423,13 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - FEATURE_LAB_ENABLED=false、FEATURE_MODEL_AB_ENABLED=false。
 - 不为会员实现自动下单，也不连接任何会员券商账户。Owner-only Moomoo layer 只在独立安全门内
   读取 Owner 账户/持仓/订单；当前 DRY_RUN 且所有 broker writes 禁用。
-## SPXW 0DTE Desk — Test Gate
+## SPY 0DTE Desk — Test Gate
 
-- Moomoo-only exact-date SPXW chain probe with strict `US.SPXW` contract-root filtering.
-- Owner-only `/test-spxw-0dte` in Card Testing, Chinese diagnostic embed and deterministic
+- Moomoo-only exact-date SPY chain probe with strict `US.SPY` contract-root filtering.
+- Owner-only `/test-spy-0dte` in Card Testing, Chinese diagnostic embed and deterministic
   1800×1200 image in one message.
 - Versioned configurable score weights, deterministic bounded scoring and 70/30 display smoothing.
-- Fail-closed SPX spot / five-minute candle gates; no SPY, inferred spot, fabricated fields or
-  Massive fallback.
+- Real SPY spot and five-minute candle gates; no proxy instrument, inferred spot, fabricated fields
+  or Massive fallback.
 - Member channel and scheduler boundary exist, but scheduler is disabled pending exact launch
   approval and a passing real-session capability gate.

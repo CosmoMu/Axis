@@ -42,7 +42,7 @@ TEST_COMMANDS = {
     "test-short-entry",
     "test-short-tp",
     "test-results-review",
-    "test-spxw-0dte",
+    "test-spy-0dte",
 }
 REMOVED_COMMANDS = {"test-short-runner", "test-short-stop", "test-short-daily"}
 
@@ -112,7 +112,7 @@ async def verify() -> list[str]:
         member_lounge = channel("member_chat")
         manual_alerts = channel("manual_alerts")
         short_term = channel("short_term_alerts")
-        spxw_0dte = channel("spxw_0dte")
+        spy_0dte = channel("spy_0dte")
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
         results_review = channel("results_review")
@@ -244,20 +244,20 @@ async def verify() -> list[str]:
         )
         _check(short_term.permissions_for(member).view_channel, "member_signal_view", failures)
         _check(not short_term.permissions_for(member).send_messages, "member_signal_send", failures)
-        _check(spxw_0dte.permissions_for(member).view_channel, "member_spxw_0dte_view", failures)
+        _check(spy_0dte.permissions_for(member).view_channel, "member_spy_0dte_view", failures)
         _check(
-            not spxw_0dte.permissions_for(member).send_messages,
-            "member_spxw_0dte_send",
+            not spy_0dte.permissions_for(member).send_messages,
+            "member_spy_0dte_send",
             failures,
         )
         _check(
-            spxw_0dte.permissions_for(manager).view_channel,
-            "manager_spxw_0dte_view",
+            spy_0dte.permissions_for(manager).view_channel,
+            "manager_spy_0dte_view",
             failures,
         )
         _check(
-            not spxw_0dte.permissions_for(manager).send_messages,
-            "manager_spxw_0dte_send",
+            not spy_0dte.permissions_for(manager).send_messages,
+            "manager_spy_0dte_send",
             failures,
         )
         _check(

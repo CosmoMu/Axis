@@ -1,29 +1,27 @@
-# AXIS SPXW 0DTE Desk — Current Source of Truth
+# AXIS SPY 0DTE Desk — Current Source of Truth
 
-Version: SPXW_0DTE_V2
+Version: SPY_0DTE_V2
 Status: TEST / MEMBER SCHEDULER DISABLED
 
-This module is a read-only SPXW same-day market-structure desk. It is not a trade signal and must
+This module is a read-only SPY same-day market-structure desk. It is not a trade signal and must
 never produce option recommendations, entry, target, stop, BUY/SELL, or CALL/PUT setup language.
 
 ## Instrument identity
 
-- The product is SPXW 0DTE only.
-- Moomoo does not expose an independent SPXW underlying symbol. Its official OpenD API requires
-  `US..SPX` as the chain-owner lookup key, while returned weekly contract codes are `US.SPXW...`.
-- AXIS must filter the real contract root to `US.SPXW` and the expiration to the exact US session
-  date. Ordinary SPX monthly contracts must not enter this module.
-- Spot and five-minute candles must be the real SPX index. SPY and strike-derived proxies are
-  forbidden.
+- The product is SPY 0DTE only.
+- The Moomoo underlying and option-chain owner are both `US.SPY`.
+- AXIS filters contracts to the real `US.SPY...` root and the exact US session date.
+- Spot and five-minute candles must be the real SPY ETF. Index, strike-derived, cached, or
+  fabricated proxies are forbidden.
 
 ## Runtime gate
 
-- Initial command: `/test-spxw-0dte`.
+- Initial command: `/test-spy-0dte`.
 - Owner only, `🧪・卡片测试` only.
-- Public member channel: `📍・SPXW-0DTE`; members can view but cannot send.
+- Public member channel: `📍・spy-0dte`; members can view but cannot send.
 - The scheduler remains disabled until the Owner sends the exact approval
-  `APPROVE SPXW 0DTE MEMBER LAUNCH`.
-- Any missing spot, SPX five-minute candles, SPXW chain, Greeks, freshness, or minimum coverage
+  `APPROVE SPY 0DTE MEMBER LAUNCH`.
+- Any missing SPY spot, five-minute candles, exact-date chain, Greeks, freshness, or minimum coverage
   causes fail-closed behavior. A normal score card must not be published.
 
 ## Deterministic score
@@ -43,5 +41,5 @@ Every normal or diagnostic card states:
 >
 > MY RISK IS NOT YOUR RISK.
 
-The detailed owner specification is `AXIS_SPXW_0DTE_Desk_Codex_Spec_V2.md`. This repository copy
+The detailed owner specification is `AXIS_SPY_0DTE_Desk_Codex_Spec_V2.md`. This repository copy
 records the enforceable runtime decisions without secrets or provider credentials.

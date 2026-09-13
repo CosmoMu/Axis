@@ -1,4 +1,4 @@
-"""Owner-only TEST surface and disabled-by-default scheduler for SPXW 0DTE."""
+"""Owner-only TEST surface and disabled-by-default scheduler for SPY 0DTE."""
 
 from __future__ import annotations
 
@@ -10,24 +10,24 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from app.bot.spxw_0dte_cards import build_spxw_capability_embed
-from app.services.spxw_0dte_desk import (
-    MoomooSpxw0dteProvider,
-    Spxw0dtePolicy,
-    next_weekday,
+from app.bot.spy_0dte_cards import build_spy_capability_embed
+from app.services.spy_0dte_desk import (
+    MoomooSpy0dteProvider,
+    Spy0dtePolicy,
+    latest_completed_session,
     render_capability_image,
 )
 
 ET = ZoneInfo("America/New_York")
 
 
-class Spxw0dteCog(commands.Cog):
+class Spy0dteCog(commands.Cog):
     def __init__(
         self,
         bot: commands.Bot,
         *,
-        provider: MoomooSpxw0dteProvider,
-        policy: Spxw0dtePolicy,
+        provider: MoomooSpy0dteProvider,
+        policy: Spy0dtePolicy,
         guild_id: int,
         owner_user_id: int,
         card_testing_channel_id: int,
@@ -59,22 +59,21 @@ class Spxw0dteCog(commands.Cog):
             and self.policy.mode == "TEST"
         )
 
-    @app_commands.command(name="test-spxw-0dte", description="测试 AXIS SPXW 0DTE 数据门禁与卡片")
+    @app_commands.command(name="test-spy-0dte", description="测试 AXIS SPY 0DTE 数据门禁与卡片")
     @app_commands.default_permissions(administrator=True)
     @app_commands.guild_only()
-    async def test_spxw_0dte(self, interaction: discord.Interaction) -> None:
+    async def test_spy_0dte(self, interaction: discord.Interaction) -> None:
         if not self._authorized(interaction):
             await interaction.response.send_message(
                 "该命令仅限 Owner 在 🧪・卡片测试频道使用。", ephemeral=True
             )
             return
         await interaction.response.defer(thinking=True)
-        today = datetime.now(ET).date()
-        report = await self.provider.probe(next_weekday(today))
+        report = await self.provider.probe(latest_completed_session(datetime.now(ET)))
         image = render_capability_image(report, self.policy)
         await interaction.edit_original_response(
-            embed=build_spxw_capability_embed(report),
-            attachments=[discord.File(BytesIO(image), filename="axis-spxw-0dte-test.png")],
+            embed=build_spy_capability_embed(report),
+            attachments=[discord.File(BytesIO(image), filename="axis-spy-0dte-test.png")],
         )
 
     @tasks.loop(seconds=30)

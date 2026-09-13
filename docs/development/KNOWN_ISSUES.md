@@ -2,7 +2,7 @@
 
 ## P1 — Moomoo SPX underlying snapshot unsupported
 
-真实 OpenD 测试可读取 SPX option chain 和 SPXW option snapshot，但 `US..SPX` market snapshot
+真实 OpenD 测试可读取 SPX option chain 和 SPY option snapshot，但 `US..SPX` market snapshot
 返回“不支持美股指数”。GEX 需要可靠 spot，因此 AXIS 对 SPX 明确返回
 `SPX_PROVIDER_UNSUPPORTED`，不映射 SPY；SPY/QQQ/equity 不受影响。
 
@@ -47,7 +47,7 @@ POC/VA 是 Daily OHLCV high-low 分箱代理。闭市验收已完成；交易时
 V7 Moomoo option-chain aggregation、card、heatmap、cache、single-flight、limits、audit 与 alerts
 已实现；严格 `gex TICKER`、Member/Manager/Owner role gate 和 exact channel gate 已通过自动化。
 Member Lounge 已于 2026-09-05 获 Owner 批准并部署，runtime verifier PASS。真实 closed-market checks 中 SPY、QQQ、NVDA、TSLA、AAPL 均 PASS；当前
-Moomoo 可读取 SPXW chain / option snapshot，但 OpenD 对 `US..SPX` underlying snapshot 返回不支持
+Moomoo 可读取 SPY chain / option snapshot，但 OpenD 对 `US..SPX` underlying snapshot 返回不支持
 美股指数，故返回 `SPX_PROVIDER_UNSUPPORTED`。禁止用 SPY 替代 SPX。
 
 仍需积累真实会员请求的 Discord Desktop/Mobile、交易时段 freshness、rate-limit 和
@@ -167,9 +167,3 @@ Python 3.12 下 discord.py 的 audioop 依赖会提示 Python 3.13 removal warni
 - 除已授权但仍处于 DRY_RUN gate 的 Owner-only Personal Moomoo Execution 外，任何会员交易、模型
   扫描或其他自动下单。
 - 图片生成模型；当前 Prediction Chart 使用确定性 renderer。
-## P0 — SPXW 0DTE 正常评分被 Moomoo SPX 指数行情能力阻止
-
-2026-09-13 实测确认，Moomoo OpenD 能通过 `US..SPX` owner lookup 返回真实 `US.SPXW...`
-期权链及 Gamma/IV/OI/Volume/Bid/Ask/时间戳，但 SPX 指数 snapshot 和历史 5 分钟 K 线均返回
-“暂不支持美股指数”。SPXW 不是独立现货代码。模块保持 TEST、正常评分失败关闭、会员 Scheduler
-禁用；禁止使用 SPY 或推算数据绕过。
