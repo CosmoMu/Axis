@@ -14,6 +14,19 @@ LIVE_MODE_CHECKLIST.md 为准。
 - Manager-only Operations、Owner-only System Alerts 与 Card Testing。
 - Owner-only `💹・交易控制`、持久 control card 与明确 persona permission isolation。
 
+## Moomoo Production Market Data
+
+- 四个显式 provider 开关分别控制 Stock Analyst、GEX surface、GEX intraday 与 option tracking；
+  仅接受 `moomoo` / `massive`，没有 silent fallback。
+- Moomoo 为 Production primary；Massive adapters 保留但 dormant，可在有有效 key 时显式回滚。
+- `MoomooGexMarketDataProvider` 复用现有 GEX protocol，按 30 天窗口读取真实 chain、按上限批量
+  snapshot，区分 OI/volume/IV/gamma 并沿用现有 minimum-coverage fail-closed。
+- OpenD 期权链 10/30s process-wide limiter、source timestamp freshness、closed-market label、
+  SPX isolated unsupported behavior 和 empty Massive key startup gate。
+- Stock Analyst 使用 Moomoo Daily + benchmark/sector/peer/leader context；算法完全未改。
+- Short-Term/Swing/Publication/Resolver 使用 Moomoo canonical OCC adapter；post-close 使用
+  Moomoo option snapshot，不以正股价格代替期权。
+
 ## AXIS Multi-Agent Research — Test Only
 
 - Owner + exact Guild + `🧪・卡片测试` 专用 `/research`，配置层只允许 `TEST`；Member Lounge
@@ -41,10 +54,9 @@ LIVE_MODE_CHECKLIST.md 为准。
   与其他聊天不触发。
 - Member / Manager / Owner + exact Guild / channel 双重 runtime gate；Owner 保留
   `🧪・卡片测试` Slash Command 维护入口。
-- Massive GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
+- Moomoo GEX option-surface / spot / 5 分钟 K 线正式 provider；10 个有效 expiration、0DTE /
   Near-Term、partial-expiry skip 和 minimum coverage gate；SPX 独立映射且绝不使用 SPY 替代。
-- Moomoo OpenD 5 分钟 K 线仅作为后台 shadow candidate；比较 bar count、重合时间、共同收盘价
-  和 source timestamp，永不选择或阻止 Massive 正式输出。
+- Massive 实现仅作为显式 rollback adapter；Moomoo 失败时不 silent fallback。
 - V7 shared classifier：0DTE / nearest / aggregate Net GEX、Volume × Gamma、独立 OI ×
   Gamma、proximity、Gamma Node、主要/次要支撑压力、单一 Magnet、Gamma Flip 与加速区。
 - Importance Score 权重与阈值集中在 policy；log / 90th percentile robust normalization。
@@ -54,7 +66,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   主图联动；Discord 导出保留 ±9 行，避免移动端字体过小。
 - Gross `Call Wall` / `Put Wall` 只作参考，不自动等同压力/支撑；主图与 Ladder 共享分类，
   Gamma 输出不包含 BUY CALL / BUY PUT / LONG / SHORT。
-- 中文 Discord 卡片、market-closed/stale 标签、Massive 正式数据时间和
+- 中文 Discord 卡片、market-closed/stale 标签、Moomoo 正式数据时间和
   source/coverage/cache/policy metadata。
 - Moomoo 分钟数据不可用时 fail-closed，不生成或插值任何假 K 线。
 - Cache、single-flight、per-user cooldown、guild limit、AuditLog 和 System Alert / Recovery。
@@ -181,7 +193,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 - SHORT_TERM automatic detection 和独立 simplified review。
 - no Mentor required；不使用 Swing / LEAPS 的 Mentor Trade Flow。
 - ST-XXXX 独立编号。
-- Massive MarketTrackingService、market-data provider 接口、受控 fallback 和错误分类。
+- Moomoo MarketTrackingService、market-data provider 接口、fail-closed 和错误分类。
 - 单合约 stale / unavailable / outlier / not-found 数据状态不会再升级为 Massive 服务整体 ERROR；
   订单保存连续错误次数与精确错误码，有效报价自动恢复。认证、限流和请求/响应故障继续进入
   系统警报。
@@ -194,7 +206,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   tracking-stop 卡；无论回撤或隔夜跳空都持续追踪至到期。到期只在后台结束 Tracking 并进入
   Results / Audit，不向 Short-Term 频道发卡。旧 SL / Expiry 事件仅保留为内部审计历史，尚未
   发布的旧事件会在出队前自动抑制。High / Low Watermark 与 Overnight Tracking 保留。
-- Massive tracking 直接使用 Review 验证并持久化的完整期权代码，兼容 `SPX` underlying /
+- Moomoo tracking 直接使用 Review 验证并持久化的完整期权代码，兼容 `SPX` underlying /
   `SPXW` OCC root；批量中单合约失败独立写入该订单。
 - 仍未到期但曾被旧价格保护停止的订单会在轮询时幂等恢复；旧公开历史保留、未公开的旧停止
   通知取消。
@@ -205,7 +217,7 @@ LIVE_MODE_CHECKLIST.md 为准。
   Active Summary 使用 Massive 期权 Daily OHLC 正式收盘价计算，不使用盘后实时 snapshot。
 - 重启恢复、节假日/交易日和定时任务安全逻辑。
 
-说明：Production 已有 Short-Term tracking 与 Massive quote；真实 TP / Expiry / Discord /
+说明：Production 已有 Short-Term tracking 与 Moomoo quote；真实 TP / Expiry / Discord /
 restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 
 ## Mentor / Member

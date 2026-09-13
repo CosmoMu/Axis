@@ -30,9 +30,11 @@
 10. 09_OWNER_PERSONAL_MOOMOO_EXECUTION_SPEC.md — Owner-only Moomoo 执行、DRY_RUN / LIVE
     Gate、对账、风险和控制面板的最新规则。
 11. 10_GEX_EXPLORER_PHASE1_SPEC.md — 会员交流 `gex TICKER`、Owner 卡片测试 `/gex`、
-    Massive 正式 option surface / 现价 / 5 分钟 K 线、V7 shared intraday classifier、专业
+    V7 shared intraday classifier、专业
     Strike × Expiration Ladder、Moomoo 后台影子比较、中文复合图及安全门。
-12. README_FOR_CODEX.md — 本入口和文档使用规则。
+12. 12_AXIS_MOOMOO_MARKET_DATA_SPEC.md — 覆盖旧 provider 说明：Moomoo Production primary、
+    Massive dormant rollback、四项显式配置、empty-key startup 与 SPX fail-closed 边界。
+13. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -58,7 +60,7 @@
   Production Data，禁止再次全量 Reset 或重新编号。
 - Daily Results Review / Exclude Workflow 已部署：收盘后生成 Draft，Manager 可审核公开展示，
   `16:15 ET` 幂等发布；Exclude 绝不删除或改写真实 Trade 历史。
-- Short-Term Automated Tracking 的代码和测试已完成，但真实 Massive quote、tracking 注册、
+- Short-Term Automated Tracking 的代码和测试已完成，但真实 Moomoo quote、tracking 注册、
   trigger、Discord 事件和重启恢复尚未完成端到端验收。
 - Swing V2 Simple Tracked Swing 已完成代码、自动化测试、生产 schema migration 与 Bot runtime
   部署；四笔既有 Active Swing 已安全标记为 `LEGACY_SWING` 并继续旧流程。新 Simple Swing 的
@@ -66,12 +68,13 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- GEX Explorer V7 已在 Member Lounge 正式上线。Member / Manager / Owner 可发送
+- GEX Explorer V7 已在 Member Lounge 正式上线。Market data 已于 2026-09-13 切换为 Moomoo
+  Production primary；Massive adapter 仅保留作显式回滚。Member / Manager / Owner 可发送
   严格格式 `gex SPY`（或使用 `/gex ticker:SPY`）生成中文盘中结构卡；其他普通消息不触发。
   普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager / Owner 无这两项冷却。Owner 已于
   2026-09-05 批准上线，当前 runtime 为 `MEMBER_LOUNGE`；Owner 仍可在 `🧪・卡片测试`
-  使用 `/gex`。正式数据来自 Massive；Moomoo 只做后台比较。
-- AXIS Stock Analyst 已在 Member Lounge 正式上线。Member / Manager / Owner 仅可在
+  使用 `/gex`。
+- AXIS Stock Analyst 已在 Member Lounge 正式上线，Moomoo Daily OHLCV 为正式源。Member / Manager / Owner 仅可在
   `🛋️・会员交流` 使用 `/stock ticker:SPY`；Owner 保留卡片测试维护入口。普通会员
   每人 30 秒、同 ticker 全频道 60 秒冷却，Manager / Owner 无这两项冷却。功能使用 Massive
   Daily OHLCV，严格只读，不触发 Signal、Trade、Membership 或 broker execution。

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
+from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
@@ -16,6 +20,11 @@ from app.integrations.massive_market_data import (
     verified_ssl_context,
 )
 from app.market_intelligence.gex_explorer.models import GexOptionContract, OptionSide
+
+_MOOMOO_CHAIN_LOCK = threading.Lock()
+_MOOMOO_CHAIN_CALLS: deque[float] = deque()
+_MOOMOO_CHAIN_WINDOW_SECONDS = 30.0
+_MOOMOO_CHAIN_MAX_CALLS = 9
 
 
 class GexFetchPolicy(Protocol):
@@ -424,3 +433,281 @@ class MassiveGexMarketDataProvider:
         now = datetime.now(UTC)
         # This is display-only; provider timestamps still drive freshness checks.
         return "closed" if now.weekday() >= 5 else "unknown"
+
+
+class MoomooGexMarketDataProvider:
+    """Moomoo OpenD option surface normalized for the existing AXIS GEX engine."""
+
+    name = "moomoo"
+    _SNAPSHOT_BATCH_LIMIT = 400
+
+    def __init__(self, *, host: str, port: int) -> None:
+        self.host = host
+        self.port = port
+        self.last_metrics: dict[str, int] = {}
+
+    async def fetch(self, ticker: str, policy: GexFetchPolicy) -> GexProviderResult:
+        return await asyncio.to_thread(self._fetch_sync, ticker, policy)
+
+    def _fetch_sync(self, ticker: str, policy: GexFetchPolicy) -> GexProviderResult:
+        try:
+            from moomoo import RET_OK, OpenQuoteContext, SysConfig
+        except Exception as exc:
+            raise MarketDataProviderError("MOOMOO_SDK_UNAVAILABLE") from exc
+
+        symbol = ticker.strip().upper().removeprefix("US.")
+        if symbol in {"SPX", "SPXW", ".SPX"}:
+            code = "US..SPX"
+            normalized_symbol = "SPX"
+        elif symbol:
+            code = f"US.{symbol}"
+            normalized_symbol = symbol
+        else:
+            raise MarketDataProviderError("GEX_TICKER_INVALID")
+
+        SysConfig.enable_console_log(False)
+        context = None
+        fetched_at = datetime.now(UTC)
+        try:
+            context = OpenQuoteContext(host=self.host, port=self.port)
+            spot, spot_timestamp = self._spot(context, code, RET_OK, normalized_symbol)
+            market_status = self._market_status(context, RET_OK)
+            start = fetched_at.astimezone(ZoneInfo("America/New_York")).date()
+            end = start + timedelta(days=policy.expiration_horizon_days)
+            strike_min = max(0.01, spot * (1 - policy.strike_range_pct))
+            strike_max = spot * (1 + policy.strike_range_pct)
+            rows_by_expiry: dict[date, list[dict[str, Any]]] = {}
+            chain_calls = 0
+            window_start = start
+            while (
+                window_start <= end
+                and len(rows_by_expiry) < policy.expiration_candidates
+            ):
+                window_end = min(end, window_start + timedelta(days=29))
+                chain_calls += 1
+                ret, chain = self._get_option_chain(
+                    context,
+                    code,
+                    window_start,
+                    window_end,
+                )
+                if ret != RET_OK or not hasattr(chain, "iterrows"):
+                    raise MarketDataProviderError("MOOMOO_OPTION_CHAIN_UNAVAILABLE")
+                for _, row in chain.iterrows():
+                    try:
+                        expiry = date.fromisoformat(str(row["strike_time"])[:10])
+                        strike = float(row["strike_price"])
+                        option_type = str(row["option_type"]).upper()
+                        option_code = str(row["code"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if (
+                        start <= expiry <= end
+                        and strike_min <= strike <= strike_max
+                        and option_type in {"CALL", "PUT"}
+                        and option_code.startswith("US.")
+                    ):
+                        rows_by_expiry.setdefault(expiry, []).append(
+                            {
+                                "code": option_code,
+                                "expiry": expiry,
+                                "strike": strike,
+                                "side": option_type,
+                            }
+                        )
+                window_start = window_end + timedelta(days=1)
+
+            candidates = tuple(sorted(rows_by_expiry))[: policy.expiration_candidates]
+            if not candidates:
+                raise MarketDataProviderError("GEX_NO_EXPIRATIONS")
+            metadata = [row for expiry in candidates for row in rows_by_expiry[expiry]]
+            requested_codes = tuple(dict.fromkeys(str(row["code"]) for row in metadata))
+            snapshots: dict[str, dict[str, Any]] = {}
+            batch_size = max(1, min(self._SNAPSHOT_BATCH_LIMIT, policy.snapshot_page_limit))
+            snapshot_calls = 0
+            for offset in range(0, len(requested_codes), batch_size):
+                snapshot_calls += 1
+                ret, frame = context.get_market_snapshot(
+                    list(requested_codes[offset : offset + batch_size])
+                )
+                if ret != RET_OK or not hasattr(frame, "iterrows"):
+                    raise MarketDataProviderError("MOOMOO_MARKET_SNAPSHOT_UNAVAILABLE")
+                for _, row in frame.iterrows():
+                    row_code = row.get("code")
+                    if isinstance(row_code, str):
+                        snapshots[row_code] = row.to_dict()
+
+            valid: list[_ExpiryResult] = []
+            failed: list[tuple[date, str]] = []
+            metadata_by_code = {str(row["code"]): row for row in metadata}
+            for expiry in candidates:
+                contracts: list[GexOptionContract] = []
+                timestamps: list[datetime] = []
+                sides: set[OptionSide] = set()
+                for item in rows_by_expiry[expiry]:
+                    normalized = self._normalize_contract(
+                        metadata_by_code[str(item["code"])],
+                        snapshots.get(str(item["code"])),
+                    )
+                    if normalized is None:
+                        continue
+                    contract, timestamp = normalized
+                    contracts.append(contract)
+                    sides.add(contract.side)
+                    if timestamp is not None:
+                        timestamps.append(timestamp)
+                if (
+                    len(contracts) >= policy.minimum_contracts_per_expiry
+                    and sides == set(OptionSide)
+                ):
+                    valid.append(_ExpiryResult(expiry, tuple(contracts), tuple(timestamps)))
+                    if len(valid) >= policy.expiration_count:
+                        break
+                else:
+                    failed.append((expiry, "MOOMOO_GEX_DATA_QUALITY_FAILURE"))
+
+            selected = valid[: policy.expiration_count]
+            contracts = tuple(contract for result in selected for contract in result.contracts)
+            self.last_metrics = {
+                "chain_calls": chain_calls,
+                "snapshot_calls": snapshot_calls + 1,
+                "requested_contracts": len(requested_codes),
+                "received_contracts": len(snapshots),
+                "usable_contracts": len(contracts),
+            }
+            if len(selected) < policy.minimum_valid_expirations or not contracts:
+                raise MarketDataProviderError("MOOMOO_GEX_MIN_COVERAGE_FAILURE")
+            timestamps = [spot_timestamp]
+            timestamps.extend(ts for result in selected for ts in result.source_timestamps)
+            return GexProviderResult(
+                ticker=normalized_symbol,
+                provider=self.name,
+                spot=spot,
+                contracts=contracts,
+                candidate_expirations=candidates,
+                used_expirations=tuple(result.expiration for result in selected),
+                failed_expirations=tuple(failed),
+                source_timestamp=max(timestamps),
+                fetched_at=fetched_at,
+                market_status=market_status,
+            )
+        except MarketDataProviderError:
+            raise
+        except Exception as exc:
+            raise MarketDataProviderError("MOOMOO_CONNECTION_FAILED") from exc
+        finally:
+            if context is not None:
+                with suppress(Exception):
+                    context.close()
+
+    @staticmethod
+    def _get_option_chain(
+        context: Any,
+        code: str,
+        start: date,
+        end: date,
+    ) -> tuple[int, Any]:
+        with _MOOMOO_CHAIN_LOCK:
+            now = time.monotonic()
+            while (
+                _MOOMOO_CHAIN_CALLS
+                and now - _MOOMOO_CHAIN_CALLS[0] >= _MOOMOO_CHAIN_WINDOW_SECONDS
+            ):
+                _MOOMOO_CHAIN_CALLS.popleft()
+            if len(_MOOMOO_CHAIN_CALLS) >= _MOOMOO_CHAIN_MAX_CALLS:
+                delay = _MOOMOO_CHAIN_WINDOW_SECONDS - (now - _MOOMOO_CHAIN_CALLS[0]) + 0.1
+                time.sleep(max(0.0, delay))
+                now = time.monotonic()
+                while (
+                    _MOOMOO_CHAIN_CALLS
+                    and now - _MOOMOO_CHAIN_CALLS[0] >= _MOOMOO_CHAIN_WINDOW_SECONDS
+                ):
+                    _MOOMOO_CHAIN_CALLS.popleft()
+            result = context.get_option_chain(
+                code,
+                start=start.isoformat(),
+                end=end.isoformat(),
+            )
+            _MOOMOO_CHAIN_CALLS.append(time.monotonic())
+            return result
+
+    @staticmethod
+    def _spot(context: Any, code: str, ret_ok: int, symbol: str) -> tuple[float, datetime]:
+        ret, frame = context.get_market_snapshot([code])
+        if ret != ret_ok or not hasattr(frame, "iloc") or frame.empty:
+            error = (
+                "SPX_PROVIDER_UNSUPPORTED"
+                if symbol == "SPX"
+                else "MOOMOO_MARKET_SNAPSHOT_UNAVAILABLE"
+            )
+            raise MarketDataProviderError(error)
+        row = frame.iloc[0]
+        try:
+            spot = float(row.get("last_price"))
+        except (TypeError, ValueError):
+            spot = 0
+        timestamp = MoomooGexMarketDataProvider._timestamp(row.get("update_time"))
+        if spot <= 0 or timestamp is None:
+            error = "SPX_PROVIDER_UNSUPPORTED" if symbol == "SPX" else "GEX_SPOT_UNAVAILABLE"
+            raise MarketDataProviderError(error)
+        return spot, timestamp
+
+    @staticmethod
+    def _market_status(context: Any, ret_ok: int) -> str:
+        ret, state = context.get_global_state()
+        if ret == ret_ok and isinstance(state, dict):
+            return str(state.get("market_us") or "unknown").lower()
+        return "unknown"
+
+    @staticmethod
+    def _timestamp(raw: object) -> datetime | None:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            with suppress(ValueError):
+                return datetime.strptime(raw.strip(), fmt).replace(
+                    tzinfo=ZoneInfo("America/New_York")
+                )
+        return None
+
+    @classmethod
+    def _normalize_contract(
+        cls,
+        metadata: dict[str, Any],
+        snapshot: dict[str, Any] | None,
+    ) -> tuple[GexOptionContract, datetime | None] | None:
+        if snapshot is None:
+            return None
+        try:
+            symbol = str(metadata["code"])
+            expiration = metadata["expiry"]
+            strike = float(metadata["strike"])
+            side = OptionSide(str(metadata["side"]))
+            open_interest = int(snapshot["option_open_interest"])
+            gamma = float(snapshot["option_gamma"])
+            iv_percent = float(snapshot["option_implied_volatility"])
+            volume = int(snapshot["volume"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if (
+            not isinstance(expiration, date)
+            or strike <= 0
+            or open_interest < 0
+            or gamma <= 0
+            or iv_percent <= 0
+            or volume < 0
+        ):
+            return None
+        return (
+            GexOptionContract(
+                symbol=symbol,
+                expiration=expiration,
+                strike=strike,
+                side=side,
+                open_interest=open_interest,
+                gamma=gamma,
+                implied_volatility=iv_percent / 100,
+                volume=volume,
+            ),
+            cls._timestamp(snapshot.get("update_time")),
+        )

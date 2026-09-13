@@ -104,7 +104,7 @@ class StockAnalystPolicy:
         )
         if (
             any(value <= 0 for value in positive)
-            or self.provider != "massive"
+            or self.provider not in {"massive", "moomoo"}
             or self.timeframe != "1D"
             or self.version != STRATEGY_VERSION
             or self.minimum_daily_sessions < 120

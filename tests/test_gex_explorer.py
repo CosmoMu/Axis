@@ -31,7 +31,7 @@ from app.integrations.gex_intraday_data import (
     GexIntradayResult,
     MassiveGexIntradayProvider,
 )
-from app.integrations.gex_market_data import GexProviderResult
+from app.integrations.gex_market_data import GexProviderResult, MoomooGexMarketDataProvider
 from app.integrations.massive_market_data import MarketDataProviderError
 from app.market_intelligence.gex_explorer.engine import (
     build_gex_snapshot,
@@ -201,6 +201,49 @@ def test_ticker_normalization_and_spx_mapping() -> None:
     assert normalize_gex_ticker("SPXW") == "SPX"
     with pytest.raises(GexExplorerError, match="GEX_TICKER_INVALID"):
         normalize_gex_ticker("NVDA please")
+
+
+def test_moomoo_gex_contract_normalization_preserves_distinct_fields() -> None:
+    normalized = MoomooGexMarketDataProvider._normalize_contract(
+        {
+            "code": "US.SPY260914C764000",
+            "expiry": date(2026, 9, 14),
+            "strike": 764.0,
+            "side": "CALL",
+        },
+        {
+            "option_open_interest": 1206,
+            "option_gamma": 0.080164075,
+            "option_implied_volatility": 12.375,
+            "volume": 20292,
+            "update_time": "2026-09-11 16:14:55",
+        },
+    )
+    assert normalized is not None
+    contract, timestamp = normalized
+    assert contract.open_interest == 1206
+    assert contract.volume == 20292
+    assert contract.gamma == pytest.approx(0.080164075)
+    assert contract.implied_volatility == pytest.approx(0.12375)
+    assert timestamp is not None
+    assert timestamp.isoformat() == "2026-09-11T16:14:55-04:00"
+
+
+def test_moomoo_gex_contract_rejects_missing_required_gamma() -> None:
+    assert MoomooGexMarketDataProvider._normalize_contract(
+        {
+            "code": "US.SPY260914C764000",
+            "expiry": date(2026, 9, 14),
+            "strike": 764.0,
+            "side": "CALL",
+        },
+        {
+            "option_open_interest": 1,
+            "option_implied_volatility": 12.0,
+            "volume": 1,
+            "update_time": "2026-09-11 16:14:55",
+        },
+    ) is None
 
 
 def test_five_level_gamma_regime_is_policy_deterministic() -> None:

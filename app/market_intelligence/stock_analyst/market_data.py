@@ -86,26 +86,19 @@ class MoomooDailyBarProvider:
             )
             if len(bars) < MINIMUM_ANALYSIS_SESSIONS:
                 raise StockMarketDataError("AXIS_STOCK_HISTORY_INSUFFICIENT")
-            sector_bars = None
-            benchmark_bars = None
-            with suppress(StockMarketDataError):
-                sector_bars = self._history(
-                    context,
-                    f"US.{sector}",
-                    start.isoformat(),
-                    end.isoformat(),
-                    RET_OK,
-                    KLType,
-                    AuType,
-                    KL_FIELD,
-                )
-            if sector == "SPY":
-                benchmark_bars = sector_bars
-            else:
-                with suppress(StockMarketDataError):
-                    benchmark_bars = self._history(
+            context_symbols = tuple(dict.fromkeys((
+                "SPY",
+                sector,
+                *rotation_peers(sector),
+                *sector_leader_candidates(sector),
+            )))
+            market_context: dict[str, tuple[DailyBar, ...]] = {}
+            unavailable: list[str] = []
+            for symbol in context_symbols:
+                try:
+                    candidate = self._history(
                         context,
-                        "US.SPY",
+                        f"US.{symbol}",
                         start.isoformat(),
                         end.isoformat(),
                         RET_OK,
@@ -113,17 +106,37 @@ class MoomooDailyBarProvider:
                         AuType,
                         KL_FIELD,
                     )
-            source_timestamp = bars[-1].timestamp
+                    if len(candidate) >= 21:
+                        market_context[symbol] = candidate
+                    else:
+                        unavailable.append(f"context:{symbol}")
+                except StockMarketDataError:
+                    unavailable.append(f"context:{symbol}")
+            snapshot_time = self._snapshot_time(context, f"US.{ticker}", RET_OK)
+            source_timestamp = snapshot_time or bars[-1].timestamp
+            peers = {
+                symbol: market_context[symbol]
+                for symbol in rotation_peers(sector)
+                if symbol in market_context
+            }
+            candidates = {
+                symbol: market_context[symbol]
+                for symbol in sector_leader_candidates(sector)
+                if symbol in market_context
+            }
             return StockMarketBundle(
                 ticker,
                 bars,
                 sector,
-                sector_bars,
-                benchmark_bars,
+                market_context.get(sector),
+                market_context.get("SPY"),
+                peer_bars=peers,
+                sector_candidate_bars=candidates,
                 provider=self.name,
                 fetched_at=datetime.now(UTC),
                 source_timestamp=source_timestamp,
                 market_status=_derived_market_status(),
+                unavailable_data=tuple(unavailable),
             )
         except StockMarketDataError:
             raise
@@ -133,6 +146,17 @@ class MoomooDailyBarProvider:
             if context is not None:
                 with suppress(Exception):
                     context.close()
+
+    @staticmethod
+    def _snapshot_time(context: Any, code: str, ret_ok: int) -> datetime | None:
+        ret, frame = context.get_market_snapshot([code])
+        if ret != ret_ok or not hasattr(frame, "iloc") or frame.empty:
+            return None
+        raw = str(frame.iloc[0].get("update_time") or "").strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            with suppress(ValueError):
+                return datetime.strptime(raw, fmt).replace(tzinfo=ET)
+        return None
 
     @staticmethod
     def _history(

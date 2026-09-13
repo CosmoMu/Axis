@@ -19,7 +19,8 @@ The Member Lounge path is fail-closed. It requires the exact configured Guild, e
 blocked. Owner retains the `卡片测试` maintenance path; all other channels are rejected.
 
 The command never creates or changes Signal, Trade, Result, Mentor, public Analysis, Tracking,
-Membership or broker state. It never invokes Moomoo or the Owner Personal Execution Layer.
+Membership or broker state. It uses Moomoo only for read-only market data and never invokes the
+Owner Personal Execution Layer.
 
 ## Cosmos source and shared AXIS architecture
 
@@ -39,7 +40,7 @@ audit behavior live in `app/services/stock_analyst.py` and `app/bot/cogs/stock_a
 
 ## Market data and freshness
 
-Massive is the Phase 1 provider. It supplies current/latest price, market status, source timestamp
+Moomoo is the production provider. It supplies current/latest price, market status, source timestamp
 and adjusted daily OHLCV. The request uses a 550-calendar-day lookback and requires at least 120
 valid daily sessions. The engine uses one Daily timeframe because recovered Cosmos v0.1 itself used
 Daily bars; no unrecovered intraday or higher-timeframe analysis was invented. Optional sector ETF,

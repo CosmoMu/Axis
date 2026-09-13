@@ -29,10 +29,17 @@ from app.integrations.gex_intraday_data import (  # noqa: E402
     MassiveGexIntradayProvider,
     MoomooGexIntradayProvider,
 )
-from app.integrations.gex_market_data import MassiveGexMarketDataProvider  # noqa: E402
+from app.integrations.gex_market_data import (  # noqa: E402
+    MassiveGexMarketDataProvider,
+    MoomooGexMarketDataProvider,
+)
 from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
+from app.integrations.moomoo_market_data import (  # noqa: E402
+    MoomooMarketDataClient,
+    MoomooOptionMarketDataProvider,
+)
 from app.integrations.moomoo_personal_execution import MoomooPersonalBroker  # noqa: E402
 from app.integrations.openai_analysis_parser import (  # noqa: E402
     OpenAIAnalysisParser,
@@ -121,7 +128,9 @@ async def run() -> None:
         (
             "event=bot_start guild_id=%s analysis_enabled=%s "
             "moomoo_enabled=%s daily_summary_enabled=%s "
-            "stock_analyst_enabled=%s stock_analyst_mode=%s"
+            "stock_analyst_enabled=%s stock_analyst_mode=%s "
+            "stock_provider=%s gex_provider=%s gex_intraday_provider=%s "
+            "option_tracking_provider=%s"
         ),
         settings.discord_guild_id,
         settings.analysis_enabled,
@@ -129,6 +138,10 @@ async def run() -> None:
         settings.daily_summary_enabled,
         settings.stock_analyst_enabled,
         settings.stock_analyst_mode,
+        settings.stock_market_data_provider,
+        settings.gex_market_data_provider,
+        settings.gex_intraday_provider,
+        settings.option_tracking_provider,
     )
     token = settings.require_token()
     database = Database(settings.require_database_url())
@@ -151,7 +164,11 @@ async def run() -> None:
             )
             if path.is_file() and path != settings.short_term_tracking_config_path
         )
-        if settings.short_term_tracking_enabled and not settings.massive_api_key:
+        if (
+            settings.short_term_tracking_enabled
+            and settings.option_tracking_provider == "massive"
+            and not settings.massive_api_key
+        ):
             raise ConfigurationError("Short-Term Tracking 已启用但缺少 MASSIVE_API_KEY。")
         massive_provider = (
             MassiveMarketDataProvider(
@@ -161,30 +178,52 @@ async def run() -> None:
                 last_trade_quote_guard_pct=(short_term_policy.last_trade_quote_guard_pct),
                 base_url=settings.massive_base_url,
             )
-            if settings.massive_api_key
+            if settings.option_tracking_provider == "massive" and settings.massive_api_key
             else None
+        )
+        option_provider = (
+            MoomooOptionMarketDataProvider(
+                host=settings.moomoo_host,
+                port=settings.moomoo_port,
+                price_source=short_term_policy.price_source,
+                max_quote_age_seconds=short_term_policy.max_quote_age_seconds,
+                last_trade_quote_guard_pct=short_term_policy.last_trade_quote_guard_pct,
+            )
+            if settings.option_tracking_provider == "moomoo"
+            else massive_provider
         )
         gex_explorer_service = None
         if settings.gex_explorer_enabled:
             gex_policy = GexPolicy.load(settings.gex_explorer_policy_path)
             gex_explorer_service = GexExplorerService(
                 database,
-                MassiveGexMarketDataProvider(
-                    api_key=settings.massive_api_key,
-                    base_url=settings.massive_base_url,
-                    concurrency=gex_policy.provider_concurrency,
+                (
+                    MoomooGexMarketDataProvider(
+                        host=settings.moomoo_host,
+                        port=settings.moomoo_port,
+                    )
+                    if settings.gex_market_data_provider == "moomoo"
+                    else MassiveGexMarketDataProvider(
+                        api_key=settings.massive_api_key,
+                        base_url=settings.massive_base_url,
+                        concurrency=gex_policy.provider_concurrency,
+                    )
                 ),
-                MassiveGexIntradayProvider(
-                    api_key=settings.massive_api_key,
-                    base_url=settings.massive_base_url,
-                    interval_minutes=gex_policy.intraday_interval_minutes,
+                (
+                    MoomooGexIntradayProvider(
+                        host=settings.moomoo_host,
+                        port=settings.moomoo_port,
+                        interval_minutes=gex_policy.intraday_interval_minutes,
+                    )
+                    if settings.gex_intraday_provider == "moomoo"
+                    else MassiveGexIntradayProvider(
+                        api_key=settings.massive_api_key,
+                        base_url=settings.massive_base_url,
+                        interval_minutes=gex_policy.intraday_interval_minutes,
+                    )
                 ),
                 gex_policy,
-                shadow_intraday_provider=MoomooGexIntradayProvider(
-                    host=settings.moomoo_host,
-                    port=settings.moomoo_port,
-                    interval_minutes=gex_policy.intraday_interval_minutes,
-                ),
+                shadow_intraday_provider=None,
             )
         stock_analyst_service = None
         if settings.stock_analyst_enabled:
@@ -195,19 +234,25 @@ async def run() -> None:
             stock_analyst_service = StockAnalystQueryService(
                 database,
                 AxisStockAnalystService(
-                    provider=MassiveDailyBarProvider(
-                        api_key=settings.massive_api_key,
-                        base_url=settings.massive_base_url,
-                        timeout_seconds=stock_analyst_policy.timeout_seconds,
-                        lookback_days=stock_analyst_policy.daily_lookback_calendar_days,
-                        concurrency=stock_analyst_policy.provider_concurrency,
+                    provider=(
+                        MoomooDailyBarProvider(
+                            settings.moomoo_host,
+                            settings.moomoo_port,
+                            lookback_days=stock_analyst_policy.daily_lookback_calendar_days,
+                        )
+                        if settings.stock_market_data_provider == "moomoo"
+                        else MassiveDailyBarProvider(
+                            api_key=settings.massive_api_key,
+                            base_url=settings.massive_base_url,
+                            timeout_seconds=stock_analyst_policy.timeout_seconds,
+                            lookback_days=stock_analyst_policy.daily_lookback_calendar_days,
+                            concurrency=stock_analyst_policy.provider_concurrency,
+                        )
                     )
                 ),
                 stock_analyst_policy,
             )
-        contract_resolver = (
-            OptionContractResolver(massive_provider) if massive_provider is not None else None
-        )
+        contract_resolver = OptionContractResolver(option_provider) if option_provider else None
         attachment_store = LocalAttachmentStore(
             settings.attachment_storage_path,
             max_bytes=settings.max_attachment_bytes,
@@ -242,7 +287,7 @@ async def run() -> None:
                 attachment_store,
                 parser,
                 contract_resolver,
-                massive_provider,
+                option_provider,
             )
             if settings.analysis_enabled:
                 analysis_parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)
@@ -286,12 +331,16 @@ async def run() -> None:
             daily_summary_service = DailySummaryService(
                 database,
                 (
-                    MassiveClosingPriceClient(
-                        api_key=settings.massive_api_key,
-                        base_url=settings.massive_base_url,
+                    MoomooMarketDataClient(settings.moomoo_host, settings.moomoo_port)
+                    if settings.option_tracking_provider == "moomoo"
+                    else (
+                        MassiveClosingPriceClient(
+                            api_key=settings.massive_api_key,
+                            base_url=settings.massive_base_url,
+                        )
+                        if settings.massive_api_key
+                        else None
                     )
-                    if settings.massive_api_key
-                    else None
                 ),
                 results_review_enabled=settings.results_review_enabled,
                 swing_tracking_policies=(
@@ -311,13 +360,13 @@ async def run() -> None:
         short_term_tracking_service = MarketTrackingService(
             database,
             short_term_policy,
-            massive_provider if settings.short_term_tracking_enabled else None,
+            option_provider if settings.short_term_tracking_enabled else None,
             historical_policies=historical_short_term_policies,
         )
         swing_tracking_service = SwingTrackingService(
             database,
             short_term_policy,
-            massive_provider if settings.short_term_tracking_enabled else None,
+            option_provider if settings.short_term_tracking_enabled else None,
             historical_policies=historical_short_term_policies,
         )
         swing_leaps_trade_plan_service = (
@@ -470,7 +519,7 @@ async def run() -> None:
             trade_publication_service=TradePublicationService(
                 database,
                 contract_resolver,
-                market_data_provider=massive_provider,
+                market_data_provider=option_provider,
             ),
             short_term_tracking_service=short_term_tracking_service,
             swing_tracking_service=swing_tracking_service,

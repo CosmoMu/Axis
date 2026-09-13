@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live, read-only Massive cross-check for AXIS GEX Explorer Phase 1."""
+"""Live, read-only verification for the configured AXIS GEX providers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import argparse
 import asyncio
 import json
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -19,8 +18,10 @@ from app.integrations.gex_intraday_data import (  # noqa: E402
     MassiveGexIntradayProvider,
     MoomooGexIntradayProvider,
 )
-from app.integrations.gex_intraday_shadow import GexIntradayShadowBox  # noqa: E402
-from app.integrations.gex_market_data import MassiveGexMarketDataProvider  # noqa: E402
+from app.integrations.gex_market_data import (  # noqa: E402
+    MassiveGexMarketDataProvider,
+    MoomooGexMarketDataProvider,
+)
 from app.market_intelligence.gex_explorer.engine import build_gex_snapshot  # noqa: E402
 from app.market_intelligence.gex_explorer.heatmap import render_gex_heatmap  # noqa: E402
 from app.services.gex_explorer import GexPolicy  # noqa: E402
@@ -41,20 +42,25 @@ def parse_args() -> argparse.Namespace:
 async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None = None) -> int:
     settings = Settings.load(PROJECT_ROOT)
     policy = GexPolicy.load(settings.gex_explorer_policy_path)
-    provider = MassiveGexMarketDataProvider(
-        api_key=settings.massive_api_key,
-        base_url=settings.massive_base_url,
-        concurrency=policy.provider_concurrency,
+    provider = (
+        MoomooGexMarketDataProvider(host=settings.moomoo_host, port=settings.moomoo_port)
+        if settings.gex_market_data_provider == "moomoo"
+        else MassiveGexMarketDataProvider(
+            api_key=settings.massive_api_key,
+            base_url=settings.massive_base_url,
+            concurrency=policy.provider_concurrency,
+        )
     )
-    intraday_provider = MassiveGexIntradayProvider(
-        api_key=settings.massive_api_key,
-        base_url=settings.massive_base_url,
-        interval_minutes=policy.intraday_interval_minutes,
-    )
-    shadow_box = GexIntradayShadowBox(
+    intraday_provider = (
         MoomooGexIntradayProvider(
             host=settings.moomoo_host,
             port=settings.moomoo_port,
+            interval_minutes=policy.intraday_interval_minutes,
+        )
+        if settings.gex_intraday_provider == "moomoo"
+        else MassiveGexIntradayProvider(
+            api_key=settings.massive_api_key,
+            base_url=settings.massive_base_url,
             interval_minutes=policy.intraday_interval_minutes,
         )
     )
@@ -65,12 +71,6 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
             intraday = await intraday_provider.fetch(
                 ticker,
                 bar_count=policy.intraday_bar_count,
-            )
-            shadow = await shadow_box.compare(
-                ticker=ticker,
-                bar_count=policy.intraday_bar_count,
-                primary=intraday,
-                compared_at=datetime.now(UTC),
             )
             snapshot = build_gex_snapshot(
                 ticker,
@@ -166,16 +166,7 @@ async def verify(tickers: list[str], *, invalid: bool, output_dir: Path | None =
                         "minute_interval": policy.intraday_interval_minutes,
                         "minute_bars": len(intraday.bars),
                         "minute_source_timestamp": intraday.source_timestamp.isoformat(),
-                        "moomoo_shadow": {
-                            "candidate_provider": shadow.candidate_provider,
-                            "candidate_bars": shadow.candidate_bar_count,
-                            "overlap_bars": shadow.overlapping_bar_count,
-                            "close_difference_pct": shadow.close_relative_difference_pct,
-                            "timestamp_difference_seconds": (
-                                shadow.source_timestamp_difference_seconds
-                            ),
-                            "error_code": shadow.candidate_error_code,
-                        },
+                        "provider_metrics": getattr(provider, "last_metrics", {}),
                         "source_timestamp": raw.source_timestamp.isoformat(),
                         "regime": snapshot.gamma_regime,
                         "levels": {

@@ -1,7 +1,7 @@
 version: COSMOS_STOCK_ANALYST_V0_1
 
 market_data:
-  provider: massive
+  provider: moomoo
   daily_lookback_calendar_days: 550
   minimum_daily_sessions: 120
   maximum_data_age_seconds: 900

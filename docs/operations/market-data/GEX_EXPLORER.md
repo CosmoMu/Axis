@@ -6,7 +6,7 @@
 
 The implemented Member Lounge path accepts `gex HOOD` or `/gex ticker:HOOD`, validates Guild +
 channel + role, normalizes the ticker, applies cache/rate limits,
-loads Massive spot, selected option expirations, and the latest real five-minute U.S. session,
+loads Moomoo spot, selected option expirations, and the latest real five-minute U.S. session,
 runs the shared V7 classifier, renders one Chinese Discord card plus a 1800×1600 PNG, and records
 the existing GEX AuditLog events. Only the strict `gex TICKER` message shape triggers; a plain
 ticker or normal lounge conversation does not. Owner approved the launch on 2026-09-05 and the
@@ -17,12 +17,12 @@ request every 30 seconds, and the same normalized ticker may be requested once p
 seconds. Manager and Owner identities bypass both cooldowns. The eight-fresh-requests-per-minute
 Guild provider limit, 60-second data cache, and single-flight generation still apply to everyone.
 
-Moomoo OpenD compares five-minute bars in a background black box only. It never selects, replaces,
-delays, or blocks the Massive result. GEX remains read-only and does not connect to trade execution.
+Moomoo OpenD is the production option-surface and five-minute provider. Massive remains only as an
+explicit dormant rollback adapter. GEX remains read-only and does not connect to trade execution.
 
 ## Data and calculation
 
-- Production data: Massive spot, option snapshot, current-day option volume, OI, Gamma/IV, and
+- Production data: Moomoo spot, option snapshot, current-day option volume, OI, Gamma/IV, and
   five-minute aggregates. SPX must use real SPX data and never SPY as a proxy.
 - Primary cell: `Gamma × option volume × 100 × Spot² × 0.01` per 1% underlying move.
 - Independent OI metric: `Gamma × OI × 100 × Spot² × 0.01`; it does not fill missing volume.
@@ -82,7 +82,8 @@ available. No GEX surface may output a directional trade instruction.
 Closed-market output is labeled as the latest available snapshot. Stale data is labeled
 independently. Insufficient coverage, invalid data, provider/auth/rate failures, and rendering
 errors fail closed and use stable error codes plus deduplicated System Alert/Recovery handling.
-Secrets and full provider URLs are never logged.
+Secrets and full provider URLs are never logged. SPX currently fails closed as
+`SPX_PROVIDER_UNSUPPORTED` because OpenD does not expose the required index spot snapshot.
 
 ## Verification
 

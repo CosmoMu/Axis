@@ -196,6 +196,10 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    stock_market_data_provider: str = "massive"
+    gex_market_data_provider: str = "massive"
+    gex_intraday_provider: str = "massive"
+    option_tracking_provider: str = "massive"
     stock_analyst_enabled: bool = False
     stock_analyst_mode: str = "TEST"
     stock_analyst_policy_path: Path = Path("config/stock_analyst.yaml")
@@ -356,6 +360,22 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            stock_market_data_provider=(
+                os.getenv("STOCK_MARKET_DATA_PROVIDER", "massive").strip().lower()
+                or "massive"
+            ),
+            gex_market_data_provider=(
+                os.getenv("GEX_MARKET_DATA_PROVIDER", "massive").strip().lower()
+                or "massive"
+            ),
+            gex_intraday_provider=(
+                os.getenv("GEX_INTRADAY_PROVIDER", "massive").strip().lower()
+                or "massive"
+            ),
+            option_tracking_provider=(
+                os.getenv("OPTION_TRACKING_PROVIDER", "massive").strip().lower()
+                or "massive"
+            ),
             gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
             gex_explorer_mode=(os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"),
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
@@ -583,6 +603,7 @@ class Settings:
             )
 
     def assert_gex_safety(self) -> None:
+        self._assert_market_data_providers()
         if self.gex_explorer_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
             raise ConfigurationError("GEX_EXPLORER_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
         if self.gex_explorer_enabled:
@@ -590,12 +611,13 @@ class Settings:
                 raise ConfigurationError("启用 GEX Explorer 时 mode 不能为 OFF。")
             if self.discord_owner_user_id is None:
                 raise ConfigurationError("启用 GEX Explorer 必须配置 DISCORD_OWNER_USER_ID。")
-            if not self.massive_api_key:
+            if self.gex_market_data_provider == "massive" and not self.massive_api_key:
                 raise ConfigurationError("启用 GEX Explorer 必须配置 MASSIVE_API_KEY。")
             if not self.gex_explorer_policy_path.is_file():
                 raise ConfigurationError("GEX_EXPLORER_POLICY 文件不存在。")
 
     def assert_stock_analyst_safety(self) -> None:
+        self._assert_market_data_providers()
         if self.stock_analyst_mode not in {"OFF", "TEST", "MEMBER_LOUNGE"}:
             raise ConfigurationError("STOCK_ANALYST_MODE 仅允许 OFF、TEST 或 MEMBER_LOUNGE。")
         if not self.stock_analyst_enabled:
@@ -604,10 +626,20 @@ class Settings:
             raise ConfigurationError("启用 Stock Analyst 时 mode 不能为 OFF。")
         if self.discord_owner_user_id is None:
             raise ConfigurationError("启用 Stock Analyst 必须配置 DISCORD_OWNER_USER_ID。")
-        if not self.massive_api_key:
+        if self.stock_market_data_provider == "massive" and not self.massive_api_key:
             raise ConfigurationError("启用 Stock Analyst 必须配置 MASSIVE_API_KEY。")
         if not self.stock_analyst_policy_path.is_file():
             raise ConfigurationError("STOCK_ANALYST_POLICY 文件不存在。")
+
+    def _assert_market_data_providers(self) -> None:
+        for name, value in (
+            ("STOCK_MARKET_DATA_PROVIDER", self.stock_market_data_provider),
+            ("GEX_MARKET_DATA_PROVIDER", self.gex_market_data_provider),
+            ("GEX_INTRADAY_PROVIDER", self.gex_intraday_provider),
+            ("OPTION_TRACKING_PROVIDER", self.option_tracking_provider),
+        ):
+            if value not in {"massive", "moomoo"}:
+                raise ConfigurationError(f"{name} 仅允许 massive 或 moomoo。")
 
     def assert_research_safety(self) -> None:
         if self.research_mode not in {"OFF", "TEST"}:

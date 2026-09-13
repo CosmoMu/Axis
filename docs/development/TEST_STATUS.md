@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 360 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 365 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -13,6 +13,14 @@
 - Analysis chart-source schema width / migration: PASS
 - Database verifier: PASS
 - Discord runtime verifier: PASS
+- Moomoo production market-data migration: PASS — actual OpenD capability/entitlement gate、8-ticker
+  Stock Analyst、5-ticker GEX、BID/MID/LAST tracking adapter、empty Massive key full Bot startup、
+  real Discord Stock/GEX card rendering、Ruff、compileall、database verifier、Discord runtime verifier
+  and Blueprint dry-run all passed.
+- Moomoo capability evidence: SDK 10.10.7008；SPY/NVDA stock snapshots + Daily/1m/5m；SPY option
+  bid/ask/last/volume/OI/IV/delta/gamma/timestamp；OPRA best bid/ask；no additional option package
+  required. SPX chain/snapshot work but underlying snapshot is unsupported and fails closed as
+  `SPX_PROVIDER_UNSUPPORTED` without SPY proxy.
 - AXIS Multi-Agent Research focused regression: PASS — functional SPY / QQQ / NVDA / TSLA /
   AAPL fixtures、permission、frozen-pack debate、partial/minimum coverage、deterministic confidence、
   numeric integrity、prompt injection、cache/single-flight/policy invalidation、1/3/5 outcome framework、
@@ -41,7 +49,7 @@
   Legacy Swing 未误注册（new Swing tracking tables remain 0 before first Simple Swing）
 - GEX Explorer V7 Member Lounge: LIVE / AUTOMATED + RUNTIME PASS — 严格 `gex TICKER` parser、
   Member/Manager/Owner access、exact Guild/channel gate、真实回复 listener、Owner 卡片测试
-  维护入口、Massive 数据、Moomoo shadow、cache/single-flight/limits/audit 均通过；deployed
+  维护入口、Moomoo production 数据、cache/single-flight/limits/audit 均通过；deployed
   runtime 为 `MEMBER_LOUNGE`，Discord verifier PASS。
 - GEX Live symbols: SPY / QQQ / NVDA / TSLA / AAPL PASS（各 10 valid expirations）；SPX
   `GEX_SPX_UNSUPPORTED`（当前 Massive entitlement blocker，未 fallback SPY）。
@@ -87,6 +95,7 @@
 - .venv/bin/pytest -q
 - .venv/bin/python scripts/verify_gex_explorer.py
 - .venv/bin/python scripts/verify_stock_analyst.py
+- .venv/bin/python scripts/verify_moomoo_discord_cards.py
 - .venv/bin/python scripts/verify_database.py
 - .venv/bin/python scripts/verify_analysis_fusion.py
 - .venv/bin/python scripts/verify_discord_runtime.py
@@ -149,7 +158,7 @@ Short-Term:
 - Short-Term ER 默认 false、明确 `ER` 输入预选、独立 Review toggle、ER + LOTTO 组合显示、
   Draft / Trade 持久化、TP 卡与 Daily Results 传递；ER 不改变追踪或收益逻辑。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
-- Swing / LEAPS Summary 只接受 Massive 当日正式期权收盘价，不接受其他日期 bar 或实时价；
+- Swing / LEAPS Summary 只接受 Moomoo 当日正式期权收盘价，不接受其他日期 bar 或实时价；
   支持 `PAGE n / total` 分页且不截断订单。Swing 活动订单显示历史最高 TP；LEAPS 改为显示
   入场以来的“最高收益”；Massive 真实 High 正规化、入场/成本边界和历史快照降级均有覆盖。
   两者均显示当日收盘收益/收盘价与成本并隐藏仓位比例。
@@ -228,8 +237,8 @@ GEX Explorer V7 Member Lounge:
   Gamma Node、single Magnet、shared major/minor support/resistance 与 acceleration classifier。
 - Deterministic 1800×1600 Chinese vertical composite；top summary、real 5-minute K-line、
   continuous actual-strike × expiration ladder、0DTE、TOTAL、Role、spot row、robust heat colors。
-- Massive GEX or Massive minute failure is fail-closed；Moomoo shadow failure is non-blocking；
-  no synthetic candle fallback；PNG dimension and shadow metadata tests PASS。
+- Production Moomoo GEX surface or Moomoo minute failure is fail-closed；Massive remains an explicit
+  dormant rollback adapter only；no synthetic candle fallback；PNG dimension tests PASS。
 - ticker+policy+provider cache、single-flight、user cooldown、guild limit 与全部 GEX Audit event。
 - 普通会员 30 秒 per-user cooldown、同 ticker 60 秒 Guild cooldown、Manager / Owner bypass；
   cooldown 与 60 秒 data cache、8 fresh requests/minute provider guard 分层验证。

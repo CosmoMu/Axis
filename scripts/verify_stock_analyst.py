@@ -18,6 +18,7 @@ from app.config import Settings  # noqa: E402
 from app.db.session import Database  # noqa: E402
 from app.market_intelligence.stock_analyst.market_data import (  # noqa: E402
     MassiveDailyBarProvider,
+    MoomooDailyBarProvider,
 )
 from app.market_intelligence.stock_analyst.service import (  # noqa: E402
     AxisStockAnalystService,
@@ -36,12 +37,20 @@ async def verify(tickers: tuple[str, ...]) -> dict[str, object]:
         version_override=settings.stock_analyst_policy_version,
     )
     database = Database(settings.require_database_url())
-    provider = MassiveDailyBarProvider(
-        api_key=settings.massive_api_key,
-        base_url=settings.massive_base_url,
-        timeout_seconds=policy.timeout_seconds,
-        lookback_days=policy.daily_lookback_calendar_days,
-        concurrency=policy.provider_concurrency,
+    provider = (
+        MoomooDailyBarProvider(
+            settings.moomoo_host,
+            settings.moomoo_port,
+            lookback_days=policy.daily_lookback_calendar_days,
+        )
+        if settings.stock_market_data_provider == "moomoo"
+        else MassiveDailyBarProvider(
+            api_key=settings.massive_api_key,
+            base_url=settings.massive_base_url,
+            timeout_seconds=policy.timeout_seconds,
+            lookback_days=policy.daily_lookback_calendar_days,
+            concurrency=policy.provider_concurrency,
+        )
     )
     service = StockAnalystQueryService(
         database,

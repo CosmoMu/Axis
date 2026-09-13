@@ -121,6 +121,41 @@ def test_stock_analyst_mode_accepts_member_lounge_and_rejects_missing_owner() ->
         ).assert_stock_analyst_safety()
 
 
+def test_market_data_provider_names_are_explicit_and_strict() -> None:
+    base = settings(apply_changes=False, dry_run=True)
+    configured = replace(
+        base,
+        stock_market_data_provider="moomoo",
+        gex_market_data_provider="moomoo",
+        gex_intraday_provider="moomoo",
+        option_tracking_provider="moomoo",
+    )
+    configured._assert_market_data_providers()
+    with pytest.raises(ConfigurationError, match="OPTION_TRACKING_PROVIDER"):
+        replace(configured, option_tracking_provider="automatic")._assert_market_data_providers()
+
+
+def test_moomoo_stock_and_gex_do_not_require_massive_key() -> None:
+    root = Path(__file__).parents[1]
+    configured = replace(
+        settings(apply_changes=False, dry_run=True),
+        discord_owner_user_id=1,
+        stock_analyst_enabled=True,
+        stock_analyst_mode="MEMBER_LOUNGE",
+        stock_analyst_policy_path=root / "config/stock_analyst.yaml",
+        stock_market_data_provider="moomoo",
+        gex_explorer_enabled=True,
+        gex_explorer_mode="MEMBER_LOUNGE",
+        gex_explorer_policy_path=root / "config/gex_explorer.yaml",
+        gex_market_data_provider="moomoo",
+        gex_intraday_provider="moomoo",
+        option_tracking_provider="moomoo",
+        massive_api_key="",
+    )
+    configured.assert_stock_analyst_safety()
+    configured.assert_gex_safety()
+
+
 def test_research_is_fail_closed_to_owner_test_mode() -> None:
     base = settings(apply_changes=False, dry_run=True)
     replace(base, research_mode="OFF").assert_research_safety()

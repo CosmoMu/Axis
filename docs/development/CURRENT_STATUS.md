@@ -2,11 +2,13 @@
 
 **Updated:** 2026-09-13
 
-**Current stage:** MULTI-AGENT RESEARCH TEST ONLY / CORE PRODUCTION STABILIZATION
+**Current stage:** MOOMOO MARKET DATA PRODUCTION / CORE PRODUCTION STABILIZATION
 
 **Database revision:** 20260913_0033
 
 **AXIS LAB:** DEFERRED
+
+**Production market data:** MOOMOO PRIMARY / MASSIVE DORMANT ROLLBACK ADAPTER
 
 状态定义：
 
@@ -16,6 +18,16 @@
 - DEFERRED — 明确不在当前开发范围。
 
 ## Executive summary
+
+2026-09-13 已完成 Massive → Moomoo 同日 Production market-data cutover。Stock Analyst、GEX
+option surface、GEX 5 分钟 K 线、Short-Term/Swing tracking 与 post-close option quote 均通过现有
+provider-independent boundary 使用 Moomoo。真实 OpenD Gate 已验证股票 OHLCV、期权链、
+bid/ask/last/volume/OI/IV/delta/gamma/update timestamp 与 OPRA best bid/ask；不需要新增行情包。
+Massive provider code保留为显式回滚 adapter，不自动 fallback，四项 provider 为 Moomoo 时允许
+`MASSIVE_API_KEY` 为空。SPX option chain/snapshot 可读但指数现货 snapshot 不受支持，因此单独
+fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 的真实 Bot 启动、
+SPY/NVDA Stock + GEX Discord 卡片上传、365 项完整回归与部署后 runtime hash 均已通过。
+Personal Moomoo LIVE writes 仍禁用。
 
 AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，严格
 复用现有 Stock Analyst、GEX、Massive、LLM Router、Database、Discord、Audit 与 System Alerts。
@@ -41,19 +53,20 @@ Newcomer Approval / Free Trial Security Gate 已完成代码、迁移、权限�
 已执行 existing-user baseline 与 Discord structure 安全部署，但真实新账户的完整时钟 E2E 仍待验收。
 Swing V2 已实现为独立 Simple Tracked Swing；生产 migration 已把四笔 Active 既有订单明确标记为
 Legacy Swing，未删除或改写历史。新 Simple Swing 代码、迁移与自动化通过，真实 Discord / Massive
-端到端尚未验收。Short-Term 已有 Production tracking 与 Massive quote，但 TP/Expiry 触发和正式
+端到端尚未验收。Short-Term 已有 Production Moomoo tracking，但 TP/Expiry 触发和正式
 交易日 Discord 完整证据链仍未验收。
 
 Next execution boundary: 不新增产品功能。先完成 Simple Tracked Swing 真实 Entry → TP → Close →
-Results 与 Legacy isolation 验收，再完成 Newcomer 和 Short-Term / Massive 真实 E2E；Stripe 由 Owner
+Results 与 Legacy isolation 验收，再完成 Newcomer 和 Short-Term 真实交易日 E2E；Stripe 由 Owner
 从 Discord 完成第一笔真实付款并验收 webhook → Entitlement → Member Role，再继续 renewal、
 failure、payment-method update、cancel 与重复/乱序事件。AXIS LAB 继续 Deferred，Signal /
 Analysis / Tracking 业务逻辑保持冻结。
 
 Owner-only Personal Moomoo Execution 已吸收最终规格并复用现有 publication / Trade / Discord /
 database / system-alert architecture。代码、forward-only migration、Owner-only channel/control card、
-配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 尚未监听，
-真实账户只读对账与 SIMULATE E2E 仍是发布阻塞项。
+配置 fail-closed 和 synthetic DRY_RUN 测试已完成；当前没有启用 LIVE broker writes。OpenD 行情连接
+已验证，但个人执行的真实账户 fill-list 只读检查仍返回 `MOOMOO_FILL_LIST_FAILED`；真实账户对账与
+SIMULATE E2E 仍是该独立模块的发布阻塞项，不阻塞市场数据迁移。
 
 ## AXIS Multi-Agent Research — TEST ONLY
 
@@ -72,13 +85,13 @@ Implemented:
 - 单一可编辑 progress message、最终研究卡、Stock Chart 与 Owner-only ephemeral details；
   Audit、System Alert / Recovery 与独立 kill switch。
 
-Production status: **TEST ONLY.** 360 项完整回归、Ruff、compileall、migration 与 DB verifier 已通过。
+Production status: **TEST ONLY.** 365 项完整回归、Ruff、compileall、migration 与 DB verifier 已通过。
 真实 Massive 验证时 Technical/News 曾恢复，但 GEX/其他并发请求受到 `MASSIVE_RATE_LIMITED`；系统
 正确返回 insufficient-data 且不调用 LLM。不得降低覆盖门或上线 Member Lounge；等待 provider
 窗口/容量复核及 Owner 明确发送 `APPROVE RESEARCH LOUNGE LAUNCH`。
 
-GEX Explorer 已升级为 V7 Professional Ladder，并已在 Member Lounge 正式上线。Massive option surface / spot / 真实 5 分钟
-K 线仍是正式源，Moomoo OpenD 仍只做后台影子比较。主图和底部连续 Strike × Expiration Ladder
+GEX Explorer 已升级为 V7 Professional Ladder，并已在 Member Lounge 正式上线。Moomoo option surface / spot / 真实 5 分钟
+K 线现为正式源。主图和底部连续 Strike × Expiration Ladder
 共用一套可配置 Intraday Importance Score、Gamma Node、主要/次要支撑压力、单一 Gamma Magnet、
 Gamma Flip 和负 Net GEX 加速区分类。网站支持 3 / 5 / 8 / ALL 到期日、Tooltip 和点击行联动；
 Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道、缓存与限流已覆盖
@@ -86,7 +99,7 @@ Discord 使用 1800×1600 纵向移动端导出。严格格式、角色、频道
 
 AXIS Stock Analyst 已从本地 Cosmos Market Stock Analyst v0.1 精确移植为共享、确定性 Daily
 analysis engine，并已在 `🛋️・会员交流` 上线 `/stock ticker:TICKER`。Member、Manager、
-Owner 可使用；Newcomer、`@everyone` 与其他频道均 fail-closed。Massive 为正式只读数据源，卡片与真实
+Owner 可使用；Newcomer、`@everyone` 与其他频道均 fail-closed。Moomoo 为正式只读数据源，卡片与真实
 OHLCV 图共用同一个结构化结果；无 LLM、无 Moomoo、无 Signal/Trade/Result/Membership 副作用。
 Cosmos parity fixtures、8 个真实 ticker、cache/single-flight/limits、权限、图卡一致与回归已通过。
 普通会员每人 30 秒、同一 ticker 全频道 60 秒冷却；Manager / Owner 免除这两项冷却。
@@ -102,7 +115,7 @@ Implemented:
   POC/Value Area、原始 level clustering、bias 与三情景权重。
 - Analysis Fusion 与 `/stock` 共用 `AxisStockAnalystService`；卡片和 1900×1160 确定性图共用
   一个 `StockAnalysis`，真实 82 根日 K，不生成未来 K 线。
-- Massive current/latest、market/source timestamp、adjusted Daily OHLCV 与 freshness；SPX 原生
+- Moomoo current/latest、market/source timestamp、adjusted Daily OHLCV 与 freshness；SPX 原生
   处理且不映射 SPY。开盘 stale 与收盘后 latest-available 标签分开。
 - 60 秒 cache、同 key single-flight、普通会员 30 秒 user cooldown、同 ticker 60 秒 Guild cooldown、
   Manager / Owner cooldown bypass、20 fresh requests/minute guild provider limit、
@@ -138,9 +151,8 @@ Implemented:
   不触发。输入兼容大小写与 `$` 前缀。
 - Member / Manager / Owner + exact Guild / `🛋️・会员交流` runtime gate；Newcomer 与
   `@everyone` 不可用。Owner 保留 `🧪・卡片测试` Slash Command 维护入口。
-- Massive 只读期权表面、现价和真实 5 分钟 K 线为唯一正式数据源；任一 Massive 正式边界失败
-  即 fail-closed，不合成假 K 线。Moomoo OpenD 只在后台比较 bar count、重合时间、共同收盘价
-  和时间差；Moomoo 失败不会阻止 Massive 卡片。SPX 独立处理，绝不 fallback 到 SPY。
+- Moomoo 只读期权表面、现价和真实 5 分钟 K 线为唯一正式数据源；任一正式边界失败即
+  fail-closed，不合成假 K 线。SPX 独立处理，绝不 fallback 到 SPY。
 - 最新 10 个完整有效 expiry、0DTE 或 nearest-valid Near-Term、minimum coverage fail-closed。
 - 当日 Option Volume × Gamma 主表面与独立 OI × Gamma、0DTE / nearest / aggregate、
   五级 Regime、Gamma Node、单一高置信度 Magnet、Gamma Flip、正 Net GEX 主要/次要
@@ -280,7 +292,7 @@ hardcode；每笔订单冻结 policy version 与 price source。支持跨日 Hig
 Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
 Swing Daily Summary 已支持 `PAGE n / total` 分页且不再截断活动订单；每笔活动订单统一显示
-历史最高 TP 的具体收益率、Massive 当日正式收盘价/收益与成本，不显示仓位。
+历史最高 TP 的具体收益率、Moomoo 当日正式收盘价/收益与成本，不显示仓位。
 
 Manager 可在 `信号输入` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
 追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
@@ -294,7 +306,7 @@ Migration: `20260903_0029` 新增 `tracking_mode` 与独立 Swing tracking/event
 五笔 Swing（其中四笔 Active）全部回填为 `LEGACY_SWING`，继续旧 Mentor / Position / event
 流程直至关闭；会员 Active View 与 Simple Swing 使用统一展示；无删除、无重编号、无历史重写。
 
-Remaining: 完成真实 Discord Desktop / Mobile Entry、真实 Massive quote/TP、Close matching、
+Remaining: 完成真实 Discord Desktop / Mobile Entry、真实 Moomoo quote/TP、Close matching、
 EOD、Results 与重启 E2E。
 
 Tests: Simple Entry、共享 TP 来源、无 protection/momentum、跨日 watermark、TP 幂等、Close ID/
@@ -337,7 +349,7 @@ Implemented:
 - SHORT_TERM simplified review，使用独立于 Swing / LEAPS Mentor Trade Flow 的精简审核。
 - no Mentor required，不选择 Mentor、不关联 Mentor Trade。
 - 独立 ST-XXXX 公开编号。
-- Massive MarketTrackingService 与可替换的 market-data provider 边界。
+- Moomoo MarketTrackingService 与可替换的 market-data provider 边界。
 - 单合约 `MASSIVE_QUOTE_STALE`、`MASSIVE_PRICE_UNAVAILABLE`、`LAST_TRADE_OUTLIER` 和
   `OPTION_CONTRACT_NOT_FOUND` 作为可恢复数据质量状态写入订单，不再误报 Massive 服务整体
   ERROR；下一次有效报价自动清零。认证、限流、网络/响应故障仍触发系统警报，并显示精确
@@ -351,7 +363,7 @@ Implemented:
 - Expiry-only Tracking：Short-Term 不发送 SL、保本、trailing protection 或任何价格触发的
   tracking-stop 卡；V2 / V3 / V4 在途订单均持续追踪至合约到期。旧 SL 事件保留为内部审计
   历史，未发布事件会在出队前自动抑制。
-- Review 验证的完整期权代码持久化到 Trade 并直接用于 Massive tracking；SPX 合约保留真实
+- Review 验证的完整期权代码持久化到 Trade 并直接用于 Moomoo tracking；SPX 合约保留真实
   `SPXW` OCC root。批量报价中的单合约失败独立计数，不再被其他成功合约掩盖。
 - 启动轮询会幂等恢复仍未到期、但曾被旧 Protection 规则停止的订单；已发布历史事件保留，
   未发布的旧停止通知取消。
@@ -362,7 +374,7 @@ Implemented:
   `ER` 输入会预选。Entry、TP / Momentum 与 Daily Results 统一显示 `(ER)` 或
   `(ER · LOTTO)`，不改变 Massive、TP、到期和收益计算。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
-  每日 Active Summary 使用 Massive 当日 Options Daily OHLC 正式收盘价计算收益。
+  每日 Active Summary 使用 Moomoo 当日 option snapshot 正式收盘价计算收益。
 - Results：当天到期与收盘时仍在追踪的 Short-Term 先进入候选集；盘中 Massive 报价继续按
   交易日写入独立 High / Low Snapshot，但公开收益统一使用从入场到到期/停止追踪期间的
   全生命周期最高期权价相对入场价计算。只有该值严格超过同订单此前已发布 Results 的最佳值
@@ -371,7 +383,7 @@ Implemented:
   订单号、Ticker、到期日、合约代码与收益率；盈利用 `✅`、亏损用 `❌`、持平或不可用用
   `➖`，并按订单号数字升序排列。
 
-Remaining: 完成真实 Massive quote、TP、reversal/expiry、Discord 事件、重启恢复和
+Remaining: 完成真实 Moomoo quote、TP、reversal/expiry、Discord 事件、重启恢复和
 Daily Results E2E。
 
 Tests: simplified review、ER + LOTTO、MarketTrackingService、TP idempotency、watermark、momentum

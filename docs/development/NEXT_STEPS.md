@@ -5,6 +5,14 @@
 当前只做 Production live validation 和 Core 稳定化。优先级固定如下，不插入 AXIS LAB 或
 新的产品功能。
 
+## Moomoo post-cutover monitoring
+
+- 下一个真实美股交易时段观察 `/stock`、`/gex`、Short-Term 与 Swing 的 source timestamp、
+  cold latency、10/30s option-chain limiter、TP event 和 System Alert/Recovery。
+- SPX 暂时保持 `SPX_PROVIDER_UNSUPPORTED`；除非真实 OpenD entitlement/API 后续开始提供可靠
+  index spot，否则不得用 SPY 或 option strike 代替。
+- Personal Moomoo Execution 继续 DRY_RUN；本次 market-data cutover 不授权 broker writes。
+
 ## Production Data Lock
 
 Soft Open Day 1 清单仍用于核心回归证据，但 Stripe 双环境基础工作已在独立边界内完成，未修改
@@ -68,7 +76,7 @@ Exit criteria:
 Work:
 
 - 用下一笔真实新 Swing 验证 minimal review 不出现 Mentor、Position、ADD、SL、Runner 或图表。
-- 核对 `SIMPLE_TRACKED_SWING`、SW ID、真实 Massive quote、High/Low Watermark 和冻结 policy。
+- 核对 `SIMPLE_TRACKED_SWING`、SW ID、真实 Moomoo quote、High/Low Watermark 和冻结 policy。
 - 触发至少一个 shared fixed TP，确认编号来自 Short-Term policy 且重启不重复。
 - 分别验证 `close SW-XXXX` 和完整合约 matching；确认 Manager Review 后才停止追踪，报价失败时
   仍能安全 Close，Close Reference 不替代 lifetime highest return。
@@ -99,12 +107,12 @@ Exit criteria:
 - 真实 Discord 权限、Application、Review、Trial、Expiry、Rejoin 和 checkout fail-closed 均有证据。
 - `membership_trials` 永久历史和 database unique constraint 阻止第二次 Trial。
 
-## Priority 1 — Short-Term + Massive Real E2E
+## Priority 1 — Short-Term + Moomoo Real E2E
 
 Work:
 
-- 从下一笔正式 ST-0001 开始验证发布后 tracking 注册与真实 Massive quote。
-- 验证 Massive MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
+- 从下一笔正式 ST 开始验证发布后 tracking 注册与真实 Moomoo quote。
+- 验证 Moomoo MarketTrackingService 的真实 option quote、symbol、price source 和 timestamp。
 - 验证 High / Low Watermark 与新订单固定 TP1–TP41；确认 50% 起每 25 个百分点只发送
   一次且没有 Runner。
 - 验证 ST_TRACKING_V2 / V3 在途订单与 ST_TRACKING_V4 新订单各自使用冻结策略，不混用点位。
