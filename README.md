@@ -20,7 +20,7 @@ AXIS 是以 Discord 为入口的交易信号、观点分析、会员权限与官
 - AXIS Multi-Agent Research: MEMBER LOUNGE LIVE / PUBLIC SHARED CARD
 - Production Market Data: MOOMOO / MASSIVE ADAPTER DORMANT FOR ROLLBACK
 - AXIS LAB Model A/B: DEFERRED
-- Latest automated regression: 367 passed；Ruff / compileall PASS
+- Latest automated regression: 368 passed；Ruff / compileall PASS
 
 ## 文档入口
 

@@ -101,9 +101,14 @@ All calls use the existing OpenAI Responses `ModelRouter` with strict JSON Schem
 
 Agents receive the same frozen pack fingerprint, have no tools, cannot fetch after freeze, and are
 told that external text is data rather than instructions. Strict schema validation is mandatory.
+Every natural-language output field must contain Simplified Chinese; English prose fails closed.
+Ticker symbols, schema enums and standard market abbreviations remain unchanged.
 Numeric post-processing removes a number that is absent from the frozen provider input. Final spot,
 support, resistance, triggers, targets, and invalidation are copied only from deterministic
 Technical/GEX fields, never from prose generation. No chain-of-thought is requested or stored.
+Numeric provenance includes both typed values and numeric tokens explicitly present in provider
+text. If a generated claim still contains an unverified number, AXIS omits that numeric claim with
+a clean Chinese explanation; it never exposes a broken placeholder such as `[未提供数值]`.
 
 ## Runtime controls
 

@@ -67,6 +67,7 @@ ERROR_LABELS = {
     "RESEARCH_FUNDAMENTALS_FAILURE": "基本面数据获取失败",
     "RESEARCH_NEWS_FAILURE": "新闻数据获取失败",
     "RESEARCH_SENTIMENT_FAILURE": "市场情绪数据不足",
+    "RESEARCH_LANGUAGE_FAILURE": "研究文本未通过中文输出校验",
     "RESEARCH_MIN_COVERAGE_FAILURE": "可用研究分项未达到最低要求",
     "FUNDAMENTALS_NOT_APPLICABLE": "该类标的不适用公司基本面分析",
     "NEWS_EMPTY": "近期没有可用新闻",
@@ -287,7 +288,7 @@ def _technical_embed(result: ResearchRunResult) -> discord.Embed:
         name="市场概览",
         value=(
             f"现价 {_money(data.get('price'))}\n"
-            f"结构 {_clip(data.get('market_structure'), 200)}\n"
+            f"结构 {_label(data.get('market_structure'))}\n"
             f"倾向 {_label(data.get('bias'))}{score_text}"
         ),
         inline=False,
@@ -457,6 +458,11 @@ def _escape_markdown_link_title(value: Any) -> str:
     return str(value or "未命名新闻").replace("[", "［").replace("]", "］")
 
 
+def _localized_news_title(value: Any) -> str:
+    title = _escape_markdown_link_title(value)
+    return title if any("\u3400" <= char <= "\u9fff" for char in title) else "查看原文"
+
+
 def _news_embed(result: ResearchRunResult) -> discord.Embed:
     component = result.pack.component("news_macro")
     embed = _component_embed(result, component, title="新闻动态")
@@ -489,7 +495,7 @@ def _news_embed(result: ResearchRunResult) -> discord.Embed:
         for index, item in enumerate(items[:4], start=1):
             if not isinstance(item, dict):
                 continue
-            title = _escape_markdown_link_title(item.get("title"))
+            title = _localized_news_title(item.get("title"))
             url = str(item.get("article_url") or "")
             heading = f"[{title}]({url})" if url.startswith(("https://", "http://")) else title
             publisher = item.get("publisher") or "来源未标注"

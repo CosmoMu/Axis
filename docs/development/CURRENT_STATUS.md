@@ -26,7 +26,7 @@ bid/ask/last/volume/OI/IV/delta/gamma/update timestamp 与 OPRA best bid/ask；�
 Massive provider code保留为显式回滚 adapter，不自动 fallback，四项 provider 为 Moomoo 时允许
 `MASSIVE_API_KEY` 为空。SPX option chain/snapshot 可读但指数现货 snapshot 不受支持，因此单独
 fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 的真实 Bot 启动、
-SPY/NVDA Stock + GEX Discord 卡片上传、367 项完整回归与部署后 runtime hash 均已通过。
+SPY/NVDA Stock + GEX Discord 卡片上传、368 项完整回归与部署后 runtime hash 均已通过。
 Personal Moomoo LIVE writes 仍禁用。
 
 AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，并在
@@ -88,9 +88,11 @@ Implemented:
   基本面、新闻、Bull/Bear 和风险页，仅发起人及 Manager/管理员/Owner 可操作。
 - Moomoo F10/News/Analyst Consensus 是生产辅助源；Massive provider code dormant，供显式回滚。
 
-Production status: **MEMBER LOUNGE LIVE.** MSTR 真实 OpenD 辅助源验证为 3/3 AVAILABLE；367 项
-完整回归、Ruff 与 compileall 通过。若任何分项真实不可用，仍按原界面显示数据覆盖不足，绝不
-伪造数据或降低 coverage gate。
+Production status: **MEMBER LOUNGE LIVE.** MSTR 真实 OpenD 辅助源验证为 3/3 AVAILABLE；所有
+Research 自然语言字段必须使用简体中文，英文 prose 会 fail-closed；来源文本中的合法数字已纳入
+provenance guard，未验证数字会省略整项数值论述，不再产生 `[未提供数值]`。368 项完整回归、
+Ruff 与 compileall 通过。若任何分项真实不可用，仍按原界面显示数据覆盖不足，绝不伪造数据或
+降低 coverage gate。
 
 GEX Explorer 已升级为 V7 Professional Ladder；独立 Member Lounge 指令现已下架，底层引擎由
 `/research` 继续复用。Moomoo option surface / spot / 真实 5 分钟

@@ -36,6 +36,9 @@ LIVE_MODE_CHECKLIST.md 为准。
   Manager/管理员与 Owner 可切换。
 - 普通会员每人 30 秒、同 ticker 全频道 60 秒冷却；Manager/管理员/Owner 免除冷却。
 - 独立 `/stock`、`/gex` 与 `gex TICKER` 已从 Discord 下架，底层 Stock/GEX 引擎仍供 Research 复用。
+- 所有公开自然语言字段使用简体中文；schema enum、Ticker 和标准市场缩写除外。英文 prose
+  不进入公开卡片。数字 provenance 同时读取结构化数值与来源文字中的合法数值，未验证数字
+  省略整项论述，不显示破损占位符。
 - Technical / GEX / Fundamentals / News / Sentiment → frozen `ResearchPack` → Bull ∥ Bear →
   Manager → three Risk perspectives → structured Synthesis。
 - 所有 7 次实时 agent 调用走既有 OpenAI Responses `ModelRouter` 与 strict JSON Schema；无 tools、

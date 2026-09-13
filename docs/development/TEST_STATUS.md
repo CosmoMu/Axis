@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 367 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 368 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Static type checker: NOT CONFIGURED
@@ -30,6 +30,9 @@
   commands disabled、broker execution false。
 - Research live Moomoo auxiliary smoke: PASS — MSTR Fundamentals 0.75 coverage、News 1.0、Analyst
   Consensus 1.0，三项均 AVAILABLE；没有请求或记录 Secret，也没有虚构缺失数据。
+- Research Chinese/numeric integrity smoke: PASS — MSTR 5/5 components AVAILABLE、7/7 LLM calls、
+  final risks 为简体中文；最新持久化 view 不含 `[未提供数值]`。来源文字 `2026 Q2` / `$132.50`
+  provenance 与未验证数字整项省略均有自动化覆盖。
 - Discord Blueprint v6 中文命名与 `📣・人工喊单`：PASS — Guild `1543309921066684567`，
   `REUSE=33 / CREATE=0 / UPDATE=0 / BLOCK=0`；Member / Manager 可见可发言，公开用户与
   Newcomer 不可见。
