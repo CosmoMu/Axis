@@ -659,8 +659,10 @@ Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系
 自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
 ## SPY 0DTE Desk — MEMBER / FIVE-MINUTE FORMAL CARD LIVE
 
-- 已实现 Moomoo-only SPY 0DTE 正式会员卡、中文结构摘要、同源 GEX PNG、-100 至 +100 的
-  纯计算评分与 70/30 展示平滑。
+- 已实现 Moomoo-only SPY 0DTE 正式会员卡、中文结构摘要与 1400×1500 Cosmos 风格终端 PNG。
+- 已把 Cosmos 最新提交版 SPX 5 分钟方法独立迁入 AXIS：OI 加权 0DTE GEX、Zero Gamma、
+  Call/Put Wall、1m/5m/15m/1h 动量、三情景相对权重及前后时间槽变化；实际运行不 import
+  Cosmos，行权价步长与目标按真实 SPY chain 自适应。
 - 标的、现价、5 分钟 K 线、期权链和合约根全部统一为真实 `US.SPY` / `US.SPY...`；不再混用
   SPX 或 SPXW 语义。
 - 2026-09-13 真实 OpenD 验证：SPY 现价可用；2026-09-11 返回 78 根完整 5 分钟 K 线和

@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 376 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 377 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - SPY 0DTE Desk TEST gate: PASS — real OpenD returned SPY spot `$764.29`, 78 complete five-minute
@@ -14,6 +14,10 @@
   Moomoo snapshot. On the weekend, acceptance uses the latest completed session and visibly marks
   the result as `历史收盘测试快照`; it is not the capability diagnostic card. The formal card was
   sent directly to `📍・spy-0dte` as message `1548842888815968256` using 297 exact-date contracts.
+- SPY Cosmos-style card: PASS — the 1400×1500 AXIS rendering, OI-weighted GEX and scale-aware SPY
+  scenario method passed local visual QA. A real Moomoo-backed replacement card was sent as message
+  `1548846297996595210` with 297 exact-date contracts; score `-47` is capped by historical-data
+  quality and the image is explicitly labeled `历史快照`.
 - SPY member scheduler: ENABLED — one new card per valid five-minute slot, 09:35 ET through actual
   close, with holiday/half-day calendar handling, in-memory plus Discord-history slot idempotency
   and no backfill. Final Blueprint dry-run is `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`, and the

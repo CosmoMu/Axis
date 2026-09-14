@@ -15,6 +15,7 @@ from app.bot.spy_0dte_cards import build_spy_capability_embed, build_spy_snapsho
 from app.services.spy_0dte_desk import (
     MoomooSpy0dteProvider,
     Spy0dtePolicy,
+    Spy0dteSnapshot,
     latest_completed_session,
     publishing_slot,
     render_capability_image,
@@ -49,7 +50,7 @@ class Spy0dteCog(commands.Cog):
         self.scheduler_enabled = scheduler_enabled
         self.calendar = TradingCalendarService()
         self._published_slots: set[tuple[object, int, int]] = set()
-        self._previous_display_score: int | None = None
+        self._previous_snapshot: Spy0dteSnapshot | None = None
 
     async def cog_load(self) -> None:
         if self.scheduler_enabled and self.policy.mode == "MEMBER":
@@ -108,14 +109,14 @@ class Spy0dteCog(commands.Cog):
             snapshot = await self.provider.snapshot(
                 session_date,
                 self.policy,
-                previous_display_score=self._previous_display_score,
+                previous_snapshot=self._previous_snapshot,
             )
             image = render_snapshot_image(snapshot, self.policy)
             await channel.send(
                 embed=build_spy_snapshot_embed(snapshot),
                 file=discord.File(BytesIO(image), filename="axis-spy-0dte.png"),
             )
-            self._previous_display_score = snapshot.display_score
+            self._previous_snapshot = snapshot
             logger.info(
                 "event=spy_0dte_published session_date=%s slot=%02d:%02d score=%d contracts=%d",
                 session_date,

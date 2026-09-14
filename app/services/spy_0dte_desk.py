@@ -15,12 +15,22 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from app.market_intelligence.gex_explorer.engine import build_gex_snapshot
-from app.market_intelligence.gex_explorer.heatmap import render_gex_heatmap
 from app.market_intelligence.gex_explorer.models import (
     GexIntradayBar,
     GexOptionContract,
     GexSnapshot,
     OptionSide,
+)
+from app.services.spy_0dte_algorithm import (
+    SpyDataQuality,
+    SpyScenario,
+    SpySnapshotChange,
+    arrow,
+    build_scenarios,
+    calculate_bias,
+    calculate_timeframe_scores,
+    five_minute_bars,
+    gamma_regime,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -41,8 +51,12 @@ class Spy0dtePolicy:
     start_time_et: str
     end_time_et: str
     refresh_minutes: int
-    smoothing_current: float
-    weights: dict[str, float]
+    timeframe_weights: dict[str, float]
+    momentum_weight: float
+    location_weight: float
+    quote_max_age_minutes: int
+    chart_strike_range_points: float
+    chart_axis_padding_ratio: float
     intraday_interval_minutes: int = 5
     heatmap_expiration_columns: int = 1
     heatmap_strike_rows: int = 19
@@ -53,8 +67,16 @@ class Spy0dtePolicy:
         if not isinstance(payload, dict):
             raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
         score = payload.get("score")
-        smoothing = payload.get("smoothing")
-        if not isinstance(score, dict) or not isinstance(smoothing, dict):
+        quality = payload.get("quality")
+        chart = payload.get("chart")
+        if (
+            not isinstance(score, dict)
+            or not isinstance(quality, dict)
+            or not isinstance(chart, dict)
+        ):
+            raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
+        timeframe = score.get("timeframe")
+        if not isinstance(timeframe, dict):
             raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
         policy = cls(
             version=str(payload.get("version") or ""),
@@ -63,29 +85,28 @@ class Spy0dtePolicy:
             start_time_et=str(payload.get("start_time_et") or "09:35"),
             end_time_et=str(payload.get("end_time_et") or "16:00"),
             refresh_minutes=int(payload.get("refresh_minutes") or 5),
-            smoothing_current=float(smoothing.get("current") or 0.70),
-            weights={str(key): float(value) for key, value in score.items()},
+            timeframe_weights={str(key): float(value) for key, value in timeframe.items()},
+            momentum_weight=float(score.get("momentum_weight") or 0.75),
+            location_weight=float(score.get("location_weight") or 0.25),
+            quote_max_age_minutes=int(quality.get("quote_max_age_minutes") or 8),
+            chart_strike_range_points=float(chart.get("strike_range_points") or 20),
+            chart_axis_padding_ratio=float(chart.get("axis_padding_ratio") or 1.35),
         )
         policy.validate()
         return policy
 
     def validate(self) -> None:
-        required = {
-            "gex",
-            "price_structure",
-            "vwap",
-            "ema9",
-            "volume",
-            "momentum",
-            "key_level_position",
-        }
+        required = {"1m", "5m", "15m", "1h"}
         if (
             not self.version
             or self.mode not in {"TEST", "MEMBER"}
             or self.refresh_minutes != 5
-            or set(self.weights) != required
-            or abs(sum(self.weights.values()) - 1.0) > 1e-9
-            or not 0 < self.smoothing_current <= 1
+            or set(self.timeframe_weights) != required
+            or abs(sum(self.timeframe_weights.values()) - 1.0) > 1e-9
+            or abs(self.momentum_weight + self.location_weight - 1.0) > 1e-9
+            or self.quote_max_age_minutes <= 0
+            or self.chart_strike_range_points <= 0
+            or self.chart_axis_padding_ratio < 1
         ):
             raise Spy0dteError("SPY_0DTE_POLICY_INVALID")
 
@@ -131,24 +152,6 @@ class SpyCapabilityReport:
 
 
 @dataclass(frozen=True, slots=True)
-class SpyScoreInputs:
-    gex: float
-    price_structure: float
-    vwap: float
-    ema9: float
-    volume: float
-    momentum: float
-    key_level_position: float
-
-
-@dataclass(frozen=True, slots=True)
-class SpyScore:
-    raw_score: int
-    display_score: int
-    structure_label: str
-
-
-@dataclass(frozen=True, slots=True)
 class Spy0dteSnapshot:
     session_date: date
     generated_at: datetime
@@ -157,7 +160,11 @@ class Spy0dteSnapshot:
     raw_score: int
     display_score: int
     structure_label: str
+    bias_delta: int | None
+    day_change: float
+    day_change_pct: float
     gamma_regime: str
+    gamma_note: str
     net_gex: float
     gamma_flip: float | None
     gamma_magnet: float | None
@@ -173,6 +180,14 @@ class Spy0dteSnapshot:
     oi_gamma_bias: str
     expected_move: float | None
     option_contract_count: int
+    total_abs_gex: float
+    score_1m: int
+    score_5m: int
+    score_15m: int
+    score_1h: int
+    scenarios: tuple[SpyScenario, SpyScenario, SpyScenario]
+    changes: tuple[SpySnapshotChange, ...]
+    data_quality: SpyDataQuality
     source_timestamp: datetime
     provider: str
     stale: bool
@@ -180,41 +195,6 @@ class Spy0dteSnapshot:
     policy_version: str
     gex: GexSnapshot
     bars: tuple[GexIntradayBar, ...]
-
-
-def structure_label(score: int) -> str:
-    if score >= 70:
-        return "极强偏多"
-    if score >= 50:
-        return "明显偏多"
-    if score >= 20:
-        return "轻微偏多"
-    if score <= -70:
-        return "极强偏空"
-    if score <= -50:
-        return "明显偏空"
-    if score <= -20:
-        return "轻微偏空"
-    return "中性"
-
-
-def calculate_score(
-    inputs: SpyScoreInputs,
-    policy: Spy0dtePolicy,
-    *,
-    previous_display_score: int | None = None,
-) -> SpyScore:
-    values = {
-        name: max(-100.0, min(100.0, float(getattr(inputs, name)))) for name in policy.weights
-    }
-    raw = round(sum(values[name] * policy.weights[name] for name in policy.weights))
-    display = raw
-    if previous_display_score is not None:
-        display = round(
-            raw * policy.smoothing_current + previous_display_score * (1 - policy.smoothing_current)
-        )
-    display = max(-100, min(100, display))
-    return SpyScore(raw, display, structure_label(display))
 
 
 class MoomooSpy0dteProvider:
@@ -232,20 +212,20 @@ class MoomooSpy0dteProvider:
         session_date: date,
         policy: Spy0dtePolicy,
         *,
-        previous_display_score: int | None = None,
+        previous_snapshot: Spy0dteSnapshot | None = None,
     ) -> Spy0dteSnapshot:
         return await asyncio.to_thread(
             self._snapshot_sync,
             session_date,
             policy,
-            previous_display_score,
+            previous_snapshot,
         )
 
     def _snapshot_sync(
         self,
         session_date: date,
         policy: Spy0dtePolicy,
-        previous_display_score: int | None,
+        previous_snapshot: Spy0dteSnapshot | None,
     ) -> Spy0dteSnapshot:
         try:
             from moomoo import RET_OK, AuType, KLType, OpenQuoteContext, SysConfig
@@ -293,26 +273,47 @@ class MoomooSpy0dteProvider:
                     if code:
                         snapshots[code] = row.to_dict()
 
+            spot_ret, spot_frame = context.get_market_snapshot([SPY_CODE])
+            if spot_ret != RET_OK or not hasattr(spot_frame, "empty") or spot_frame.empty:
+                raise Spy0dteError("SPY_0DTE_SPOT_UNAVAILABLE")
+            spot_row = spot_frame.iloc[0]
+
             history_ret, history, _ = context.request_history_kline(
                 SPY_CODE,
                 start=session_date.isoformat(),
                 end=session_date.isoformat(),
-                ktype=KLType.K_5M,
+                ktype=KLType.K_1M,
                 autype=AuType.QFQ,
                 max_count=1000,
             )
             if history_ret != RET_OK or not hasattr(history, "iterrows"):
                 raise Spy0dteError("SPY_0DTE_INTRADAY_UNAVAILABLE")
-            bars = self._bars(history, session_date)
-            if len(bars) < 2:
+            minute_bars = self._bars(history, session_date)
+            bars = five_minute_bars(minute_bars)
+            if len(minute_bars) < 10 or len(bars) < 2:
                 raise Spy0dteError("SPY_0DTE_INTRADAY_UNAVAILABLE")
             spot = bars[-1].close
+            spot_timestamp = bars[-1].timestamp_et
+            quoted_spot = self._positive_float(spot_row.get("last_price"))
+            quoted_at = self._timestamp(spot_row.get("update_time"))
+            if (
+                quoted_spot is not None
+                and quoted_at is not None
+                and quoted_at.date() == session_date
+            ):
+                spot = quoted_spot
+                spot_timestamp = quoted_at
+            previous_close = self._positive_float(spot_row.get("prev_close_price"))
+            day_change = spot - previous_close if previous_close is not None else 0.0
+            day_change_pct = (
+                (spot / previous_close - 1) * 100 if previous_close is not None else 0.0
+            )
             contracts = self._contracts(metadata, snapshots)
             if len(contracts) < 20:
                 raise Spy0dteError("SPY_0DTE_MIN_COVERAGE_FAILURE")
 
             generated_at = datetime.now(UTC)
-            calculation_time = bars[-1].timestamp_et
+            calculation_time = spot_timestamp
             volume_gex = build_gex_snapshot(
                 "SPY", spot, contracts, calculation_time, exposure_basis="volume"
             )
@@ -327,44 +328,8 @@ class MoomooSpy0dteProvider:
                 if bars[-1].volume > 0 and previous_volumes
                 else None
             )
-            recent_base = bars[-4].close if len(bars) >= 4 else bars[0].close
-            recent_return = (spot / recent_base - 1) if recent_base > 0 else 0.0
-            score = calculate_score(
-                SpyScoreInputs(
-                    gex=self._bounded(volume_gex.normalized_net_gex * 100),
-                    price_structure=self._bounded(recent_return / 0.003 * 100),
-                    vwap=self._bounded((spot / vwap - 1) / 0.002 * 100),
-                    ema9=self._bounded((spot / ema9 - 1) / 0.0015 * 100),
-                    volume=self._bounded(((volume_ratio or 1.0) - 1) * 50),
-                    momentum=self._bounded(recent_return / 0.002 * 100),
-                    key_level_position=(
-                        50.0
-                        if volume_gex.zero_gamma is not None and spot > volume_gex.zero_gamma
-                        else -50.0
-                        if volume_gex.zero_gamma is not None
-                        else 0.0
-                    ),
-                ),
-                policy,
-                previous_display_score=previous_display_score,
-            )
-            supports = self._key_levels(
-                (*volume_gex.major_support, *volume_gex.minor_support),
-                bars,
-                spot,
-                vwap,
-                ema9,
-                below=True,
-            )
-            resistances = self._key_levels(
-                (*volume_gex.major_resistance, *volume_gex.minor_resistance),
-                bars,
-                spot,
-                vwap,
-                ema9,
-                below=False,
-            )
-            source_times = [bars[-1].timestamp_et]
+            scores = calculate_timeframe_scores(minute_bars)
+            source_times = [bars[-1].timestamp_et, spot_timestamp]
             source_times.extend(
                 timestamp
                 for timestamp in (
@@ -372,36 +337,102 @@ class MoomooSpy0dteProvider:
                 )
                 if timestamp is not None
             )
+            source_timestamp = max(source_times)
+            data_quality, warnings = self._quality(
+                session_date=session_date,
+                generated_at=generated_at,
+                latest_option_timestamp=max(source_times[2:], default=None),
+                included_contracts=oi_gex.included_contracts,
+                total_contracts=len(metadata),
+                policy=policy,
+            )
+            score_value, score_label = calculate_bias(
+                scores,
+                spot,
+                oi_gex.zero_gamma,
+                oi_gex.call_wall,
+                oi_gex.put_wall,
+                data_quality,
+                timeframe_weights=policy.timeframe_weights,
+                momentum_weight=policy.momentum_weight,
+                location_weight=policy.location_weight,
+            )
+            regime, regime_note = gamma_regime(
+                oi_gex.net_gex,
+                oi_gex.total_abs_gex,
+                spot,
+                oi_gex.zero_gamma,
+            )
+            scenarios = build_scenarios(
+                score_value,
+                regime,
+                spot,
+                oi_gex.call_wall,
+                oi_gex.put_wall,
+                oi_gex.by_strike,
+            )
+            comparison = self._comparison_baseline(previous_snapshot, spot_timestamp, policy)
+            changes = self._changes(comparison, score_value, oi_gex, scenarios)
+            supports = self._key_levels(
+                (*oi_gex.major_support, *oi_gex.minor_support),
+                bars,
+                spot,
+                vwap,
+                ema9,
+                below=True,
+            )
+            resistances = self._key_levels(
+                (*oi_gex.major_resistance, *oi_gex.minor_resistance),
+                bars,
+                spot,
+                vwap,
+                ema9,
+                below=False,
+            )
             return Spy0dteSnapshot(
                 session_date=session_date,
                 generated_at=generated_at,
                 spot=spot,
-                spot_timestamp=bars[-1].timestamp_et,
-                raw_score=score.raw_score,
-                display_score=score.display_score,
-                structure_label=score.structure_label,
-                gamma_regime=volume_gex.gamma_regime,
-                net_gex=volume_gex.net_gex,
-                gamma_flip=volume_gex.zero_gamma,
-                gamma_magnet=volume_gex.gamma_magnet,
-                call_wall=volume_gex.call_wall,
-                put_wall=volume_gex.put_wall,
+                spot_timestamp=spot_timestamp,
+                raw_score=score_value,
+                display_score=score_value,
+                structure_label=score_label,
+                bias_delta=(
+                    score_value - comparison.display_score if comparison is not None else None
+                ),
+                day_change=day_change,
+                day_change_pct=day_change_pct,
+                gamma_regime=regime,
+                gamma_note=regime_note,
+                net_gex=oi_gex.net_gex,
+                gamma_flip=oi_gex.zero_gamma,
+                gamma_magnet=oi_gex.gamma_magnet,
+                call_wall=oi_gex.call_wall,
+                put_wall=oi_gex.put_wall,
                 supports=supports,
                 resistances=resistances,
                 vwap=vwap,
                 ema9_5m=ema9,
                 volume_ratio=volume_ratio,
-                momentum=self._momentum(recent_return),
+                momentum=self._momentum_score(scores["5m"]),
                 volume_gamma_bias=self._gamma_bias(volume_gex.normalized_net_gex),
                 oi_gamma_bias=self._gamma_bias(oi_gex.normalized_net_gex),
                 expected_move=self._expected_move(metadata, snapshots, spot),
                 option_contract_count=len(contracts),
-                source_timestamp=max(source_times),
+                total_abs_gex=oi_gex.total_abs_gex,
+                score_1m=scores["1m"],
+                score_5m=scores["5m"],
+                score_15m=scores["15m"],
+                score_1h=scores["1h"],
+                scenarios=scenarios,
+                changes=changes,
+                data_quality=data_quality,
+                source_timestamp=source_timestamp,
                 provider="moomoo",
-                stale=session_date != datetime.now(ET).date(),
-                warnings=(),
+                stale=data_quality is SpyDataQuality.STALE,
+                warnings=warnings,
                 policy_version=policy.version,
-                gex=volume_gex,
+                gex=oi_gex,
                 bars=bars,
             )
         except Spy0dteError:
@@ -488,8 +519,119 @@ class MoomooSpy0dteProvider:
         return value
 
     @staticmethod
-    def _bounded(value: float) -> float:
-        return max(-100.0, min(100.0, value))
+    def _positive_float(value: object) -> float | None:
+        try:
+            number = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) and number > 0 else None
+
+    @staticmethod
+    def _quality(
+        *,
+        session_date: date,
+        generated_at: datetime,
+        latest_option_timestamp: datetime | None,
+        included_contracts: int,
+        total_contracts: int,
+        policy: Spy0dtePolicy,
+    ) -> tuple[SpyDataQuality, tuple[str, ...]]:
+        warnings: list[str] = []
+        if included_contracts < 20 or total_contracts < 20:
+            return SpyDataQuality.DEGRADED, ("可计算 GEX 的 0DTE 合约不足",)
+        if session_date != generated_at.astimezone(ET).date():
+            return SpyDataQuality.STALE, ("非当前交易日，显示最新已完成交易日",)
+        if latest_option_timestamp is None:
+            return SpyDataQuality.PARTIAL, ("期权快照缺少更新时间",)
+        age = generated_at - latest_option_timestamp.astimezone(UTC)
+        if age > timedelta(minutes=policy.quote_max_age_minutes):
+            return SpyDataQuality.STALE, (
+                f"期权数据超过 {policy.quote_max_age_minutes} 分钟未更新",
+            )
+        if included_contracts / max(total_contracts, 1) < 0.5:
+            warnings.append("部分 0DTE 合约缺少 Gamma/OI")
+            return SpyDataQuality.PARTIAL, tuple(warnings)
+        return SpyDataQuality.GOOD, ()
+
+    @staticmethod
+    def _comparison_baseline(
+        previous: Spy0dteSnapshot | None,
+        current_timestamp: datetime,
+        policy: Spy0dtePolicy,
+    ) -> Spy0dteSnapshot | None:
+        if previous is None or previous.session_date != current_timestamp.date():
+            return None
+        age = current_timestamp - previous.spot_timestamp.astimezone(current_timestamp.tzinfo)
+        if timedelta(0) < age <= timedelta(minutes=policy.refresh_minutes):
+            return previous
+        return None
+
+    @staticmethod
+    def _changes(
+        previous: Spy0dteSnapshot | None,
+        score: int,
+        gex: GexSnapshot,
+        scenarios: tuple[SpyScenario, SpyScenario, SpyScenario],
+    ) -> tuple[SpySnapshotChange, ...]:
+        if previous is None:
+            return (SpySnapshotChange("快照", "—", "首条更新", "•"),)
+
+        def fmt(value: float | None) -> str:
+            return "—" if value is None else f"{value:,.2f}".rstrip("0").rstrip(".")
+
+        def level_change(label: str, before: float | None, after: float | None):
+            direction = (
+                arrow(before, after, 0.5) if before is not None and after is not None else "•"
+            )
+            return SpySnapshotChange(label, fmt(before), fmt(after), direction)
+
+        positive = max(
+            (point for point in gex.by_strike if point.net_gex > 0),
+            key=lambda point: point.net_gex,
+            default=None,
+        )
+        negative = min(
+            (point for point in gex.by_strike if point.net_gex < 0),
+            key=lambda point: point.net_gex,
+            default=None,
+        )
+        previous_positive = max(
+            (point for point in previous.gex.by_strike if point.net_gex > 0),
+            key=lambda point: point.net_gex,
+            default=None,
+        )
+        previous_negative = min(
+            (point for point in previous.gex.by_strike if point.net_gex < 0),
+            key=lambda point: point.net_gex,
+            default=None,
+        )
+        return (
+            SpySnapshotChange(
+                "方向偏向",
+                f"{previous.display_score:+d}",
+                f"{score:+d}",
+                arrow(previous.display_score, score, 0),
+            ),
+            level_change("Zero Gamma", previous.gamma_flip, gex.zero_gamma),
+            level_change("Call Wall", previous.call_wall, gex.call_wall),
+            level_change("Put Wall", previous.put_wall, gex.put_wall),
+            level_change(
+                "正 Gamma 峰值",
+                previous_positive.strike if previous_positive else None,
+                positive.strike if positive else None,
+            ),
+            level_change(
+                "负 Gamma 峰值",
+                previous_negative.strike if previous_negative else None,
+                negative.strike if negative else None,
+            ),
+            SpySnapshotChange(
+                "情景1权重",
+                f"{previous.scenarios[0].weight}%",
+                f"{scenarios[0].weight}%",
+                arrow(previous.scenarios[0].weight, scenarios[0].weight, 0),
+            ),
+        )
 
     @staticmethod
     def _gamma_bias(ratio: float) -> str:
@@ -504,14 +646,14 @@ class MoomooSpy0dteProvider:
         return "中性"
 
     @staticmethod
-    def _momentum(value: float) -> str:
-        if value >= 0.004:
+    def _momentum_score(value: int) -> str:
+        if value >= 50:
             return "强"
-        if value >= 0.001:
+        if value >= 15:
             return "偏强"
-        if value <= -0.004:
+        if value <= -50:
             return "弱"
-        if value <= -0.001:
+        if value <= -15:
             return "偏弱"
         return "中性"
 
@@ -527,18 +669,21 @@ class MoomooSpy0dteProvider:
     ) -> tuple[float, ...]:
         recent = bars[-20:]
         structural = (
-            min(bar.low for bar in recent),
-            min(bar.low for bar in bars),
-        ) if below else (
-            max(bar.high for bar in recent),
-            max(bar.high for bar in bars),
+            (
+                min(bar.low for bar in recent),
+                min(bar.low for bar in bars),
+            )
+            if below
+            else (
+                max(bar.high for bar in recent),
+                max(bar.high for bar in bars),
+            )
         )
         candidates = (*levels, *structural, vwap, ema9)
         selected = {
             round(level, 2)
             for level in candidates
-            if abs(level - spot) <= spot * 0.02
-            and (level < spot if below else level > spot)
+            if abs(level - spot) <= spot * 0.02 and (level < spot if below else level > spot)
         }
         return tuple(sorted(selected, key=lambda level: abs(level - spot))[:2])
 
@@ -745,7 +890,9 @@ def render_capability_image(report: SpyCapabilityReport, policy: Spy0dtePolicy) 
 def render_snapshot_image(snapshot: Spy0dteSnapshot, policy: Spy0dtePolicy) -> bytes:
     """Render the frozen SPY snapshot without performing another market-data request."""
 
-    return render_gex_heatmap(snapshot.gex, snapshot.bars, policy)
+    from app.bot.spy_0dte_image import render_spy_0dte_card
+
+    return render_spy_0dte_card(snapshot, policy)
 
 
 def latest_completed_session(now_et: datetime) -> date:

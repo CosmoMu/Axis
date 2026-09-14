@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -34,7 +35,18 @@ from app.services.spy_0dte_desk import (  # noqa: E402
 ET = ZoneInfo("America/New_York")
 
 
-async def run() -> int:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="生成或发送正式 SPY 0DTE 历史测试卡。")
+    parser.add_argument("--preview-only", action="store_true", help="只生成本地 PNG，不发送。")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=PROJECT_ROOT / "var" / "discord" / "spy-0dte-preview.png",
+    )
+    return parser.parse_args()
+
+
+async def run(*, preview_only: bool, output: Path) -> int:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_spy_0dte_safety()
     ids = load_discord_ids(settings.ids_path, settings.discord_guild_id)
@@ -46,6 +58,14 @@ async def run() -> int:
         policy,
     )
     image = render_snapshot_image(snapshot, policy)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(image)
+    if preview_only:
+        print(
+            f"SPY 0DTE preview generated: path={output} "
+            f"session={snapshot.session_date} score={snapshot.display_score:+d}"
+        )
+        return 0
     embed = build_spy_snapshot_embed(snapshot)
     form = aiohttp.FormData()
     form.add_field(
@@ -83,4 +103,5 @@ async def run() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(run()))
+    arguments = parse_args()
+    raise SystemExit(asyncio.run(run(preview_only=arguments.preview_only, output=arguments.output)))

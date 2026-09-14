@@ -7,7 +7,8 @@ Current state: `MEMBER`; five-minute member scheduler `ENABLED`; provider `Moomo
 `scripts/send_spy_0dte_test_card.py` sends exactly one formal embed plus deterministic PNG to
 `📍・spy-0dte`. Outside market hours it uses the latest completed session and labels the card
 `历史收盘测试快照`; it must never label historical data as live. `/test-spy-0dte` remains a
-TEST-only capability diagnostic and is not the member card acceptance surface.
+TEST-only capability diagnostic and is not the member card acceptance surface. Use
+`--preview-only` to write the PNG under `var/discord/` without sending another Discord message.
 
 The capability gate checks OpenD connectivity, an exact-date chain containing only real
 `US.SPY...` contracts, Gamma, IV, OI, Volume, Bid/Ask, provider timestamps, SPY spot, and SPY
@@ -26,6 +27,11 @@ The scheduler starts at 09:35 ET, uses five-minute slots through the actual sess
 backfills missed slots, and enforces one message per session-date/slot. Every slot rebuilds the
 formal card from an exact-date SPY chain and completed SPY five-minute candles. Provider or Discord
 failures are logged and fail closed; they do not publish a misleading member-facing error card.
+
+The member image is the AXIS-native port of the committed Cosmos SPX 5-minute GEX terminal design
+and calculation method. It uses Moomoo SPY 1-minute bars to derive 1m/5m/15m/1h momentum, real SPY
+listed strikes for scale-aware triggers/targets, and Moomoo OI-weighted Gamma for the primary GEX
+map. Runtime never imports or calls the Cosmos repository.
 
 The Discord-managed Bot role cannot be edited directly. The channel therefore keeps
 `@everyone.view_channel=false` while allowing only the transport bits needed by the Bot; Member,

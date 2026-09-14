@@ -1,6 +1,6 @@
 # AXIS SPY 0DTE Desk — Current Source of Truth
 
-Version: SPY_0DTE_V2
+Version: SPY_0DTE_V3_COSMOS_METHOD
 Status: MEMBER / FIVE-MINUTE SCHEDULER ENABLED
 
 This module is a read-only SPY same-day market-structure desk. It is not a trade signal and must
@@ -11,7 +11,8 @@ never produce option recommendations, entry, target, stop, BUY/SELL, or CALL/PUT
 - The product is SPY 0DTE only.
 - The Moomoo underlying and option-chain owner are both `US.SPY`.
 - AXIS filters contracts to the real `US.SPY...` root and the exact US session date.
-- Spot and five-minute candles must be the real SPY ETF. Index, strike-derived, cached, or
+- Spot and one-minute candles must be the real SPY ETF; higher timeframes are derived deterministically.
+  Index, strike-derived, cached, or
   fabricated proxies are forbidden.
 
 ## Runtime and publication
@@ -26,12 +27,17 @@ never produce option recommendations, entry, target, stop, BUY/SELL, or CALL/PUT
 - Any missing SPY spot, five-minute candles, exact-date chain, Greeks, freshness, or minimum coverage
   causes fail-closed behavior. A normal score card must not be published.
 
-## Deterministic score
+## Deterministic Cosmos-method score
 
-The future normal score is bounded to -100 through +100 and uses policy-controlled weights:
-0DTE GEX 30%, price structure 20%, VWAP 15%, EMA9 10%, volume 10%, momentum 10%, and key-level
-position 5%. Display smoothing is 70% current raw score plus 30% prior display score. The frozen
-snapshot is shared by the Discord card and image renderer.
+The committed Cosmos SPX 5-minute GEX method is ported into AXIS and scaled to real listed SPY
+strikes. It combines 1m/5m/15m/1h momentum at 10%/25%/35%/30%, then combines that momentum result
+with Gamma-location context at 75%/25%. The output is bounded to -100 through +100 and capped by
+data quality. Scenario percentages are deterministic relative priorities, never win rates.
+
+Primary GEX is Moomoo OI-weighted 0DTE Gamma. Volume-weighted Gamma remains a secondary flow field.
+The formal 1400×1500 image follows the Cosmos terminal layout: four summary panels, three intraday
+scenarios, multi-timeframe momentum, prior-slot changes, and a symmetric red/green Net GEX strike
+chart. All branding and instruments remain AXIS / SPY; no Cosmos runtime import or SPX proxy exists.
 
 ## Mandatory disclaimer
 

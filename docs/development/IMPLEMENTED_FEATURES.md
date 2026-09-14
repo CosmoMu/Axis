@@ -426,9 +426,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 ## SPY 0DTE Desk — Member Five-Minute Publication
 
 - Moomoo-only exact-date SPY chain with strict `US.SPY` contract-root filtering.
-- Chinese formal member embed and GEX PNG share one frozen snapshot; summary shows score, Gamma
-  regime, levels, VWAP, 9EMA, volume, momentum and data freshness.
-- Versioned configurable weights, deterministic bounded scoring and 70/30 display smoothing.
+- Chinese formal member embed and 1400×1500 Cosmos-style terminal PNG share one frozen snapshot.
+- AXIS-native port of the committed Cosmos algorithm: OI-weighted 0DTE GEX, Zero Gamma, Walls,
+  scale-aware SPY scenarios, 1m/5m/15m/1h momentum and prior-slot changes.
+- Versioned configurable weights, deterministic bounded scoring and data-quality caps.
 - Real SPY spot and five-minute candle gates; no proxy instrument, inferred spot, fabricated fields
   or Massive fallback.
 - `📍・spy-0dte` receives one new card per five-minute slot from 09:35 ET through the actual close;

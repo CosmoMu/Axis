@@ -1,4 +1,4 @@
-version: SPY_0DTE_V2
+version: SPY_0DTE_V3_COSMOS_METHOD
 enabled: true
 mode: MEMBER
 
@@ -6,18 +6,21 @@ start_time_et: "09:35"
 end_time_et: "16:00"
 refresh_minutes: 5
 
-smoothing:
-  current: 0.70
-  previous: 0.30
-
 score:
-  gex: 0.30
-  price_structure: 0.20
-  vwap: 0.15
-  ema9: 0.10
-  volume: 0.10
-  momentum: 0.10
-  key_level_position: 0.05
+  timeframe:
+    1m: 0.10
+    5m: 0.25
+    15m: 0.35
+    1h: 0.30
+  momentum_weight: 0.75
+  location_weight: 0.25
+
+quality:
+  quote_max_age_minutes: 8
+
+chart:
+  strike_range_points: 20
+  axis_padding_ratio: 1.35
 
 labels:
   extreme_bullish: 70
