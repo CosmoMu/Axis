@@ -91,9 +91,8 @@ def build_spy_snapshot_embed(snapshot: Spy0dteSnapshot) -> discord.Embed:
     embed = discord.Embed(
         title="AXIS · SPY 0DTE",
         description=(
-            f"**SPY ${snapshot.spot:,.2f}**\n"
-            f"**日内结构评分 {score} · {snapshot.structure_label}**\n"
-            "`-100 ───────── 0 ───────── +100`"
+            f"## SPY · ${snapshot.spot:,.2f}\n"
+            f"**{snapshot.structure_label}**　`结构评分 {score}`"
         ),
         color=color,
     )

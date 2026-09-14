@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from app.bot.spy_0dte_cards import build_spy_capability_embed
+from app.bot.spy_0dte_cards import build_spy_capability_embed, build_spy_snapshot_embed
 from app.market_intelligence.gex_explorer.engine import build_gex_snapshot
 from app.market_intelligence.gex_explorer.models import (
     GexByStrike,
@@ -188,6 +188,10 @@ def test_formal_cosmos_style_card_is_discord_ready_1400_by_1500_png() -> None:
     assert image.startswith(b"\x89PNG\r\n\x1a\n")
     with Image.open(BytesIO(image)) as rendered:
         assert rendered.size == (1400, 1500)
+    embed = build_spy_snapshot_embed(snapshot)
+    assert embed.description == "## SPY · $100.25\n**轻度偏多**　`结构评分 +24`"
+    assert "────────" not in embed.description
+    assert "-100" not in embed.description
 
 
 def test_weekend_probe_uses_latest_completed_session() -> None:
