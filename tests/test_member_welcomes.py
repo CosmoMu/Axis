@@ -66,9 +66,12 @@ async def test_member_role_activation_sends_one_premium_lounge_welcome() -> None
     controller.leaps_channel_id = 203
     controller.membership_service = SimpleNamespace(database=database)
     controller._role_expectations = {}
+    controller._welcome_locks = {}
 
     try:
         await controller.sync_member_role(USER_ID, True)
+        await controller.sync_member_role(USER_ID, True)
+        member.roles.remove(role)
         await controller.sync_member_role(USER_ID, True)
 
         assert role in member.roles
@@ -81,6 +84,10 @@ async def test_member_role_activation_sends_one_premium_lounge_welcome() -> None
         assert "<#203>" in channel.messages[0][0]
         async with database.session() as session:
             audits = list(await session.scalars(select(AuditLog)))
-        assert [item.action_type for item in audits] == ["MEMBER_ROLE_ADDED"]
+        assert [item.action_type for item in audits] == [
+            "MEMBER_ROLE_ADDED",
+            "MEMBER_LOUNGE_WELCOME_SENT",
+            "MEMBER_ROLE_ADDED",
+        ]
     finally:
         await database.dispose()

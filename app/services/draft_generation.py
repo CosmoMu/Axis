@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -301,12 +303,21 @@ class DraftGenerationService:
         parser: TradeParser,
         contract_resolver: OptionContractResolver | None = None,
         market_data_provider: MarketDataProvider | None = None,
+        processing_timeout_seconds: float = 180,
+        market_lookup_timeout_seconds: float = 15,
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
         self.parser = parser
         self.contract_resolver = contract_resolver
         self.market_data_provider = market_data_provider
+        self.processing_timeout_seconds = processing_timeout_seconds
+        self.market_lookup_timeout_seconds = market_lookup_timeout_seconds
+
+    @staticmethod
+    def _consume_cancelled_task(task: asyncio.Task[Any]) -> None:
+        with suppress(BaseException):
+            task.result()
 
     async def process_next(self) -> DraftGenerationResult | None:
         async with self.database.session() as session:
@@ -353,10 +364,26 @@ class DraftGenerationService:
         parse_trace: LlmInvocationTrace | None = None
         try:
             attachments = await self._load_attachments(source_message_id)
-            parse_result = await self.parser.parse(
-                raw_text=source_snapshot[1],
-                attachments=attachments,
+            parse_task = asyncio.create_task(
+                self.parser.parse(
+                    raw_text=source_snapshot[1],
+                    attachments=attachments,
+                )
             )
+            completed, _ = await asyncio.wait(
+                {parse_task},
+                timeout=self.processing_timeout_seconds,
+            )
+            if not completed:
+                parse_task.cancel()
+                parse_task.add_done_callback(self._consume_cancelled_task)
+                return await self._persist_failure(
+                    source_message_id=source_message_id,
+                    source_snapshot=source_snapshot,
+                    reason_code="LLM_REQUEST_TIMEOUT",
+                    trace=None,
+                )
+            parse_result = parse_task.result()
             parse_trace = parse_result.trace
             payload = dict(parse_result.payload)
             _prepare_signal_payload(payload, source_snapshot[1])
@@ -482,15 +509,31 @@ class DraftGenerationService:
         if not ticker or strike is None or option_side not in {"CALL", "PUT"}:
             payload["contract_validation_status"] = ContractValidationStatus.UNVALIDATED.value
             return
-        result = await self.contract_resolver.resolve(
-            ExpiryRequest(
-                expiry_input=payload.get("expiry_input"),
-                precision=ExpiryPrecision(str(precision_value)),
-                ticker=str(ticker).upper(),
-                strike=strike,
-                option_side=option_side,
+        resolve_task = asyncio.create_task(
+            self.contract_resolver.resolve(
+                ExpiryRequest(
+                    expiry_input=payload.get("expiry_input"),
+                    precision=ExpiryPrecision(str(precision_value)),
+                    ticker=str(ticker).upper(),
+                    strike=strike,
+                    option_side=option_side,
+                )
             )
         )
+        completed, _ = await asyncio.wait(
+            {resolve_task},
+            timeout=self.market_lookup_timeout_seconds,
+        )
+        if not completed:
+            resolve_task.cancel()
+            resolve_task.add_done_callback(self._consume_cancelled_task)
+            payload["expiry_resolution_status"] = ExpiryResolutionStatus.UNRESOLVED.value
+            payload["contract_validation_status"] = ContractValidationStatus.UNAVAILABLE.value
+            warnings = _unique_strings(payload.get("warnings"))
+            warnings.append("OPTION_CHAIN_UNAVAILABLE")
+            payload["warnings"] = list(dict.fromkeys(warnings))
+            return
+        result = resolve_task.result()
         _apply_expiry_resolution(payload, result)
 
     async def _fill_missing_entry_price(self, payload: dict[str, Any]) -> None:
@@ -514,8 +557,11 @@ class DraftGenerationService:
 
         request_key = f"signal-entry:{underlying}:{option_ticker}"
         try:
-            prices = await self.market_data_provider.fetch_prices(
-                (MarketPriceRequest(request_key, underlying, option_ticker),)
+            prices = await asyncio.wait_for(
+                self.market_data_provider.fetch_prices(
+                    (MarketPriceRequest(request_key, underlying, option_ticker),)
+                ),
+                timeout=self.market_lookup_timeout_seconds,
             )
             quote = next((item for item in prices if item.key == request_key), None)
             if quote is None or quote.price <= 0 or not quote.price.is_finite():

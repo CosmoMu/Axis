@@ -18,7 +18,10 @@ class DraftWorkerCog(commands.Cog):
     def __init__(self, bot: commands.Bot, *, service: DraftGenerationService) -> None:
         self.bot = bot
         self.service = service
+
+    async def cog_load(self) -> None:
         self.process_queue.start()
+        logger.info("event=signal_worker_started")
 
     def cog_unload(self) -> None:
         self.process_queue.cancel()

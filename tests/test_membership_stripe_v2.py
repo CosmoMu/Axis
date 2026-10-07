@@ -610,7 +610,7 @@ async def test_reconciliation_repairs_missing_membership_without_changing_price(
             customer_id="cus_recovered",
             status="active",
             cancel_at_period_end=False,
-            current_period_end=datetime(2026, 9, 30, tzinfo=UTC),
+            current_period_end=datetime(2027, 9, 30, tzinfo=UTC),
             created_at=datetime(2026, 8, 31, tzinfo=UTC),
             metadata={
                 "discord_user_id": str(other_user),

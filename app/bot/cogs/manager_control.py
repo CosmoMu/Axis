@@ -14,7 +14,7 @@ from app.bot.cards import build_official_result_embed
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
 from app.bot.member_welcomes import member_lounge_welcome_message
 from app.bot.views.management_views import MemberControlView, MentorControlView
-from app.db.models import AuditLog, GuildConfig
+from app.db.models import AccessApplication, AuditLog, GuildConfig
 from app.services.membership_management import MembershipError, MembershipManagementService
 from app.services.mentor_management import MentorError, MentorManagementService
 from app.services.official_results import OfficialResultsService, ResultsError
@@ -63,6 +63,7 @@ class ManagerControlCog(commands.Cog):
         self._panels_ready = False
         self._member_import_complete = False
         self._role_expectations: dict[int, bool] = {}
+        self._welcome_locks: dict[int, asyncio.Lock] = {}
         self._member_panel_lock = asyncio.Lock()
         self.control_loop.start()
         self.membership_loop.start()
@@ -267,38 +268,74 @@ class ManagerControlCog(commands.Cog):
     async def _send_member_lounge_welcome(self, user_id: int) -> None:
         if self.bot.user is None:
             return
-        try:
-            channel = self.bot.get_channel(
-                self.member_lounge_channel_id
-            ) or await self.bot.fetch_channel(self.member_lounge_channel_id)
-            await channel.send(
-                member_lounge_welcome_message(
+        lock = self._welcome_locks.setdefault(user_id, asyncio.Lock())
+        async with lock:
+            async with self.membership_service.database.session() as session:
+                application_welcome = await session.scalar(
+                    select(AccessApplication.member_lounge_welcome_message_id)
+                    .where(
+                        AccessApplication.guild_id == self.guild_id,
+                        AccessApplication.discord_user_id == user_id,
+                        AccessApplication.member_lounge_welcome_message_id.is_not(None),
+                    )
+                    .limit(1)
+                )
+                membership_welcome = await session.scalar(
+                    select(AuditLog.id)
+                    .where(
+                        AuditLog.guild_id == self.guild_id,
+                        AuditLog.action_type == "MEMBER_LOUNGE_WELCOME_SENT",
+                        AuditLog.entity_type == "discord_user",
+                        AuditLog.entity_id == str(user_id),
+                    )
+                    .limit(1)
+                )
+            if application_welcome is not None or membership_welcome is not None:
+                return
+            try:
+                channel = self.bot.get_channel(
+                    self.member_lounge_channel_id
+                ) or await self.bot.fetch_channel(self.member_lounge_channel_id)
+                message = await channel.send(
+                    member_lounge_welcome_message(
+                        user_id,
+                        short_term_channel_id=self.short_term_channel_id,
+                        swing_channel_id=self.swing_channel_id,
+                        leaps_channel_id=self.leaps_channel_id,
+                    ),
+                    allowed_mentions=discord.AllowedMentions(
+                        everyone=False,
+                        roles=False,
+                        users=True,
+                        replied_user=False,
+                    ),
+                )
+                async with self.membership_service.database.session() as session:
+                    session.add(
+                        AuditLog(
+                            guild_id=self.guild_id,
+                            actor_user_id=self.bot.user.id,
+                            action_type="MEMBER_LOUNGE_WELCOME_SENT",
+                            entity_type="discord_user",
+                            entity_id=str(user_id),
+                            after_json={"message_id": message.id},
+                        )
+                    )
+                    await session.commit()
+            except discord.HTTPException as exc:
+                logger.warning(
+                    "event=member_lounge_welcome_failed user_id=%s error_type=%s",
                     user_id,
-                    short_term_channel_id=self.short_term_channel_id,
-                    swing_channel_id=self.swing_channel_id,
-                    leaps_channel_id=self.leaps_channel_id,
-                ),
-                allowed_mentions=discord.AllowedMentions(
-                    everyone=False,
-                    roles=False,
-                    users=True,
-                    replied_user=False,
-                ),
-            )
-        except discord.HTTPException as exc:
-            logger.warning(
-                "event=member_lounge_welcome_failed user_id=%s error_type=%s",
-                user_id,
-                type(exc).__name__,
-            )
-            await report_system_failure(
-                self.bot,
-                severity="ERROR",
-                service="Membership Role Sync",
-                error_type="MEMBER_WELCOME_FAILED",
-                affected=f"Discord User {user_id}",
-                detail=type(exc).__name__,
-            )
+                    type(exc).__name__,
+                )
+                await report_system_failure(
+                    self.bot,
+                    severity="ERROR",
+                    service="Membership Role Sync",
+                    error_type="MEMBER_WELCOME_FAILED",
+                    affected=f"Discord User {user_id}",
+                    detail=type(exc).__name__,
+                )
 
     async def notify_successful_payment(
         self,

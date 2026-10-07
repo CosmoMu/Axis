@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -74,6 +75,18 @@ class FakeParser:
         assert raw_text == self.expected_raw_text
         assert len(attachments) == self.expected_attachment_count
         return TradeParseResult(self.payload, trace)
+
+
+class HangingParser:
+    async def parse(self, *, raw_text: str | None, attachments: list[object]) -> TradeParseResult:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+class HangingOptionCatalog:
+    async def list_option_contracts(self, **_: object) -> tuple[ListedOptionContract, ...]:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
 
 
 async def database_with_source(
@@ -532,6 +545,66 @@ async def test_parse_failure_creates_one_safe_failed_draft(tmp_path: Path) -> No
         assert invocation.error_type == "LLM_REQUEST_FAILED"
         assert draft.llm_invocation_id == invocation.id
         assert "SPY" not in str(audit.after_json)
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_hanging_parser_times_out_and_queue_can_recover(tmp_path: Path) -> None:
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1010,
+        with_attachment=False,
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        HangingParser(),
+        processing_timeout_seconds=0.01,
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.FAILED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+            saved_source = await session.get(SourceMessage, source.id)
+        assert draft is not None
+        assert draft.status == DraftStatus.PARSE_FAILED.value
+        assert draft.warnings == ["LLM_REQUEST_TIMEOUT"]
+        assert saved_source is not None
+        assert saved_source.status == SourceStatus.FAILED.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_contract_lookup_timeout_degrades_to_reviewable_draft(tmp_path: Path) -> None:
+    raw = "SPY 0DTE 779C @0.94"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1011,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(expected_attachment_count=0, expected_raw_text=raw),
+        contract_resolver=OptionContractResolver(HangingOptionCatalog()),
+        market_lookup_timeout_seconds=0.01,
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+            saved_source = await session.get(SourceMessage, source.id)
+        assert draft is not None
+        assert draft.status == DraftStatus.PENDING_REVIEW.value
+        assert draft.contract_validation_status == "UNAVAILABLE"
+        assert "OPTION_CHAIN_UNAVAILABLE" in draft.warnings
+        assert saved_source is not None
+        assert saved_source.status == SourceStatus.PARSED.value
     finally:
         await database.dispose()
 

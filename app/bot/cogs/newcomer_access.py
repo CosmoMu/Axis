@@ -828,9 +828,12 @@ class NewcomerAccessCog(commands.Cog):
                     joined_at=joined_at,
                 )
             try:
+                has_active_access = await self.access_service.should_have_access(
+                    self.guild_id, member.id
+                )
                 await self.sync_user_roles(
                     member.id,
-                    approved=profile.approved,
+                    approved=profile.approved or has_active_access,
                     actor_user_id=self.bot.user.id,
                 )
                 if profile.role_sync_status != "SYNCED":
