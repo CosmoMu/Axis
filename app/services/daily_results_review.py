@@ -41,6 +41,7 @@ EXCLUSION_REASONS = (
     "NOT_FOR_PUBLIC_SUMMARY",
     "OTHER",
 )
+PUBLIC_LOSS_FLOOR_PCT = Decimal("-30")
 
 
 class ResultsReviewError(RuntimeError):
@@ -101,8 +102,13 @@ def _number(value: object) -> str:
 def _percent(value: Decimal | None) -> str:
     if value is None:
         return "N/A"
+    value = max(value, PUBLIC_LOSS_FLOOR_PCT)
     rendered = f"{value:+.2f}".rstrip("0").rstrip(".")
     return f"{rendered}%"
+
+
+def _public_result_pct(value: Decimal | None) -> Decimal | None:
+    return max(value, PUBLIC_LOSS_FLOOR_PCT) if value is not None else None
 
 
 def _result_emoji(value: Decimal | None) -> str:
@@ -1280,7 +1286,7 @@ class DailyResultsReviewService:
             category=item.category,
             contract=_contract(payload),
             included=item.included,
-            display_result_pct=item.display_result_pct,
+            display_result_pct=_public_result_pct(item.display_result_pct),
             display_text=_display_line(item),
             exclusion_reason=item.exclusion_reason,
         )

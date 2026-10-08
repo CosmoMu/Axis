@@ -21,9 +21,30 @@ from app.db.models import (
     TradeEvent,
 )
 from app.db.session import Database
-from app.services.daily_results_review import DailyResultsReviewService, ResultsReviewError
+from app.services.daily_results_review import (
+    DailyResultsReviewService,
+    ResultsReviewError,
+    _percent,
+)
 
 GUILD_ID = 1543309921066684567
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("25", "+25%"),
+        ("-12.5", "-12.5%"),
+        ("-30", "-30%"),
+        ("-30.01", "-30%"),
+        ("-100", "-30%"),
+    ],
+)
+def test_results_review_public_loss_is_capped_at_thirty_percent(
+    value: str,
+    expected: str,
+) -> None:
+    assert _percent(Decimal(value)) == expected
 TRADING_DATE = date(2026, 8, 28)
 ENDED_AT = datetime(2026, 8, 28, 19, 45, tzinfo=UTC)
 
