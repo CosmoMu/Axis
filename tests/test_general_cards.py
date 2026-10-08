@@ -219,9 +219,28 @@ def test_short_term_event_id_is_not_member_visible() -> None:
     )
     rendered = str(embed.to_dict())
 
-    assert embed.footer.text == "AXIS"
+    assert embed.footer.text == "AXIS · I'm SHAKING!"
     assert "STE-26CFC5C8DA92" not in rendered
     assert "AXIS Short-Term Event" not in rendered
+
+
+@pytest.mark.parametrize(
+    ("return_pct", "footer"),
+    [
+        ("49.99", "AXIS"),
+        ("50", "AXIS · I'm SHAKING!"),
+        ("99.99", "AXIS · I'm SHAKING!"),
+        ("100", "AXIS · WE ARE ALL SHAKING!!!"),
+        ("125", "AXIS · WE ARE ALL SHAKING!!!"),
+    ],
+)
+def test_short_term_profit_footer_celebrates_large_returns(
+    return_pct: str,
+    footer: str,
+) -> None:
+    card = replace(_short_term_tracking_card("TP"), return_pct=Decimal(return_pct))
+    embed = build_short_term_tracking_embed(card, public_ref="STE-TEST")
+    assert embed.footer.text == footer
 
 
 def test_short_term_event_combines_er_and_lotto_labels() -> None:
