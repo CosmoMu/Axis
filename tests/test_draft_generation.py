@@ -35,11 +35,60 @@ from app.services.card_review import CardReviewService
 from app.services.draft_generation import (
     DraftGenerationDisposition,
     DraftGenerationService,
+    _apply_expiry_category,
 )
 from app.services.option_contracts import ListedOptionContract, OptionContractResolver
 from tests.test_openai_trade_parser import valid_payload
 
 GUILD_ID = 1543309921066684567
+
+
+@pytest.mark.parametrize(
+    ("expiry", "precision", "expected"),
+    [
+        (date(2026, 10, 7), "ZERO_DTE", "SHORT_TERM"),
+        (date(2026, 10, 9), "EXACT_DATE", "SHORT_TERM"),
+        (date(2026, 10, 23), "EXACT_DATE", "SWING"),
+        (date(2026, 11, 6), "EXACT_DATE", "SWING"),
+        (date(2026, 11, 7), "EXACT_DATE", "LEAPS"),
+        (date(2027, 1, 15), "EXACT_DATE", "LEAPS"),
+    ],
+)
+def test_expiry_category_is_deterministic(
+    expiry: date,
+    precision: str,
+    expected: str,
+) -> None:
+    payload: dict[str, object] = {
+        "intent": "NEW_TRADE",
+        "action": "ENTRY",
+        "resolved_expiry": expiry.isoformat(),
+        "expiry_precision": precision,
+        "category_suggestion": "SWING",
+        "warnings": ["CATEGORY_INFERRED_LOW_CONFIDENCE"],
+    }
+
+    _apply_expiry_category(payload, today=date(2026, 10, 7))
+
+    assert payload["category_suggestion"] == expected
+    assert payload["selected_category"] == expected
+    assert payload["_category_inference"] == {
+        "category": expected,
+        "basis": (
+            "ONE_CALENDAR_MONTH_OR_LONGER"
+            if expected == "LEAPS"
+            else "NEAREST_OR_WITHIN_SEVEN_DAYS"
+            if expected == "SHORT_TERM"
+            else "BETWEEN_SHORT_TERM_AND_LEAPS"
+        ),
+        "days_to_expiry": (expiry - date(2026, 10, 7)).days,
+        "previous_suggestion": "SWING",
+    }
+    assert "CATEGORY_INFERRED_LOW_CONFIDENCE" not in payload["warnings"]
+    assert f"CATEGORY_AUTO_CLASSIFIED_{expected}" in payload["warnings"]
+    assert (payload.get("_swing_mode") == "SIMPLE_TRACKED_SWING") is (
+        expected == "SWING"
+    )
 
 
 class FakeParser:

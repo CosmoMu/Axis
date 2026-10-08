@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import calendar
 import re
 import uuid
 from contextlib import suppress
@@ -194,6 +195,67 @@ def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> No
     payload["expiry"] = payload.get("resolved_expiry")
     if payload.get("category_suggestion") == "SWING" and payload.get("intent") == "NEW_TRADE":
         payload["_swing_mode"] = SIMPLE_TRACKED_SWING
+
+
+def _one_calendar_month_after(value: date) -> date:
+    year = value.year + (1 if value.month == 12 else 0)
+    month = 1 if value.month == 12 else value.month + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _apply_expiry_category(payload: dict[str, Any], *, today: date | None = None) -> None:
+    """Apply AXIS' deterministic horizon classification after contract resolution.
+
+    The option-chain resolver already maps omitted expiries to the nearest listed
+    contract.  Explicit contracts within seven calendar days are treated as the
+    same near-expiry Short-Term horizon.  One calendar month or longer is LEAPS;
+    the interval between those boundaries is Swing.
+    """
+
+    if payload.get("intent") != "NEW_TRADE" or payload.get("action") != "ENTRY":
+        return
+    expiry = _date(payload.get("resolved_expiry") or payload.get("expiry"))
+    if expiry is None:
+        return
+    reference_date = today or date.today()
+    days_to_expiry = (expiry - reference_date).days
+    if days_to_expiry < 0:
+        return
+    precision = payload.get("expiry_precision")
+    if expiry >= _one_calendar_month_after(reference_date):
+        category = "LEAPS"
+        basis = "ONE_CALENDAR_MONTH_OR_LONGER"
+    elif precision in {
+        ExpiryPrecision.AUTO_NEAREST.value,
+        ExpiryPrecision.ZERO_DTE.value,
+    } or days_to_expiry <= 7:
+        category = "SHORT_TERM"
+        basis = "NEAREST_OR_WITHIN_SEVEN_DAYS"
+    else:
+        category = "SWING"
+        basis = "BETWEEN_SHORT_TERM_AND_LEAPS"
+
+    previous = payload.get("selected_category") or payload.get("category_suggestion")
+    payload["category_suggestion"] = category
+    payload["selected_category"] = category
+    if category == "SWING":
+        payload["_swing_mode"] = SIMPLE_TRACKED_SWING
+    else:
+        payload.pop("_swing_mode", None)
+    payload["_category_inference"] = {
+        "category": category,
+        "basis": basis,
+        "days_to_expiry": days_to_expiry,
+        "previous_suggestion": previous,
+    }
+    warnings = [
+        warning
+        for warning in _unique_strings(payload.get("warnings"))
+        if warning != "CATEGORY_INFERRED_LOW_CONFIDENCE"
+    ]
+    warnings.append(f"CATEGORY_AUTO_CLASSIFIED_{category}")
+    payload["warnings"] = list(dict.fromkeys(warnings))
 
 
 def _apply_expiry_resolution(payload: dict[str, Any], result: ExpiryResolution) -> None:
@@ -394,6 +456,7 @@ class DraftGenerationService:
             _prepare_signal_payload(payload, source_snapshot[1])
             await self._match_simple_swing_close(payload, source_snapshot[0])
             await self._resolve_expiry(payload)
+            _apply_expiry_category(payload)
             await self._validate_entry_price(payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)

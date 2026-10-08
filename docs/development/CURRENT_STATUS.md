@@ -275,8 +275,11 @@ Production status: Bot 正在目标 Guild 运行。`member-wins` 按 Owner 最�
 
 Implemented: 信号输入频道的文字、图片、多图和转发输入；Structured Output；S-00001 编号；
 Category / Mentor / Trade 下拉；编辑、预览、发布、删除；Public DTO 与幂等 Publication；新建
-ENTRY 完全缺失入场价时，在已验证期权合约上使用 Massive 当前参考价补入 Review，且不覆盖
-已识别价格。行情失败时保留手工审核，不影响草稿生成。Legacy Swing / LEAPS 编辑使用分区向导：
+ENTRY 在已验证期权合约上读取一次 Moomoo 当前期权报价；输入价与当前价同时存在时取较低者，
+完全缺价时使用当前价。报价新鲜、市场开放、偏差不超过 25% 且字段完整时，Short-Term / Simple
+Swing 直接进入幂等发布队列；行情失败、过期、闭市或偏差过大时保留手工审核。到期日完成解析后
+使用确定性分类：0DTE、自动最近到期或七个日历日内为 Short-Term；一个日历月及以上为 LEAPS；
+两者之间为 Swing。Legacy Swing / LEAPS 编辑使用分区向导：
 订单类型、Call / Put、仓位等固定值使用下拉菜单，每个输入框只填写一个数据，发布阻塞项使用
 中文逐项显示。LEAPS 的操作后持仓下拉已改为 optional；新入场留空默认 1/8，更新已有订单留空
 保留当前持仓，关闭类操作仍自动归零。
@@ -297,7 +300,8 @@ hardcode；每笔订单冻结 policy version 与 price source。支持跨日 Hig
 Active View 强制刷新与 stale fallback、EOD Active Summary、Expiry、restart recovery。
 
 Swing Daily Summary 已支持 `PAGE n / total` 分页且不再截断活动订单；每笔活动订单统一显示
-历史最高 TP 的具体收益率、Moomoo 当日正式收盘价/收益与成本，不显示仓位。
+历史最高 TP 的具体收益率、Moomoo 当日 option session 收盘前最后一笔有效成交价/收益与成本，
+不显示仓位。只接受目标交易日且不晚于 16:15 ET 的报价，不使用盘后成交或跨日旧报价。
 
 Manager 可在 `信号输入` 使用 `close SW-XXXX` 或完整合约并可选 `@price`，经过 Review 后停止
 追踪。报价失败不阻止已审核 Close；公开 Close 依次显示 Entry 成本、lifetime verified highest
@@ -379,7 +383,7 @@ Implemented:
   `ER` 输入会预选。Entry、TP / Momentum 与 Daily Results 统一显示 `(ER)` 或
   `(ER · LOTTO)`，不改变 Massive、TP、到期和收益计算。
 - Short-Term Active View 与 Daily Summary 已删除；Swing / LEAPS 使用「查看当前持仓订单」，
-  每日 Active Summary 使用 Moomoo 当日 option snapshot 正式收盘价计算收益。
+  每日 Active Summary 使用 Moomoo 当日期权 session 收盘前最后一笔有效成交价计算收益。
 - Results：当天到期与收盘时仍在追踪的 Short-Term 先进入候选集；盘中 Massive 报价继续按
   交易日写入独立 High / Low Snapshot，但公开收益统一使用从入场到到期/停止追踪期间的
   全生命周期最高期权价相对入场价计算。只有该值严格超过同订单此前已发布 Results 的最佳值

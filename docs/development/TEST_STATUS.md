@@ -141,8 +141,10 @@ Signal / Trade:
 
 - Text、image、multi-image、Discord forward、真实文件签名和拒绝输入审计。
 - Structured Output、router、invocation trace、missing fields 和 failure draft。
-- 新建 ENTRY 完全缺价时使用已验证合约的当前 Massive 期权参考价补入 Review；报价失败保留
-  可编辑草稿；任何已识别输入价格绝不被覆盖；内部保存 price source 与行情时间戳。
+- 新建 ENTRY 使用已验证合约的一次 Moomoo 期权快照：输入价和当前价取较低者，完全缺价时使用
+  当前价；报价失败保留可编辑草稿；内部保存输入价、当前价、最终价、偏差、price source 和时间戳。
+- 到期日确定性分类：0DTE / AUTO_NEAREST / 七个日历日内为 Short-Term，一个日历月及以上为
+  LEAPS，中间区间为 Swing；覆盖边界日、类别覆盖、Swing mode 与低置信 warning 清理。
 - S-00001 / A-00001 counter、Category/Mentor/Trade select、modal edit 和并发版本。
 - Swing / LEAPS 分区编辑向导、订单类型与仓位下拉、单字段输入、加仓必填项和中文缺失提示。
 - LEAPS 持仓 optional：下拉允许留空，新入场默认 1/8，已有订单更新保留当前持仓，关闭操作
@@ -171,7 +173,8 @@ Short-Term:
 - Short-Term ER 默认 false、明确 `ER` 输入预选、独立 Review toggle、ER + LOTTO 组合显示、
   Draft / Trade 持久化、TP 卡与 Daily Results 传递；ER 不改变追踪或收益逻辑。
 - Short-Term 无 Active Button / Daily Summary；Swing / LEAPS「查看当前持仓订单」与 Summary。
-- Swing / LEAPS Summary 只接受 Moomoo 当日正式期权收盘价，不接受其他日期 bar 或实时价；
+- Swing / LEAPS Summary 只接受 Moomoo 目标交易日、不晚于 16:15 ET 的期权 session 最后一笔
+  有效成交价，不接受盘后成交、其他日期旧报价或普通盘中实时价；
   支持 `PAGE n / total` 分页且不截断订单。Swing 活动订单显示历史最高 TP；LEAPS 改为显示
   入场以来的“最高收益”；Massive 真实 High 正规化、入场/成本边界和历史快照降级均有覆盖。
   两者均显示当日收盘收益/收盘价与成本并隐藏仓位比例。

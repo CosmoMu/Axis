@@ -4,7 +4,7 @@ import asyncio
 import threading
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
@@ -20,6 +20,7 @@ from app.services.option_contracts import ListedOptionContract
 
 ET = ZoneInfo("America/New_York")
 POST_CLOSE_STATES = frozenset({"CLOSED", "AFTER_HOURS_BEGIN", "AFTER_HOURS_END"})
+OPTION_SESSION_CLOSE_ET = time(16, 15)
 
 
 class MarketDataError(RuntimeError):
@@ -97,6 +98,33 @@ def _quote_time(value: object) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def _session_last_trade(
+    row: dict[str, Any] | None,
+    *,
+    session_date: date,
+) -> tuple[Decimal | None, datetime | None]:
+    """Return the final eligible regular option-session trade from a snapshot.
+
+    Moomoo's post-close option snapshot exposes the most recent trade rather than
+    a separately labelled official close.  It is suitable for AXIS' daily summary
+    only when that trade belongs to the requested session and occurred no later
+    than the US option-session cutoff.
+    """
+
+    if row is None:
+        return None, None
+    price = _decimal(row.get("last_price"))
+    updated_at = _quote_time(row.get("update_time"))
+    if (
+        price is None
+        or updated_at is None
+        or updated_at.astimezone(ET).date() != session_date
+        or updated_at.astimezone(ET).time() > OPTION_SESSION_CLOSE_ET
+    ):
+        return None, None
+    return price, updated_at
 
 
 def moomoo_option_code(option_ticker: str) -> str:
@@ -628,8 +656,7 @@ class MoomooMarketDataClient:
                     )
                     continue
                 row = rows.get(code)
-                price = _decimal(row.get("last_price")) if row else None
-                updated_at = _quote_time(row.get("update_time")) if row else None
+                price, updated_at = _session_last_trade(row, session_date=session_date)
                 quotes.append(
                     OptionQuote(
                         key=request.key,
@@ -641,6 +668,7 @@ class MoomooMarketDataClient:
                             if price is not None and updated_at is not None
                             else "QUOTE_UNAVAILABLE"
                         ),
+                        price_type="CLOSE",
                     )
                 )
             return PostCloseQuoteBatch(

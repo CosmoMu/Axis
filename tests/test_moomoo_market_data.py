@@ -11,6 +11,7 @@ from app.integrations.moomoo_market_data import (
     MoomooOptionOrderBookProvider,
     OptionQuoteRequest,
     _quote_time,
+    _session_last_trade,
     moomoo_option_code,
     normalize_us_underlying,
 )
@@ -58,6 +59,29 @@ def test_moomoo_snapshot_time_accepts_fractional_seconds() -> None:
     parsed = _quote_time("2026-08-28 20:02:33.982")
     assert parsed is not None
     assert parsed.isoformat() == "2026-08-28T20:02:33.982000-04:00"
+
+
+def test_session_last_trade_accepts_last_trade_before_option_close() -> None:
+    price, observed_at = _session_last_trade(
+        {"last_price": "1.42", "update_time": "2026-08-28 16:14:59"},
+        session_date=date(2026, 8, 28),
+    )
+
+    assert price == Decimal("1.42")
+    assert observed_at == datetime(2026, 8, 28, 16, 14, 59, tzinfo=observed_at.tzinfo)
+
+
+@pytest.mark.parametrize(
+    "update_time",
+    ["2026-08-27 16:00:00", "2026-08-28 16:15:01"],
+)
+def test_session_last_trade_rejects_wrong_session_or_post_close_trade(
+    update_time: str,
+) -> None:
+    assert _session_last_trade(
+        {"last_price": "1.42", "update_time": update_time},
+        session_date=date(2026, 8, 28),
+    ) == (None, None)
 
 
 def test_canonical_occ_tickers_translate_to_moomoo_codes() -> None:
