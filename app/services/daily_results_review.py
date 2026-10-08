@@ -111,6 +111,22 @@ def _public_result_pct(value: Decimal | None) -> Decimal | None:
     return max(value, PUBLIC_LOSS_FLOOR_PCT) if value is not None else None
 
 
+def _short_term_display_result(tracking: ShortTermTracking) -> Decimal:
+    """Use the lifetime high once positive; otherwise show the real loss.
+
+    ``highest_return_pct`` starts at zero, so using it unconditionally turns a
+    trade that never became profitable into a misleading flat result.
+    """
+
+    if tracking.highest_return_pct > 0:
+        return tracking.highest_return_pct
+    if tracking.tracking_end_return_pct is not None:
+        return tracking.tracking_end_return_pct
+    if tracking.current_return_pct is not None:
+        return tracking.current_return_pct
+    return tracking.highest_return_pct
+
+
 def _result_emoji(value: Decimal | None) -> str:
     if value is None or value == 0:
         return "➖"
@@ -371,6 +387,7 @@ class DailyResultsReviewService:
                 order = 0
                 for tracking, trade in tracking_rows:
                     peak_return_pct = tracking.highest_return_pct
+                    display_result_pct = _short_term_display_result(tracking)
                     prior_peak = prior_peaks.get(trade.id)
                     if prior_peak is not None and peak_return_pct <= prior_peak:
                         continue
@@ -379,7 +396,7 @@ class DailyResultsReviewService:
                             review_id=review.id,
                             trade_id=trade.id,
                             category=TradeCategory.SHORT_TERM.value,
-                            display_result_pct=peak_return_pct,
+                            display_result_pct=display_result_pct,
                             included=True,
                             display_order=order,
                             snapshot_json=self._trade_payload(trade),
@@ -992,8 +1009,9 @@ class DailyResultsReviewService:
                 await session.delete(item)
                 removed += 1
                 continue
-            if item.corrected_at is None and item.display_result_pct != tracking.highest_return_pct:
-                item.display_result_pct = tracking.highest_return_pct
+            display_result_pct = _short_term_display_result(tracking)
+            if item.corrected_at is None and item.display_result_pct != display_result_pct:
+                item.display_result_pct = display_result_pct
                 updated += 1
             payload = self._trade_payload(trade)
             if item.snapshot_json != payload:
@@ -1012,7 +1030,7 @@ class DailyResultsReviewService:
                     review_id=review.id,
                     trade_id=trade.id,
                     category=TradeCategory.SHORT_TERM.value,
-                    display_result_pct=tracking.highest_return_pct,
+                    display_result_pct=_short_term_display_result(tracking),
                     included=True,
                     display_order=next_order,
                     snapshot_json=self._trade_payload(trade),

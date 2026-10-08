@@ -25,6 +25,7 @@ from app.services.daily_results_review import (
     DailyResultsReviewService,
     ResultsReviewError,
     _percent,
+    _short_term_display_result,
 )
 
 GUILD_ID = 1543309921066684567
@@ -45,6 +46,54 @@ def test_results_review_public_loss_is_capped_at_thirty_percent(
     expected: str,
 ) -> None:
     assert _percent(Decimal(value)) == expected
+
+
+def test_short_term_result_uses_actual_loss_when_trade_never_became_profitable() -> None:
+    tracking = ShortTermTracking(
+        guild_id=GUILD_ID,
+        trade_id=uuid.uuid4(),
+        option_ticker="O:MSTR261009C00160000",
+        entry_price=Decimal("0.40"),
+        current_price=Decimal("0.31"),
+        current_return_pct=Decimal("-22.5"),
+        highest_price=Decimal("0.40"),
+        highest_return_pct=Decimal("0"),
+        lowest_price=Decimal("0.31"),
+        lowest_return_pct=Decimal("-22.5"),
+        tp_levels_hit=[],
+        momentum_tp_events=[],
+        tracking_state="OVERNIGHT_ACTIVE",
+        tracking_started_at=ENDED_AT,
+        overnight_count=0,
+        tracking_policy_version="TEST",
+        price_source="MID",
+    )
+
+    assert _short_term_display_result(tracking) == Decimal("-22.5")
+
+
+def test_short_term_result_keeps_positive_lifetime_high_even_if_currently_down() -> None:
+    tracking = ShortTermTracking(
+        guild_id=GUILD_ID,
+        trade_id=uuid.uuid4(),
+        option_ticker="O:MU261009C01100000",
+        entry_price=Decimal("0.79"),
+        current_price=Decimal("0.695"),
+        current_return_pct=Decimal("-12.0253"),
+        highest_price=Decimal("0.855"),
+        highest_return_pct=Decimal("8.2278"),
+        lowest_price=Decimal("0.695"),
+        lowest_return_pct=Decimal("-12.0253"),
+        tp_levels_hit=[],
+        momentum_tp_events=[],
+        tracking_state="OVERNIGHT_ACTIVE",
+        tracking_started_at=ENDED_AT,
+        overnight_count=0,
+        tracking_policy_version="TEST",
+        price_source="MID",
+    )
+
+    assert _short_term_display_result(tracking) == Decimal("8.2278")
 TRADING_DATE = date(2026, 8, 28)
 ENDED_AT = datetime(2026, 8, 28, 19, 45, tzinfo=UTC)
 
