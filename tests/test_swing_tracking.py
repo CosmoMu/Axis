@@ -40,8 +40,18 @@ GUILD_ID = 1543309921066684567
 POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "short_term_tracking.yaml"
 
 
+class AlwaysOpenCalendar:
+    @staticmethod
+    def is_market_open(_at: datetime) -> bool:
+        return True
+
+
 class CurrentPriceProvider:
+    def __init__(self) -> None:
+        self.requests = []
+
     async def fetch_prices(self, requests):
+        self.requests.append(tuple(requests))
         now = datetime.now(UTC)
         return tuple(
             MarketPrice(
@@ -221,6 +231,30 @@ async def test_simple_swing_uses_shared_fixed_tps_without_short_term_exit_logic(
         assert active[0].highest_tp_level == "TP4"
         assert active[0].highest_tp_return_pct == 75
         assert active[0].highest_return_pct == Decimal("80.0000")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_poll_does_not_quote_closed_trade_with_stale_active_tracker() -> None:
+    database, trade = await swing_database()
+    provider = CurrentPriceProvider()
+    service = SwingTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        provider,  # type: ignore[arg-type]
+        calendar=AlwaysOpenCalendar(),
+    )
+    try:
+        await service.register_trade(trade.id, Decimal("1.00"))
+        async with database.session() as session:
+            current = await session.get(Trade, trade.id)
+            assert current is not None
+            current.state = "CLOSED"
+            await session.commit()
+
+        assert await service.poll(GUILD_ID) == 0
+        assert provider.requests == []
     finally:
         await database.dispose()
 

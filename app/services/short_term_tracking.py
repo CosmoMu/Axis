@@ -191,6 +191,7 @@ class MarketTrackingService:
                     .where(
                         ShortTermTracking.guild_id == guild_id,
                         ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
+                        Trade.state.in_(("ACTIVE", "RUNNER")),
                     )
                     .order_by(Trade.public_trade_id)
                 )
@@ -203,6 +204,8 @@ class MarketTrackingService:
             )
             for tracking, trade in rows
         )
+        if not requests:
+            return 0
         try:
             prices = await self.provider.fetch_prices(requests)
         except MarketDataProviderError as exc:
@@ -234,6 +237,7 @@ class MarketTrackingService:
                     .where(
                         ShortTermTracking.guild_id == guild_id,
                         ShortTermTracking.tracking_state.in_(ACTIVE_STATES),
+                        Trade.state.in_(("ACTIVE", "RUNNER")),
                         Trade.option_contract_code.is_not(None),
                         ShortTermTracking.option_ticker != Trade.option_contract_code,
                     )

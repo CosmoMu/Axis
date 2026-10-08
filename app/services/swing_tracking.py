@@ -216,6 +216,7 @@ class SwingTrackingService:
                     .where(
                         SwingTracking.guild_id == guild_id,
                         SwingTracking.tracking_state == "ACTIVE",
+                        Trade.state.in_(("ACTIVE", "RUNNER")),
                         Trade.tracking_mode == SIMPLE_TRACKED_SWING,
                     )
                     .order_by(Trade.public_trade_id)

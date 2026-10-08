@@ -41,8 +41,10 @@ class AlwaysOpenCalendar:
 class MutableTrackingProvider:
     def __init__(self, error_code: str | None = None) -> None:
         self.error_code = error_code
+        self.requests = []
 
     async def fetch_prices(self, requests):
+        self.requests.append(tuple(requests))
         if self.error_code is not None:
             raise MarketDataProviderError(self.error_code)
         now = datetime.now(UTC)
@@ -189,6 +191,30 @@ async def test_provider_outage_still_fails_the_tracking_service() -> None:
         assert tracking is not None
         assert tracking.consecutive_data_errors == 0
         assert tracking.last_error_code is None
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_poll_does_not_quote_closed_trade_with_stale_active_tracker() -> None:
+    database, trade = await tracking_database()
+    provider = MutableTrackingProvider()
+    service = MarketTrackingService(
+        database,
+        ShortTermTrackingPolicy.load(POLICY_PATH),
+        provider,
+        calendar=AlwaysOpenCalendar(),
+    )
+    try:
+        await service.register_trade(trade.id, Decimal("1.00"))
+        async with database.session() as session:
+            current = await session.get(Trade, trade.id)
+            assert current is not None
+            current.state = "CLOSED"
+            await session.commit()
+
+        assert await service.poll(GUILD_ID) == 0
+        assert provider.requests == []
     finally:
         await database.dispose()
 
