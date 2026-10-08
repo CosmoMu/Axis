@@ -1,38 +1,33 @@
 # AXIS Test Status
 
-**Date:** 2026-09-13
+**Date:** 2026-10-07
 
 ## Summary
 
-- Full pytest suite: PASS — 377 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 380 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
-- SPY 0DTE Desk TEST gate: PASS — real OpenD returned SPY spot `$764.29`, 78 complete five-minute
-  bars and 390 exact-date contracts for 2026-09-11; 2026-09-14 also returned 310 contracts. Sampled
-  Gamma、IV、OI、Volume、Bid/Ask and timestamps all passed without Massive or proxy data.
-- SPY member card: PASS — the formal Chinese embed and GEX image are generated from one frozen
-  Moomoo snapshot. On the weekend, acceptance uses the latest completed session and visibly marks
-  the result as `历史收盘测试快照`; it is not the capability diagnostic card. The formal card was
-  sent directly to `📍・spy-0dte` as message `1548842888815968256` using 297 exact-date contracts.
-- SPY Cosmos-style card: PASS — the 1400×1500 AXIS rendering, OI-weighted GEX and scale-aware SPY
-  scenario method passed local visual QA. A real Moomoo-backed replacement card was sent as message
-  `1548846297996595210` with 297 exact-date contracts; score `-47` is capped by historical-data
-  quality and the image is explicitly labeled `历史快照`.
-- SPY member scheduler: ENABLED — one new card per valid five-minute slot, 09:35 ET through actual
-  close, with holiday/half-day calendar handling, in-memory plus Discord-history slot idempotency
-  and no backfill. Final Blueprint dry-run is `REUSE=34 / CREATE=0 / UPDATE=0 / BLOCK=0`, and the
-  runtime permission verifier passes for Bot send/embed/attach while Member/Manager remain read-only.
+- SPY 0DTE Desk: RETIRED — Cog、Scheduler、Slash command、Blueprint channel and runtime configuration
+  removed; it no longer performs five-minute Moomoo option-chain/K-line reads.
+- Signal Entry Quote Gate: PASS — explicit price comparison, lower-price selection, quote-only fill,
+  25% deviation fallback, unavailable-quote fallback, audit payload and automatic READY queue are
+  covered. Only complete Short-Term / Simple Swing ENTRY drafts can auto-publish.
 - Static type checker: NOT CONFIGURED
 - Core Gate A automated checks: PASS
 - Analysis Gate B automated checks: PASS
 - Analysis chart-source schema width / migration: PASS
 - Database verifier: PASS
-- Discord runtime verifier: PASS
+- Discord runtime verifier: PARTIAL — SPY 0DTE channel/command retirement checks pass. Five
+  pre-existing Manager permission drifts remain (`card_testing_view`, `join_review_send`,
+  `moomoo_trading_view`, `results_review_send`, `system_alerts_view`); this change did not mutate
+  unrelated permissions.
+- Discord Blueprint dry-run: `REUSE=32 / CREATE=0 / UPDATE=1 / BLOCK=0`; the sole pending update
+  removes disallowed server-level `administrator` / `manage_roles` permissions from Manager.
 - Moomoo production market-data migration: PASS — actual OpenD capability/entitlement gate、8-ticker
   Stock Analyst、5-ticker GEX、BID/MID/LAST tracking adapter、empty Massive key full Bot startup、
   real Discord Stock/GEX card rendering、Ruff、compileall、database verifier、Discord runtime verifier
   and Blueprint dry-run all passed.
-- Moomoo capability evidence: SDK 10.10.7008；SPY/NVDA stock snapshots + Daily/1m/5m；SPY option
+- Moomoo capability evidence: SDK/OpenD 10.11.7108；SPY/NVDA stock snapshots + Daily/1m/5m；SPY option
   bid/ask/last/volume/OI/IV/delta/gamma/timestamp；OPRA best bid/ask；no additional option package
   required. SPX chain/snapshot work but underlying snapshot is unsupported and fails closed as
   `SPX_PROVIDER_UNSUPPORTED` without SPY proxy.

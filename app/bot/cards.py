@@ -174,9 +174,21 @@ def _draft_entry_price(draft: ReviewDraft) -> Decimal | None:
 def _review_warning(warning: str) -> str:
     return {
         "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE": (
-            "行情补全：输入未识别到入场价，已填入当前期权参考价，请审核。"
+            "行情补全：输入未识别到入场价，已填入当前期权参考价。"
         ),
         "CURRENT_OPTION_QUOTE_UNAVAILABLE": ("行情补全失败：当前期权参考价不可用，请手动填写。"),
+        "ENTRY_PRICE_ADJUSTED_TO_LOWER_CURRENT_QUOTE": (
+            "价格校验：当前期权价更低，已采用较低价格。"
+        ),
+        "ENTRY_PRICE_VALIDATED_WITH_CURRENT_OPTION_QUOTE": (
+            "价格校验：输入价不高于当前期权价。"
+        ),
+        "CURRENT_OPTION_QUOTE_MARKET_CLOSED": (
+            "价格校验：当前不在美股正常交易时段，需人工确认。"
+        ),
+        "ENTRY_PRICE_DEVIATION_REQUIRES_REVIEW": (
+            "价格校验：输入价与当前价偏离超过自动发布阈值，需人工确认。"
+        ),
     }.get(warning, warning)
 
 
@@ -294,6 +306,13 @@ def build_short_term_review_embed(draft: ReviewDraft) -> discord.Embed:
         )
     else:
         embed.add_field(name="入场价格", value=_money(_draft_entry_price(draft)), inline=False)
+        if draft.market_current_price is not None:
+            comparison = [f"Moomoo 当前价 {_money(draft.market_current_price)}"]
+            if draft.market_submitted_price is not None:
+                comparison.insert(0, f"输入价 {_money(draft.market_submitted_price)}")
+            if draft.market_price_deviation_pct is not None:
+                comparison.append(f"偏离 {draft.market_price_deviation_pct:.2f}%")
+            embed.add_field(name="实时价格校验", value=" · ".join(comparison), inline=False)
     if draft.expiry is None:
         expiry_text = "待解析"
     elif draft.expiry_precision == "ZERO_DTE" or (

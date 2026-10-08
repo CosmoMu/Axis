@@ -49,7 +49,11 @@ class DraftWorkerCog(commands.Cog):
         )
         if result is None or result.disposition is DraftGenerationDisposition.EXISTING:
             return
-        if result.disposition is DraftGenerationDisposition.CREATED:
+        if result.disposition is DraftGenerationDisposition.AUTO_PUBLISH_QUEUED:
+            content = (
+                f"结构化草稿 {result.draft_code} 已通过 Moomoo 实时报价校验，正在自动发布。"
+            )
+        elif result.disposition is DraftGenerationDisposition.CREATED:
             content = f"结构化草稿 {result.draft_code} 已生成，等待管理员审核。"
         else:
             content = "信号解析失败，已保存为失败草稿；稍后可重试或手动录入。"

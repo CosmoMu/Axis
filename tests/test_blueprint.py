@@ -62,7 +62,6 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "⚡・短线",
         "〽️・波段",
         "♾️・长期",
-        "📍・spy-0dte",
         "📣・人工喊单",
         "🛋️・会员交流",
         "📥・信号输入",
@@ -82,7 +81,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🗂️・历史订单",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 26
+    assert blueprint.channel_count == 25
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
     assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
     assert blueprint.categories[0].channels[0].key == "welcome"
@@ -95,7 +94,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 3
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 26
+    assert sum(action.resource_type == "channel" for action in creates) == 25
     assert not plan.blockers
 
 

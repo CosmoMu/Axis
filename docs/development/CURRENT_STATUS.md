@@ -657,9 +657,24 @@ Production status: 本机 LaunchAgent 运行；尚不是完整托管生产体系
 
 未开始：Model A / Model B、Generate / Shadow / Champion / Challenger、模型扫描、账户读取、
 自动交易和会员自动化交易。频道可以预留，功能开关必须保持关闭。
-## SPY 0DTE Desk — MEMBER / FIVE-MINUTE FORMAL CARD LIVE
+## SPY 0DTE Desk — REMOVED
 
-- 已实现 Moomoo-only SPY 0DTE 正式会员卡、中文结构摘要与 1400×1500 Cosmos 风格终端 PNG。
+- 2026-10-07 起停止运行；会员频道、五分钟 Scheduler 和 Slash command 已从生产入口移除。
+- 不再读取 SPY 0DTE 期权链或 K 线，不再占用 Moomoo 订阅与 API 访问。
+- 原实现文件仅作为未接线的历史代码保留，不会由 Bot import、构造或启动。
+
+## Signal Entry Quote Gate — LIVE
+
+- 新入场信号在合约解析成功后只请求一次 Moomoo 期权快照。
+- 最终入场价取“输入价与当前价中较低者”；输入价、当前价、采用价、偏离比例、来源时间和
+  市场状态均写入草稿审计 payload。
+- 正常交易时段、报价新鲜、偏离不超过 `25%`、字段完整且属于 Short-Term / Simple Swing
+  入场时，草稿自动批准并进入既有幂等发布队列。
+- 报价缺失/过期、闭市、偏离超过阈值、合约无效或字段不完整时，继续进入 Signal Review。
+
+### Historical implementation notes
+
+- 曾实现 Moomoo-only SPY 0DTE 正式会员卡、中文结构摘要与 1400×1500 Cosmos 风格终端 PNG。
 - 已把 Cosmos 最新提交版 SPX 5 分钟方法独立迁入 AXIS：OI 加权 0DTE GEX、Zero Gamma、
   Call/Put Wall、1m/5m/15m/1h 动量、三情景相对权重及前后时间槽变化；实际运行不 import
   Cosmos，行权价步长与目标按真实 SPY chain 自适应。

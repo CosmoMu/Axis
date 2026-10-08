@@ -423,7 +423,10 @@ restart 完整 E2E 仍待验收，Live Gate 仍未通过。
 - FEATURE_LAB_ENABLED=false、FEATURE_MODEL_AB_ENABLED=false。
 - 不为会员实现自动下单，也不连接任何会员券商账户。Owner-only Moomoo layer 只在独立安全门内
   读取 Owner 账户/持仓/订单；当前 DRY_RUN 且所有 broker writes 禁用。
-## SPY 0DTE Desk — Member Five-Minute Publication
+## SPY 0DTE Desk — Retired
+
+- 2026-10-07 从运行时、Blueprint 和 Discord 会员入口移除；不再产生 Moomoo 轮询。
+- 下列内容仅为历史实现记录，不代表当前启用状态。
 
 - Moomoo-only exact-date SPY chain with strict `US.SPY` contract-root filtering.
 - Chinese formal member embed and 1400×1500 Cosmos-style terminal PNG share one frozen snapshot.

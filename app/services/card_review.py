@@ -148,6 +148,10 @@ class ReviewDraft:
     stock_pt3: Decimal | None
     fib_0618: Decimal | None
     public_thesis: str | None
+    market_submitted_price: Decimal | None
+    market_current_price: Decimal | None
+    market_price_deviation_pct: Decimal | None
+    market_price_status: str | None
     is_lotto: bool
     is_er: bool = False
     swing_mode: str | None = None
@@ -1665,6 +1669,9 @@ class CardReviewService:
             matched_trade_code = await session.scalar(
                 select(Trade.public_trade_id).where(Trade.id == draft.matched_trade_id)
             )
+        market_entry = draft.parse_payload.get("_market_entry_price", {})
+        if not isinstance(market_entry, dict):
+            market_entry = {}
         return ReviewDraft(
             id=draft.id,
             guild_id=draft.guild_id,
@@ -1720,6 +1727,12 @@ class CardReviewService:
             stock_pt3=_plan_decimal(draft.parse_payload, "plan_stock_pt3"),
             fib_0618=_plan_decimal(draft.parse_payload, "plan_fib_0618"),
             public_thesis=_public_thesis(draft.parse_payload),
+            market_submitted_price=_plan_decimal(market_entry, "submitted_price"),
+            market_current_price=_plan_decimal(market_entry, "current_price"),
+            market_price_deviation_pct=_plan_decimal(market_entry, "deviation_pct"),
+            market_price_status=(
+                str(market_entry["status"]) if market_entry.get("status") else None
+            ),
             is_lotto=draft.is_lotto,
             is_er=draft.is_er,
             swing_mode=(

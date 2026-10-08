@@ -1,4 +1,8 @@
-# AXIS SPY 0DTE Desk — Current Source of Truth
+# AXIS SPY 0DTE Desk — RETIRED
+
+> 2026-10-07：该模块因 Moomoo API 消耗过高已从 AXIS 运行时、Discord Blueprint 和会员入口
+> 移除。五分钟 Scheduler 与 `/test-spy-0dte` 不再注册；本文件仅保留历史设计记录，不能作为
+> 当前功能或部署依据。
 
 Version: SPY_0DTE_V3_COSMOS_METHOD
 Status: MEMBER / FIVE-MINUTE SCHEDULER ENABLED

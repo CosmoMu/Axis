@@ -206,6 +206,7 @@ async def test_explicit_er_marker_is_saved_on_short_term_draft(tmp_path: Path) -
         async with database.session() as session:
             draft = await session.scalar(select(TradeDraft))
         assert draft is not None
+        assert draft.status == DraftStatus.PENDING_REVIEW.value
         assert draft.selected_category == "SHORT_TERM"
         assert draft.is_er is True
     finally:
@@ -238,8 +239,16 @@ class FastSignalCatalog:
 
 
 class DraftPriceProvider(FastSignalCatalog):
-    def __init__(self, *, error_code: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        error_code: str | None = None,
+        price: Decimal = Decimal("0.55"),
+        market_status: str = "open",
+    ) -> None:
         self.error_code = error_code
+        self.price = price
+        self.market_status = market_status
         self.price_requests: list[MarketPriceRequest] = []
 
     async def fetch_prices(
@@ -253,11 +262,11 @@ class DraftPriceProvider(FastSignalCatalog):
             MarketPrice(
                 key=request.key,
                 option_ticker=request.option_ticker,
-                price=Decimal("0.55"),
+                price=self.price,
                 price_source="MID",
                 source_timestamp=now,
                 received_at=now,
-                market_status="open",
+                market_status=self.market_status,
             )
             for request in requests
         )
@@ -343,21 +352,25 @@ async def test_missing_entry_price_is_filled_from_current_option_quote(tmp_path:
         ),
         OptionContractResolver(provider),
         provider,
+        auto_publish_enabled=True,
     )
     try:
         result = await service.generate(source.id)
-        assert result.disposition is DraftGenerationDisposition.CREATED
+        assert result.disposition is DraftGenerationDisposition.AUTO_PUBLISH_QUEUED
         async with database.session() as session:
             draft = await session.scalar(select(TradeDraft))
         assert draft is not None
+        assert draft.status == DraftStatus.READY.value
         assert draft.entry_low == Decimal("0.5500")
         assert draft.entry_high == Decimal("0.5500")
         assert "entry_price" not in draft.missing_fields
         assert "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE" in draft.warnings
         metadata = draft.parse_payload["_market_entry_price"]
-        assert metadata["status"] == "FILLED"
+        assert metadata["status"] == "ACCEPTED"
         assert metadata["option_ticker"] == "O:SPY"
-        assert metadata["price"] == "0.55"
+        assert metadata["submitted_price"] is None
+        assert metadata["current_price"] == "0.55"
+        assert metadata["selected_price"] == "0.55"
         assert metadata["price_source"] == "MID"
         assert metadata["market_status"] == "open"
         assert metadata["source_timestamp"]
@@ -367,7 +380,7 @@ async def test_missing_entry_price_is_filled_from_current_option_quote(tmp_path:
         review = await CardReviewService(database).get(draft.id)
         rendered = str(build_review_embed(review).to_dict())
         assert "$0.55" in rendered
-        assert "已填入当前期权参考价，请审核" in rendered
+        assert "已填入当前期权参考价" in rendered
     finally:
         await database.dispose()
 
@@ -407,6 +420,7 @@ async def test_quote_failure_keeps_review_draft_editable_and_price_missing(tmp_p
         ),
         OptionContractResolver(provider),
         provider,
+        auto_publish_enabled=True,
     )
     try:
         result = await service.generate(source.id)
@@ -427,7 +441,7 @@ async def test_quote_failure_keeps_review_draft_editable_and_price_missing(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_market_quote_never_overrides_an_explicit_entry_price(tmp_path: Path) -> None:
+async def test_market_quote_compares_and_keeps_lower_explicit_entry_price(tmp_path: Path) -> None:
     raw = "SPY 775C .48"
     database, store, source = await database_with_source(
         tmp_path,
@@ -465,8 +479,110 @@ async def test_market_quote_never_overrides_an_explicit_entry_price(tmp_path: Pa
         assert draft is not None
         assert draft.entry_low == Decimal("0.4800")
         assert draft.entry_high == Decimal("0.4800")
-        assert provider.price_requests == []
-        assert "_market_entry_price" not in draft.parse_payload
+        assert len(provider.price_requests) == 1
+        metadata = draft.parse_payload["_market_entry_price"]
+        assert metadata["status"] == "ACCEPTED"
+        assert metadata["submitted_price"] == "0.48"
+        assert metadata["current_price"] == "0.55"
+        assert metadata["selected_price"] == "0.48"
+        assert "ENTRY_PRICE_VALIDATED_WITH_CURRENT_OPTION_QUOTE" in draft.warnings
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_lower_current_quote_is_selected_and_auto_publish_is_queued(tmp_path: Path) -> None:
+    raw = "SPY 775C .60"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1010,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "SPY",
+            "strike": 775,
+            "entry_low": 0.60,
+            "entry_high": 0.60,
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+        }
+    )
+    provider = DraftPriceProvider(price=Decimal("0.55"))
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(payload=payload, expected_attachment_count=0, expected_raw_text=raw),
+        OptionContractResolver(provider),
+        provider,
+        auto_publish_enabled=True,
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.AUTO_PUBLISH_QUEUED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+            audit = await session.scalar(select(AuditLog))
+        assert draft is not None
+        assert draft.status == DraftStatus.READY.value
+        assert draft.reviewed_by == 300
+        assert draft.entry_low == Decimal("0.5500")
+        assert draft.entry_high == Decimal("0.5500")
+        assert draft.parse_payload["_market_entry_price"]["status"] == "ACCEPTED"
+        assert "ENTRY_PRICE_ADJUSTED_TO_LOWER_CURRENT_QUOTE" in draft.warnings
+        assert audit is not None and audit.action_type == "TRADE_DRAFT_AUTO_APPROVED"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_excessive_price_deviation_falls_back_to_manual_review(tmp_path: Path) -> None:
+    raw = "SPY 775C 1.00"
+    database, store, source = await database_with_source(
+        tmp_path,
+        message_id=1011,
+        with_attachment=False,
+        raw_text=raw,
+    )
+    payload = valid_payload()
+    payload.update(
+        {
+            "ticker": "SPY",
+            "strike": 775,
+            "entry_low": 1.00,
+            "entry_high": 1.00,
+            "expiry_input": None,
+            "expiry_precision": None,
+            "resolved_expiry": None,
+            "expiry_resolution_status": "UNRESOLVED",
+        }
+    )
+    provider = DraftPriceProvider(price=Decimal("0.50"))
+    service = DraftGenerationService(
+        database,
+        store,
+        FakeParser(payload=payload, expected_attachment_count=0, expected_raw_text=raw),
+        OptionContractResolver(provider),
+        provider,
+        auto_publish_enabled=True,
+        auto_publish_max_price_deviation_pct=Decimal("25"),
+    )
+    try:
+        result = await service.generate(source.id)
+        assert result.disposition is DraftGenerationDisposition.CREATED
+        async with database.session() as session:
+            draft = await session.scalar(select(TradeDraft))
+        assert draft is not None
+        assert draft.status == DraftStatus.PENDING_REVIEW.value
+        assert draft.entry_low == Decimal("0.5000")
+        assert draft.parse_payload["_market_entry_price"]["status"] == (
+            "DEVIATION_REQUIRES_REVIEW"
+        )
+        assert "ENTRY_PRICE_DEVIATION_REQUIRES_REVIEW" in draft.warnings
     finally:
         await database.dispose()
 

@@ -1,6 +1,8 @@
 # SPY 0DTE Desk Operations
 
-Current state: `MEMBER`; five-minute member scheduler `ENABLED`; provider `Moomoo OpenD only`.
+Current state: `RETIRED` as of 2026-10-07. The five-minute scheduler, command registration and
+Discord member channel are removed. This document is retained only as historical operating context;
+none of the procedures below should be run in production.
 
 ## Formal card test
 

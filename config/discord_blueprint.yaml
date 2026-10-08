@@ -134,21 +134,6 @@ categories:
         manager_view: true
         manager_send: false
         bot_send: true
-      - key: spy_0dte
-        name: "📍・spy-0dte"
-        type: text
-        topic: "SPY 0DTE 市场结构评分。仅 Bot 发布；不构成交易信号。"
-        everyone_view: false
-        everyone_send: true
-        everyone_attach: true
-        everyone_embed: true
-        member_view: true
-        member_send: false
-        manager_view: true
-        manager_send: false
-        bot_inherit: true
-        bot_send: true
-        bot_pin_messages: true
       - key: manual_alerts
         name: "📣・人工喊单"
         type: text

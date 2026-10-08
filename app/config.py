@@ -111,6 +111,13 @@ def _parse_decimal(name: str, default: str) -> Decimal:
     return value
 
 
+def _parse_positive_decimal(name: str, default: str) -> Decimal:
+    value = _parse_decimal(name, default)
+    if value <= 0:
+        raise ConfigurationError(f"{name} 必须大于 0。")
+    return value
+
+
 def _parse_choice(name: str, default: str, enum_type: type) -> object:
     raw = os.getenv(name, default).strip().upper()
     try:
@@ -196,6 +203,8 @@ class Settings:
     llm_max_retries: int
     llm_prompt_path: Path
     llm_analysis_prompt_path: Path
+    signal_auto_publish_enabled: bool = False
+    signal_auto_publish_max_price_deviation_pct: Decimal = Decimal("25")
     stock_market_data_provider: str = "massive"
     gex_market_data_provider: str = "massive"
     gex_intraday_provider: str = "massive"
@@ -207,10 +216,6 @@ class Settings:
     gex_explorer_enabled: bool = False
     gex_explorer_mode: str = "TEST"
     gex_explorer_policy_path: Path = Path("config/gex_explorer.yaml")
-    spy_0dte_enabled: bool = False
-    spy_0dte_mode: str = "TEST"
-    spy_0dte_scheduler_enabled: bool = False
-    spy_0dte_policy_path: Path = Path("config/spy_0dte_desk.yaml")
     research_enabled: bool = False
     research_mode: str = "TEST"
     research_aux_data_provider: str = "moomoo"
@@ -305,9 +310,6 @@ class Settings:
             "SHORT_TERM_TRACKING_CONFIG", "config/short_term_tracking.yaml"
         )
         gex_policy_value = os.getenv("GEX_EXPLORER_POLICY", "config/gex_explorer.yaml")
-        spy_0dte_policy_value = os.getenv(
-            "SPY_0DTE_POLICY", "config/spy_0dte_desk.yaml"
-        )
         stock_analyst_policy_value = os.getenv("STOCK_ANALYST_POLICY", "config/stock_analyst.yaml")
         research_policy_value = os.getenv("AXIS_RESEARCH_POLICY", "config/research_engine.yaml")
         preferred_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -369,6 +371,10 @@ class Settings:
             llm_max_retries=_parse_nonnegative_int("LLM_MAX_RETRIES", 2),
             llm_prompt_path=(root / llm_prompt_value).resolve(),
             llm_analysis_prompt_path=(root / llm_analysis_prompt_value).resolve(),
+            signal_auto_publish_enabled=_parse_bool("SIGNAL_AUTO_PUBLISH_ENABLED", False),
+            signal_auto_publish_max_price_deviation_pct=_parse_positive_decimal(
+                "SIGNAL_AUTO_PUBLISH_MAX_PRICE_DEVIATION_PCT", "25"
+            ),
             stock_market_data_provider=(
                 os.getenv("STOCK_MARKET_DATA_PROVIDER", "massive").strip().lower()
                 or "massive"
@@ -388,10 +394,6 @@ class Settings:
             gex_explorer_enabled=_parse_bool("GEX_EXPLORER_ENABLED", False),
             gex_explorer_mode=(os.getenv("GEX_EXPLORER_MODE", "TEST").strip().upper() or "TEST"),
             gex_explorer_policy_path=(root / gex_policy_value).resolve(),
-            spy_0dte_enabled=_parse_bool("SPY_0DTE_ENABLED", False),
-            spy_0dte_mode=(os.getenv("SPY_0DTE_MODE", "TEST").strip().upper() or "TEST"),
-            spy_0dte_scheduler_enabled=_parse_bool("SPY_0DTE_SCHEDULER_ENABLED", False),
-            spy_0dte_policy_path=(root / spy_0dte_policy_value).resolve(),
             research_enabled=_parse_bool("AXIS_RESEARCH_ENABLED", False),
             research_mode=(os.getenv("AXIS_RESEARCH_MODE", "TEST").strip().upper() or "TEST"),
             research_aux_data_provider=(
@@ -635,20 +637,6 @@ class Settings:
                 raise ConfigurationError("启用 GEX Explorer 必须配置 MASSIVE_API_KEY。")
             if not self.gex_explorer_policy_path.is_file():
                 raise ConfigurationError("GEX_EXPLORER_POLICY 文件不存在。")
-
-    def assert_spy_0dte_safety(self) -> None:
-        if self.spy_0dte_mode not in {"TEST", "MEMBER"}:
-            raise ConfigurationError("SPY_0DTE_MODE 仅允许 TEST 或 MEMBER。")
-        if not self.spy_0dte_enabled:
-            if self.spy_0dte_scheduler_enabled:
-                raise ConfigurationError("SPY 0DTE 未启用时不能启动 Scheduler。")
-            return
-        if self.discord_owner_user_id is None:
-            raise ConfigurationError("启用 SPY 0DTE 必须配置 DISCORD_OWNER_USER_ID。")
-        if not self.spy_0dte_policy_path.is_file():
-            raise ConfigurationError("SPY_0DTE_POLICY 文件不存在。")
-        if self.spy_0dte_mode == "TEST" and self.spy_0dte_scheduler_enabled:
-            raise ConfigurationError("TEST 模式必须保持 SPY 0DTE Scheduler disabled。")
 
     def assert_stock_analyst_safety(self) -> None:
         self._assert_market_data_providers()

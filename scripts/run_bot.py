@@ -103,10 +103,6 @@ from app.services.personal_execution import PersonalExecutionService  # noqa: E4
 from app.services.short_term_policy import ShortTermTrackingPolicy  # noqa: E402
 from app.services.short_term_tracking import MarketTrackingService  # noqa: E402
 from app.services.signal_input import SignalInputService  # noqa: E402
-from app.services.spy_0dte_desk import (  # noqa: E402
-    MoomooSpy0dteProvider,
-    Spy0dtePolicy,
-)
 from app.services.stock_analyst import (  # noqa: E402
     StockAnalystPolicy,
     StockAnalystQueryService,
@@ -121,7 +117,6 @@ async def run() -> None:
     settings = Settings.load(PROJECT_ROOT)
     settings.assert_lab_disabled()
     settings.assert_gex_safety()
-    settings.assert_spy_0dte_safety()
     settings.assert_stock_analyst_safety()
     settings.assert_research_safety()
     settings.assert_personal_execution_safety()
@@ -239,14 +234,6 @@ async def run() -> None:
                 gex_policy,
                 shadow_intraday_provider=None,
             )
-        spy_0dte_provider = None
-        spy_0dte_policy = None
-        if settings.spy_0dte_enabled:
-            spy_0dte_policy = Spy0dtePolicy.load(settings.spy_0dte_policy_path)
-            spy_0dte_provider = MoomooSpy0dteProvider(
-                settings.moomoo_host,
-                settings.moomoo_port,
-            )
         stock_analyst_service = None
         if settings.stock_analyst_enabled:
             stock_analyst_policy = StockAnalystPolicy.load(
@@ -310,6 +297,10 @@ async def run() -> None:
                 parser,
                 contract_resolver,
                 option_provider,
+                auto_publish_enabled=settings.signal_auto_publish_enabled,
+                auto_publish_max_price_deviation_pct=(
+                    settings.signal_auto_publish_max_price_deviation_pct
+                ),
             )
             if settings.analysis_enabled:
                 analysis_parse_route = router.resolve(LlmWorkload.ANALYSIS_PARSE)
@@ -589,8 +580,6 @@ async def run() -> None:
             gex_explorer_service=gex_explorer_service,
             stock_analyst_service=stock_analyst_service,
             research_service=research_service,
-            spy_0dte_provider=spy_0dte_provider,
-            spy_0dte_policy=spy_0dte_policy,
         )
         async with bot:
             await bot.start(token, reconnect=True)

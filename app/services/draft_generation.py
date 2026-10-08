@@ -58,6 +58,7 @@ class TradeParser(Protocol):
 
 class DraftGenerationDisposition(StrEnum):
     CREATED = "CREATED"
+    AUTO_PUBLISH_QUEUED = "AUTO_PUBLISH_QUEUED"
     FAILED = "FAILED"
     EXISTING = "EXISTING"
 
@@ -305,6 +306,8 @@ class DraftGenerationService:
         market_data_provider: MarketDataProvider | None = None,
         processing_timeout_seconds: float = 180,
         market_lookup_timeout_seconds: float = 15,
+        auto_publish_enabled: bool = False,
+        auto_publish_max_price_deviation_pct: Decimal = Decimal("25"),
     ) -> None:
         self.database = database
         self.attachment_store = attachment_store
@@ -313,6 +316,8 @@ class DraftGenerationService:
         self.market_data_provider = market_data_provider
         self.processing_timeout_seconds = processing_timeout_seconds
         self.market_lookup_timeout_seconds = market_lookup_timeout_seconds
+        self.auto_publish_enabled = auto_publish_enabled
+        self.auto_publish_max_price_deviation_pct = auto_publish_max_price_deviation_pct
 
     @staticmethod
     def _consume_cancelled_task(task: asyncio.Task[Any]) -> None:
@@ -389,7 +394,7 @@ class DraftGenerationService:
             _prepare_signal_payload(payload, source_snapshot[1])
             await self._match_simple_swing_close(payload, source_snapshot[0])
             await self._resolve_expiry(payload)
-            await self._fill_missing_entry_price(payload)
+            await self._validate_entry_price(payload)
             _apply_position_ladder(payload)
             _add_required_missing_fields(payload)
             return await self._persist_success(
@@ -536,16 +541,17 @@ class DraftGenerationService:
         result = resolve_task.result()
         _apply_expiry_resolution(payload, result)
 
-    async def _fill_missing_entry_price(self, payload: dict[str, Any]) -> None:
-        """Fill a completely missing ENTRY premium from a validated live option quote."""
+    async def _validate_entry_price(self, payload: dict[str, Any]) -> None:
+        """Validate an ENTRY premium against one fresh option snapshot.
+
+        The public entry uses the lower of the submitted premium and the live
+        quote.  A missing/stale quote, a closed market, or an excessive move
+        keeps the draft in manager review instead of auto-publishing it.
+        """
 
         if self.market_data_provider is None:
             return
         if payload.get("intent") != "NEW_TRADE" or payload.get("action") != "ENTRY":
-            return
-        if any(
-            payload.get(field) is not None for field in ("entry_low", "entry_high", "action_price")
-        ):
             return
         if payload.get("contract_validation_status") != ContractValidationStatus.VALID.value:
             return
@@ -577,7 +583,26 @@ class DraftGenerationService:
             payload["warnings"] = list(dict.fromkeys(warnings))
             return
 
-        price = str(quote.price)
+        submitted_prices = tuple(
+            value
+            for field in ("entry_low", "entry_high", "action_price")
+            if (value := _decimal(payload.get(field))) is not None and value > 0
+        )
+        submitted_price = min(submitted_prices) if submitted_prices else None
+        selected_price = min(submitted_price, quote.price) if submitted_price else quote.price
+        deviation_pct = (
+            (abs(quote.price - submitted_price) / submitted_price) * Decimal("100")
+            if submitted_price is not None
+            else None
+        )
+        market_status = str(quote.market_status or "unknown").strip().upper()
+        market_open = market_status in {"OPEN", "MORNING", "AFTERNOON", "TRADING"}
+        accepted = market_open and (
+            deviation_pct is None
+            or deviation_pct <= self.auto_publish_max_price_deviation_pct
+        )
+
+        price = str(selected_price)
         payload["entry_low"] = price
         payload["entry_high"] = price
         payload["action_price"] = None
@@ -587,9 +612,19 @@ class DraftGenerationService:
             if field != "entry_price"
         ]
         payload["_market_entry_price"] = {
-            "status": "FILLED",
+            "status": (
+                "ACCEPTED"
+                if accepted
+                else "MARKET_CLOSED"
+                if not market_open
+                else "DEVIATION_REQUIRES_REVIEW"
+            ),
             "option_ticker": quote.option_ticker,
-            "price": price,
+            "submitted_price": str(submitted_price) if submitted_price is not None else None,
+            "current_price": str(quote.price),
+            "selected_price": price,
+            "deviation_pct": str(deviation_pct) if deviation_pct is not None else None,
+            "max_deviation_pct": str(self.auto_publish_max_price_deviation_pct),
             "price_source": quote.price_source,
             "source_timestamp": quote.source_timestamp.isoformat(),
             "received_at": quote.received_at.isoformat(),
@@ -599,8 +634,34 @@ class DraftGenerationService:
         warnings = [
             warning for warning in warnings if warning != "CURRENT_OPTION_QUOTE_UNAVAILABLE"
         ]
-        warnings.append("ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE")
+        if submitted_price is None:
+            warnings.append("ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE")
+        elif selected_price < submitted_price:
+            warnings.append("ENTRY_PRICE_ADJUSTED_TO_LOWER_CURRENT_QUOTE")
+        else:
+            warnings.append("ENTRY_PRICE_VALIDATED_WITH_CURRENT_OPTION_QUOTE")
+        if not market_open:
+            warnings.append("CURRENT_OPTION_QUOTE_MARKET_CLOSED")
+        elif not accepted:
+            warnings.append("ENTRY_PRICE_DEVIATION_REQUIRES_REVIEW")
         payload["warnings"] = list(dict.fromkeys(warnings))
+
+    def _auto_publish_eligible(self, payload: dict[str, Any]) -> bool:
+        if not self.auto_publish_enabled:
+            return False
+        if payload.get("intent") != "NEW_TRADE" or payload.get("action") != "ENTRY":
+            return False
+        if payload.get("contract_validation_status") != ContractValidationStatus.VALID.value:
+            return False
+        if _unique_strings(payload.get("missing_fields")):
+            return False
+        price_check = payload.get("_market_entry_price")
+        if not isinstance(price_check, dict) or price_check.get("status") != "ACCEPTED":
+            return False
+        category = payload.get("selected_category") or payload.get("category_suggestion")
+        return category == "SHORT_TERM" or (
+            category == "SWING" and payload.get("_swing_mode") == SIMPLE_TRACKED_SWING
+        )
 
     async def _load_attachments(self, source_message_id: uuid.UUID) -> list[ParserAttachment]:
         async with self.database.session() as session:
@@ -631,12 +692,17 @@ class DraftGenerationService:
         parse_result: TradeParseResult,
     ) -> DraftGenerationResult:
         guild_id, _, actor_user_id, channel_id, discord_message_id = source_snapshot
+        auto_publish = self._auto_publish_eligible(payload)
         draft = self._draft_from_payload(
             source_message_id=source_message_id,
             guild_id=guild_id,
             payload=payload,
-            status=DraftStatus.PENDING_REVIEW.value,
+            status=(
+                DraftStatus.READY.value if auto_publish else DraftStatus.PENDING_REVIEW.value
+            ),
         )
+        if auto_publish:
+            draft.reviewed_by = actor_user_id
         draft.parse_payload = {
             **payload,
             "_parser": {
@@ -670,7 +736,9 @@ class DraftGenerationService:
                 AuditLog(
                     guild_id=guild_id,
                     actor_user_id=actor_user_id,
-                    action_type="TRADE_DRAFT_CREATED",
+                    action_type=(
+                        "TRADE_DRAFT_AUTO_APPROVED" if auto_publish else "TRADE_DRAFT_CREATED"
+                    ),
                     entity_type="trade_draft",
                     entity_id=str(draft.id),
                     before_json=None,
@@ -691,7 +759,11 @@ class DraftGenerationService:
                     raise
                 return existing
         return DraftGenerationResult(
-            DraftGenerationDisposition.CREATED,
+            (
+                DraftGenerationDisposition.AUTO_PUBLISH_QUEUED
+                if auto_publish
+                else DraftGenerationDisposition.CREATED
+            ),
             draft.draft_code,
             channel_id,
             discord_message_id,

@@ -34,8 +34,7 @@
     Strike × Expiration Ladder、Moomoo 后台影子比较、中文复合图及安全门。
 12. 12_AXIS_MOOMOO_MARKET_DATA_SPEC.md — 覆盖旧 provider 说明：Moomoo Production primary、
     Massive dormant rollback、四项显式配置、empty-key startup 与 SPX fail-closed 边界。
-13. 13_AXIS_SPY_0DTE_DESK_SPEC.md — SPY 0DTE TEST-only 模块、Moomoo 合约根过滤、
-    deterministic score、失败关闭与会员 Scheduler 上线门禁。
+13. 13_AXIS_SPY_0DTE_DESK_SPEC.md — 已退役记录；Scheduler、命令和会员频道已移除。
 14. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：

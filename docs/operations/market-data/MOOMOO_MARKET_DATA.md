@@ -19,7 +19,7 @@ rollback.
 ## OpenD and quote rights
 
 - Keep a supported Moomoo OpenD running and logged in on the configured local endpoint.
-- Python SDK and OpenD must be compatible; the production gate used SDK `10.10.7008`.
+- Python SDK and OpenD must be compatible; production currently uses `10.11.7108` for both.
 - Required equity fields: bid, ask, last, volume, update time, Daily and 1m/5m OHLCV.
 - Required option fields: strike, expiry, side, bid, ask, last, volume, OI, IV, delta, gamma and
   update time.

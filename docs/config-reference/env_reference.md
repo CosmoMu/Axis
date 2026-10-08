@@ -126,14 +126,15 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 
 ## Moomoo Market Data and Owner-only Personal Execution
 
-SPY 0DTE Desk uses only local Moomoo OpenD:
+Signal Entry Quote Gate uses local Moomoo OpenD:
 
-- `SPY_0DTE_ENABLED=true|false` — enables the SPY 0DTE module.
-- `SPY_0DTE_MODE=TEST|MEMBER` — production member publication uses `MEMBER`.
-- `SPY_0DTE_SCHEDULER_ENABLED=true|false` — production is enabled; publishes valid five-minute
-  slots from 09:35 ET through the actual U.S. session close.
-- `SPY_0DTE_POLICY=config/spy_0dte_desk.yaml` — versioned scoring/schedule policy.
-- There is no Massive or proxy-instrument fallback variable for this module.
+- `SIGNAL_AUTO_PUBLISH_ENABLED=true|false` — enables automatic publication after all validation
+  gates pass.
+- `SIGNAL_AUTO_PUBLISH_MAX_PRICE_DEVIATION_PCT=25` — maximum absolute difference between submitted
+  premium and the fresh Moomoo option quote. A larger move is routed to Signal Review.
+- The published entry is the lower of the submitted premium and current quote. Missing/stale quotes,
+  closed markets, incomplete drafts, and unsupported trade flows always fail back to manual review.
+- The retired SPY 0DTE Scheduler environment variables are no longer read.
 
 - `MOOMOO_OPEND_HOST=127.0.0.1`
 - `MOOMOO_OPEND_PORT=11111`

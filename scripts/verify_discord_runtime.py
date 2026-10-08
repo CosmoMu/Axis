@@ -42,7 +42,6 @@ TEST_COMMANDS = {
     "test-short-entry",
     "test-short-tp",
     "test-results-review",
-    "test-spy-0dte",
 }
 REMOVED_COMMANDS = {"test-short-runner", "test-short-stop", "test-short-daily"}
 
@@ -112,7 +111,6 @@ async def verify() -> list[str]:
         member_lounge = channel("member_chat")
         manual_alerts = channel("manual_alerts")
         short_term = channel("short_term_alerts")
-        spy_0dte = channel("spy_0dte")
         system_alerts = channel("system_alerts")
         card_testing = channel("card_testing")
         results_review = channel("results_review")
@@ -244,27 +242,6 @@ async def verify() -> list[str]:
         )
         _check(short_term.permissions_for(member).view_channel, "member_signal_view", failures)
         _check(not short_term.permissions_for(member).send_messages, "member_signal_send", failures)
-        _check(spy_0dte.permissions_for(member).view_channel, "member_spy_0dte_view", failures)
-        _check(
-            not spy_0dte.permissions_for(member).send_messages,
-            "member_spy_0dte_send",
-            failures,
-        )
-        _check(
-            spy_0dte.permissions_for(manager).view_channel,
-            "manager_spy_0dte_view",
-            failures,
-        )
-        _check(
-            not spy_0dte.permissions_for(manager).send_messages,
-            "manager_spy_0dte_send",
-            failures,
-        )
-        spy_bot_permissions = spy_0dte.permissions_for(bot_member)
-        _check(spy_bot_permissions.view_channel, "bot_spy_0dte_view", failures)
-        _check(spy_bot_permissions.send_messages, "bot_spy_0dte_send", failures)
-        _check(spy_bot_permissions.embed_links, "bot_spy_0dte_embed", failures)
-        _check(spy_bot_permissions.attach_files, "bot_spy_0dte_attach", failures)
         _check(
             short_term.permissions_for(bot_member).pin_messages,
             "bot_short_term_pin",
