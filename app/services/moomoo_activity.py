@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -20,7 +21,7 @@ from app.db.session import Database
 from app.integrations.moomoo_activity import ActivitySnapshot, MoomooActivityReader
 
 ET = ZoneInfo("America/New_York")
-ORDER_NOTIFICATION_STATUSES = {"SUBMITTED", "CANCELLED", "REJECTED"}
+OPTION_CODE = re.compile(r"^(?:US\.)?[A-Z]+\d{6}[CP]\d+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,13 @@ class MoomooActivityEvent:
     price: Decimal | None
     status: str | None
     occurred_at: datetime | None
+    action: str = "BUY"
+    entry_price: Decimal | None = None
+    return_percent: Decimal | None = None
+    profit_amount: Decimal | None = None
+    position_fraction: Decimal | None = None
+    total_return_percent: Decimal | None = None
+    total_profit_amount: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +62,10 @@ def _money(value: Decimal | None) -> str | None:
 def _number(value: Decimal) -> str:
     normalized = value.normalize()
     return format(normalized, "f")
+
+
+def _looks_like_option(code: str) -> bool:
+    return OPTION_CODE.fullmatch(code.strip().upper()) is not None
 
 
 def _order_signature(order: Any) -> str:
@@ -100,7 +112,6 @@ class MoomooActivityService:
                     )
                 )
                 signature = _order_signature(order)
-                notify = initialized and order.status in ORDER_NOTIFICATION_STATUSES
                 if current is None:
                     session.add(
                         MoomooActivityOrder(
@@ -116,11 +127,11 @@ class MoomooActivityService:
                             status=order.status,
                             state_signature=signature,
                             broker_updated_at=order.updated_at,
-                            notification_pending=notify,
+                            notification_pending=False,
+                            notified_at=now,
                         )
                     )
                     continue
-                changed = current.state_signature != signature
                 current.instrument_code = order.instrument_code
                 current.side = order.side
                 current.quantity = order.quantity
@@ -130,9 +141,8 @@ class MoomooActivityService:
                 current.status = order.status
                 current.state_signature = signature
                 current.broker_updated_at = order.updated_at
-                if changed and notify:
-                    current.notification_pending = True
-                    current.notified_at = None
+                current.notification_pending = False
+                current.notified_at = current.notified_at or now
 
             for fill in snapshot.fills:
                 current = await session.scalar(
@@ -167,7 +177,7 @@ class MoomooActivityService:
 
     async def pending_events(self, *, limit: int = 50) -> tuple[MoomooActivityEvent, ...]:
         async with self.database.session() as session:
-            fills = tuple(
+            pending = tuple(
                 (
                     await session.scalars(
                         select(MoomooActivityFill)
@@ -180,66 +190,115 @@ class MoomooActivityService:
                     )
                 ).all()
             )
-            remaining = max(0, limit - len(fills))
-            orders = tuple(
+            if not pending:
+                return ()
+            all_fills = tuple(
                 (
                     await session.scalars(
-                        select(MoomooActivityOrder)
+                        select(MoomooActivityFill)
                         .where(
-                            MoomooActivityOrder.guild_id == self.guild_id,
-                            MoomooActivityOrder.notification_pending.is_(True),
+                            MoomooActivityFill.guild_id == self.guild_id,
                         )
-                        .order_by(MoomooActivityOrder.updated_at.asc())
-                        .limit(remaining)
+                        .order_by(
+                            MoomooActivityFill.executed_at.asc(),
+                            MoomooActivityFill.created_at.asc(),
+                        )
                     )
                 ).all()
             )
-            events = [
-                MoomooActivityEvent(
-                    kind="FILL",
-                    record_id=item.id,
-                    account_label=_account_label(item.account_ref),
-                    instrument_code=item.instrument_code,
-                    side=item.side,
-                    quantity=item.quantity,
-                    price=item.fill_price,
-                    status=None,
-                    occurred_at=item.executed_at,
+            pending_ids = {item.id for item in pending}
+            events: list[MoomooActivityEvent] = []
+            ledgers: dict[tuple[str, str], dict[str, Decimal]] = {}
+            for item in all_fills:
+                key = (item.account_ref, item.instrument_code)
+                ledger = ledgers.setdefault(
+                    key,
+                    {
+                        "quantity": Decimal("0"),
+                        "cost": Decimal("0"),
+                        "invested": Decimal("0"),
+                        "realized": Decimal("0"),
+                    },
                 )
-                for item in fills
-            ]
-            events.extend(
-                MoomooActivityEvent(
-                    kind="ORDER",
-                    record_id=item.id,
-                    account_label=_account_label(item.account_ref),
-                    instrument_code=item.instrument_code,
-                    side=item.side,
-                    quantity=item.quantity,
-                    price=item.limit_price,
-                    status=item.status,
-                    occurred_at=item.broker_updated_at,
+                is_buy = item.side.upper().startswith("BUY")
+                entry_price = (
+                    ledger["cost"] / ledger["quantity"]
+                    if ledger["quantity"] > 0
+                    else None
                 )
-                for item in orders
-            )
-            return tuple(
-                sorted(
-                    events,
-                    key=lambda item: item.occurred_at
-                    or datetime.min.replace(tzinfo=UTC),
+                action = "BUY"
+                return_percent = None
+                profit_amount = None
+                position_fraction = None
+                total_return_percent = None
+                total_profit_amount = None
+                if is_buy:
+                    ledger["quantity"] += item.quantity
+                    ledger["cost"] += item.quantity * item.fill_price
+                    ledger["invested"] += item.quantity * item.fill_price
+                else:
+                    action = "SELL"
+                    before_quantity = ledger["quantity"]
+                    multiplier = (
+                        Decimal("100")
+                        if _looks_like_option(item.instrument_code)
+                        else Decimal("1")
+                    )
+                    if entry_price is not None:
+                        return_percent = (
+                            (item.fill_price - entry_price) / entry_price * Decimal("100")
+                        )
+                        profit_amount = (
+                            (item.fill_price - entry_price) * item.quantity * multiplier
+                        )
+                        ledger["realized"] += profit_amount
+                    if before_quantity > 0:
+                        position_fraction = min(Decimal("1"), item.quantity / before_quantity)
+                        sold = min(item.quantity, before_quantity)
+                        ledger["quantity"] = before_quantity - sold
+                        if entry_price is not None:
+                            ledger["cost"] = ledger["quantity"] * entry_price
+                    if before_quantity > 0 and ledger["quantity"] <= 0:
+                        action = "CLOSE"
+                        total_profit_amount = ledger["realized"]
+                        total_return_percent = (
+                            ledger["realized"] / (ledger["invested"] * multiplier) * Decimal("100")
+                            if ledger["invested"] > 0
+                            else None
+                        )
+                        ledger["quantity"] = Decimal("0")
+                        ledger["cost"] = Decimal("0")
+                        ledger["invested"] = Decimal("0")
+                        ledger["realized"] = Decimal("0")
+                if item.id not in pending_ids:
+                    continue
+                events.append(
+                    MoomooActivityEvent(
+                        kind="FILL",
+                        record_id=item.id,
+                        account_label=_account_label(item.account_ref),
+                        instrument_code=item.instrument_code,
+                        side=item.side,
+                        quantity=item.quantity,
+                        price=item.fill_price,
+                        status=None,
+                        occurred_at=item.executed_at,
+                        action=action,
+                        entry_price=entry_price,
+                        return_percent=return_percent,
+                        profit_amount=profit_amount,
+                        position_fraction=position_fraction,
+                        total_return_percent=total_return_percent,
+                        total_profit_amount=total_profit_amount,
+                    )
                 )
-            )
+            return tuple(events)
 
     async def mark_notified(self, event: MoomooActivityEvent) -> None:
         async with self.database.session() as session:
             if event.kind == "FILL":
                 row = await session.get(MoomooActivityFill, event.record_id)
                 if row is not None:
-                    row.notified_at = utc_now()
-            else:
-                row = await session.get(MoomooActivityOrder, event.record_id)
-                if row is not None:
-                    row.notification_pending = False
                     row.notified_at = utc_now()
             await session.commit()
 
@@ -271,6 +330,30 @@ class MoomooActivityService:
             )
             state = await session.get(MoomooActivityState, self.guild_id)
             latest = dict(state.latest_snapshot if state is not None else {})
+            previous = await session.scalar(
+                select(MoomooActivityDailySummary)
+                .where(
+                    MoomooActivityDailySummary.guild_id == self.guild_id,
+                    MoomooActivityDailySummary.session_date < session_date,
+                )
+                .order_by(MoomooActivityDailySummary.session_date.desc())
+                .limit(1)
+            )
+            previous_equity = {
+                str(item.get("account")): Decimal(str(item["equity"]))
+                for item in (previous.snapshot_json.get("accounts", []) if previous else [])
+                if item.get("account") and item.get("equity") is not None
+            }
+            accounts = []
+            for item in latest.get("accounts", []):
+                current = dict(item)
+                prior = previous_equity.get(str(current.get("account")))
+                equity = current.get("equity")
+                if prior not in (None, Decimal("0")) and equity is not None:
+                    current["equity_change_percent"] = _number(
+                        (Decimal(str(equity)) - prior) / prior * Decimal("100")
+                    )
+                accounts.append(current)
             payload = {
                 "session_date": session_date.isoformat(),
                 "fills": [
@@ -284,7 +367,7 @@ class MoomooActivityService:
                     }
                     for item in fills
                 ],
-                "accounts": latest.get("accounts", []),
+                "accounts": accounts,
                 "positions": latest.get("positions", []),
             }
             if existing is None:

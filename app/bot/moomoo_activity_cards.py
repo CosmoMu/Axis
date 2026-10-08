@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
+from fractions import Fraction
 from typing import Any
 
 import discord
@@ -11,6 +13,7 @@ GREEN = 0x45D7A4
 YELLOW = 0xE2C15B
 RED = 0xE45868
 NEUTRAL = 0x202522
+OPTION_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)$")
 
 
 def _number(value: Decimal | str | None, *, money: bool = False) -> str:
@@ -23,6 +26,44 @@ def _number(value: Decimal | str | None, *, money: bool = False) -> str:
 
 def _code(value: str) -> str:
     return value[3:] if value.startswith("US.") else value
+
+
+def _instrument(value: str) -> tuple[str, bool]:
+    code = _code(value)
+    match = OPTION_CODE.fullmatch(code)
+    if match is None:
+        return code, False
+    ticker, expiry, side, strike_raw = match.groups()
+    strike = Decimal(strike_raw) / Decimal("1000")
+    strike_text = (
+        f"{strike:.0f}"
+        if strike == strike.to_integral_value()
+        else f"{strike:f}".rstrip("0").rstrip(".")
+    )
+    return f"{ticker} {expiry[2:4]}/{expiry[4:6]} {strike_text}{side}", True
+
+
+def _signed_percent(value: Decimal | str | None) -> str:
+    if value is None:
+        return "—"
+    parsed = Decimal(str(value))
+    sign = "+" if parsed > 0 else ""
+    return f"{sign}{parsed.quantize(Decimal('0.01')):f}".rstrip("0").rstrip(".") + "%"
+
+
+def _signed_money(value: Decimal | str | None) -> str:
+    if value is None:
+        return "—"
+    parsed = Decimal(str(value))
+    sign = "+" if parsed > 0 else "-" if parsed < 0 else ""
+    return f"{sign}{_number(abs(parsed), money=True)}"
+
+
+def _position_fraction(value: Decimal | None) -> str | None:
+    if value is None or value <= 0:
+        return None
+    fraction = Fraction(float(value)).limit_denominator(8)
+    return f"{fraction.numerator}/{fraction.denominator} 仓位"
 
 
 def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
@@ -58,23 +99,28 @@ def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
 
 
 def activity_event_text(event: MoomooActivityEvent) -> str:
-    is_buy = event.side.upper().startswith("BUY")
-    direction = "买入" if is_buy else "卖出"
-    if event.kind == "FILL":
-        state = "成交"
-        price_label = "成交价"
-    else:
-        state = {
-            "SUBMITTED": "委托已提交",
-            "CANCELLED": "委托已取消",
-            "REJECTED": "委托被拒绝",
-        }.get(event.status or "", event.status or "订单更新")
-        price_label = "委托价"
+    instrument, is_option = _instrument(event.instrument_code)
+    unit = "张" if is_option else "股"
+    if event.action == "BUY":
+        return (
+            f"**买入** · {instrument} @ {_number(event.price, money=True)}\n"
+            f"{_number(event.quantity)}{unit}"
+        )
+    if event.action == "CLOSE":
+        return (
+            f"**清仓** · {instrument} @ {_number(event.price, money=True)}\n"
+            f"合约总收益 **{_signed_percent(event.total_return_percent)}**"
+            f" · **{_signed_money(event.total_profit_amount)}**"
+        )
+    fraction = _position_fraction(event.position_fraction)
+    detail = f"{_number(event.quantity)}{unit}"
+    if fraction:
+        detail += f" · {fraction}"
     return (
-        f"**1K 挑战 · {state}**\n"
-        f"{direction} **{_code(event.instrument_code)}** × {_number(event.quantity)}"
-        f" · {price_label} {_number(event.price, money=True)}\n"
-        f"{event.account_label} · Moomoo 只读同步"
+        f"**卖出** · {instrument} @ {_number(event.price, money=True)}\n"
+        f"**{_signed_percent(event.return_percent)}**"
+        f" · {_number(event.entry_price, money=True)} → {_number(event.price, money=True)}\n"
+        f"{detail}"
     )
 
 
@@ -183,9 +229,12 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         sections.append(
             "**账户状态**\n"
             + "\n".join(
-                f"{item['account']} · 总资产 {_number(item.get('equity'), money=True)}"
-                f" · 现金 {_number(item.get('cash'), money=True)}"
-                f" · 购买力 {_number(item.get('buying_power'), money=True)}"
+                f"总资产 {_number(item.get('equity'), money=True)}"
+                + (
+                    f" · 相比昨日 {_signed_percent(item.get('equity_change_percent'))}"
+                    if item.get("equity_change_percent") is not None
+                    else ""
+                )
                 for item in accounts
             )
         )
@@ -205,9 +254,8 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
             "**今日成交汇总**\n"
             + "\n".join(
                 f"{'买入' if str(item['side']).startswith('BUY') else '卖出'} "
-                f"{_code(str(item['code']))} × {_number(item['quantity'])}"
+                f"{_instrument(str(item['code']))[0]} × {_number(item['quantity'])}"
                 f" · 均价 {_number(item['notional'] / item['quantity'], money=True)}"
-                f" · {item['count']} 笔"
                 for item in grouped.values()
             )
         )
@@ -215,10 +263,11 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         sections.append(
             "**当前持仓**\n"
             + "\n".join(
-                f"{_code(str(item['code']))} × {_number(item.get('quantity'))}"
-                f" · 成本 {_number(item.get('average_cost'), money=True)}"
-                f" · 现价 {_number(item.get('current_price'), money=True)}"
-                f" · 浮动盈亏 {_number(item.get('unrealized_pnl'), money=True)}"
+                f"{_instrument(str(item['code']))[0]} × {_number(item.get('quantity'))}"
+                f"{'张' if _instrument(str(item['code']))[1] else '股'}\n"
+                f"成本 {_number(item.get('average_cost'), money=True)}\n"
+                f"现价 {_number(item.get('current_price'), money=True)}\n"
+                f"浮动盈亏 {_signed_money(item.get('unrealized_pnl'))}"
                 for item in positions
             )
         )

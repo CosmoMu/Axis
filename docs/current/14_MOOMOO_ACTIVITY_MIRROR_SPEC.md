@@ -26,18 +26,21 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 
 ## Live events
 
-- New submitted orders are mirrored.
-- Cancelled and rejected order states are mirrored.
-- Every newly observed fill is mirrored idempotently using masked account + broker fill ID.
-- Partial-fill executions are fill events; order polling does not create duplicate fill cards.
+- Only actual fills are published; submitted, cancelled, and rejected order states remain internal.
+- Buy fills use a compact `买入 · 合约 @价格 / 数量` card.
+- Partial sell fills use `卖出`, tracked average cost, fill return, quantity, and the fraction sold.
+- A sell that reduces the tracked position to zero uses `清仓` and shows cumulative realized return
+  and dollar P/L for that completed contract cycle.
+- Every newly observed fill is mirrored idempotently using masked account + broker fill ID. If AXIS
+  does not possess a reliable tracked cost basis, unavailable return fields remain `—`.
 - Reconciliation defaults to 30 seconds and reports failure/recovery through System Alerts.
 
 ## Daily summary
 
 - Runs at `16:15 ET` on U.S. trading days and publishes once per session date.
-- Includes per-account total assets, cash, buying power, aggregated daily executions, and current
-  positions with cost/current price/unrealized P&L when supplied by Moomoo.
-- Missing broker fields display `—`; AXIS does not infer or fabricate realized P&L.
+- Includes total assets and change versus the latest prior published session, aggregated daily
+  executions, and current positions with cost/current price/unrealized P&L when supplied by Moomoo.
+- Missing broker fields display `—`; AXIS never fabricates unavailable values.
 - Multiple fills for the same account, symbol, and side are aggregated using a quantity-weighted
   average price for a readable close report. Raw fills remain in the database.
 

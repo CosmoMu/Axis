@@ -28,8 +28,9 @@ later only through `.env`; never commit it.
 4. Apply Bootstrap with the confirmed Guild ID, then restore `APPLY_CHANGES=false` and
    `DRY_RUN=true`.
 5. Start AXIS BOT. The first reconcile is a quiet baseline.
-6. Place/cancel a small broker-side test order and verify one matching private ledger entry. Do not place
-   the order from AXIS.
+6. Complete a small broker-side test fill and verify one matching private buy/sell/close entry. Order
+   submission, cancellation, and rejection alone must not create a Discord message. Do not place the
+   order from AXIS.
 
 ## Failure behavior
 

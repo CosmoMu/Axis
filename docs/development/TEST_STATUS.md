@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 392 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 394 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Moomoo 8070 Margin Activity Mirror: CODE / MIGRATION / REAL READ GATE PASS — OpenD 当前只发现一个
@@ -16,6 +16,9 @@
   AXIS BOT 仅在该私密频道获得 View Channel、Send Messages、Read Message History；真实
   reconciliation loop 正常更新，2026-10-07 收盘汇总已成功发布，包含 62 笔成交、1 项持仓及
   账户总资产、现金和购买力。频道输出使用遮罩账户标识，不公开 OpenD 内部账户 ID。
+- Moomoo Activity compact cards: PASS — 仅真实 fill 发布；买入、部分卖出、清仓分类，期权代码
+  中文可读格式、成本收益、卖出仓位比例、清仓累计收益、前一交易日账户资产比较均有覆盖；
+  submitted/cancelled/rejected 订单状态不再发送 Discord 消息。
 - SPY 0DTE Desk: RETIRED — Cog、Scheduler、Slash command、Blueprint channel and runtime configuration
   removed; it no longer performs five-minute Moomoo option-chain/K-line reads.
 - Signal Entry Quote Gate: PASS — explicit price comparison, lower-price selection, quote-only fill,

@@ -109,7 +109,8 @@ LIVE_MODE_CHECKLIST.md 为准。
 - 只读扫描唯一 FUTUCA REAL MARGIN（Owner 标识 8070）账户；CASH、TFSA、SIMULATE 被排除；
   支持股票和期权，不要求操作来自 AXIS，可镜像 KLY、手动或
   其他 broker-side 操作。
-- 首次静默基线；新增提交、取消、拒绝和每笔真实 fill 使用 broker ID 幂等存档与 Discord 通知。
+- 首次静默基线；仅每笔真实 fill 使用 broker ID 幂等存档与 Discord 通知。卡片分为买入、卖出、
+  清仓；委托提交、取消、拒绝不再发送。
 - 账户 ID one-way mask；原始账户 ID 不进入数据库、Discord 或日志。
 - `16:15 ET` 收盘汇总包含账户概览、加权成交汇总和当前持仓；缺失字段显示 `—`，不伪造 P/L。
 - 独立 System Alert / Recovery；没有 place/modify/cancel/unlock 方法，不改变 Personal Execution
