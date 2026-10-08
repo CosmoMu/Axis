@@ -109,6 +109,7 @@ class GuildConfig(TimestampMixin, Base):
     results_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     join_review_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     moomoo_trading_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    one_k_challenge_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     mentor_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     member_panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     welcome_message_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -2108,6 +2109,88 @@ class PersonalDailySummary(UuidPrimaryKeyMixin, Base):
     snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)
     discord_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class MoomooActivityState(TimestampMixin, Base):
+    __tablename__ = "moomoo_activity_states"
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), primary_key=True
+    )
+    initialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    latest_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class MoomooActivityOrder(UuidPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "moomoo_activity_orders"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "account_ref", "broker_order_id", name="moomoo_activity_order"
+        ),
+        Index("ix_moomoo_activity_order_pending", "guild_id", "notification_pending"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    broker_order_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    instrument_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    filled_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    limit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    average_fill_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    state_signature: Mapped[str] = mapped_column(String(255), nullable=False)
+    broker_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notification_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MoomooActivityFill(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "moomoo_activity_fills"
+    __table_args__ = (
+        UniqueConstraint(
+            "guild_id", "account_ref", "broker_fill_id", name="moomoo_activity_fill"
+        ),
+        Index("ix_moomoo_activity_fill_pending", "guild_id", "notified_at", "executed_at"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    account_ref: Mapped[str] = mapped_column(String(32), nullable=False)
+    broker_fill_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    broker_order_id: Mapped[str | None] = mapped_column(String(128))
+    instrument_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    fill_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")
+    )
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MoomooActivityDailySummary(UuidPrimaryKeyMixin, Base):
+    __tablename__ = "moomoo_activity_daily_summaries"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "session_date", name="moomoo_activity_summary_session"),
+    )
+
+    guild_id: Mapped[int] = mapped_column(
+        ForeignKey("guild_config.guild_id", ondelete="CASCADE"), index=True
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    discord_message_ids: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=text("CURRENT_TIMESTAMP")

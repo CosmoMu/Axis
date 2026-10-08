@@ -1,4 +1,4 @@
-version: 6
+version: 7
 # AXIS Current Spec v2.1. Stable keys intentionally preserve existing saved Discord IDs.
 brand:
   server_name: "AXIS"
@@ -255,6 +255,21 @@ categories:
         manager_attach: true
         manager_manage_messages: true
         bot_send: true
+      - key: one_k_challenge
+        name: "💰・1k挑战"
+        type: text
+        topic: "AXIS 只读同步 Moomoo 真实账户委托、成交、持仓与每日收盘汇总。"
+        everyone_view: false
+        everyone_send: false
+        member_view: false
+        member_send: false
+        newcomer_view: false
+        newcomer_send: false
+        manager_view: true
+        manager_send: true
+        manager_attach: true
+        manager_interact: true
+        bot_inherit: true
       - key: system_alerts
         name: "🚨・系统警报"
         type: text

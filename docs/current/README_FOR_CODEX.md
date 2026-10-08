@@ -9,7 +9,7 @@
 **标语：** Signals without the noise.
 
 本目录只保存当前有效的产品与技术规格。后续开发、测试、Discord Bootstrap 与验收必须以这里
-的十三份规格文档为准；历史补充规格已经归档，不得与当前规格并列解释。
+的当前规格文档为准；历史补充规格已经归档，不得与当前规格并列解释。
 
 ## 必读顺序
 
@@ -35,7 +35,8 @@
 12. 12_AXIS_MOOMOO_MARKET_DATA_SPEC.md — 覆盖旧 provider 说明：Moomoo Production primary、
     Massive dormant rollback、四项显式配置、empty-key startup 与 SPX fail-closed 边界。
 13. 13_AXIS_SPY_0DTE_DESK_SPEC.md — 已退役记录；Scheduler、命令和会员频道已移除。
-14. README_FOR_CODEX.md — 本入口和文档使用规则。
+14. 14_MOOMOO_ACTIVITY_MIRROR_SPEC.md — 私密 `1k挑战`、Moomoo 只读操作同步与收盘汇总。
+15. README_FOR_CODEX.md — 本入口和文档使用规则。
 
 运行时配置仍以 config/ 为准：
 
@@ -69,6 +70,8 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
+- `💰・1k挑战` 是独立的 Moomoo 只读镜像：Manager/Owner 私密可见，同步真实账户委托状态、
+  成交和 `16:15 ET` 收盘汇总；它不启用或调用任何 broker write。
 - AXIS Multi-Agent Research 已在 Member Lounge 上线 `/research ticker:TICKER`。技术面和 GEX
   复用原引擎；基本面、新闻和分析师共识使用 Moomoo。默认展示总结，所有详情按钮只原地切换
   同一条 public card；仅发起人和 Manager/管理员/Owner 可操作。普通会员每人 30 秒、同 ticker

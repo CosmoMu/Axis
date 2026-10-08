@@ -38,7 +38,7 @@ def empty_guild() -> GuildState:
 def test_blueprint_has_exact_mvp_shape() -> None:
     blueprint = load_blueprint(ROOT / "config" / "discord_blueprint.yaml")
 
-    assert blueprint.version == 6
+    assert blueprint.version == 7
     assert blueprint.server_name == "AXIS"
     assert [role.name for role in blueprint.roles] == [
         "AXIS BOT",
@@ -73,6 +73,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "📋・战绩审核",
         "🛂・入群审核",
         "🤫・管理交流",
+        "💰・1k挑战",
         "🚨・系统警报",
         "🧪・卡片测试",
         "💹・交易控制",
@@ -81,7 +82,7 @@ def test_blueprint_has_exact_mvp_shape() -> None:
         "🗂️・历史订单",
     ]
     assert len(blueprint.categories) == 4
-    assert blueprint.channel_count == 25
+    assert blueprint.channel_count == 26
     assert blueprint.categories[-1].feature_flag == "FEATURE_LAB_ENABLED"
     assert [category.position for category in blueprint.categories] == [0, 1, 2, 3]
     assert blueprint.categories[0].channels[0].key == "welcome"
@@ -94,7 +95,7 @@ def test_empty_server_plan_creates_only_missing_axis_resources() -> None:
     creates = [action for action in plan.actions if action.status == "CREATE"]
     assert sum(action.resource_type == "role" for action in creates) == 3
     assert sum(action.resource_type == "category" for action in creates) == 4
-    assert sum(action.resource_type == "channel" for action in creates) == 25
+    assert sum(action.resource_type == "channel" for action in creates) == 26
     assert not plan.blockers
 
 
@@ -169,6 +170,7 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     lobby = desired_channel_permissions(channels["lobby"])
     manual_alerts = desired_channel_permissions(channels["manual_alerts"])
     manager_lounge = desired_channel_permissions(channels["manager_lounge"])
+    one_k_challenge = desired_channel_permissions(channels["one_k_challenge"])
     card_testing = desired_channel_permissions(channels["card_testing"])
     system_alerts = desired_channel_permissions(channels["system_alerts"])
     assert member_wins["everyone"]["send_messages"] is True
@@ -188,6 +190,11 @@ def test_blueprint_encodes_member_upload_and_manager_moderation() -> None:
     assert manager_lounge["manager"]["send_messages"] is True
     assert manager_lounge["manager"]["attach_files"] is True
     assert manager_lounge["member"]["view_channel"] is False
+    assert one_k_challenge["everyone"]["view_channel"] is False
+    assert one_k_challenge["member"]["view_channel"] is False
+    assert one_k_challenge["manager"]["view_channel"] is True
+    assert one_k_challenge["manager"]["send_messages"] is True
+    assert "bot" not in one_k_challenge
     assert card_testing["everyone"]["view_channel"] is False
     assert card_testing["member"]["view_channel"] is False
     assert card_testing["manager"]["view_channel"] is False

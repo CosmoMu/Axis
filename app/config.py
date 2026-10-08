@@ -288,6 +288,13 @@ class Settings:
     personal_moomoo_security_firm: str | None = None
     personal_reconcile_seconds: int = 15
     personal_policy: PersonalExecutionPolicy = PersonalExecutionPolicy()
+    moomoo_activity_mirror_enabled: bool = False
+    moomoo_activity_environment: PersonalBrokerEnvironment = PersonalBrokerEnvironment.REAL
+    moomoo_activity_security_firm: str = "FUTUCA"
+    moomoo_activity_account_type: str = "MARGIN"
+    moomoo_activity_account_ids: tuple[str, ...] = ()
+    moomoo_activity_reconcile_seconds: int = 30
+    moomoo_activity_summary_time_et: str = "16:15"
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -580,6 +587,33 @@ class Settings:
                 market_open_guard_minutes=_parse_positive_int(
                     "PERSONAL_MARKET_OPEN_GUARD_MINUTES", 5
                 ),
+            ),
+            moomoo_activity_mirror_enabled=_parse_bool(
+                "FEATURE_MOOMOO_ACTIVITY_MIRROR_ENABLED", False
+            ),
+            moomoo_activity_environment=_parse_choice(
+                "MOOMOO_ACTIVITY_ENV",
+                PersonalBrokerEnvironment.REAL.value,
+                PersonalBrokerEnvironment,
+            ),
+            moomoo_activity_security_firm=(
+                os.getenv("MOOMOO_ACTIVITY_SECURITY_FIRM", "FUTUCA").strip().upper()
+                or "FUTUCA"
+            ),
+            moomoo_activity_account_type=(
+                os.getenv("MOOMOO_ACTIVITY_ACCOUNT_TYPE", "MARGIN").strip().upper()
+                or "MARGIN"
+            ),
+            moomoo_activity_account_ids=tuple(
+                item.strip()
+                for item in os.getenv("MOOMOO_ACTIVITY_ACCOUNT_IDS", "").split(",")
+                if item.strip()
+            ),
+            moomoo_activity_reconcile_seconds=_parse_positive_int(
+                "MOOMOO_ACTIVITY_RECONCILE_SECONDS", 30
+            ),
+            moomoo_activity_summary_time_et=(
+                os.getenv("MOOMOO_ACTIVITY_SUMMARY_TIME_ET", "16:15").strip() or "16:15"
             ),
         )
 

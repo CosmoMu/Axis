@@ -69,6 +69,10 @@ EXPECTED_TABLES = {
     "personal_orders",
     "personal_fills",
     "personal_execution_events",
+    "moomoo_activity_states",
+    "moomoo_activity_orders",
+    "moomoo_activity_fills",
+    "moomoo_activity_daily_summaries",
     "personal_account_snapshots",
     "personal_daily_summaries",
 }
@@ -115,6 +119,7 @@ def test_metadata_contains_the_complete_mvp_schema() -> None:
         "newcomer_status_message_id",
         "newcomer_gate_activated_at",
         "moomoo_trading_channel_id",
+        "one_k_challenge_channel_id",
         "moomoo_panel_message_id",
     } <= set(Base.metadata.tables["guild_config"].columns.keys())
     memberships = Base.metadata.tables["memberships"]

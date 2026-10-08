@@ -101,6 +101,19 @@ LIVE_MODE_CHECKLIST.md 为准。
   linked close、kill switches、private events、daily summary 和 System Alert recovery。
 - DRY_RUN 全决策路径写审计 decision，但不会创建 broker order、fill 或 fake position。
 - GENERAL Guide 依据数据库 Message ID 幂等同步。
+
+## Moomoo 1K Challenge Activity Mirror
+
+- 私密 `💰・1k挑战`：仅 Owner、Manager、AXIS BOT 可见，普通 Member/Newcomer/@everyone
+  明确 deny。
+- 只读扫描唯一 FUTUCA REAL MARGIN（Owner 标识 8070）账户；CASH、TFSA、SIMULATE 被排除；
+  支持股票和期权，不要求操作来自 AXIS，可镜像 KLY、手动或
+  其他 broker-side 操作。
+- 首次静默基线；新增提交、取消、拒绝和每笔真实 fill 使用 broker ID 幂等存档与 Discord 通知。
+- 账户 ID one-way mask；原始账户 ID 不进入数据库、Discord 或日志。
+- `16:15 ET` 收盘汇总包含账户概览、加权成交汇总和当前持仓；缺失字段显示 `—`，不伪造 P/L。
+- 独立 System Alert / Recovery；没有 place/modify/cancel/unlock 方法，不改变 Personal Execution
+  LIVE gate。
 - Manager-only `📋・战绩审核`、每日 Review View 与公开 Results 幂等恢复。
 - macOS LaunchAgent、Dockerfile 与 Compose 基础部署。
 
@@ -114,7 +127,8 @@ LIVE_MODE_CHECKLIST.md 为准。
   增加当前支付/迎新状态；0029 增加 Swing tracking mode 及独立 tracking/event/snapshot 表，并将
   既有 Swing 安全回填为 `LEGACY_SWING`；0030 增加 Owner-only personal execution settings、
   broker positions / risk epochs、orders、fills、events、account snapshots 与 daily summaries；0031
-  扩展 Analysis chart-source provenance 字段宽度。
+  扩展 Analysis chart-source provenance 字段宽度；0032 增加 ER flag，0033 增加 Multi-Agent
+  Research，0034 增加 Moomoo Activity Mirror、私密频道 ID、订单/成交/状态与日汇总表。
 - Signal、Trade、Event、Publication、Mentor、Membership、Audit 和 Scheduled Job。
 - Analysis Draft、Revision、Archive、Scenario、Evidence、Publication 和 provenance。
 - LLM invocation provider/model/workload/prompt/schema/latency/result trace。

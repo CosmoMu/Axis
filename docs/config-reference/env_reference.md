@@ -92,6 +92,14 @@ Review 只影响当天 Public Results display；Exclude 不删除真实历史。
 - `FEATURE_MODEL_AB_ENABLED=false`
 - `FEATURE_MOOMOO_ENABLED=false`：旧 Moomoo 行情健康开关；不启动 Model Scanning。
 - `FEATURE_PERSONAL_EXECUTION_ENABLED=false`：Owner-only Personal Execution 总开关，模板默认关。
+- `FEATURE_MOOMOO_ACTIVITY_MIRROR_ENABLED=false`：`1k挑战` 只读同步总开关；不授权 broker write。
+- `MOOMOO_ACTIVITY_ENV=REAL` / `MOOMOO_ACTIVITY_SECURITY_FIRM=FUTUCA` /
+  `MOOMOO_ACTIVITY_ACCOUNT_TYPE=MARGIN`：锁定 Owner 指定的唯一 8070 保证金账户；排除 CASH、
+  TFSA 与 SIMULATE。
+- `MOOMOO_ACTIVITY_ACCOUNT_IDS`：可选逗号分隔账户 ID，仅放 `.env`；空值表示该 firm/environment
+  下全部非 Master、具 US 权限的账户。
+- `MOOMOO_ACTIVITY_RECONCILE_SECONDS=30` / `MOOMOO_ACTIVITY_SUMMARY_TIME_ET=16:15`：同步和
+  收盘汇总计划。
 - `GEX_EXPLORER_ENABLED=false`：GEX kill switch；生产 Secret 可显式开启。
 - `GEX_EXPLORER_MODE=TEST`：新环境安全默认，只允许 Owner 在 card-testing 使用。
   生产 Secret 已在 Owner 于 2026-09-05 发送 `APPROVE GEX LOUNGE LAUNCH` 后设置为

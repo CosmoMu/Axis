@@ -15,6 +15,7 @@ from app.bot.cogs.draft_worker import DraftWorkerCog
 from app.bot.cogs.general_control import GeneralControlCog
 from app.bot.cogs.gex_explorer import GexExplorerCog
 from app.bot.cogs.manager_control import ManagerControlCog
+from app.bot.cogs.moomoo_activity import MoomooActivityCog
 from app.bot.cogs.newcomer_access import NewcomerAccessCog
 from app.bot.cogs.payment_webhook import PaymentWebhookCog
 from app.bot.cogs.personal_execution import PersonalExecutionCog
@@ -44,6 +45,7 @@ from app.services.membership_access import (
 from app.services.membership_management import MembershipManagementService
 from app.services.membership_stripe import MembershipStripeService
 from app.services.mentor_management import MentorManagementService
+from app.services.moomoo_activity import MoomooActivityService
 from app.services.newcomer_access import NewcomerAccessService, NewcomerRiskScanner
 from app.services.official_results import OfficialResultsService
 from app.services.personal_execution import PersonalExecutionService
@@ -93,6 +95,7 @@ class AxisBot(commands.Bot):
         daily_results_review_service: DailyResultsReviewService | None,
         swing_leaps_trade_plan_service: SwingLeapsTradePlanService | None,
         personal_execution_service: PersonalExecutionService | None,
+        moomoo_activity_service: MoomooActivityService | None,
         gex_explorer_service: GexExplorerService | None,
         stock_analyst_service: StockAnalystQueryService | None,
         research_service: ResearchService | None,
@@ -349,6 +352,18 @@ class AxisBot(commands.Bot):
             if personal_execution_service is not None and settings.discord_owner_user_id is not None
             else None
         )
+        self._moomoo_activity_cog = (
+            MoomooActivityCog(
+                self,
+                service=moomoo_activity_service,
+                guild_id=settings.discord_guild_id,
+                channel_id=_required_snowflake(channels, "one_k_challenge"),
+                reconcile_seconds=settings.moomoo_activity_reconcile_seconds,
+                summary_hhmm=settings.moomoo_activity_summary_time_et,
+            )
+            if moomoo_activity_service is not None
+            else None
+        )
         self._guild_command_target = discord.Object(id=settings.discord_guild_id)
         self._guild_commands_synced = False
 
@@ -361,6 +376,8 @@ class AxisBot(commands.Bot):
         await self.add_cog(self._swing_tracking_cog)
         if self._personal_execution_cog is not None:
             await self.add_cog(self._personal_execution_cog)
+        if self._moomoo_activity_cog is not None:
+            await self.add_cog(self._moomoo_activity_cog)
         await self.add_cog(self._manager_control_cog)
         await self.add_cog(self._system_alerts_cog)
         await self.add_cog(self._newcomer_access_cog)

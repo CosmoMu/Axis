@@ -36,6 +36,7 @@ from app.integrations.gex_market_data import (  # noqa: E402
 from app.integrations.massive_close_data import MassiveClosingPriceClient  # noqa: E402
 from app.integrations.massive_market_data import MassiveMarketDataProvider  # noqa: E402
 from app.integrations.model_router import ModelRouter, ModelRoutingError  # noqa: E402
+from app.integrations.moomoo_activity import MoomooActivityReader  # noqa: E402
 from app.integrations.moomoo_market_data import (  # noqa: E402
     MoomooMarketDataClient,
     MoomooOptionMarketDataProvider,
@@ -93,6 +94,7 @@ from app.services.membership_access import (  # noqa: E402
 from app.services.membership_management import MembershipManagementService  # noqa: E402
 from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
+from app.services.moomoo_activity import MoomooActivityService  # noqa: E402
 from app.services.newcomer_access import (  # noqa: E402
     NewcomerAccessService,
     NewcomerRiskScanner,
@@ -547,6 +549,20 @@ async def run() -> None:
                 policy=settings.personal_policy,
                 production_start_date=settings.production_data_start_date,
             )
+        moomoo_activity_service = None
+        if settings.moomoo_activity_mirror_enabled:
+            moomoo_activity_service = MoomooActivityService(
+                database,
+                MoomooActivityReader(
+                    host=settings.moomoo_host,
+                    port=settings.moomoo_port,
+                    environment=settings.moomoo_activity_environment,
+                    security_firm=settings.moomoo_activity_security_firm,
+                    account_type=settings.moomoo_activity_account_type,
+                    account_ids=settings.moomoo_activity_account_ids,
+                ),
+                guild_id=settings.discord_guild_id,
+            )
         bot = AxisBot(
             settings=settings,
             discord_ids=discord_ids,
@@ -577,6 +593,7 @@ async def run() -> None:
             daily_results_review_service=daily_results_review_service,
             swing_leaps_trade_plan_service=swing_leaps_trade_plan_service,
             personal_execution_service=personal_execution_service,
+            moomoo_activity_service=moomoo_activity_service,
             gex_explorer_service=gex_explorer_service,
             stock_analyst_service=stock_analyst_service,
             research_service=research_service,

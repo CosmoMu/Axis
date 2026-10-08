@@ -4,9 +4,18 @@
 
 ## Summary
 
-- Full pytest suite: PASS — 380 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 392 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
+- Moomoo 8070 Margin Activity Mirror: CODE / MIGRATION / REAL READ GATE PASS — OpenD 当前只发现一个
+  `REAL + FUTUCA + MARGIN` 账户，因此只读锁定该保证金账户，并排除 REAL CASH、TFSA 与
+  SIMULATE MARGIN；真实读取账户状态、持仓、当日订单与成交均通过。初始化基线为 1 个账户、
+  1 个持仓、60 个订单、62 个成交，待发布历史事件为 0，避免首次上线重放刷屏。若未来出现第二个
+  REAL FUTUCA MARGIN 账户，服务会 fail closed，不会猜测账户。
+- Moomoo Activity Mirror Discord runtime: PASS — `💰・1k挑战` 已创建并写入 Guild 配置，
+  AXIS BOT 仅在该私密频道获得 View Channel、Send Messages、Read Message History；真实
+  reconciliation loop 正常更新，2026-10-07 收盘汇总已成功发布，包含 62 笔成交、1 项持仓及
+  账户总资产、现金和购买力。频道输出使用遮罩账户标识，不公开 OpenD 内部账户 ID。
 - SPY 0DTE Desk: RETIRED — Cog、Scheduler、Slash command、Blueprint channel and runtime configuration
   removed; it no longer performs five-minute Moomoo option-chain/K-line reads.
 - Signal Entry Quote Gate: PASS — explicit price comparison, lower-price selection, quote-only fill,
@@ -21,7 +30,7 @@
   pre-existing Manager permission drifts remain (`card_testing_view`, `join_review_send`,
   `moomoo_trading_view`, `results_review_send`, `system_alerts_view`); this change did not mutate
   unrelated permissions.
-- Discord Blueprint dry-run: `REUSE=32 / CREATE=0 / UPDATE=1 / BLOCK=0`; the sole pending update
+- Discord Blueprint dry-run: `REUSE=33 / CREATE=0 / UPDATE=1 / BLOCK=0`; the sole pending update
   removes disallowed server-level `administrator` / `manage_roles` permissions from Manager.
 - Moomoo production market-data migration: PASS — actual OpenD capability/entitlement gate、8-ticker
   Stock Analyst、5-ticker GEX、BID/MID/LAST tracking adapter、empty Massive key full Bot startup、

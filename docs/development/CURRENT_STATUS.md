@@ -1,10 +1,10 @@
 # AXIS Current Development Status
 
-**Updated:** 2026-09-13
+**Updated:** 2026-10-07
 
 **Current stage:** MOOMOO MARKET DATA PRODUCTION / CORE PRODUCTION STABILIZATION
 
-**Database revision:** 20260913_0033
+**Database revision:** 20261007_0034
 
 **AXIS LAB:** DEFERRED
 
@@ -28,6 +28,15 @@ Massive provider code保留为显式回滚 adapter，不自动 fallback，四项
 fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 的真实 Bot 启动、
 SPY/NVDA Stock + GEX Discord 卡片上传、374 项完整回归与部署后 runtime hash 均已通过。
 Personal Moomoo LIVE writes 仍禁用。
+
+2026-10-07 新增独立 `💰・1k挑战` Moomoo Activity Mirror。真实 OpenD capability test 已通过：
+3 个 FUTUCA REAL 美股账户均可读取 positions、orders 和 fills；生产范围进一步按 Owner 要求
+锁定唯一 REAL MARGIN（8070）账户，明确排除 CASH、TFSA 与 SIMULATE。账户资金查询通过显式 USD
+currency 修正后可用。模块只保存 one-way masked account reference，首次 reconcile 静默建立基线，
+随后以 30 秒周期同步新增委托/取消/拒绝/成交，并在 `16:15 ET` 幂等生成收盘汇总。该模块没有
+broker write、unlock、cancel 或 place-order 接口，和 Owner Personal Execution / KLY 风控完全隔离。
+私密频道与 AXIS BOT 的 View/Send/History 权限已完成真实验收；2026-10-07 收盘汇总已成功发布，
+包含 62 笔成交、1 项持仓以及遮罩后的账户资金状态。当前状态：LIVE。
 
 AXIS Multi-Agent Research 已按 TradingAgents v0.4.0 的公开架构概念完成 AXIS-native 实现，并在
 `🛋️・会员交流` 上线 `/research`。技术面与 GEX 继续复用现有引擎；基本面、新闻和分析师共识已由
