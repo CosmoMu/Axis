@@ -56,6 +56,8 @@ def contract(ticker: str, underlying: str, expiry: date, strike: str) -> ListedO
         ("SPY 775C 0.48", None, None, "0.48"),
         ("SPY 775C .48", None, None, "0.48"),
         ("SPY 775C @ .48", None, None, "0.48"),
+        ("lotto SPXW 0DTE 7755P @2.1", "0DTE", ExpiryPrecision.ZERO_DTE, "2.1"),
+        ("ER LOTTO SPXW 0DTE 7755P @2.1", "0DTE", ExpiryPrecision.ZERO_DTE, "2.1"),
     ],
 )
 def test_fast_signal_accepts_natural_expiry_and_decimal_prices(

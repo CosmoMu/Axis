@@ -115,7 +115,7 @@ _TRAILING_MONTH_DAY = re.compile(
     re.IGNORECASE,
 )
 _FAST_SIGNAL = re.compile(
-    r"^\s*\$?(?P<ticker>[A-Z][A-Z0-9.\-]{0,11})\s+"
+    r"^\s*(?:(?:LOTTO|ER)\s+)*\$?(?P<ticker>[A-Z][A-Z0-9.\-]{0,11})\s+"
     r"(?:(?P<expiry>20\d{2}-\d{1,2}-\d{1,2}|0\s*DTE|"
     r"(?:0?[1-9]|1[0-2])/(?:20\d{2}|0?[1-9]|[12]\d|3[01]))\s+)?"
     r"(?P<strike>\d+(?:\.\d+)?)\s*(?P<side>C|P|CALL|PUT)\b"

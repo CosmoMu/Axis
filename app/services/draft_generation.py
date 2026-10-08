@@ -105,6 +105,8 @@ def _unique_strings(values: Any) -> list[str]:
 def _prepare_signal_payload(payload: dict[str, Any], raw_text: str | None) -> None:
     if re.search(r"\bER\b", raw_text or "", re.IGNORECASE):
         payload["_is_er"] = True
+    if re.search(r"\bLOTTO\b", raw_text or "", re.IGNORECASE):
+        payload["_is_lotto"] = True
     close = parse_swing_close(raw_text)
     if close is not None:
         payload.update(
@@ -1013,6 +1015,7 @@ class DraftGenerationService:
             missing_fields=_unique_strings(payload.get("missing_fields")),
             warnings=_unique_strings(payload.get("warnings")),
             internal_notes=payload.get("summary"),
+            is_lotto=bool(payload.get("_is_lotto", False)),
             is_er=bool(payload.get("_is_er", False)),
             reviewed_by=None,
             version=1,
