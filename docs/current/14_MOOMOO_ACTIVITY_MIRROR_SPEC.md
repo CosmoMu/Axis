@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`💰・1k挑战` is a private, read-only record of the Owner's Moomoo activity. It mirrors real-account
+`💰・1k账户挑战` is a private, read-only record under `🟢・会员专区`. It mirrors the Owner's real-account
 orders, fills, current positions, and a post-close daily summary into Discord so the Owner and AXIS
   Managers can follow the challenge without operating the broker from Discord.
 

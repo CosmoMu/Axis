@@ -29,7 +29,7 @@ fail closed 为 `SPX_PROVIDER_UNSUPPORTED`，绝不映射 SPY。空 Massive Key 
 SPY/NVDA Stock + GEX Discord 卡片上传、374 项完整回归与部署后 runtime hash 均已通过。
 Personal Moomoo LIVE writes 仍禁用。
 
-2026-10-07 新增独立 `💰・1k挑战` Moomoo Activity Mirror。真实 OpenD capability test 已通过：
+2026-10-07 新增独立 `💰・1k账户挑战` Moomoo Activity Mirror。真实 OpenD capability test 已通过：
 3 个 FUTUCA REAL 美股账户均可读取 positions、orders 和 fills；生产范围进一步按 Owner 要求
 锁定唯一 REAL MARGIN（8070）账户，明确排除 CASH、TFSA 与 SIMULATE。账户资金查询通过显式 USD
 currency 修正后可用。模块只保存 one-way masked account reference，首次 reconcile 静默建立基线，

@@ -12,7 +12,7 @@
   SIMULATE MARGIN；真实读取账户状态、持仓、当日订单与成交均通过。初始化基线为 1 个账户、
   1 个持仓、60 个订单、62 个成交，待发布历史事件为 0，避免首次上线重放刷屏。若未来出现第二个
   REAL FUTUCA MARGIN 账户，服务会 fail closed，不会猜测账户。
-- Moomoo Activity Mirror Discord runtime: PASS — `💰・1k挑战` 已创建并写入 Guild 配置，
+- Moomoo Activity Mirror Discord runtime: PASS — `💰・1k账户挑战` 已创建并写入 Guild 配置，
   AXIS BOT 仅在该私密频道获得 View Channel、Send Messages、Read Message History；真实
   reconciliation loop 正常更新，2026-10-07 收盘汇总已成功发布，包含 62 笔成交、1 项持仓及
   账户总资产、现金和购买力。频道输出使用遮罩账户标识，不公开 OpenD 内部账户 ID。

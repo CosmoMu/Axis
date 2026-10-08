@@ -104,7 +104,7 @@ LIVE_MODE_CHECKLIST.md 为准。
 
 ## Moomoo 1K Challenge Activity Mirror
 
-- 私密 `💰・1k挑战`：仅 Owner、Manager、AXIS BOT 可见，普通 Member/Newcomer/@everyone
+- `🟢・会员专区` 下的私密 `💰・1k账户挑战`：仅 Owner、Manager、AXIS BOT 可见，普通 Member/Newcomer/@everyone
   明确 deny。
 - 只读扫描唯一 FUTUCA REAL MARGIN（Owner 标识 8070）账户；CASH、TFSA、SIMULATE 被排除；
   支持股票和期权，不要求操作来自 AXIS，可镜像 KLY、手动或

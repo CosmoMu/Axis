@@ -70,7 +70,7 @@
 - 当前优先级是 Live 验证、真实 Discord UX 和生产稳定性，不是新增产品模块。
 - Owner-only Personal Moomoo Execution 已按最终规格实现，当前只允许 DRY_RUN；真实 OpenD
   只读对账与 SIMULATE E2E 尚未验收，LIVE broker writes 被安全门阻止。
-- `💰・1k挑战` 是独立的 Moomoo 只读镜像：Manager/Owner 私密可见，同步真实账户委托状态、
+- `💰・1k账户挑战` 位于 `🟢・会员专区`，是独立的 Moomoo 只读镜像：Manager/Owner 私密可见，同步真实账户委托状态、
   成交和 `16:15 ET` 收盘汇总；它不启用或调用任何 broker write。
 - AXIS Multi-Agent Research 已在 Member Lounge 上线 `/research ticker:TICKER`。技术面和 GEX
   复用原引擎；基本面、新闻和分析师共识使用 Moomoo。默认展示总结，所有详情按钮只原地切换
