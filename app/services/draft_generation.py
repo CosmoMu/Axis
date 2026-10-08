@@ -345,7 +345,12 @@ def _add_required_missing_fields(payload: dict[str, Any]) -> None:
                 missing.append(field)
         if payload.get("option_side") == "UNKNOWN":
             missing.append("option_side")
-        if all(payload.get(field) is None for field in ("entry_low", "entry_high", "action_price")):
+        entry_price_fields = {"entry_price", "entry_low", "entry_high", "action_price"}
+        missing = [field for field in missing if field not in entry_price_fields]
+        if all(
+            payload.get(field) is None
+            for field in ("entry_low", "entry_high", "action_price")
+        ):
             missing.append("entry_price")
     if (
         payload.get("category_suggestion") != "SHORT_TERM"

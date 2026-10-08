@@ -416,7 +416,7 @@ async def test_missing_entry_price_is_filled_from_current_option_quote(tmp_path:
             "expiry_precision": None,
             "resolved_expiry": None,
             "expiry_resolution_status": "UNRESOLVED",
-            "missing_fields": ["entry_price"],
+            "missing_fields": ["entry_low", "entry_high", "action_price", "entry_price"],
         }
     )
     provider = DraftPriceProvider()
@@ -442,6 +442,12 @@ async def test_missing_entry_price_is_filled_from_current_option_quote(tmp_path:
         assert draft.entry_low == Decimal("0.5500")
         assert draft.entry_high == Decimal("0.5500")
         assert "entry_price" not in draft.missing_fields
+        assert not {
+            "entry_low",
+            "entry_high",
+            "action_price",
+            "entry_price",
+        } & set(draft.missing_fields)
         assert "ENTRY_PRICE_FILLED_FROM_CURRENT_OPTION_QUOTE" in draft.warnings
         metadata = draft.parse_payload["_market_entry_price"]
         assert metadata["status"] == "ACCEPTED"
