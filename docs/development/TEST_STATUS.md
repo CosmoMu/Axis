@@ -1,10 +1,10 @@
 # AXIS Test Status
 
-**Date:** 2026-10-07
+**Date:** 2026-10-08
 
 ## Summary
 
-- Full pytest suite: PASS — 394 collected / passed、0 failed、0 skipped
+- Full pytest suite: PASS — 396 collected / passed、0 failed、0 skipped
 - Ruff: PASS
 - Python compileall: PASS
 - Moomoo 8070 Margin Activity Mirror: CODE / MIGRATION / REAL READ GATE PASS — OpenD 当前只发现一个
@@ -19,6 +19,7 @@
 - Moomoo Activity compact cards: PASS — 仅真实 fill 发布；买入、部分卖出、清仓分类，期权代码
   中文可读格式、成本收益、卖出仓位比例、清仓累计收益、前一交易日账户资产比较均有覆盖；
   submitted/cancelled/rejected 订单状态不再发送 Discord 消息。
+- Moomoo Activity AXIS embeds: PASS — 标题、收益视觉层级、仓位字段和收盘汇总分页均有覆盖。
 - SPY 0DTE Desk: RETIRED — Cog、Scheduler、Slash command、Blueprint channel and runtime configuration
   removed; it no longer performs five-minute Moomoo option-chain/K-line reads.
 - Signal Entry Quote Gate: PASS — explicit price comparison, lower-price selection, quote-only fill,

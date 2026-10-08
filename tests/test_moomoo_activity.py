@@ -6,7 +6,12 @@ from decimal import Decimal
 
 import pytest
 
-from app.bot.moomoo_activity_cards import activity_event_text, daily_summary_messages
+from app.bot.moomoo_activity_cards import (
+    activity_event_embed,
+    activity_event_text,
+    daily_summary_embeds,
+    daily_summary_messages,
+)
 from app.db.base import Base
 from app.db.models import GuildConfig
 from app.db.session import Database
@@ -276,3 +281,55 @@ def test_activity_text_matches_compact_option_examples() -> None:
             action="BUY",
         )
     )
+
+
+def test_activity_embeds_use_axis_visual_hierarchy() -> None:
+    sell = MoomooActivityEvent(
+        kind="FILL",
+        record_id=uuid.uuid4(),
+        account_label="账户 TEST-8070",
+        instrument_code="US.MSTR261009P155000",
+        side="SELL",
+        quantity=Decimal("2"),
+        price=Decimal("3.4"),
+        status=None,
+        occurred_at=datetime(2026, 10, 7, 15, 1, tzinfo=UTC),
+        action="SELL",
+        entry_price=Decimal("2.44"),
+        return_percent=Decimal("39.344"),
+        position_fraction=Decimal("0.25"),
+    )
+    embed = activity_event_embed(sell)
+    assert embed.title == "卖出 · MSTR 10/09 155P"
+    assert "+39.34%" in (embed.description or "")
+    assert embed.author.name == "AXIS · 1K 账户挑战"
+    assert [field.name for field in embed.fields] == ["本次卖出", "仓位"]
+
+
+def test_daily_summary_embeds_are_paginated_and_readable() -> None:
+    snapshot = {
+        "session_date": "2026-10-07",
+        "fills": [
+            {
+                "account": "账户 TEST-8070",
+                "code": f"US.TEST261016C{strike:03d}000",
+                "side": "BUY",
+                "quantity": "1",
+                "price": "2.5",
+            }
+            for strike in range(100, 109)
+        ],
+        "accounts": [
+            {
+                "account": "账户 TEST-8070",
+                "equity": "1250.80",
+                "equity_change_percent": "25",
+            }
+        ],
+        "positions": [],
+    }
+    embeds = daily_summary_embeds(snapshot)
+    assert len(embeds) == 2
+    assert embeds[0].title == "收盘汇总 · 2026-10-07"
+    assert "相比昨日 **+25%**" in embeds[0].fields[0].value
+    assert embeds[1].title == "今日成交 · PAGE 2"

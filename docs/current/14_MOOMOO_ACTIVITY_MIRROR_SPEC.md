@@ -10,8 +10,8 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 
 - Visible only to Owner, `Manager`, and `AXIS BOT`.
 - `@everyone`, `Newcomer`, and `Member` are explicitly denied access.
-- Owner and Manager may write; the Bot publishes compact Markdown ledger entries and paginated
-  summaries without requiring expanded Discord media permissions.
+- Owner and Manager may write; the Bot publishes compact AXIS-style Discord embeds with paginated
+  summaries.
 
 ## Broker boundary
 
@@ -31,6 +31,8 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 - Partial sell fills use `卖出`, tracked average cost, fill return, quantity, and the fraction sold.
 - A sell that reduces the tracked position to zero uses `清仓` and shows cumulative realized return
   and dollar P/L for that completed contract cycle.
+- Buy cards use restrained AXIS green; profitable partial exits use yellow, profitable closes use
+  green, and losses use red. Price and return remain the strongest visual elements.
 - Every newly observed fill is mirrored idempotently using masked account + broker fill ID. If AXIS
   does not possess a reliable tracked cost basis, unavailable return fields remain `—`.
 - Reconciliation defaults to 30 seconds and reports failure/recovery through System Alerts.
@@ -43,6 +45,7 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 - Missing broker fields display `—`; AXIS never fabricates unavailable values.
 - Multiple fills for the same account, symbol, and side are aggregated using a quantity-weighted
   average price for a readable close report. Raw fills remain in the database.
+- The Discord embed paginates grouped fills and positions without changing the underlying snapshot.
 
 ## Feature gate
 

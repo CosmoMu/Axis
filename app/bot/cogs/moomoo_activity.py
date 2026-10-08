@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands, tasks
 
 from app.bot.cogs.system_alerts import report_system_failure, report_system_recovery
-from app.bot.moomoo_activity_cards import activity_event_text, daily_summary_messages
+from app.bot.moomoo_activity_cards import activity_event_embed, daily_summary_embeds
 from app.services.daily_summary import scheduled_session_date
 from app.services.moomoo_activity import MoomooActivityService
 from app.services.trading_calendar import TradingCalendarService
@@ -83,9 +83,9 @@ class MoomooActivityCog(commands.Cog):
                 return
             channel = await self._channel()
             message_ids = []
-            for content in daily_summary_messages(claim.snapshot):
+            for embed in daily_summary_embeds(claim.snapshot):
                 message = await channel.send(
-                    content=content,
+                    embed=embed,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 message_ids.append(message.id)
@@ -116,7 +116,7 @@ class MoomooActivityCog(commands.Cog):
         channel = await self._channel()
         for event in await self.service.pending_events():
             await channel.send(
-                content=activity_event_text(event),
+                embed=activity_event_embed(event),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             await self.service.mark_notified(event)
