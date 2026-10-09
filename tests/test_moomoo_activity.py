@@ -117,6 +117,48 @@ async def test_first_reconcile_is_quiet_then_new_fill_is_notified_once() -> None
 
 
 @pytest.mark.asyncio
+async def test_split_fills_for_one_order_are_published_as_one_aggregated_event() -> None:
+    database = await make_database()
+    reader = FakeActivityReader(make_snapshot())
+    service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
+    await service.reconcile()
+    fills = (
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="split-1",
+            broker_order_id="order-split",
+            instrument_code="US.GOOGL261009C355000",
+            side="BUY",
+            quantity=Decimal("1"),
+            fill_price=Decimal("0.80"),
+            executed_at=datetime(2026, 10, 9, 13, 33, 42, 619000, tzinfo=UTC),
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="split-2",
+            broker_order_id="order-split",
+            instrument_code="US.GOOGL261009C355000",
+            side="BUY",
+            quantity=Decimal("1"),
+            fill_price=Decimal("0.82"),
+            executed_at=datetime(2026, 10, 9, 13, 33, 42, 662000, tzinfo=UTC),
+        ),
+    )
+    reader.snapshot = make_snapshot(fills=fills)
+    await service.reconcile()
+
+    events = await service.pending_events()
+    assert len(events) == 1
+    assert events[0].quantity == Decimal("2")
+    assert events[0].price == Decimal("0.81")
+    assert len(events[0].record_ids) == 2
+
+    await service.mark_notified(events[0])
+    assert await service.pending_events() == ()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_orders_are_not_notified_and_daily_summary_is_idempotent() -> None:
     database = await make_database()
     reader = FakeActivityReader(make_snapshot())

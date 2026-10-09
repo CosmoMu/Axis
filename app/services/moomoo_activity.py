@@ -35,6 +35,7 @@ class MoomooActivityEvent:
     price: Decimal | None
     status: str | None
     occurred_at: datetime | None
+    record_ids: tuple[uuid.UUID, ...] = ()
     action: str = "BUY"
     entry_price: Decimal | None = None
     return_percent: Decimal | None = None
@@ -78,6 +79,45 @@ def _order_signature(order: Any) -> str:
             _number(order.average_fill_price) if order.average_fill_price is not None else "",
         )
     )
+
+
+def _group_fills(
+    fills: tuple[MoomooActivityFill, ...],
+) -> tuple[dict[str, Any], ...]:
+    """Combine executions belonging to one broker order into one activity event."""
+
+    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    for fill in fills:
+        broker_key = fill.broker_order_id or f"fill:{fill.broker_fill_id}"
+        key = (
+            fill.account_ref,
+            broker_key,
+            fill.instrument_code,
+            fill.side,
+        )
+        group = grouped.setdefault(
+            key,
+            {
+                "record_ids": [],
+                "account_ref": fill.account_ref,
+                "instrument_code": fill.instrument_code,
+                "side": fill.side,
+                "quantity": Decimal("0"),
+                "notional": Decimal("0"),
+                "executed_at": fill.executed_at,
+            },
+        )
+        group["record_ids"].append(fill.id)
+        group["quantity"] += fill.quantity
+        group["notional"] += fill.quantity * fill.fill_price
+        group["executed_at"] = max(group["executed_at"], fill.executed_at)
+    output = []
+    for group in grouped.values():
+        quantity = group["quantity"]
+        group["fill_price"] = group["notional"] / quantity
+        group["record_ids"] = tuple(group["record_ids"])
+        output.append(group)
+    return tuple(sorted(output, key=lambda item: item["executed_at"]))
 
 
 class MoomooActivityService:
@@ -209,8 +249,8 @@ class MoomooActivityService:
             pending_ids = {item.id for item in pending}
             events: list[MoomooActivityEvent] = []
             ledgers: dict[tuple[str, str], dict[str, Decimal]] = {}
-            for item in all_fills:
-                key = (item.account_ref, item.instrument_code)
+            for item in _group_fills(all_fills):
+                key = (item["account_ref"], item["instrument_code"])
                 ledger = ledgers.setdefault(
                     key,
                     {
@@ -220,7 +260,7 @@ class MoomooActivityService:
                         "realized": Decimal("0"),
                     },
                 )
-                is_buy = item.side.upper().startswith("BUY")
+                is_buy = item["side"].upper().startswith("BUY")
                 entry_price = (
                     ledger["cost"] / ledger["quantity"]
                     if ledger["quantity"] > 0
@@ -233,28 +273,32 @@ class MoomooActivityService:
                 total_return_percent = None
                 total_profit_amount = None
                 if is_buy:
-                    ledger["quantity"] += item.quantity
-                    ledger["cost"] += item.quantity * item.fill_price
-                    ledger["invested"] += item.quantity * item.fill_price
+                    ledger["quantity"] += item["quantity"]
+                    ledger["cost"] += item["quantity"] * item["fill_price"]
+                    ledger["invested"] += item["quantity"] * item["fill_price"]
                 else:
                     action = "SELL"
                     before_quantity = ledger["quantity"]
                     multiplier = (
                         Decimal("100")
-                        if _looks_like_option(item.instrument_code)
+                        if _looks_like_option(item["instrument_code"])
                         else Decimal("1")
                     )
                     if entry_price is not None:
                         return_percent = (
-                            (item.fill_price - entry_price) / entry_price * Decimal("100")
+                            (item["fill_price"] - entry_price) / entry_price * Decimal("100")
                         )
                         profit_amount = (
-                            (item.fill_price - entry_price) * item.quantity * multiplier
+                            (item["fill_price"] - entry_price)
+                            * item["quantity"]
+                            * multiplier
                         )
                         ledger["realized"] += profit_amount
                     if before_quantity > 0:
-                        position_fraction = min(Decimal("1"), item.quantity / before_quantity)
-                        sold = min(item.quantity, before_quantity)
+                        position_fraction = min(
+                            Decimal("1"), item["quantity"] / before_quantity
+                        )
+                        sold = min(item["quantity"], before_quantity)
                         ledger["quantity"] = before_quantity - sold
                         if entry_price is not None:
                             ledger["cost"] = ledger["quantity"] * entry_price
@@ -270,19 +314,20 @@ class MoomooActivityService:
                         ledger["cost"] = Decimal("0")
                         ledger["invested"] = Decimal("0")
                         ledger["realized"] = Decimal("0")
-                if item.id not in pending_ids:
+                if pending_ids.isdisjoint(item["record_ids"]):
                     continue
                 events.append(
                     MoomooActivityEvent(
                         kind="FILL",
-                        record_id=item.id,
-                        account_label=_account_label(item.account_ref),
-                        instrument_code=item.instrument_code,
-                        side=item.side,
-                        quantity=item.quantity,
-                        price=item.fill_price,
+                        record_id=item["record_ids"][0],
+                        record_ids=item["record_ids"],
+                        account_label=_account_label(item["account_ref"]),
+                        instrument_code=item["instrument_code"],
+                        side=item["side"],
+                        quantity=item["quantity"],
+                        price=item["fill_price"],
                         status=None,
-                        occurred_at=item.executed_at,
+                        occurred_at=item["executed_at"],
                         action=action,
                         entry_price=entry_price,
                         return_percent=return_percent,
@@ -297,9 +342,17 @@ class MoomooActivityService:
     async def mark_notified(self, event: MoomooActivityEvent) -> None:
         async with self.database.session() as session:
             if event.kind == "FILL":
-                row = await session.get(MoomooActivityFill, event.record_id)
-                if row is not None:
-                    row.notified_at = utc_now()
+                record_ids = event.record_ids or (event.record_id,)
+                rows = list(
+                    await session.scalars(
+                        select(MoomooActivityFill).where(
+                            MoomooActivityFill.id.in_(record_ids)
+                        )
+                    )
+                )
+                notified_at = utc_now()
+                for row in rows:
+                    row.notified_at = notified_at
             await session.commit()
 
     async def prepare_daily_summary(self, session_date: date) -> MoomooDailySummaryClaim | None:
