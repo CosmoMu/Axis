@@ -287,6 +287,7 @@ def test_plain_text_outputs_fit_discord_without_embed_permission() -> None:
     )
     assert pages and all(len(page) <= 2000 for page in pages)
     assert "账户状态" in pages[0]
+    assert "今日成交" not in pages[0]
 
 
 def test_activity_text_matches_compact_option_examples() -> None:
@@ -368,10 +369,38 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
                 "equity_change_percent": "25",
             }
         ],
-        "positions": [],
+        "positions": [
+            {
+                "account": "账户 TEST-8070",
+                "code": f"US.TEST261016C{strike:03d}000",
+                "quantity": "1",
+                "average_cost": "2.5",
+                "current_price": "3",
+                "unrealized_pnl": "50",
+            }
+            for strike in range(100, 106)
+        ],
     }
     embeds = daily_summary_embeds(snapshot)
     assert len(embeds) == 2
     assert embeds[0].title == "收盘汇总 · 2026-10-07"
     assert "相比昨日 **+25%**" in embeds[0].fields[0].value
-    assert embeds[1].title == "今日成交 · PAGE 2"
+    assert [field.name for field in embeds[0].fields] == ["账户状态", "当前持仓"]
+    assert "今日成交" not in str(embeds[0].to_dict())
+    assert embeds[1].title == "当前持仓 · PAGE 2"
+
+
+def test_daily_summary_without_positions_explicitly_says_no_positions() -> None:
+    embeds = daily_summary_embeds(
+        {
+            "session_date": "2026-10-08",
+            "fills": [{"code": "US.SPY", "side": "BUY", "quantity": "2", "price": "700"}],
+            "accounts": [{"equity": "1000", "equity_change_percent": "2"}],
+            "positions": [],
+        }
+    )
+
+    assert len(embeds) == 1
+    assert [field.name for field in embeds[0].fields] == ["账户状态", "当前持仓"]
+    assert embeds[0].fields[1].value == "无持仓"
+    assert "今日成交" not in str(embeds[0].to_dict())

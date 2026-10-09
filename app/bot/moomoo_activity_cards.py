@@ -137,7 +137,6 @@ def activity_event_text(event: MoomooActivityEvent) -> str:
 
 def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     session_date = str(snapshot.get("session_date") or "")
-    fills = list(snapshot.get("fills") or [])
     accounts = list(snapshot.get("accounts") or [])
     positions = list(snapshot.get("positions") or [])
     change = next(
@@ -152,7 +151,7 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     first = discord.Embed(
         title=f"收盘汇总 · {session_date}",
         color=color,
-        description=f"**{len(fills)}** 笔成交　·　**{len(positions)}** 项持仓",
+        description=f"当前持仓 **{len(positions)}** 项",
     )
     first.set_author(name="AXIS · 1K 账户挑战")
     if accounts:
@@ -163,32 +162,6 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
                 line += f"\n相比昨日 **{_signed_percent(item['equity_change_percent'])}**"
             lines.append(line)
         first.add_field(name="账户状态", value="\n".join(lines)[:1024], inline=False)
-    grouped_fills: dict[tuple[str, str, str], dict[str, Any]] = {}
-    for item in fills:
-        key = (str(item["account"]), str(item["code"]), str(item["side"]))
-        group = grouped_fills.setdefault(
-            key,
-            {
-                "account": item["account"],
-                "code": item["code"],
-                "side": item["side"],
-                "quantity": Decimal("0"),
-                "notional": Decimal("0"),
-                "count": 0,
-            },
-        )
-        quantity = Decimal(str(item["quantity"]))
-        price = Decimal(str(item["price"]))
-        group["quantity"] += quantity
-        group["notional"] += quantity * price
-        group["count"] += 1
-    fill_groups = list(grouped_fills.values())
-    fill_lines = [
-        f"{'买入' if str(item['side']).startswith('BUY') else '卖出'} "
-        f"**{_instrument(str(item['code']))[0]}** × {_number(item['quantity'])}"
-        f"　@ {_number(item['notional'] / item['quantity'], money=True)}"
-        for item in fill_groups
-    ]
     position_lines = [
         (
             f"**{_instrument(str(item['code']))[0]}** × {_number(item.get('quantity'))}"
@@ -199,23 +172,12 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         )
         for item in positions
     ]
-    if fill_lines:
-        first.add_field(name="今日成交", value="\n".join(fill_lines[:8])[:1024], inline=False)
-    else:
-        first.add_field(name="今日成交", value="无", inline=False)
     if position_lines:
         first.add_field(name="当前持仓", value="\n\n".join(position_lines[:5])[:1024], inline=False)
+    else:
+        first.add_field(name="当前持仓", value="无持仓", inline=False)
     first.set_footer(text="美东收盘后自动汇总 · Moomoo 只读同步")
     embeds = [first]
-    for offset in range(8, len(fill_lines), 8):
-        embed = discord.Embed(
-            title=f"今日成交 · PAGE {offset // 8 + 1}",
-            color=NEUTRAL,
-        )
-        embed.description = "\n".join(fill_lines[offset : offset + 8])
-        embed.set_author(name="AXIS · 1K 账户挑战")
-        embed.set_footer(text="Moomoo 只读同步")
-        embeds.append(embed)
     for offset in range(5, len(position_lines), 5):
         embed = discord.Embed(
             title=f"当前持仓 · PAGE {offset // 5 + 1}",
@@ -230,12 +192,11 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
 
 def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
     session_date = str(snapshot.get("session_date") or "")
-    fills = list(snapshot.get("fills") or [])
     accounts = list(snapshot.get("accounts") or [])
     positions = list(snapshot.get("positions") or [])
     sections = [
         f"**1K 挑战 · 收盘汇总 · {session_date}**\n"
-        f"今日成交 {len(fills)} 笔 · 当前持仓 {len(positions)} 项"
+        f"当前持仓 {len(positions)} 项"
     ]
     if accounts:
         sections.append(
@@ -250,27 +211,6 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
                 for item in accounts
             )
         )
-    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
-    for item in fills:
-        key = (str(item["account"]), str(item["code"]), str(item["side"]))
-        group = grouped.setdefault(
-            key,
-            {**item, "quantity": Decimal("0"), "notional": Decimal("0"), "count": 0},
-        )
-        quantity = Decimal(str(item["quantity"]))
-        group["quantity"] += quantity
-        group["notional"] += quantity * Decimal(str(item["price"]))
-        group["count"] += 1
-    if grouped:
-        sections.append(
-            "**今日成交汇总**\n"
-            + "\n".join(
-                f"{'买入' if str(item['side']).startswith('BUY') else '卖出'} "
-                f"{_instrument(str(item['code']))[0]} × {_number(item['quantity'])}"
-                f" · 均价 {_number(item['notional'] / item['quantity'], money=True)}"
-                for item in grouped.values()
-            )
-        )
     if positions:
         sections.append(
             "**当前持仓**\n"
@@ -283,6 +223,8 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
                 for item in positions
             )
         )
+    else:
+        sections.append("**当前持仓**\n无持仓")
     pages: list[str] = []
     current = ""
     for section in sections:

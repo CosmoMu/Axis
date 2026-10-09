@@ -40,12 +40,13 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 ## Daily summary
 
 - Runs at `16:15 ET` on U.S. trading days and publishes once per session date.
-- Includes total assets and change versus the latest prior published session, aggregated daily
-  executions, and current positions with cost/current price/unrealized P&L when supplied by Moomoo.
+- Includes only total assets, change versus the latest prior published session, and current positions
+  with cost/current price/unrealized P&L when supplied by Moomoo.
+- Daily executions are deliberately omitted from the close summary because buy/sell/close activity is
+  already published as live event cards.
 - Missing broker fields display `—`; AXIS never fabricates unavailable values.
-- Multiple fills for the same account, symbol, and side are aggregated using a quantity-weighted
-  average price for a readable close report. Raw fills remain in the database.
-- The Discord embed paginates grouped fills and positions without changing the underlying snapshot.
+- The Discord embed paginates current positions without changing the underlying snapshot. Raw fills
+  remain in the database for reconciliation and audit but are not rendered in the close summary.
 
 ## Feature gate
 
