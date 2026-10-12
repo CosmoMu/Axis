@@ -295,6 +295,15 @@ class Settings:
     moomoo_activity_account_ids: tuple[str, ...] = ()
     moomoo_activity_reconcile_seconds: int = 30
     moomoo_activity_summary_time_et: str = "16:15"
+    moomoo_activity_option_commission_per_contract: Decimal = Decimal("0.65")
+    moomoo_activity_option_commission_minimum: Decimal = Decimal("1.00")
+    moomoo_activity_stock_commission_per_share: Decimal = Decimal("0.0049")
+    moomoo_activity_stock_commission_minimum: Decimal = Decimal("0.99")
+    moomoo_activity_stock_platform_fee_per_share: Decimal = Decimal("0.005")
+    moomoo_activity_stock_platform_fee_minimum: Decimal = Decimal("1.00")
+    moomoo_activity_low_price_stock_rate: Decimal = Decimal("0.0005")
+    moomoo_activity_sec_fee_rate: Decimal = Decimal("0.0000206")
+    moomoo_activity_sec_fee_minimum: Decimal = Decimal("0.01")
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Settings:
@@ -614,6 +623,33 @@ class Settings:
             ),
             moomoo_activity_summary_time_et=(
                 os.getenv("MOOMOO_ACTIVITY_SUMMARY_TIME_ET", "16:15").strip() or "16:15"
+            ),
+            moomoo_activity_option_commission_per_contract=_parse_decimal(
+                "MOOMOO_ACTIVITY_OPTION_COMMISSION_PER_CONTRACT", "0.65"
+            ),
+            moomoo_activity_option_commission_minimum=_parse_decimal(
+                "MOOMOO_ACTIVITY_OPTION_COMMISSION_MINIMUM", "1.00"
+            ),
+            moomoo_activity_stock_commission_per_share=_parse_decimal(
+                "MOOMOO_ACTIVITY_STOCK_COMMISSION_PER_SHARE", "0.0049"
+            ),
+            moomoo_activity_stock_commission_minimum=_parse_decimal(
+                "MOOMOO_ACTIVITY_STOCK_COMMISSION_MINIMUM", "0.99"
+            ),
+            moomoo_activity_stock_platform_fee_per_share=_parse_decimal(
+                "MOOMOO_ACTIVITY_STOCK_PLATFORM_FEE_PER_SHARE", "0.005"
+            ),
+            moomoo_activity_stock_platform_fee_minimum=_parse_decimal(
+                "MOOMOO_ACTIVITY_STOCK_PLATFORM_FEE_MINIMUM", "1.00"
+            ),
+            moomoo_activity_low_price_stock_rate=_parse_decimal(
+                "MOOMOO_ACTIVITY_LOW_PRICE_STOCK_RATE", "0.0005"
+            ),
+            moomoo_activity_sec_fee_rate=_parse_decimal(
+                "MOOMOO_ACTIVITY_SEC_FEE_RATE", "0.0000206"
+            ),
+            moomoo_activity_sec_fee_minimum=_parse_decimal(
+                "MOOMOO_ACTIVITY_SEC_FEE_MINIMUM", "0.01"
             ),
         )
 

@@ -13,7 +13,7 @@ from app.bot.moomoo_activity_cards import (
     daily_summary_messages,
 )
 from app.db.base import Base
-from app.db.models import GuildConfig
+from app.db.models import GuildConfig, MoomooActivityDailySummary
 from app.db.session import Database
 from app.integrations.moomoo_activity import (
     ActivityAccount,
@@ -185,6 +185,64 @@ async def test_orders_are_not_notified_and_daily_summary_is_idempotent() -> None
     assert first.snapshot["positions"][0]["code"] == "US.SPY"
     await service.mark_summary_published(first.id, [123])
     assert await service.prepare_daily_summary(date(2026, 10, 7)) is None
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() -> None:
+    database = await make_database()
+    fill = ActivityFill(
+        account_ref=ACCOUNT_REF,
+        broker_fill_id="buy-two",
+        broker_order_id="order-buy-two",
+        instrument_code="US.SPY261009C700000",
+        side="BUY",
+        quantity=Decimal("2"),
+        fill_price=Decimal("2.50"),
+        executed_at=datetime(2026, 10, 7, 15, 1, tzinfo=UTC),
+    )
+    sell = ActivityFill(
+        account_ref=ACCOUNT_REF,
+        broker_fill_id="sell-one",
+        broker_order_id="order-sell-one",
+        instrument_code="US.SPY261009C700000",
+        side="SELL",
+        quantity=Decimal("1"),
+        fill_price=Decimal("3.00"),
+        executed_at=datetime(2026, 10, 7, 15, 2, tzinfo=UTC),
+    )
+    reader = FakeActivityReader(make_snapshot(fills=(fill, sell)))
+    service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
+    await service.reconcile()
+    async with database.session() as session:
+        session.add(
+            MoomooActivityDailySummary(
+                guild_id=GUILD_ID,
+                session_date=date(2026, 10, 6),
+                snapshot_json={
+                    "accounts": [
+                        {
+                            "account": "账户 …cdef",
+                            "equity": "905.00",
+                            "post_fee_equity": "900.00",
+                        }
+                    ]
+                },
+                discord_message_ids=[1],
+                published_at=datetime(2026, 10, 6, 20, 15, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+
+    claim = await service.prepare_daily_summary(date(2026, 10, 7))
+    assert claim is not None
+    account = claim.snapshot["accounts"][0]
+    assert account["opening_equity"] == "900.00"
+    assert account["commission"] == "2.31"
+    assert account["pre_fee_equity"] == "1000.00"
+    assert account["post_fee_equity"] == "997.69"
+    assert account["pre_fee_profit"] == "100.00"
+    assert account["post_fee_profit"] == "97.69"
     await database.dispose()
 
 
@@ -366,7 +424,14 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
             {
                 "account": "账户 TEST-8070",
                 "equity": "1250.80",
-                "equity_change_percent": "25",
+                "opening_equity": "1000.00",
+                "commission": "6.51",
+                "pre_fee_equity": "1250.80",
+                "post_fee_equity": "1244.29",
+                "pre_fee_profit": "250.80",
+                "post_fee_profit": "244.29",
+                "pre_fee_return_percent": "25.08",
+                "post_fee_return_percent": "24.429",
             }
         ],
         "positions": [
@@ -384,7 +449,9 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
     embeds = daily_summary_embeds(snapshot)
     assert len(embeds) == 2
     assert embeds[0].title == "收盘汇总 · 2026-10-07"
-    assert "相比昨日 **+25%**" in embeds[0].fields[0].value
+    assert "今日佣金及费用**　$6.51" in embeds[0].fields[0].value
+    assert "扣费前余额**　$1,250.8　+25.08% · +$250.8" in embeds[0].fields[0].value
+    assert "扣费后余额**　$1,244.29　**+24.43%** · **+$244.29**" in embeds[0].fields[0].value
     assert [field.name for field in embeds[0].fields] == ["账户状态", "当前持仓"]
     assert "今日成交" not in str(embeds[0].to_dict())
     assert embeds[1].title == "当前持仓 · PAGE 2"

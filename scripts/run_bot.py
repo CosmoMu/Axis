@@ -94,7 +94,7 @@ from app.services.membership_access import (  # noqa: E402
 from app.services.membership_management import MembershipManagementService  # noqa: E402
 from app.services.membership_stripe import MembershipStripeService  # noqa: E402
 from app.services.mentor_management import MentorManagementService  # noqa: E402
-from app.services.moomoo_activity import MoomooActivityService  # noqa: E402
+from app.services.moomoo_activity import MoomooActivityService, MoomooFeeSchedule  # noqa: E402
 from app.services.newcomer_access import (  # noqa: E402
     NewcomerAccessService,
     NewcomerRiskScanner,
@@ -562,6 +562,17 @@ async def run() -> None:
                     account_ids=settings.moomoo_activity_account_ids,
                 ),
                 guild_id=settings.discord_guild_id,
+                fee_schedule=MoomooFeeSchedule(
+                    option_commission_per_contract=settings.moomoo_activity_option_commission_per_contract,
+                    option_commission_minimum=settings.moomoo_activity_option_commission_minimum,
+                    stock_commission_per_share=settings.moomoo_activity_stock_commission_per_share,
+                    stock_commission_minimum=settings.moomoo_activity_stock_commission_minimum,
+                    stock_platform_fee_per_share=settings.moomoo_activity_stock_platform_fee_per_share,
+                    stock_platform_fee_minimum=settings.moomoo_activity_stock_platform_fee_minimum,
+                    low_price_stock_rate=settings.moomoo_activity_low_price_stock_rate,
+                    sec_fee_rate=settings.moomoo_activity_sec_fee_rate,
+                    sec_fee_minimum=settings.moomoo_activity_sec_fee_minimum,
+                ),
             )
         bot = AxisBot(
             settings=settings,

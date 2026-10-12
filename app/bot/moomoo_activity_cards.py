@@ -141,9 +141,9 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     positions = list(snapshot.get("positions") or [])
     change = next(
         (
-            Decimal(str(item["equity_change_percent"]))
+            Decimal(str(item["post_fee_return_percent"]))
             for item in accounts
-            if item.get("equity_change_percent") is not None
+            if item.get("post_fee_return_percent") is not None
         ),
         None,
     )
@@ -157,9 +157,22 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     if accounts:
         lines = []
         for item in accounts:
-            line = f"### {_number(item.get('equity'), money=True)}"
-            if item.get("equity_change_percent") is not None:
-                line += f"\n相比昨日 **{_signed_percent(item['equity_change_percent'])}**"
+            line = f"**日初（已扣前日费用）**　{_number(item.get('opening_equity'), money=True)}"
+            line += f"\n**今日佣金及费用**　{_number(item.get('commission'), money=True)}"
+            pre_fee_equity = item.get("pre_fee_equity") or item.get("equity")
+            post_fee_equity = item.get("post_fee_equity") or item.get("equity")
+            line += f"\n**扣费前余额**　{_number(pre_fee_equity, money=True)}"
+            if item.get("pre_fee_return_percent") is not None:
+                line += (
+                    f"　{_signed_percent(item['pre_fee_return_percent'])}"
+                    f" · {_signed_money(item.get('pre_fee_profit'))}"
+                )
+            line += f"\n**扣费后余额**　{_number(post_fee_equity, money=True)}"
+            if item.get("post_fee_return_percent") is not None:
+                line += (
+                    f"　**{_signed_percent(item['post_fee_return_percent'])}**"
+                    f" · **{_signed_money(item.get('post_fee_profit'))}**"
+                )
             lines.append(line)
         first.add_field(name="账户状态", value="\n".join(lines)[:1024], inline=False)
     position_lines = [
@@ -176,7 +189,9 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         first.add_field(name="当前持仓", value="\n\n".join(position_lines[:5])[:1024], inline=False)
     else:
         first.add_field(name="当前持仓", value="无持仓", inline=False)
-    first.set_footer(text="美东收盘后自动汇总 · Moomoo 只读同步")
+    first.set_footer(
+        text="费用按 Moomoo Canada 公开费率计算 · 扣费后余额作为下一交易日基准"
+    )
     embeds = [first]
     for offset in range(5, len(position_lines), 5):
         embed = discord.Embed(
@@ -202,10 +217,23 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         sections.append(
             "**账户状态**\n"
             + "\n".join(
-                f"总资产 {_number(item.get('equity'), money=True)}"
+                f"日初 {_number(item.get('opening_equity'), money=True)}\n"
+                f"佣金及费用 {_number(item.get('commission'), money=True)}\n"
+                f"扣费前 {_number(item.get('pre_fee_equity') or item.get('equity'), money=True)}"
                 + (
-                    f" · 相比昨日 {_signed_percent(item.get('equity_change_percent'))}"
-                    if item.get("equity_change_percent") is not None
+                    f" · {_signed_percent(item.get('pre_fee_return_percent'))}"
+                    f" · {_signed_money(item.get('pre_fee_profit'))}"
+                    if item.get("pre_fee_return_percent") is not None
+                    else ""
+                )
+                + (
+                    "\n扣费后 "
+                    f"{_number(item.get('post_fee_equity') or item.get('equity'), money=True)}"
+                )
+                + (
+                    f" · {_signed_percent(item.get('post_fee_return_percent'))}"
+                    f" · {_signed_money(item.get('post_fee_profit'))}"
+                    if item.get("post_fee_return_percent") is not None
                     else ""
                 )
                 for item in accounts
@@ -242,4 +270,7 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         current = section
     if current:
         pages.append(current)
-    return [f"{page}\n\n*AXIS · 美东收盘后自动汇总 · 只读*" for page in pages]
+    return [
+        f"{page}\n\n*AXIS · 费用按 Moomoo Canada 公开费率计算 · 扣费后余额为下个交易日基准*"
+        for page in pages
+    ]

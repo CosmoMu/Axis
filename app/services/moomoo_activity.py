@@ -4,7 +4,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -50,6 +50,21 @@ class MoomooDailySummaryClaim:
     id: uuid.UUID
     session_date: date
     snapshot: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class MoomooFeeSchedule:
+    """Configurable Moomoo Canada public fee schedule, denominated in USD."""
+
+    option_commission_per_contract: Decimal = Decimal("0.65")
+    option_commission_minimum: Decimal = Decimal("1.00")
+    stock_commission_per_share: Decimal = Decimal("0.0049")
+    stock_commission_minimum: Decimal = Decimal("0.99")
+    stock_platform_fee_per_share: Decimal = Decimal("0.005")
+    stock_platform_fee_minimum: Decimal = Decimal("1.00")
+    low_price_stock_rate: Decimal = Decimal("0.0005")
+    sec_fee_rate: Decimal = Decimal("0.0000206")
+    sec_fee_minimum: Decimal = Decimal("0.01")
 
 
 def _account_label(account_ref: str) -> str:
@@ -120,6 +135,39 @@ def _group_fills(
     return tuple(sorted(output, key=lambda item: item["executed_at"]))
 
 
+def _round_fee(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _group_fee(group: dict[str, Any], schedule: MoomooFeeSchedule) -> Decimal:
+    quantity = Decimal(str(group["quantity"]))
+    price = Decimal(str(group["fill_price"]))
+    is_option = _looks_like_option(str(group["instrument_code"]))
+    if is_option:
+        fee = max(
+            schedule.option_commission_minimum,
+            schedule.option_commission_per_contract * quantity,
+        )
+        notional = price * quantity * Decimal("100")
+    else:
+        rate = (
+            schedule.stock_commission_per_share
+            if price >= Decimal("1")
+            else schedule.low_price_stock_rate
+        )
+        platform_rate = (
+            schedule.stock_platform_fee_per_share
+            if price >= Decimal("1")
+            else schedule.low_price_stock_rate
+        )
+        fee = max(schedule.stock_commission_minimum, rate * quantity)
+        fee += max(schedule.stock_platform_fee_minimum, platform_rate * quantity)
+        notional = price * quantity
+    if str(group["side"]).upper().startswith("SELL"):
+        fee += max(schedule.sec_fee_minimum, schedule.sec_fee_rate * notional)
+    return _round_fee(fee)
+
+
 class MoomooActivityService:
     def __init__(
         self,
@@ -127,10 +175,12 @@ class MoomooActivityService:
         reader: MoomooActivityReader,
         *,
         guild_id: int,
+        fee_schedule: MoomooFeeSchedule | None = None,
     ) -> None:
         self.database = database
         self.reader = reader
         self.guild_id = guild_id
+        self.fee_schedule = fee_schedule or MoomooFeeSchedule()
 
     async def reconcile(self) -> ActivitySnapshot:
         snapshot = await self.reader.read_snapshot()
@@ -393,19 +443,44 @@ class MoomooActivityService:
                 .limit(1)
             )
             previous_equity = {
-                str(item.get("account")): Decimal(str(item["equity"]))
+                str(item.get("account")): Decimal(
+                    str(item.get("post_fee_equity") or item["equity"])
+                )
                 for item in (previous.snapshot_json.get("accounts", []) if previous else [])
                 if item.get("account") and item.get("equity") is not None
             }
+            fees_by_account: dict[str, Decimal] = {}
+            for group in _group_fills(fills):
+                label = _account_label(str(group["account_ref"]))
+                fees_by_account[label] = fees_by_account.get(label, Decimal("0")) + _group_fee(
+                    group, self.fee_schedule
+                )
             accounts = []
             for item in latest.get("accounts", []):
                 current = dict(item)
-                prior = previous_equity.get(str(current.get("account")))
-                equity = current.get("equity")
-                if prior not in (None, Decimal("0")) and equity is not None:
-                    current["equity_change_percent"] = _number(
-                        (Decimal(str(equity)) - prior) / prior * Decimal("100")
-                    )
+                account = str(current.get("account"))
+                prior = previous_equity.get(account)
+                equity_raw = current.get("equity")
+                fee = fees_by_account.get(account, Decimal("0"))
+                current["commission"] = _money(fee)
+                current["fee_basis"] = "MOOMOO_CA_PUBLIC_RATE"
+                if equity_raw is not None:
+                    equity = Decimal(str(equity_raw))
+                    net_equity = equity - fee
+                    current["pre_fee_equity"] = _money(equity)
+                    current["post_fee_equity"] = _money(net_equity)
+                    if prior not in (None, Decimal("0")):
+                        gross_profit = equity - prior
+                        net_profit = net_equity - prior
+                        current["opening_equity"] = _money(prior)
+                        current["pre_fee_profit"] = _money(gross_profit)
+                        current["pre_fee_return_percent"] = _number(
+                            gross_profit / prior * Decimal("100")
+                        )
+                        current["post_fee_profit"] = _money(net_profit)
+                        current["post_fee_return_percent"] = _number(
+                            net_profit / prior * Decimal("100")
+                        )
                 accounts.append(current)
             payload = {
                 "session_date": session_date.isoformat(),

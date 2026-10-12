@@ -40,8 +40,21 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 ## Daily summary
 
 - Runs at `16:15 ET` on U.S. trading days and publishes once per session date.
-- Includes only total assets, change versus the latest prior published session, and current positions
-  with cost/current price/unrealized P&L when supplied by Moomoo.
+- Includes the prior session's after-fee balance as the current session opening baseline, current
+  commission/transaction fees, before-fee closing balance and return, after-fee closing balance and
+  return, plus current positions with cost/current price/unrealized P&L when supplied by Moomoo.
+- The calculated after-fee closing balance is the next trading session's opening baseline. Weekends
+  and holidays therefore retain the most recent prior published session rather than creating a new
+  baseline.
+- `FUTUCA` does not expose either `order_fee_query` or account cash-flow queries through OpenD. AXIS
+  therefore calculates USD fees from the configurable current Moomoo Canada public schedule instead
+  of fabricating broker-returned fee data. Defaults are: US options `$0.65/contract`, `$1.00/order`
+  minimum; US stock commission `$0.0049/share`, `$0.99/order` minimum; US stock platform fee
+  `$0.005/share`, `$1.00/order` minimum; and sell-side SEC fee `$0.0000206 × proceeds`, `$0.01/trade`
+  minimum. Split executions from one broker order are charged once after aggregation.
+- The card footer identifies the fee basis. All fee rates are environment-configurable so a broker
+  pricing change does not require business-logic changes; actual broker statements remain the final
+  authority if a third-party charge differs from the published schedule.
 - Daily executions are deliberately omitted from the close summary because buy/sell/close activity is
   already published as live event cards.
 - Missing broker fields display `—`; AXIS never fabricates unavailable values.
