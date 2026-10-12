@@ -303,6 +303,14 @@ async def test_fill_events_classify_buy_partial_sell_and_close() -> None:
     assert event.total_profit_amount == Decimal("648.00")
     assert event.total_return_percent is not None
     assert event.total_return_percent.quantize(Decimal("0.01")) == Decimal("33.20")
+    summary = await service.prepare_daily_summary(date(2026, 10, 7))
+    assert summary is not None
+    assert summary.snapshot["performance"]["closed_count"] == 1
+    assert summary.snapshot["performance"]["win_rate"] == "100"
+    assert Decimal(summary.snapshot["performance"]["average_return"]).quantize(
+        Decimal("0.01")
+    ) == Decimal("33.20")
+    assert summary.snapshot["performance"]["average_loss"] is None
     await database.dispose()
 
 
@@ -445,6 +453,13 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
             }
             for strike in range(100, 106)
         ],
+        "performance": {
+            "closed_count": 3,
+            "win_count": 2,
+            "win_rate": "66.6667",
+            "average_return": "12.345",
+            "average_loss": "-8.5",
+        },
     }
     embeds = daily_summary_embeds(snapshot)
     assert len(embeds) == 2
@@ -452,7 +467,16 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
     assert "今日佣金及费用**　$6.51" in embeds[0].fields[0].value
     assert "扣费前余额**　$1,250.8　+25.08% · +$250.8" in embeds[0].fields[0].value
     assert "扣费后余额**　$1,244.29　**+24.43%** · **+$244.29**" in embeds[0].fields[0].value
-    assert [field.name for field in embeds[0].fields] == ["账户状态", "当前持仓"]
+    assert [field.name for field in embeds[0].fields] == [
+        "账户状态",
+        "胜率",
+        "平均收益率",
+        "平均亏损",
+        "当前持仓",
+    ]
+    assert embeds[0].fields[1].value == "**66.67%**"
+    assert embeds[0].fields[2].value == "**+12.34%**"
+    assert embeds[0].fields[3].value == "**-8.5%**"
     assert "今日成交" not in str(embeds[0].to_dict())
     assert embeds[1].title == "当前持仓 · PAGE 2"
 
@@ -468,6 +492,12 @@ def test_daily_summary_without_positions_explicitly_says_no_positions() -> None:
     )
 
     assert len(embeds) == 1
-    assert [field.name for field in embeds[0].fields] == ["账户状态", "当前持仓"]
-    assert embeds[0].fields[1].value == "无持仓"
+    assert [field.name for field in embeds[0].fields] == [
+        "账户状态",
+        "胜率",
+        "平均收益率",
+        "平均亏损",
+        "当前持仓",
+    ]
+    assert embeds[0].fields[4].value == "无持仓"
     assert "今日成交" not in str(embeds[0].to_dict())

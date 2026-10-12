@@ -168,6 +168,62 @@ def _group_fee(group: dict[str, Any], schedule: MoomooFeeSchedule) -> Decimal:
     return _round_fee(fee)
 
 
+def _closed_trade_returns(
+    fills: tuple[MoomooActivityFill, ...],
+) -> tuple[tuple[datetime, Decimal], ...]:
+    """Return completed long-position cycle returns, keyed by final close time."""
+
+    ledgers: dict[tuple[str, str], dict[str, Decimal]] = {}
+    completed: list[tuple[datetime, Decimal]] = []
+    for item in _group_fills(fills):
+        key = (item["account_ref"], item["instrument_code"])
+        ledger = ledgers.setdefault(
+            key,
+            {
+                "quantity": Decimal("0"),
+                "cost": Decimal("0"),
+                "invested": Decimal("0"),
+                "realized": Decimal("0"),
+            },
+        )
+        quantity = Decimal(str(item["quantity"]))
+        price = Decimal(str(item["fill_price"]))
+        if str(item["side"]).upper().startswith("BUY"):
+            ledger["quantity"] += quantity
+            ledger["cost"] += quantity * price
+            ledger["invested"] += quantity * price
+            continue
+        before_quantity = ledger["quantity"]
+        if before_quantity <= 0:
+            continue
+        entry_price = ledger["cost"] / before_quantity
+        multiplier = (
+            Decimal("100")
+            if _looks_like_option(str(item["instrument_code"]))
+            else Decimal("1")
+        )
+        sold = min(quantity, before_quantity)
+        ledger["realized"] += (price - entry_price) * sold * multiplier
+        ledger["quantity"] = before_quantity - sold
+        ledger["cost"] = ledger["quantity"] * entry_price
+        if ledger["quantity"] > 0:
+            continue
+        if ledger["invested"] > 0:
+            completed.append(
+                (
+                    item["executed_at"],
+                    ledger["realized"]
+                    / (ledger["invested"] * multiplier)
+                    * Decimal("100"),
+                )
+            )
+        ledger["quantity"] = Decimal("0")
+        ledger["cost"] = Decimal("0")
+        ledger["invested"] = Decimal("0")
+        ledger["realized"] = Decimal("0")
+    return tuple(completed)
+
+
 class MoomooActivityService:
     def __init__(
         self,
@@ -431,6 +487,18 @@ class MoomooActivityService:
                     )
                 ).all()
             )
+            all_fills = tuple(
+                (
+                    await session.scalars(
+                        select(MoomooActivityFill)
+                        .where(MoomooActivityFill.guild_id == self.guild_id)
+                        .order_by(
+                            MoomooActivityFill.executed_at.asc(),
+                            MoomooActivityFill.created_at.asc(),
+                        )
+                    )
+                ).all()
+            )
             state = await session.get(MoomooActivityState, self.guild_id)
             latest = dict(state.latest_snapshot if state is not None else {})
             previous = await session.scalar(
@@ -482,6 +550,37 @@ class MoomooActivityService:
                             net_profit / prior * Decimal("100")
                         )
                 accounts.append(current)
+            closed_returns = tuple(
+                value
+                for closed_at, value in _closed_trade_returns(all_fills)
+                if closed_at.astimezone(ET).date() == session_date
+            )
+            winning_returns = tuple(value for value in closed_returns if value > 0)
+            losing_returns = tuple(value for value in closed_returns if value < 0)
+            performance = {
+                "closed_count": len(closed_returns),
+                "win_count": len(winning_returns),
+                "win_rate": (
+                    _number(
+                        Decimal(len(winning_returns))
+                        / Decimal(len(closed_returns))
+                        * Decimal("100")
+                    )
+                    if closed_returns
+                    else None
+                ),
+                "average_return": (
+                    _number(sum(closed_returns, Decimal("0")) / Decimal(len(closed_returns)))
+                    if closed_returns
+                    else None
+                ),
+                "average_loss": (
+                    _number(sum(losing_returns, Decimal("0")) / Decimal(len(losing_returns)))
+                    if losing_returns
+                    else None
+                ),
+                "basis": "CLOSED_CYCLES_BEFORE_FEES",
+            }
             payload = {
                 "session_date": session_date.isoformat(),
                 "fills": [
@@ -496,6 +595,7 @@ class MoomooActivityService:
                     for item in fills
                 ],
                 "accounts": accounts,
+                "performance": performance,
                 "positions": latest.get("positions", []),
             }
             if existing is None:

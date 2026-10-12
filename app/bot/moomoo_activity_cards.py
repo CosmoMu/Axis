@@ -139,6 +139,22 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     session_date = str(snapshot.get("session_date") or "")
     accounts = list(snapshot.get("accounts") or [])
     positions = list(snapshot.get("positions") or [])
+    performance = dict(snapshot.get("performance") or {})
+    win_rate = (
+        _signed_percent(performance.get("win_rate")).lstrip("+")
+        if performance.get("win_rate") is not None
+        else "—"
+    )
+    average_return = (
+        _signed_percent(performance.get("average_return"))
+        if performance.get("average_return") is not None
+        else "—"
+    )
+    average_loss = (
+        _signed_percent(performance.get("average_loss"))
+        if performance.get("average_loss") is not None
+        else "—"
+    )
     change = next(
         (
             Decimal(str(item["post_fee_return_percent"]))
@@ -175,6 +191,21 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
                 )
             lines.append(line)
         first.add_field(name="账户状态", value="\n".join(lines)[:1024], inline=False)
+    first.add_field(
+        name="胜率",
+        value=f"**{win_rate}**" if win_rate != "—" else "—",
+        inline=True,
+    )
+    first.add_field(
+        name="平均收益率",
+        value=f"**{average_return}**" if average_return != "—" else "—",
+        inline=True,
+    )
+    first.add_field(
+        name="平均亏损",
+        value=f"**{average_loss}**" if average_loss != "—" else "—",
+        inline=True,
+    )
     position_lines = [
         (
             f"**{_instrument(str(item['code']))[0]}** × {_number(item.get('quantity'))}"
@@ -190,7 +221,10 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     else:
         first.add_field(name="当前持仓", value="无持仓", inline=False)
     first.set_footer(
-        text="费用按 Moomoo Canada 公开费率计算 · 扣费后余额作为下一交易日基准"
+        text=(
+            "统计仅含当天完整清仓交易且不含费用 · "
+            "费用按 Moomoo Canada 公开费率计算 · 扣费后余额作为下一交易日基准"
+        )
     )
     embeds = [first]
     for offset in range(5, len(position_lines), 5):
@@ -209,6 +243,22 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
     session_date = str(snapshot.get("session_date") or "")
     accounts = list(snapshot.get("accounts") or [])
     positions = list(snapshot.get("positions") or [])
+    performance = dict(snapshot.get("performance") or {})
+    win_rate = (
+        _signed_percent(performance.get("win_rate")).lstrip("+")
+        if performance.get("win_rate") is not None
+        else "—"
+    )
+    average_return = (
+        _signed_percent(performance.get("average_return"))
+        if performance.get("average_return") is not None
+        else "—"
+    )
+    average_loss = (
+        _signed_percent(performance.get("average_loss"))
+        if performance.get("average_loss") is not None
+        else "—"
+    )
     sections = [
         f"**1K 挑战 · 收盘汇总 · {session_date}**\n"
         f"当前持仓 {len(positions)} 项"
@@ -239,6 +289,12 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
                 for item in accounts
             )
         )
+    sections.append(
+        "**今日表现 · 仅完整清仓交易**\n"
+        f"胜率 {win_rate}"
+        f" · 平均收益率 {average_return}"
+        f" · 平均亏损 {average_loss}"
+    )
     if positions:
         sections.append(
             "**当前持仓**\n"
