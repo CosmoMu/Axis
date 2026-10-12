@@ -55,12 +55,16 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 - The card footer identifies the fee basis. All fee rates are environment-configurable so a broker
   pricing change does not require business-logic changes; actual broker statements remain the final
   authority if a third-party charge differs from the published schedule.
-- The summary also shows the session win rate, average return, and average losing return. These
+- The summary also shows the session win rate, average winning return, and average losing return. These
   metrics include only complete position cycles whose final close occurred during that session:
-  profitable closes divided by all closes for win rate, the arithmetic mean of every completed
-  cycle for average return, and the arithmetic mean of losing cycles for average loss. Open positions
+  profitable closes divided by all closes for win rate, the arithmetic mean of profitable completed
+  cycles for average winning return, and the arithmetic mean of losing cycles for average loss. Open positions
   and partial exits are excluded until the position reaches zero. Trade-return metrics are based on
   execution prices before fees because total account performance already presents fees separately.
+- The daily opening balance prefers the actual account snapshot captured at or immediately after
+  `09:29 ET`. This preserves the broker's post-deduction balance before regular-hours movement. When
+  a historical opening snapshot is unavailable, AXIS falls back to the prior close balance minus the
+  prior session's calculated fees; it never silently treats a legacy gross close as a net opening.
 - Daily executions are deliberately omitted from the close summary because buy/sell/close activity is
   already published as live event cards.
 - Missing broker fields display `—`; AXIS never fabricates unavailable values.

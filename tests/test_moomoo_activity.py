@@ -40,8 +40,9 @@ def make_snapshot(
     *,
     orders: tuple[ActivityOrder, ...] = (),
     fills: tuple[ActivityFill, ...] = (),
+    observed_at: datetime | None = None,
 ) -> ActivitySnapshot:
-    now = datetime(2026, 10, 7, 15, 0, tzinfo=UTC)
+    now = observed_at or datetime(2026, 10, 7, 15, 0, tzinfo=UTC)
     return ActivitySnapshot(
         accounts=(
             ActivityAccount(
@@ -191,6 +192,16 @@ async def test_orders_are_not_notified_and_daily_summary_is_idempotent() -> None
 @pytest.mark.asyncio
 async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() -> None:
     database = await make_database()
+    previous_fill = ActivityFill(
+        account_ref=ACCOUNT_REF,
+        broker_fill_id="previous-buy-two",
+        broker_order_id="previous-order-buy-two",
+        instrument_code="US.SPY261009C700000",
+        side="BUY",
+        quantity=Decimal("2"),
+        fill_price=Decimal("2.00"),
+        executed_at=datetime(2026, 10, 6, 15, 1, tzinfo=UTC),
+    )
     fill = ActivityFill(
         account_ref=ACCOUNT_REF,
         broker_fill_id="buy-two",
@@ -211,7 +222,12 @@ async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() 
         fill_price=Decimal("3.00"),
         executed_at=datetime(2026, 10, 7, 15, 2, tzinfo=UTC),
     )
-    reader = FakeActivityReader(make_snapshot(fills=(fill, sell)))
+    reader = FakeActivityReader(
+        make_snapshot(
+            fills=(previous_fill, fill, sell),
+            observed_at=datetime(2026, 10, 7, 13, 0, tzinfo=UTC),
+        )
+    )
     service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
     await service.reconcile()
     async with database.session() as session:
@@ -223,8 +239,7 @@ async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() 
                     "accounts": [
                         {
                             "account": "账户 …cdef",
-                            "equity": "905.00",
-                            "post_fee_equity": "900.00",
+                            "equity": "900.00",
                         }
                     ]
                 },
@@ -237,12 +252,12 @@ async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() 
     claim = await service.prepare_daily_summary(date(2026, 10, 7))
     assert claim is not None
     account = claim.snapshot["accounts"][0]
-    assert account["opening_equity"] == "900.00"
+    assert account["opening_equity"] == "898.70"
     assert account["commission"] == "2.31"
     assert account["pre_fee_equity"] == "1000.00"
     assert account["post_fee_equity"] == "997.69"
-    assert account["pre_fee_profit"] == "100.00"
-    assert account["post_fee_profit"] == "97.69"
+    assert account["pre_fee_profit"] == "101.30"
+    assert account["post_fee_profit"] == "98.99"
     await database.dispose()
 
 
@@ -307,7 +322,7 @@ async def test_fill_events_classify_buy_partial_sell_and_close() -> None:
     assert summary is not None
     assert summary.snapshot["performance"]["closed_count"] == 1
     assert summary.snapshot["performance"]["win_rate"] == "100"
-    assert Decimal(summary.snapshot["performance"]["average_return"]).quantize(
+    assert Decimal(summary.snapshot["performance"]["average_win"]).quantize(
         Decimal("0.01")
     ) == Decimal("33.20")
     assert summary.snapshot["performance"]["average_loss"] is None
@@ -457,20 +472,22 @@ def test_daily_summary_embeds_are_paginated_and_readable() -> None:
             "closed_count": 3,
             "win_count": 2,
             "win_rate": "66.6667",
-            "average_return": "12.345",
+            "average_win": "12.345",
             "average_loss": "-8.5",
         },
     }
     embeds = daily_summary_embeds(snapshot)
     assert len(embeds) == 2
-    assert embeds[0].title == "收盘汇总 · 2026-10-07"
-    assert "今日佣金及费用**　$6.51" in embeds[0].fields[0].value
-    assert "扣费前余额**　$1,250.8　+25.08% · +$250.8" in embeds[0].fields[0].value
-    assert "扣费后余额**　$1,244.29　**+24.43%** · **+$244.29**" in embeds[0].fields[0].value
+    assert embeds[0].title == "1K 挑战 · 收盘总结 · 2026-10-07"
+    assert "日初净值**　$1,000" in embeds[0].fields[0].value
+    assert "收盘净值 · 扣费前**　$1,250.8" in embeds[0].fields[0].value
+    assert "佣金及交易费**　-$6.51" in embeds[0].fields[0].value
+    assert "收盘净值 · 扣费后**　$1,244.29" in embeds[0].fields[0].value
+    assert "今日净收益**　+$244.29　**+24.43%**" in embeds[0].fields[0].value
     assert [field.name for field in embeds[0].fields] == [
         "账户状态",
         "胜率",
-        "平均收益率",
+        "平均盈利",
         "平均亏损",
         "当前持仓",
     ]
@@ -495,7 +512,7 @@ def test_daily_summary_without_positions_explicitly_says_no_positions() -> None:
     assert [field.name for field in embeds[0].fields] == [
         "账户状态",
         "胜率",
-        "平均收益率",
+        "平均盈利",
         "平均亏损",
         "当前持仓",
     ]

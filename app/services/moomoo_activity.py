@@ -315,9 +315,24 @@ class MoomooActivityService:
                     )
                 )
 
+            serialized = self._serialize_snapshot(snapshot)
+            observed_et = snapshot.observed_at.astimezone(ET)
+            prior_snapshot = dict(state.latest_snapshot or {})
+            open_date = prior_snapshot.get("daily_open_date")
+            open_accounts = prior_snapshot.get("daily_open_accounts")
+            if (
+                observed_et.time() >= time(9, 29)
+                and observed_et.time() < time(16, 15)
+                and open_date != observed_et.date().isoformat()
+            ):
+                open_date = observed_et.date().isoformat()
+                open_accounts = serialized["accounts"]
+            if open_date and open_accounts:
+                serialized["daily_open_date"] = open_date
+                serialized["daily_open_accounts"] = open_accounts
             state.initialized_at = state.initialized_at or now
             state.last_reconciled_at = now
-            state.latest_snapshot = self._serialize_snapshot(snapshot)
+            state.latest_snapshot = serialized
             await session.commit()
         return snapshot
 
@@ -461,7 +476,9 @@ class MoomooActivityService:
                     row.notified_at = notified_at
             await session.commit()
 
-    async def prepare_daily_summary(self, session_date: date) -> MoomooDailySummaryClaim | None:
+    async def prepare_daily_summary(
+        self, session_date: date, *, force: bool = False
+    ) -> MoomooDailySummaryClaim | None:
         await self.reconcile()
         start_et = datetime.combine(session_date, time.min, tzinfo=ET)
         end_et = start_et + timedelta(days=1)
@@ -472,7 +489,7 @@ class MoomooActivityService:
                     MoomooActivityDailySummary.session_date == session_date,
                 )
             )
-            if existing is not None and existing.published_at is not None:
+            if existing is not None and existing.published_at is not None and not force:
                 return None
             fills = tuple(
                 (
@@ -510,13 +527,35 @@ class MoomooActivityService:
                 .order_by(MoomooActivityDailySummary.session_date.desc())
                 .limit(1)
             )
-            previous_equity = {
-                str(item.get("account")): Decimal(
-                    str(item.get("post_fee_equity") or item["equity"])
+            previous_equity: dict[str, Decimal] = {}
+            if previous is not None:
+                previous_fills = tuple(
+                    item
+                    for item in all_fills
+                    if item.executed_at.astimezone(ET).date() == previous.session_date
                 )
-                for item in (previous.snapshot_json.get("accounts", []) if previous else [])
-                if item.get("account") and item.get("equity") is not None
-            }
+                previous_fees: dict[str, Decimal] = {}
+                for group in _group_fills(previous_fills):
+                    label = _account_label(str(group["account_ref"]))
+                    previous_fees[label] = previous_fees.get(label, Decimal("0")) + _group_fee(
+                        group, self.fee_schedule
+                    )
+                for item in previous.snapshot_json.get("accounts", []):
+                    account = str(item.get("account") or "")
+                    if not account or item.get("equity") is None:
+                        continue
+                    if item.get("post_fee_equity") is not None:
+                        previous_equity[account] = Decimal(str(item["post_fee_equity"]))
+                    else:
+                        previous_equity[account] = Decimal(str(item["equity"])) - previous_fees.get(
+                            account, Decimal("0")
+                        )
+            if latest.get("daily_open_date") == session_date.isoformat():
+                previous_equity = {
+                    str(item.get("account")): Decimal(str(item["equity"]))
+                    for item in latest.get("daily_open_accounts", [])
+                    if item.get("account") and item.get("equity") is not None
+                }
             fees_by_account: dict[str, Decimal] = {}
             for group in _group_fills(fills):
                 label = _account_label(str(group["account_ref"]))
@@ -569,9 +608,9 @@ class MoomooActivityService:
                     if closed_returns
                     else None
                 ),
-                "average_return": (
-                    _number(sum(closed_returns, Decimal("0")) / Decimal(len(closed_returns)))
-                    if closed_returns
+                "average_win": (
+                    _number(sum(winning_returns, Decimal("0")) / Decimal(len(winning_returns)))
+                    if winning_returns
                     else None
                 ),
                 "average_loss": (

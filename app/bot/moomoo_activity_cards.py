@@ -145,9 +145,9 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         if performance.get("win_rate") is not None
         else "—"
     )
-    average_return = (
-        _signed_percent(performance.get("average_return"))
-        if performance.get("average_return") is not None
+    average_win = (
+        _signed_percent(performance.get("average_win"))
+        if performance.get("average_win") is not None
         else "—"
     )
     average_loss = (
@@ -163,31 +163,36 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         ),
         None,
     )
+    closed_count = int(performance.get("closed_count", 0))
+    win_count = int(performance.get("win_count", 0))
+    loss_count = max(0, closed_count - win_count)
     color = GREEN if change is None or change >= 0 else RED
     first = discord.Embed(
-        title=f"收盘汇总 · {session_date}",
+        title=f"1K 挑战 · 收盘总结 · {session_date}",
         color=color,
-        description=f"当前持仓 **{len(positions)}** 项",
+        description=(
+            f"今日完整交易 **{closed_count}** 笔　·　"
+            f"**{win_count} 胜 {loss_count} 负**"
+        ),
     )
     first.set_author(name="AXIS · 1K 账户挑战")
     if accounts:
         lines = []
         for item in accounts:
-            line = f"**日初（已扣前日费用）**　{_number(item.get('opening_equity'), money=True)}"
-            line += f"\n**今日佣金及费用**　{_number(item.get('commission'), money=True)}"
+            line = f"**日初净值**　{_number(item.get('opening_equity'), money=True)}"
             pre_fee_equity = item.get("pre_fee_equity") or item.get("equity")
             post_fee_equity = item.get("post_fee_equity") or item.get("equity")
-            line += f"\n**扣费前余额**　{_number(pre_fee_equity, money=True)}"
-            if item.get("pre_fee_return_percent") is not None:
-                line += (
-                    f"　{_signed_percent(item['pre_fee_return_percent'])}"
-                    f" · {_signed_money(item.get('pre_fee_profit'))}"
-                )
-            line += f"\n**扣费后余额**　{_number(post_fee_equity, money=True)}"
+            commission = item.get("commission")
+            commission_text = _number(commission, money=True)
+            if commission is not None and Decimal(str(commission)) > 0:
+                commission_text = f"-{commission_text}"
+            line += f"\n**收盘净值 · 扣费前**　{_number(pre_fee_equity, money=True)}"
+            line += f"\n**佣金及交易费**　{commission_text}"
+            line += f"\n**收盘净值 · 扣费后**　{_number(post_fee_equity, money=True)}"
             if item.get("post_fee_return_percent") is not None:
                 line += (
+                    f"\n**今日净收益**　{_signed_money(item.get('post_fee_profit'))}"
                     f"　**{_signed_percent(item['post_fee_return_percent'])}**"
-                    f" · **{_signed_money(item.get('post_fee_profit'))}**"
                 )
             lines.append(line)
         first.add_field(name="账户状态", value="\n".join(lines)[:1024], inline=False)
@@ -197,8 +202,8 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         inline=True,
     )
     first.add_field(
-        name="平均收益率",
-        value=f"**{average_return}**" if average_return != "—" else "—",
+        name="平均盈利",
+        value=f"**{average_win}**" if average_win != "—" else "—",
         inline=True,
     )
     first.add_field(
@@ -249,9 +254,9 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         if performance.get("win_rate") is not None
         else "—"
     )
-    average_return = (
-        _signed_percent(performance.get("average_return"))
-        if performance.get("average_return") is not None
+    average_win = (
+        _signed_percent(performance.get("average_win"))
+        if performance.get("average_win") is not None
         else "—"
     )
     average_loss = (
@@ -292,7 +297,7 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
     sections.append(
         "**今日表现 · 仅完整清仓交易**\n"
         f"胜率 {win_rate}"
-        f" · 平均收益率 {average_return}"
+        f" · 平均盈利 {average_win}"
         f" · 平均亏损 {average_loss}"
     )
     if positions:
