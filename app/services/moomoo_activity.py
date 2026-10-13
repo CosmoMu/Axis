@@ -43,6 +43,8 @@ class MoomooActivityEvent:
     position_fraction: Decimal | None = None
     total_return_percent: Decimal | None = None
     total_profit_amount: Decimal | None = None
+    position_quantity: Decimal | None = None
+    position_average_cost: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -393,10 +395,17 @@ class MoomooActivityService:
                 position_fraction = None
                 total_return_percent = None
                 total_profit_amount = None
+                position_quantity = None
+                position_average_cost = None
                 if is_buy:
+                    before_quantity = ledger["quantity"]
                     ledger["quantity"] += item["quantity"]
                     ledger["cost"] += item["quantity"] * item["fill_price"]
                     ledger["invested"] += item["quantity"] * item["fill_price"]
+                    position_quantity = ledger["quantity"]
+                    position_average_cost = ledger["cost"] / ledger["quantity"]
+                    if before_quantity > 0:
+                        action = "ADD"
                 else:
                     action = "SELL"
                     before_quantity = ledger["quantity"]
@@ -456,6 +465,8 @@ class MoomooActivityService:
                         position_fraction=position_fraction,
                         total_return_percent=total_return_percent,
                         total_profit_amount=total_profit_amount,
+                        position_quantity=position_quantity,
+                        position_average_cost=position_average_cost,
                     )
                 )
             return tuple(events)

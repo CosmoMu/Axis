@@ -70,13 +70,26 @@ def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
     instrument, is_option = _instrument(event.instrument_code)
     unit = "张" if is_option else "股"
     positive = (event.return_percent or event.total_return_percent or Decimal("0")) >= 0
-    if event.action == "BUY":
+    if event.action in {"BUY", "ADD"}:
+        is_add = event.action == "ADD"
         embed = discord.Embed(
-            title=f"买入 · {instrument}",
+            title=f"{'加仓' if is_add else '买入'} · {instrument}",
             description=f"### {_number(event.price, money=True)}",
             color=GREEN,
         )
-        embed.add_field(name="数量", value=f"**{_number(event.quantity)} {unit}**")
+        embed.add_field(
+            name="本次加仓" if is_add else "数量",
+            value=f"**{_number(event.quantity)} {unit}**",
+        )
+        if is_add:
+            embed.add_field(
+                name="当前持仓",
+                value=f"**{_number(event.position_quantity)} {unit}**",
+            )
+            embed.add_field(
+                name="最新均价",
+                value=f"**{_number(event.position_average_cost, money=True)}**",
+            )
     elif event.action == "CLOSE":
         embed = discord.Embed(
             title=f"清仓 · {instrument}",
@@ -112,7 +125,14 @@ def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
 def activity_event_text(event: MoomooActivityEvent) -> str:
     instrument, is_option = _instrument(event.instrument_code)
     unit = "张" if is_option else "股"
-    if event.action == "BUY":
+    if event.action in {"BUY", "ADD"}:
+        if event.action == "ADD":
+            return (
+                f"**加仓** · {instrument} @ {_number(event.price, money=True)}\n"
+                f"本次 {_number(event.quantity)}{unit} · "
+                f"当前 {_number(event.position_quantity)}{unit}\n"
+                f"最新均价 **{_number(event.position_average_cost, money=True)}**"
+            )
         return (
             f"**买入** · {instrument} @ {_number(event.price, money=True)}\n"
             f"{_number(event.quantity)}{unit}"

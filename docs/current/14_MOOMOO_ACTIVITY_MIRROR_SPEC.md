@@ -28,6 +28,10 @@ orders, fills, current positions, and a post-close daily summary into Discord so
 
 - Only actual fills are published; submitted, cancelled, and rejected order states remain internal.
 - Buy fills use a compact `买入 · 合约 @价格 / 数量` card.
+- A later buy for an already-open instrument is classified as `加仓`, not a second opening card. The
+  card shows the new fill quantity, total position quantity after the fill, and the updated
+  quantity-weighted average cost. Split executions sharing one broker order remain one aggregated
+  event and therefore cannot create artificial add-on cards.
 - Partial sell fills use `卖出`, tracked average cost, fill return, quantity, and the fraction sold.
 - A sell that reduces the tracked position to zero uses `清仓` and shows cumulative realized return
   and dollar P/L for that completed contract cycle.

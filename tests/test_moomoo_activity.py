@@ -160,6 +160,55 @@ async def test_split_fills_for_one_order_are_published_as_one_aggregated_event()
 
 
 @pytest.mark.asyncio
+async def test_second_buy_is_add_with_total_position_and_weighted_average() -> None:
+    database = await make_database()
+    reader = FakeActivityReader(make_snapshot())
+    service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
+    await service.reconcile()
+    opening = ActivityFill(
+        account_ref=ACCOUNT_REF,
+        broker_fill_id="opening-buy",
+        broker_order_id="opening-order",
+        instrument_code="US.MSTR261016C400000",
+        side="BUY",
+        quantity=Decimal("2"),
+        fill_price=Decimal("2.00"),
+        executed_at=datetime(2026, 10, 7, 14, 0, tzinfo=UTC),
+    )
+    reader.snapshot = make_snapshot(fills=(opening,))
+    await service.reconcile()
+    opening_event = (await service.pending_events())[0]
+    assert opening_event.action == "BUY"
+    await service.mark_notified(opening_event)
+
+    add = ActivityFill(
+        account_ref=ACCOUNT_REF,
+        broker_fill_id="add-buy",
+        broker_order_id="add-order",
+        instrument_code=opening.instrument_code,
+        side="BUY",
+        quantity=Decimal("3"),
+        fill_price=Decimal("3.00"),
+        executed_at=datetime(2026, 10, 7, 15, 0, tzinfo=UTC),
+    )
+    reader.snapshot = make_snapshot(fills=(opening, add))
+    await service.reconcile()
+    event = (await service.pending_events())[0]
+    assert event.action == "ADD"
+    assert event.quantity == Decimal("3")
+    assert event.position_quantity == Decimal("5")
+    assert event.position_average_cost == Decimal("2.60")
+    embed = activity_event_embed(event)
+    assert embed.title == "加仓 · MSTR 10/16 400C"
+    assert [field.name for field in embed.fields] == ["本次加仓", "当前持仓", "最新均价"]
+    assert embed.fields[1].value == "**5 张**"
+    assert embed.fields[2].value == "**$2.6**"
+    assert "当前 5张" in activity_event_text(event)
+    assert "最新均价 **$2.6**" in activity_event_text(event)
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_orders_are_not_notified_and_daily_summary_is_idempotent() -> None:
     database = await make_database()
     reader = FakeActivityReader(make_snapshot())
