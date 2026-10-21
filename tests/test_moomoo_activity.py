@@ -567,3 +567,45 @@ def test_daily_summary_without_positions_explicitly_says_no_positions() -> None:
     ]
     assert embeds[0].fields[4].value == "无持仓"
     assert "今日成交" not in str(embeds[0].to_dict())
+
+
+def test_daily_summary_groups_butterfly_and_calendar_positions() -> None:
+    embeds = daily_summary_embeds(
+        {
+            "session_date": "2026-10-21",
+            "accounts": [],
+            "performance": {},
+            "positions": [
+                {
+                    "code": "US.META261023C780/800/820",
+                    "quantity": "2",
+                    "average_cost": "0.74",
+                    "current_price": "0.62",
+                    "unrealized_pnl": "-24",
+                    "unrealized_pnl_ratio": "-16.22",
+                    "strategy_type": "BUTTERFLY",
+                    "position_type": "COMBINED",
+                },
+                {
+                    "code": "US.IBM261023C260/261120C260",
+                    "quantity": "1",
+                    "average_cost": "2.8",
+                    "current_price": "2.95",
+                    "unrealized_pnl": "15",
+                    "unrealized_pnl_ratio": "5.36",
+                    "strategy_type": "CALENDAR_SPREAD",
+                    "position_type": "COMBINED",
+                },
+            ],
+        }
+    )
+
+    positions = embeds[0].fields[-1].value
+    assert "META 10/23 780/800/820C · 蝶式" in positions
+    assert "2组" in positions
+    assert "-$24" in positions
+    assert "-16.22%" in positions
+    assert "IBM 10/23–11/20 260C · 日历价差" in positions
+    assert "1组" in positions
+    assert "+$15" in positions
+    assert "+5.36%" in positions

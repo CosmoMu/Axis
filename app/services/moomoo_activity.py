@@ -694,6 +694,11 @@ class MoomooActivityService:
                     "average_cost": _money(item.average_cost),
                     "current_price": _money(item.current_price),
                     "unrealized_pnl": _money(item.unrealized_pnl),
+                    "unrealized_pnl_ratio": _number(item.unrealized_pnl_ratio)
+                    if item.unrealized_pnl_ratio is not None
+                    else None,
+                    "strategy_type": item.strategy_type,
+                    "position_type": item.position_type,
                 }
                 for item in snapshot.positions
             ],

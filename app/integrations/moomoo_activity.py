@@ -36,6 +36,9 @@ class ActivityPosition:
     average_cost: Decimal | None
     current_price: Decimal | None
     unrealized_pnl: Decimal | None
+    unrealized_pnl_ratio: Decimal | None = None
+    strategy_type: str = "SINGLE"
+    position_type: str = "N/A"
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,7 +230,10 @@ class MoomooActivityReader:
         self, context: Any, sdk: dict[str, Any], account_id: int, account_ref: str
     ) -> tuple[ActivityPosition, ...]:
         ret, frame = context.position_list_query(
-            trd_env=self._trd_env(sdk), acc_id=account_id, refresh_cache=True
+            trd_env=self._trd_env(sdk),
+            acc_id=account_id,
+            refresh_cache=True,
+            show_option_strategy_view=True,
         )
         if ret != sdk["RET_OK"]:
             raise PersonalBrokerError("MOOMOO_POSITION_LIST_FAILED")
@@ -235,7 +241,8 @@ class MoomooActivityReader:
         for row in _rows(frame):
             code = str(row.get("code") or "").strip().upper()
             quantity = _quantity(row.get("qty"))
-            if not code or quantity == 0:
+            position_type = _enum_name(row.get("position_type"))
+            if not code or quantity == 0 or position_type == "LEG":
                 continue
             output.append(
                 ActivityPosition(
@@ -244,7 +251,10 @@ class MoomooActivityReader:
                     quantity=quantity,
                     average_cost=_decimal(row.get("average_cost"), allow_zero=False),
                     current_price=_decimal(row.get("nominal_price"), allow_zero=False),
-                    unrealized_pnl=_signed_decimal(row.get("pl_val")),
+                    unrealized_pnl=_signed_decimal(row.get("unrealized_pl")),
+                    unrealized_pnl_ratio=_signed_decimal(row.get("pl_ratio_avg_cost")),
+                    strategy_type=_enum_name(row.get("strategy_type")) or "SINGLE",
+                    position_type=position_type or "N/A",
                 )
             )
         return tuple(output)

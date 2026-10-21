@@ -14,6 +14,12 @@ YELLOW = 0xE2C15B
 RED = 0xE45868
 NEUTRAL = 0x202522
 OPTION_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)$")
+BUTTERFLY_CODE = re.compile(
+    r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+(?:/\d+){2,})$"
+)
+CALENDAR_CODE = re.compile(
+    r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)/(\d{6})([CP])(\d+)$"
+)
 
 
 def _number(value: Decimal | str | None, *, money: bool = False) -> str:
@@ -41,6 +47,57 @@ def _instrument(value: str) -> tuple[str, bool]:
         else f"{strike:f}".rstrip("0").rstrip(".")
     )
     return f"{ticker} {expiry[2:4]}/{expiry[4:6]} {strike_text}{side}", True
+
+
+def _position_instrument(item: dict[str, Any]) -> tuple[str, str]:
+    value = str(item.get("code") or "")
+    strategy_type = str(item.get("strategy_type") or "SINGLE").upper()
+    code = _code(value)
+    calendar = CALENDAR_CODE.fullmatch(code)
+    if calendar is not None:
+        ticker, near_expiry, near_side, near_strike, far_expiry, far_side, far_strike = (
+            calendar.groups()
+        )
+        if near_side == far_side and near_strike == far_strike:
+            return (
+                f"{ticker} {near_expiry[2:4]}/{near_expiry[4:6]}–"
+                f"{far_expiry[2:4]}/{far_expiry[4:6]} {near_strike}{near_side}",
+                "日历价差",
+            )
+    butterfly = BUTTERFLY_CODE.fullmatch(code)
+    if butterfly is not None:
+        ticker, expiry, side, strikes = butterfly.groups()
+        label = "蝶式" if strategy_type == "BUTTERFLY" else strategy_type
+        return f"{ticker} {expiry[2:4]}/{expiry[4:6]} {strikes}{side}", label
+    instrument, _ = _instrument(value)
+    labels = {
+        "BUTTERFLY": "蝶式",
+        "CALENDAR_SPREAD": "日历价差",
+        "IRON_BUTTERFLY": "铁蝶式",
+        "IRON_CONDOR": "铁鹰式",
+        "CONDOR": "鹰式",
+        "DIAGONAL_SPREAD": "对角价差",
+    }
+    return instrument, labels.get(strategy_type, "")
+
+
+def _position_line(item: dict[str, Any]) -> str:
+    instrument, strategy_label = _position_instrument(item)
+    is_strategy = bool(strategy_label)
+    quantity_unit = "组" if is_strategy else (
+        "张" if _instrument(str(item["code"]))[1] else "股"
+    )
+    pnl_ratio = item.get("unrealized_pnl_ratio")
+    line = (
+        f"**{instrument}{f' · {strategy_label}' if strategy_label else ''}** × "
+        f"{_number(item.get('quantity'))}{quantity_unit}\n"
+        f"成本 {_number(item.get('average_cost'), money=True)}　·　"
+        f"现价 {_number(item.get('current_price'), money=True)}　·　"
+        f"**{_signed_money(item.get('unrealized_pnl'))}**"
+    )
+    if pnl_ratio is not None:
+        line += f"　**{_signed_percent(pnl_ratio)}**"
+    return line
 
 
 def _signed_percent(value: Decimal | str | None) -> str:
@@ -231,16 +288,9 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
         value=f"**{average_loss}**" if average_loss != "—" else "—",
         inline=True,
     )
-    position_lines = [
-        (
-            f"**{_instrument(str(item['code']))[0]}** × {_number(item.get('quantity'))}"
-            f"{'张' if _instrument(str(item['code']))[1] else '股'}\n"
-            f"成本 {_number(item.get('average_cost'), money=True)}　·　"
-            f"现价 {_number(item.get('current_price'), money=True)}　·　"
-            f"**{_signed_money(item.get('unrealized_pnl'))}**"
-        )
-        for item in positions
-    ]
+    position_lines = []
+    for item in positions:
+        position_lines.append(_position_line(item))
     if position_lines:
         first.add_field(name="当前持仓", value="\n\n".join(position_lines[:5])[:1024], inline=False)
     else:
@@ -323,14 +373,7 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
     if positions:
         sections.append(
             "**当前持仓**\n"
-            + "\n".join(
-                f"{_instrument(str(item['code']))[0]} × {_number(item.get('quantity'))}"
-                f"{'张' if _instrument(str(item['code']))[1] else '股'}\n"
-                f"成本 {_number(item.get('average_cost'), money=True)}\n"
-                f"现价 {_number(item.get('current_price'), money=True)}\n"
-                f"浮动盈亏 {_signed_money(item.get('unrealized_pnl'))}"
-                for item in positions
-            )
+            + "\n".join(_position_line(item) for item in positions)
         )
     else:
         sections.append("**当前持仓**\n无持仓")
