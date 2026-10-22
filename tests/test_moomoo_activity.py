@@ -3,9 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
+from app.bot.cogs.moomoo_activity import MoomooActivityCog
 from app.bot.moomoo_activity_cards import (
     activity_event_embed,
     activity_event_text,
@@ -609,3 +611,37 @@ def test_daily_summary_groups_butterfly_and_calendar_positions() -> None:
     assert "1组" in positions
     assert "+$15" in positions
     assert "+5.36%" in positions
+
+
+@pytest.mark.asyncio
+async def test_activity_dispatch_finds_existing_event_by_title_and_timestamp() -> None:
+    occurred_at = datetime(2026, 10, 22, 18, 6, 30, 394000, tzinfo=UTC)
+    embed = activity_event_embed(
+        MoomooActivityEvent(
+            kind="FILL",
+            record_id=uuid.uuid4(),
+            account_label="账户 TEST-8070",
+            instrument_code="US.SPXW261022C7680000",
+            side="BUY",
+            quantity=Decimal("1"),
+            price=Decimal("1.05"),
+            status=None,
+            occurred_at=occurred_at,
+            action="BUY",
+        )
+    )
+    existing = SimpleNamespace(
+        author=SimpleNamespace(id=123),
+        embeds=[embed],
+    )
+
+    class FakeChannel:
+        async def history(self, *, limit: int):
+            assert limit == 100
+            yield existing
+
+    cog = object.__new__(MoomooActivityCog)
+    cog.bot = SimpleNamespace(user=SimpleNamespace(id=123))
+    found = await cog._find_existing_event(FakeChannel(), embed)
+
+    assert found is existing

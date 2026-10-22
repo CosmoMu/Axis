@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from contextlib import suppress
 from datetime import UTC, datetime
 
 import discord
@@ -31,6 +33,7 @@ class MoomooActivityCog(commands.Cog):
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.summary_hhmm = summary_hhmm
+        self.reconcile_seconds = reconcile_seconds
         self.calendar = TradingCalendarService()
         self._failure_active = False
         self.reconcile_loop.change_interval(seconds=reconcile_seconds)
@@ -44,28 +47,39 @@ class MoomooActivityCog(commands.Cog):
     @tasks.loop(seconds=15)
     async def reconcile_loop(self) -> None:
         try:
-            await self.service.reconcile()
-            await self._dispatch_pending()
+            await asyncio.wait_for(
+                self.service.reconcile(),
+                timeout=max(20, self.reconcile_seconds * 2),
+            )
+            await asyncio.wait_for(self._dispatch_pending(), timeout=45)
             if self._failure_active:
-                await report_system_recovery(
-                    self.bot,
-                    service="Moomoo 1K Challenge Mirror",
-                    error_type="MOOMOO_ACTIVITY_MIRROR_FAILED",
-                    affected="1K challenge read-only synchronization",
-                )
+                with suppress(Exception):
+                    await asyncio.wait_for(
+                        report_system_recovery(
+                            self.bot,
+                            service="Moomoo 1K Challenge Mirror",
+                            error_type="MOOMOO_ACTIVITY_MIRROR_FAILED",
+                            affected="1K challenge read-only synchronization",
+                        ),
+                        timeout=15,
+                    )
                 self._failure_active = False
         except Exception as exc:
             code = str(getattr(exc, "code", type(exc).__name__))[:200]
             logger.warning("event=moomoo_activity_reconcile_failed code=%s", code)
             if not self._failure_active:
-                await report_system_failure(
-                    self.bot,
-                    severity="ERROR",
-                    service="Moomoo 1K Challenge Mirror",
-                    error_type="MOOMOO_ACTIVITY_MIRROR_FAILED",
-                    affected="1K challenge read-only synchronization",
-                    detail=code,
-                )
+                with suppress(Exception):
+                    await asyncio.wait_for(
+                        report_system_failure(
+                            self.bot,
+                            severity="ERROR",
+                            service="Moomoo 1K Challenge Mirror",
+                            error_type="MOOMOO_ACTIVITY_MIRROR_FAILED",
+                            affected="1K challenge read-only synchronization",
+                            detail=code,
+                        ),
+                        timeout=15,
+                    )
             self._failure_active = True
 
     @reconcile_loop.before_loop
@@ -115,8 +129,33 @@ class MoomooActivityCog(commands.Cog):
     async def _dispatch_pending(self) -> None:
         channel = await self._channel()
         for event in await self.service.pending_events():
-            await channel.send(
-                embed=activity_event_embed(event),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            await self.service.mark_notified(event)
+            embed = activity_event_embed(event)
+            message = await self._find_existing_event(channel, embed)
+            if message is None:
+                message = await asyncio.wait_for(
+                    channel.send(
+                        embed=embed,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    ),
+                    timeout=20,
+                )
+            await asyncio.wait_for(self.service.mark_notified(event), timeout=20)
+
+    async def _find_existing_event(
+        self, channel: discord.abc.Messageable, embed: discord.Embed
+    ) -> discord.Message | None:
+        history = getattr(channel, "history", None)
+        if history is None:
+            return None
+        bot_user = self.bot.user
+        async for message in history(limit=100):
+            if bot_user is not None and message.author.id != bot_user.id:
+                continue
+            for candidate in message.embeds:
+                if candidate.title != embed.title:
+                    continue
+                if candidate.timestamp is None or embed.timestamp is None:
+                    continue
+                if abs((candidate.timestamp - embed.timestamp).total_seconds()) < 1:
+                    return message
+        return None
