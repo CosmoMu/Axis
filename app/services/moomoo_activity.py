@@ -22,6 +22,15 @@ from app.integrations.moomoo_activity import ActivitySnapshot, MoomooActivityRea
 
 ET = ZoneInfo("America/New_York")
 OPTION_CODE = re.compile(r"^(?:US\.)?[A-Z]+\d{6}[CP]\d+$")
+OPTION_PARTS = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)$")
+
+
+@dataclass(frozen=True, slots=True)
+class MoomooActivityStrategyLeg:
+    instrument_code: str
+    side: str
+    quantity: Decimal
+    price: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +54,10 @@ class MoomooActivityEvent:
     total_profit_amount: Decimal | None = None
     position_quantity: Decimal | None = None
     position_average_cost: Decimal | None = None
+    strategy_type: str | None = None
+    strategy_display: str | None = None
+    strategy_price_kind: str | None = None
+    strategy_legs: tuple[MoomooActivityStrategyLeg, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +130,7 @@ def _group_fills(
             {
                 "record_ids": [],
                 "account_ref": fill.account_ref,
+                "broker_order_id": broker_key,
                 "instrument_code": fill.instrument_code,
                 "side": fill.side,
                 "quantity": Decimal("0"),
@@ -134,6 +148,113 @@ def _group_fills(
         group["fill_price"] = group["notional"] / quantity
         group["record_ids"] = tuple(group["record_ids"])
         output.append(group)
+    return tuple(sorted(output, key=lambda item: item["executed_at"]))
+
+
+def _parse_option_contract(code: str) -> tuple[str, str, str, Decimal] | None:
+    match = OPTION_PARTS.fullmatch(code.strip().upper())
+    if match is None:
+        return None
+    ticker, expiry, option_type, strike_raw = match.groups()
+    return ticker, expiry, option_type, Decimal(strike_raw) / Decimal("1000")
+
+
+def _strike_text(value: Decimal) -> str:
+    return format(value.normalize(), "f")
+
+
+def _combine_butterfly_order(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Recognize a three-leg 1:-2:1 option butterfly from one broker order."""
+
+    if len(items) != 3:
+        return None
+    parsed = [_parse_option_contract(str(item["instrument_code"])) for item in items]
+    if any(item is None for item in parsed):
+        return None
+    contracts = [item for item in parsed if item is not None]
+    ticker, expiry, option_type, _ = contracts[0]
+    if any(item[:3] != (ticker, expiry, option_type) for item in contracts):
+        return None
+    ordered = sorted(zip(items, contracts, strict=True), key=lambda item: item[1][3])
+    low, middle, high = ordered
+    if middle[1][3] - low[1][3] != high[1][3] - middle[1][3]:
+        return None
+    wing_quantity = Decimal(str(low[0]["quantity"]))
+    if (
+        wing_quantity <= 0
+        or Decimal(str(high[0]["quantity"])) != wing_quantity
+        or Decimal(str(middle[0]["quantity"])) != wing_quantity * Decimal("2")
+    ):
+        return None
+
+    low_buy = str(low[0]["side"]).upper().startswith("BUY")
+    middle_buy = str(middle[0]["side"]).upper().startswith("BUY")
+    high_buy = str(high[0]["side"]).upper().startswith("BUY")
+    if low_buy and not middle_buy and high_buy:
+        side = "BUY"
+    elif not low_buy and middle_buy and not high_buy:
+        side = "SELL"
+    else:
+        return None
+
+    buy_notional = sum(
+        Decimal(str(item["quantity"])) * Decimal(str(item["fill_price"]))
+        for item, _ in ordered
+        if str(item["side"]).upper().startswith("BUY")
+    )
+    sell_notional = sum(
+        Decimal(str(item["quantity"])) * Decimal(str(item["fill_price"]))
+        for item, _ in ordered
+        if str(item["side"]).upper().startswith("SELL")
+    )
+    net_debit = buy_notional - sell_notional
+    price_kind = "DEBIT" if net_debit >= 0 else "CREDIT"
+    strategy_price = abs(net_debit) / wing_quantity
+    strikes = "/".join(_strike_text(item[1][3]) for item in ordered)
+    display = f"{ticker} {expiry[2:4]}/{expiry[4:6]} {strikes}{option_type}"
+    canonical_code = f"US.{ticker}{expiry}{option_type}{strikes}"
+    record_ids = tuple(record_id for item, _ in ordered for record_id in item["record_ids"])
+    return {
+        "record_ids": record_ids,
+        "account_ref": low[0]["account_ref"],
+        "broker_order_id": low[0]["broker_order_id"],
+        "instrument_code": canonical_code,
+        "side": side,
+        "quantity": wing_quantity,
+        "fill_price": strategy_price,
+        "executed_at": max(item[0]["executed_at"] for item in ordered),
+        "strategy_type": "BUTTERFLY",
+        "strategy_display": display,
+        "strategy_price_kind": price_kind,
+        "strategy_legs": tuple(
+            MoomooActivityStrategyLeg(
+                instrument_code=str(item[0]["instrument_code"]),
+                side=str(item[0]["side"]),
+                quantity=Decimal(str(item[0]["quantity"])),
+                price=Decimal(str(item[0]["fill_price"])),
+            )
+            for item in ordered
+        ),
+    }
+
+
+def _group_activity_fills(
+    fills: tuple[MoomooActivityFill, ...],
+) -> tuple[dict[str, Any], ...]:
+    """Group split executions and merge recognized multi-leg strategy orders."""
+
+    grouped = _group_fills(fills)
+    by_order: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in grouped:
+        key = (str(item["account_ref"]), str(item["broker_order_id"]))
+        by_order.setdefault(key, []).append(item)
+    output: list[dict[str, Any]] = []
+    for items in by_order.values():
+        butterfly = _combine_butterfly_order(items)
+        if butterfly is not None:
+            output.append(butterfly)
+        else:
+            output.extend(items)
     return tuple(sorted(output, key=lambda item: item["executed_at"]))
 
 
@@ -177,7 +298,7 @@ def _closed_trade_returns(
 
     ledgers: dict[tuple[str, str], dict[str, Decimal]] = {}
     completed: list[tuple[datetime, Decimal]] = []
-    for item in _group_fills(fills):
+    for item in _group_activity_fills(fills):
         key = (item["account_ref"], item["instrument_code"])
         ledger = ledgers.setdefault(
             key,
@@ -201,7 +322,7 @@ def _closed_trade_returns(
         entry_price = ledger["cost"] / before_quantity
         multiplier = (
             Decimal("100")
-            if _looks_like_option(str(item["instrument_code"]))
+            if (item.get("strategy_type") or _looks_like_option(str(item["instrument_code"])))
             else Decimal("1")
         )
         sold = min(quantity, before_quantity)
@@ -214,9 +335,7 @@ def _closed_trade_returns(
             completed.append(
                 (
                     item["executed_at"],
-                    ledger["realized"]
-                    / (ledger["invested"] * multiplier)
-                    * Decimal("100"),
+                    ledger["realized"] / (ledger["invested"] * multiplier) * Decimal("100"),
                 )
             )
         ledger["quantity"] = Decimal("0")
@@ -372,7 +491,7 @@ class MoomooActivityService:
             pending_ids = {item.id for item in pending}
             events: list[MoomooActivityEvent] = []
             ledgers: dict[tuple[str, str], dict[str, Decimal]] = {}
-            for item in _group_fills(all_fills):
+            for item in _group_activity_fills(all_fills):
                 key = (item["account_ref"], item["instrument_code"])
                 ledger = ledgers.setdefault(
                     key,
@@ -385,9 +504,7 @@ class MoomooActivityService:
                 )
                 is_buy = item["side"].upper().startswith("BUY")
                 entry_price = (
-                    ledger["cost"] / ledger["quantity"]
-                    if ledger["quantity"] > 0
-                    else None
+                    ledger["cost"] / ledger["quantity"] if ledger["quantity"] > 0 else None
                 )
                 action = "BUY"
                 return_percent = None
@@ -411,7 +528,9 @@ class MoomooActivityService:
                     before_quantity = ledger["quantity"]
                     multiplier = (
                         Decimal("100")
-                        if _looks_like_option(item["instrument_code"])
+                        if (
+                            item.get("strategy_type") or _looks_like_option(item["instrument_code"])
+                        )
                         else Decimal("1")
                     )
                     if entry_price is not None:
@@ -419,15 +538,11 @@ class MoomooActivityService:
                             (item["fill_price"] - entry_price) / entry_price * Decimal("100")
                         )
                         profit_amount = (
-                            (item["fill_price"] - entry_price)
-                            * item["quantity"]
-                            * multiplier
+                            (item["fill_price"] - entry_price) * item["quantity"] * multiplier
                         )
                         ledger["realized"] += profit_amount
                     if before_quantity > 0:
-                        position_fraction = min(
-                            Decimal("1"), item["quantity"] / before_quantity
-                        )
+                        position_fraction = min(Decimal("1"), item["quantity"] / before_quantity)
                         sold = min(item["quantity"], before_quantity)
                         ledger["quantity"] = before_quantity - sold
                         if entry_price is not None:
@@ -467,6 +582,10 @@ class MoomooActivityService:
                         total_profit_amount=total_profit_amount,
                         position_quantity=position_quantity,
                         position_average_cost=position_average_cost,
+                        strategy_type=item.get("strategy_type"),
+                        strategy_display=item.get("strategy_display"),
+                        strategy_price_kind=item.get("strategy_price_kind"),
+                        strategy_legs=tuple(item.get("strategy_legs") or ()),
                     )
                 )
             return tuple(events)
@@ -477,9 +596,7 @@ class MoomooActivityService:
                 record_ids = event.record_ids or (event.record_id,)
                 rows = list(
                     await session.scalars(
-                        select(MoomooActivityFill).where(
-                            MoomooActivityFill.id.in_(record_ids)
-                        )
+                        select(MoomooActivityFill).where(MoomooActivityFill.id.in_(record_ids))
                     )
                 )
                 notified_at = utc_now()
@@ -662,9 +779,7 @@ class MoomooActivityService:
             await session.commit()
             return MoomooDailySummaryClaim(existing.id, session_date, payload)
 
-    async def mark_summary_published(
-        self, summary_id: uuid.UUID, message_ids: list[int]
-    ) -> None:
+    async def mark_summary_published(self, summary_id: uuid.UUID, message_ids: list[int]) -> None:
         async with self.database.session() as session:
             summary = await session.get(MoomooActivityDailySummary, summary_id)
             if summary is None:

@@ -162,6 +162,123 @@ async def test_split_fills_for_one_order_are_published_as_one_aggregated_event()
 
 
 @pytest.mark.asyncio
+async def test_butterfly_order_is_published_as_one_strategy_event() -> None:
+    database = await make_database()
+    reader = FakeActivityReader(make_snapshot())
+    service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
+    await service.reconcile()
+    executed_at = datetime(2026, 10, 27, 18, 12, 5, 867000, tzinfo=UTC)
+    order_id = "butterfly-order"
+    fills = (
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-high",
+            broker_order_id=order_id,
+            instrument_code="US.SPXW261027C7745000",
+            side="BUY",
+            quantity=Decimal("1"),
+            fill_price=Decimal("0.17"),
+            executed_at=executed_at,
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-middle",
+            broker_order_id=order_id,
+            instrument_code="US.SPXW261027C7730000",
+            side="SELL_SHORT",
+            quantity=Decimal("2"),
+            fill_price=Decimal("0.72"),
+            executed_at=executed_at,
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-low",
+            broker_order_id=order_id,
+            instrument_code="US.SPXW261027C7715000",
+            side="BUY",
+            quantity=Decimal("1"),
+            fill_price=Decimal("6.27"),
+            executed_at=executed_at,
+        ),
+    )
+    reader.snapshot = make_snapshot(fills=fills)
+    await service.reconcile()
+
+    events = await service.pending_events()
+    assert len(events) == 1
+    event = events[0]
+    assert event.strategy_type == "BUTTERFLY"
+    assert event.strategy_display == "SPXW 10/27 7715/7730/7745C"
+    assert event.strategy_price_kind == "DEBIT"
+    assert event.action == "BUY"
+    assert event.quantity == Decimal("1")
+    assert event.price == Decimal("5.00")
+    assert len(event.record_ids) == 3
+
+    embed = activity_event_embed(event)
+    assert embed.title == "买入 · SPXW 10/27 蝶式策略"
+    assert "7715/7730/7745C" in (embed.description or "")
+    assert "净成本 $5 / 组" in (embed.description or "")
+    assert [field.name for field in embed.fields] == ["策略数量", "总投入", "组合结构"]
+    assert embed.fields[0].value == "**1 组**"
+    assert embed.fields[1].value == "**$500**"
+    assert "买 1×7715C" in embed.fields[2].value
+    assert "卖 2×7730C" in embed.fields[2].value
+    assert "买 1×7745C" in embed.fields[2].value
+
+    await service.mark_notified(event)
+    assert await service.pending_events() == ()
+
+    closed_at = datetime(2026, 10, 27, 18, 16, 53, 415000, tzinfo=UTC)
+    close_order_id = "butterfly-close-order"
+    closing_fills = (
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-close-high",
+            broker_order_id=close_order_id,
+            instrument_code="US.SPXW261027C7745000",
+            side="SELL",
+            quantity=Decimal("1"),
+            fill_price=Decimal("0.22"),
+            executed_at=closed_at,
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-close-middle",
+            broker_order_id=close_order_id,
+            instrument_code="US.SPXW261027C7730000",
+            side="BUY_BACK",
+            quantity=Decimal("2"),
+            fill_price=Decimal("0.92"),
+            executed_at=closed_at,
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="butterfly-close-low",
+            broker_order_id=close_order_id,
+            instrument_code="US.SPXW261027C7715000",
+            side="SELL",
+            quantity=Decimal("1"),
+            fill_price=Decimal("7.42"),
+            executed_at=closed_at,
+        ),
+    )
+    reader.snapshot = make_snapshot(fills=fills + closing_fills)
+    await service.reconcile()
+
+    close_event = (await service.pending_events())[0]
+    assert close_event.action == "CLOSE"
+    assert close_event.price == Decimal("5.80")
+    assert close_event.total_profit_amount == Decimal("80.00")
+    assert close_event.total_return_percent == Decimal("16.00")
+    close_embed = activity_event_embed(close_event)
+    assert close_embed.title == "清仓 · SPXW 10/27 蝶式策略"
+    assert "+16%" in (close_embed.description or "")
+    assert "+$80" in (close_embed.description or "")
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_second_buy_is_add_with_total_position_and_weighted_average() -> None:
     database = await make_database()
     reader = FakeActivityReader(make_snapshot())

@@ -14,12 +14,8 @@ YELLOW = 0xE2C15B
 RED = 0xE45868
 NEUTRAL = 0x202522
 OPTION_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)$")
-BUTTERFLY_CODE = re.compile(
-    r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+(?:/\d+){2,})$"
-)
-CALENDAR_CODE = re.compile(
-    r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)/(\d{6})([CP])(\d+)$"
-)
+BUTTERFLY_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+(?:/\d+){2,})$")
+CALENDAR_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)/(\d{6})([CP])(\d+)$")
 
 
 def _number(value: Decimal | str | None, *, money: bool = False) -> str:
@@ -84,9 +80,7 @@ def _position_instrument(item: dict[str, Any]) -> tuple[str, str]:
 def _position_line(item: dict[str, Any]) -> str:
     instrument, strategy_label = _position_instrument(item)
     is_strategy = bool(strategy_label)
-    quantity_unit = "组" if is_strategy else (
-        "张" if _instrument(str(item["code"]))[1] else "股"
-    )
+    quantity_unit = "组" if is_strategy else ("张" if _instrument(str(item["code"]))[1] else "股")
     pnl_ratio = item.get("unrealized_pnl_ratio")
     line = (
         f"**{instrument}{f' · {strategy_label}' if strategy_label else ''}** × "
@@ -123,7 +117,85 @@ def _position_fraction(value: Decimal | None) -> str | None:
     return f"{fraction.numerator}/{fraction.denominator} 仓位"
 
 
+def _strategy_identity(event: MoomooActivityEvent) -> tuple[str, str]:
+    display = event.strategy_display or _code(event.instrument_code)
+    ticker, expiry, contracts = (display.split(" ", 2) + ["", ""])[:3]
+    heading = " ".join(item for item in (ticker, expiry) if item)
+    return heading or display, contracts
+
+
+def _strategy_structure(event: MoomooActivityEvent) -> str:
+    parts = []
+    for leg in event.strategy_legs:
+        instrument, _ = _instrument(leg.instrument_code)
+        contract = instrument.rsplit(" ", 1)[-1]
+        verb = "买" if leg.side.upper().startswith("BUY") else "卖"
+        parts.append(f"**{verb} {_number(leg.quantity)}×{contract}**")
+    return "　·　".join(parts)
+
+
+def _strategy_total(event: MoomooActivityEvent) -> Decimal | None:
+    if event.price is None:
+        return None
+    return event.price * event.quantity * Decimal("100")
+
+
+def _strategy_event_embed(event: MoomooActivityEvent) -> discord.Embed:
+    heading, contracts = _strategy_identity(event)
+    action_label = {
+        "BUY": "买入",
+        "ADD": "加仓",
+        "SELL": "卖出",
+        "CLOSE": "清仓",
+    }.get(event.action, event.action)
+    positive = (event.return_percent or event.total_return_percent or Decimal("0")) >= 0
+    if event.action == "CLOSE":
+        description = (
+            f"**{contracts}**\n"
+            "**策略总收益**\n"
+            f"## {_signed_percent(event.total_return_percent)}"
+            f"　{_signed_money(event.total_profit_amount)}"
+        )
+        color = GREEN if positive else RED
+    elif event.action == "SELL":
+        description = (
+            f"**{contracts}**\n"
+            f"## {_signed_percent(event.return_percent)}\n"
+            f"{_number(event.entry_price, money=True)}  →  "
+            f"**{_number(event.price, money=True)}**"
+        )
+        color = YELLOW if positive else RED
+    else:
+        price_label = "净成本" if event.strategy_price_kind == "DEBIT" else "净收款"
+        description = f"**{contracts}**\n### {price_label} {_number(event.price, money=True)} / 组"
+        color = GREEN
+    embed = discord.Embed(
+        title=f"{action_label} · {heading} 蝶式策略",
+        description=description,
+        color=color,
+    )
+    embed.add_field(name="策略数量", value=f"**{_number(event.quantity)} 组**")
+    total = _strategy_total(event)
+    if event.action in {"BUY", "ADD"}:
+        total_label = "总投入" if event.strategy_price_kind == "DEBIT" else "总收款"
+        embed.add_field(name=total_label, value=f"**{_number(total, money=True)}**")
+    elif event.action == "CLOSE":
+        embed.add_field(name="平仓价格", value=f"**{_number(event.price, money=True)} / 组**")
+    else:
+        embed.add_field(name="卖出价格", value=f"**{_number(event.price, money=True)} / 组**")
+    structure = _strategy_structure(event)
+    if structure:
+        embed.add_field(name="组合结构", value=structure, inline=False)
+    if event.occurred_at is not None:
+        embed.timestamp = event.occurred_at
+    embed.set_author(name="AXIS · 1K 账户挑战")
+    embed.set_footer(text="Moomoo 只读同步 · 多腿组合已合并")
+    return embed
+
+
 def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
+    if event.strategy_type == "BUTTERFLY":
+        return _strategy_event_embed(event)
     instrument, is_option = _instrument(event.instrument_code)
     unit = "张" if is_option else "股"
     positive = (event.return_percent or event.total_return_percent or Decimal("0")) >= 0
@@ -180,6 +252,22 @@ def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
 
 
 def activity_event_text(event: MoomooActivityEvent) -> str:
+    if event.strategy_type == "BUTTERFLY":
+        heading, contracts = _strategy_identity(event)
+        action_label = {
+            "BUY": "买入",
+            "ADD": "加仓",
+            "SELL": "卖出",
+            "CLOSE": "清仓",
+        }.get(event.action, event.action)
+        price_label = "净成本" if event.strategy_price_kind == "DEBIT" else "净收款"
+        return (
+            f"**{action_label} · {heading} 蝶式策略**\n"
+            f"{contracts}\n"
+            f"{price_label} **{_number(event.price, money=True)} / 组**"
+            f" · {_number(event.quantity)}组\n"
+            f"{_strategy_structure(event)}"
+        )
     instrument, is_option = _instrument(event.instrument_code)
     unit = "张" if is_option else "股"
     if event.action in {"BUY", "ADD"}:
@@ -247,10 +335,7 @@ def daily_summary_embeds(snapshot: dict[str, Any]) -> list[discord.Embed]:
     first = discord.Embed(
         title=f"1K 挑战 · 收盘总结 · {session_date}",
         color=color,
-        description=(
-            f"今日完整交易 **{closed_count}** 笔　·　"
-            f"**{win_count} 胜 {loss_count} 负**"
-        ),
+        description=(f"今日完整交易 **{closed_count}** 笔　·　**{win_count} 胜 {loss_count} 负**"),
     )
     first.set_author(name="AXIS · 1K 账户挑战")
     if accounts:
@@ -334,10 +419,7 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         if performance.get("average_loss") is not None
         else "—"
     )
-    sections = [
-        f"**1K 挑战 · 收盘汇总 · {session_date}**\n"
-        f"当前持仓 {len(positions)} 项"
-    ]
+    sections = [f"**1K 挑战 · 收盘汇总 · {session_date}**\n当前持仓 {len(positions)} 项"]
     if accounts:
         sections.append(
             "**账户状态**\n"
@@ -371,10 +453,7 @@ def daily_summary_messages(snapshot: dict[str, Any]) -> list[str]:
         f" · 平均亏损 {average_loss}"
     )
     if positions:
-        sections.append(
-            "**当前持仓**\n"
-            + "\n".join(_position_line(item) for item in positions)
-        )
+        sections.append("**当前持仓**\n" + "\n".join(_position_line(item) for item in positions))
     else:
         sections.append("**当前持仓**\n无持仓")
     pages: list[str] = []
