@@ -103,9 +103,27 @@ class MoomooActivityReader:
         self.security_firm = security_firm.strip().upper()
         self.account_type = account_type.strip().upper()
         self.account_ids = frozenset(item.strip() for item in account_ids if item.strip())
+        self._snapshot_task: asyncio.Task[ActivitySnapshot] | None = None
+        self._snapshot_task_lock = asyncio.Lock()
 
     async def read_snapshot(self) -> ActivitySnapshot:
-        return await asyncio.to_thread(self._read_snapshot_sync)
+        # ``asyncio.to_thread`` cannot stop a blocking SDK connection attempt when
+        # its awaiting coroutine is cancelled.  The reconcile loop deliberately
+        # times out slow OpenD reads, so starting a fresh thread after every
+        # timeout would leak connections until OpenD and the bot are saturated.
+        # Keep one in-flight SDK read and let later reconciles share it.
+        async with self._snapshot_task_lock:
+            task = self._snapshot_task
+            if task is None or task.done():
+                task = asyncio.create_task(asyncio.to_thread(self._read_snapshot_sync))
+                self._snapshot_task = task
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done():
+                async with self._snapshot_task_lock:
+                    if self._snapshot_task is task:
+                        self._snapshot_task = None
 
     def _sdk(self) -> dict[str, Any]:
         try:

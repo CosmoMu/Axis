@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -17,12 +19,14 @@ from app.bot.moomoo_activity_cards import (
 from app.db.base import Base
 from app.db.models import GuildConfig, MoomooActivityDailySummary
 from app.db.session import Database
+from app.domain.personal_execution import PersonalBrokerEnvironment
 from app.integrations.moomoo_activity import (
     ActivityAccount,
     ActivityFill,
     ActivityOrder,
     ActivityPosition,
     ActivitySnapshot,
+    MoomooActivityReader,
 )
 from app.services.moomoo_activity import MoomooActivityEvent, MoomooActivityService
 
@@ -36,6 +40,41 @@ class FakeActivityReader:
 
     async def read_snapshot(self) -> ActivitySnapshot:
         return self.snapshot
+
+
+@pytest.mark.asyncio
+async def test_activity_reader_reuses_blocking_sdk_read_after_timeout() -> None:
+    reader = MoomooActivityReader(
+        host="127.0.0.1",
+        port=11111,
+        environment=PersonalBrokerEnvironment.REAL,
+        security_firm="FUTUCA",
+    )
+    started = threading.Event()
+    release = threading.Event()
+    calls = 0
+    expected = make_snapshot()
+
+    def blocking_read() -> ActivitySnapshot:
+        nonlocal calls
+        calls += 1
+        started.set()
+        release.wait(timeout=2)
+        return expected
+
+    reader._read_snapshot_sync = blocking_read  # type: ignore[method-assign]
+    first = asyncio.create_task(reader.read_snapshot())
+    assert await asyncio.to_thread(started.wait, 1)
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+
+    second = asyncio.create_task(reader.read_snapshot())
+    await asyncio.sleep(0.05)
+    assert calls == 1
+    release.set()
+    assert await second == expected
+    assert calls == 1
 
 
 def make_snapshot(
