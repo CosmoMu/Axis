@@ -238,6 +238,75 @@ def _combine_butterfly_order(items: list[dict[str, Any]]) -> dict[str, Any] | No
     }
 
 
+def _combine_vertical_order(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Recognize a two-leg, equal-size vertical option spread from one order."""
+
+    if len(items) != 2:
+        return None
+    parsed = [_parse_option_contract(str(item["instrument_code"])) for item in items]
+    if any(item is None for item in parsed):
+        return None
+    contracts = [item for item in parsed if item is not None]
+    ticker, expiry, option_type, _ = contracts[0]
+    if any(item[:3] != (ticker, expiry, option_type) for item in contracts):
+        return None
+    if contracts[0][3] == contracts[1][3]:
+        return None
+    quantity = Decimal(str(items[0]["quantity"]))
+    if quantity <= 0 or Decimal(str(items[1]["quantity"])) != quantity:
+        return None
+    buy_legs = [
+        (item, contract)
+        for item, contract in zip(items, contracts, strict=True)
+        if str(item["side"]).upper().startswith("BUY")
+    ]
+    sell_legs = [
+        (item, contract)
+        for item, contract in zip(items, contracts, strict=True)
+        if str(item["side"]).upper().startswith("SELL")
+    ]
+    if len(buy_legs) != 1 or len(sell_legs) != 1:
+        return None
+
+    buy_notional = quantity * Decimal(str(buy_legs[0][0]["fill_price"]))
+    sell_notional = quantity * Decimal(str(sell_legs[0][0]["fill_price"]))
+    net_debit = buy_notional - sell_notional
+    price_kind = "DEBIT" if net_debit >= 0 else "CREDIT"
+    strategy_price = abs(net_debit) / quantity
+    display_strikes = "/".join(
+        _strike_text(item[1][3]) for item in (buy_legs[0], sell_legs[0])
+    )
+    canonical_strikes = "/".join(
+        _strike_text(contract[3])
+        for contract in sorted(contracts, key=lambda contract: contract[3])
+    )
+    display = f"{ticker} {expiry[2:4]}/{expiry[4:6]} {display_strikes}{option_type}"
+    canonical_code = f"US.{ticker}{expiry}{option_type}{canonical_strikes}"
+    record_ids = tuple(record_id for item in items for record_id in item["record_ids"])
+    return {
+        "record_ids": record_ids,
+        "account_ref": items[0]["account_ref"],
+        "broker_order_id": items[0]["broker_order_id"],
+        "instrument_code": canonical_code,
+        "side": "BUY" if net_debit >= 0 else "SELL",
+        "quantity": quantity,
+        "fill_price": strategy_price,
+        "executed_at": max(item["executed_at"] for item in items),
+        "strategy_type": "VERTICAL_SPREAD",
+        "strategy_display": display,
+        "strategy_price_kind": price_kind,
+        "strategy_legs": tuple(
+            MoomooActivityStrategyLeg(
+                instrument_code=str(item["instrument_code"]),
+                side=str(item["side"]),
+                quantity=Decimal(str(item["quantity"])),
+                price=Decimal(str(item["fill_price"])),
+            )
+            for item in items
+        ),
+    }
+
+
 def _group_activity_fills(
     fills: tuple[MoomooActivityFill, ...],
 ) -> tuple[dict[str, Any], ...]:
@@ -253,8 +322,12 @@ def _group_activity_fills(
         butterfly = _combine_butterfly_order(items)
         if butterfly is not None:
             output.append(butterfly)
-        else:
-            output.extend(items)
+            continue
+        vertical = _combine_vertical_order(items)
+        if vertical is not None:
+            output.append(vertical)
+            continue
+        output.extend(items)
     return tuple(sorted(output, key=lambda item: item["executed_at"]))
 
 
@@ -265,7 +338,9 @@ def _round_fee(value: Decimal) -> Decimal:
 def _group_fee(group: dict[str, Any], schedule: MoomooFeeSchedule) -> Decimal:
     quantity = Decimal(str(group["quantity"]))
     price = Decimal(str(group["fill_price"]))
-    is_option = _looks_like_option(str(group["instrument_code"]))
+    is_option = bool(group.get("strategy_type")) or _looks_like_option(
+        str(group["instrument_code"])
+    )
     if is_option:
         fee = max(
             schedule.option_commission_minimum,

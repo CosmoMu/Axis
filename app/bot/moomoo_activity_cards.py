@@ -14,7 +14,7 @@ YELLOW = 0xE2C15B
 RED = 0xE45868
 NEUTRAL = 0x202522
 OPTION_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)$")
-BUTTERFLY_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+(?:/\d+){2,})$")
+MULTI_STRIKE_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+(?:/\d+)+)$")
 CALENDAR_CODE = re.compile(r"^(?:US\.)?([A-Z]+)(\d{6})([CP])(\d+)/(\d{6})([CP])(\d+)$")
 
 
@@ -60,10 +60,14 @@ def _position_instrument(item: dict[str, Any]) -> tuple[str, str]:
                 f"{far_expiry[2:4]}/{far_expiry[4:6]} {near_strike}{near_side}",
                 "日历价差",
             )
-    butterfly = BUTTERFLY_CODE.fullmatch(code)
-    if butterfly is not None:
-        ticker, expiry, side, strikes = butterfly.groups()
-        label = "蝶式" if strategy_type == "BUTTERFLY" else strategy_type
+    multi_strike = MULTI_STRIKE_CODE.fullmatch(code)
+    if multi_strike is not None:
+        ticker, expiry, side, strikes = multi_strike.groups()
+        label = {
+            "BUTTERFLY": "蝶式",
+            "VERTICAL_SPREAD": "垂直价差",
+            "SPREAD": "垂直价差",
+        }.get(strategy_type, strategy_type)
         return f"{ticker} {expiry[2:4]}/{expiry[4:6]} {strikes}{side}", label
     instrument, _ = _instrument(value)
     labels = {
@@ -73,6 +77,8 @@ def _position_instrument(item: dict[str, Any]) -> tuple[str, str]:
         "IRON_CONDOR": "铁鹰式",
         "CONDOR": "鹰式",
         "DIAGONAL_SPREAD": "对角价差",
+        "VERTICAL_SPREAD": "垂直价差",
+        "SPREAD": "垂直价差",
     }
     return instrument, labels.get(strategy_type, "")
 
@@ -169,8 +175,12 @@ def _strategy_event_embed(event: MoomooActivityEvent) -> discord.Embed:
         price_label = "净成本" if event.strategy_price_kind == "DEBIT" else "净收款"
         description = f"**{contracts}**\n### {price_label} {_number(event.price, money=True)} / 组"
         color = GREEN
+    strategy_label = {
+        "BUTTERFLY": "蝶式策略",
+        "VERTICAL_SPREAD": "垂直价差",
+    }.get(event.strategy_type or "", "期权组合")
     embed = discord.Embed(
-        title=f"{action_label} · {heading} 蝶式策略",
+        title=f"{action_label} · {heading} {strategy_label}",
         description=description,
         color=color,
     )
@@ -194,7 +204,7 @@ def _strategy_event_embed(event: MoomooActivityEvent) -> discord.Embed:
 
 
 def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
-    if event.strategy_type == "BUTTERFLY":
+    if event.strategy_type in {"BUTTERFLY", "VERTICAL_SPREAD"}:
         return _strategy_event_embed(event)
     instrument, is_option = _instrument(event.instrument_code)
     unit = "张" if is_option else "股"
@@ -252,7 +262,7 @@ def activity_event_embed(event: MoomooActivityEvent) -> discord.Embed:
 
 
 def activity_event_text(event: MoomooActivityEvent) -> str:
-    if event.strategy_type == "BUTTERFLY":
+    if event.strategy_type in {"BUTTERFLY", "VERTICAL_SPREAD"}:
         heading, contracts = _strategy_identity(event)
         action_label = {
             "BUY": "买入",
@@ -261,8 +271,11 @@ def activity_event_text(event: MoomooActivityEvent) -> str:
             "CLOSE": "清仓",
         }.get(event.action, event.action)
         price_label = "净成本" if event.strategy_price_kind == "DEBIT" else "净收款"
+        strategy_label = (
+            "蝶式策略" if event.strategy_type == "BUTTERFLY" else "垂直价差"
+        )
         return (
-            f"**{action_label} · {heading} 蝶式策略**\n"
+            f"**{action_label} · {heading} {strategy_label}**\n"
             f"{contracts}\n"
             f"{price_label} **{_number(event.price, money=True)} / 组**"
             f" · {_number(event.quantity)}组\n"

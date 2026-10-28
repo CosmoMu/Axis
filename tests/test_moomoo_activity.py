@@ -318,6 +318,60 @@ async def test_butterfly_order_is_published_as_one_strategy_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_vertical_order_is_published_as_one_strategy_event() -> None:
+    database = await make_database()
+    reader = FakeActivityReader(make_snapshot())
+    service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
+    await service.reconcile()
+    executed_at = datetime(2026, 10, 28, 17, 26, 52, 437000, tzinfo=UTC)
+    fills = (
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="vertical-long",
+            broker_order_id="vertical-order",
+            instrument_code="US.SPY261028P770000",
+            side="BUY",
+            quantity=Decimal("1"),
+            fill_price=Decimal("1.63"),
+            executed_at=executed_at,
+        ),
+        ActivityFill(
+            account_ref=ACCOUNT_REF,
+            broker_fill_id="vertical-short",
+            broker_order_id="vertical-order",
+            instrument_code="US.SPY261028P768000",
+            side="SELL_SHORT",
+            quantity=Decimal("1"),
+            fill_price=Decimal("0.96"),
+            executed_at=executed_at,
+        ),
+    )
+    reader.snapshot = make_snapshot(fills=fills)
+    await service.reconcile()
+
+    events = await service.pending_events()
+    assert len(events) == 1
+    event = events[0]
+    assert event.strategy_type == "VERTICAL_SPREAD"
+    assert event.strategy_display == "SPY 10/28 770/768P"
+    assert event.strategy_price_kind == "DEBIT"
+    assert event.action == "BUY"
+    assert event.quantity == Decimal("1")
+    assert event.price == Decimal("0.67")
+    assert len(event.record_ids) == 2
+
+    embed = activity_event_embed(event)
+    assert embed.title == "买入 · SPY 10/28 垂直价差"
+    assert "770/768P" in (embed.description or "")
+    assert "净成本 $0.67 / 组" in (embed.description or "")
+    assert embed.fields[0].value == "**1 组**"
+    assert embed.fields[1].value == "**$67**"
+    assert "买 1×770P" in embed.fields[2].value
+    assert "卖 1×768P" in embed.fields[2].value
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_second_buy_is_add_with_total_position_and_weighted_average() -> None:
     database = await make_database()
     reader = FakeActivityReader(make_snapshot())
@@ -754,6 +808,16 @@ def test_daily_summary_groups_butterfly_and_calendar_positions() -> None:
                     "strategy_type": "CALENDAR_SPREAD",
                     "position_type": "COMBINED",
                 },
+                {
+                    "code": "US.SPY261028P768/770",
+                    "quantity": "1",
+                    "average_cost": "0.67",
+                    "current_price": "0.69",
+                    "unrealized_pnl": "2",
+                    "unrealized_pnl_ratio": "2.99",
+                    "strategy_type": "SPREAD",
+                    "position_type": "COMBINED",
+                },
             ],
         }
     )
@@ -767,6 +831,9 @@ def test_daily_summary_groups_butterfly_and_calendar_positions() -> None:
     assert "1组" in positions
     assert "+$15" in positions
     assert "+5.36%" in positions
+    assert "SPY 10/28 768/770P · 垂直价差" in positions
+    assert "+$2" in positions
+    assert "+2.99%" in positions
 
 
 @pytest.mark.asyncio
