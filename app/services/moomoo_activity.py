@@ -512,20 +512,6 @@ class MoomooActivityService:
                 )
 
             serialized = self._serialize_snapshot(snapshot)
-            observed_et = snapshot.observed_at.astimezone(ET)
-            prior_snapshot = dict(state.latest_snapshot or {})
-            open_date = prior_snapshot.get("daily_open_date")
-            open_accounts = prior_snapshot.get("daily_open_accounts")
-            if (
-                observed_et.time() >= time(9, 29)
-                and observed_et.time() < time(16, 15)
-                and open_date != observed_et.date().isoformat()
-            ):
-                open_date = observed_et.date().isoformat()
-                open_accounts = serialized["accounts"]
-            if open_date and open_accounts:
-                serialized["daily_open_date"] = open_date
-                serialized["daily_open_accounts"] = open_accounts
             state.initialized_at = state.initialized_at or now
             state.last_reconciled_at = now
             state.latest_snapshot = serialized
@@ -753,12 +739,6 @@ class MoomooActivityService:
                         previous_equity[account] = Decimal(str(item["equity"])) - previous_fees.get(
                             account, Decimal("0")
                         )
-            if latest.get("daily_open_date") == session_date.isoformat():
-                previous_equity = {
-                    str(item.get("account")): Decimal(str(item["equity"]))
-                    for item in latest.get("daily_open_accounts", [])
-                    if item.get("account") and item.get("equity") is not None
-                }
             fees_by_account: dict[str, Decimal] = {}
             for group in _group_fills(fills):
                 label = _account_label(str(group["account_ref"]))

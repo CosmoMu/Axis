@@ -32,6 +32,16 @@ later only through `.env`; never commit it.
    submission, cancellation, and rejection alone must not create a Discord message. Do not place the
    order from AXIS.
 
+## Daily summary accounting
+
+- The opening basis for a session is the most recent earlier daily summary's `post_fee_equity`.
+- If an older summary has no stored `post_fee_equity`, AXIS derives it once as that summary's closing
+  equity less the public-rate fees calculated for that prior session.
+- Same-day morning/OpenD snapshots never replace the prior post-fee close. This keeps the next day's
+  return denominator aligned with the balance available after the broker deducts the prior day's fees.
+- If no earlier summary exists for an account, AXIS shows the available closing balance but does not
+  fabricate an opening balance or daily return.
+
 ## Failure behavior
 
 - Any Moomoo account/order/fill/position read error fails the cycle; it never triggers a write.

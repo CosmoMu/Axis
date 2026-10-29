@@ -17,7 +17,7 @@ from app.bot.moomoo_activity_cards import (
     daily_summary_messages,
 )
 from app.db.base import Base
-from app.db.models import GuildConfig, MoomooActivityDailySummary
+from app.db.models import GuildConfig, MoomooActivityDailySummary, MoomooActivityState
 from app.db.session import Database
 from app.domain.personal_execution import PersonalBrokerEnvironment
 from app.integrations.moomoo_activity import (
@@ -492,6 +492,17 @@ async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() 
     service = MoomooActivityService(database, reader, guild_id=GUILD_ID)  # type: ignore[arg-type]
     await service.reconcile()
     async with database.session() as session:
+        state = await session.get(MoomooActivityState, GUILD_ID)
+        assert state is not None
+        state.latest_snapshot = {
+            **state.latest_snapshot,
+            # Historical runtime snapshots may still contain this field. It must
+            # never override the prior close after fees.
+            "daily_open_date": "2026-10-07",
+            "daily_open_accounts": [
+                {"account": "账户 …cdef", "equity": "950.00"}
+            ],
+        }
         session.add(
             MoomooActivityDailySummary(
                 guild_id=GUILD_ID,
@@ -513,6 +524,8 @@ async def test_daily_summary_deducts_public_fees_and_rolls_net_equity_forward() 
     claim = await service.prepare_daily_summary(date(2026, 10, 7))
     assert claim is not None
     account = claim.snapshot["accounts"][0]
+    # The opening basis is the prior close ($900) less its $1.30 fee, not the
+    # same-day morning snapshot ($950).
     assert account["opening_equity"] == "898.70"
     assert account["commission"] == "2.31"
     assert account["pre_fee_equity"] == "1000.00"
